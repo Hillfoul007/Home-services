@@ -4,8 +4,8 @@ import LaundryCart from "../components/LaundryCart";
 import EnhancedBookingHistory from "@/components/EnhancedBookingHistory";
 import PhoneOtpAuthModal from "@/components/PhoneOtpAuthModal";
 import BookingConfirmed from "@/components/BookingConfirmed";
-
-
+import { BookingService } from "@/services/bookingService";
+import { bookingHelpers } from "@/integrations/mongodb/bookingHelpers";
 
 import LaundrifySplashLoader from "@/components/LaundrifySplashLoader";
 import { DVHostingSmsService } from "../services/dvhostingSmsService";
@@ -748,12 +748,7 @@ const getDetailedLocationInfo = async (
     );
 
     try {
-      // Import both booking helpers and service
-      const { BookingService } = await import("../services/bookingService");
-      const { bookingHelpers } = await import(
-        "../integrations/mongodb/bookingHelpers"
-      );
-
+      // Access booking helpers and service
       const bookingService = BookingService.getInstance();
 
       // Prepare services array for MongoDB with quantities
