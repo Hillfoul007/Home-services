@@ -1,0 +1,38 @@
+// This file is intended to be applied from android/app/build.gradle
+// It defines signingConfigs and configures release buildType to use the signing config
+// Do NOT commit real passwords into the repo. Use project properties or CI environment variables.
+
+ext {
+  releaseStoreFile = project.findProperty('MYAPP_RELEASE_STORE_FILE') ?: file('../../keystore/keystore.jks')
+  releaseStorePassword = project.findProperty('MYAPP_RELEASE_STORE_PASSWORD') ?: System.getenv('MYAPP_RELEASE_STORE_PASSWORD')
+  releaseKeyAlias = project.findProperty('MYAPP_RELEASE_KEY_ALIAS') ?: System.getenv('MYAPP_RELEASE_KEY_ALIAS')
+  releaseKeyPassword = project.findProperty('MYAPP_RELEASE_KEY_PASSWORD') ?: System.getenv('MYAPP_RELEASE_KEY_PASSWORD')
+}
+
+android {
+    signingConfigs {
+        release {
+            if (releaseStoreFile) {
+                storeFile releaseStoreFile
+            }
+            if (releaseStorePassword) {
+                storePassword releaseStorePassword
+            }
+            if (releaseKeyAlias) {
+                keyAlias releaseKeyAlias
+            }
+            if (releaseKeyPassword) {
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            // Keep minify disabled by default for simplicity; enable if you configure R8/ProGuard rules
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}

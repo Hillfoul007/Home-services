@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rider Login Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; }
+        .test-btn { background: #C46DD8; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin: 10px; cursor: pointer; }
+        .result { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; border: 1px solid #dee2e6; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Rider Login Fix Test</h1>
+    <p>Testing the fixed rider login with multiple fallback modes</p>
+    
+    <button class="test-btn" onclick="testRiderRoutes()">Test Rider Routes</button>
+    <button class="test-btn" onclick="testLogin()">Test Login Fix</button>
+    <button class="test-btn" onclick="testMultipleCredentials()">Test Multiple Credentials</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            document.getElementById('results').appendChild(div);
+        }
+
+        async function testRiderRoutes() {
+            log('🔍 Testing rider routes...');
+            try {
+                const response = await fetch('https://backend-vaxf.onrender.com/api/riders/test');
+                const result = await response.json();
+                if (response.ok) {
+                    log(`✅ Rider routes working: ${result.message}`, 'success');
+                    log(`Demo credentials: ${JSON.stringify(result.demoCredentials)}`, 'info');
+                } else {
+                    log(`❌ Rider routes failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLogin() {
+            log('🔐 Testing login with demo credentials...');
+            try {
+                const response = await fetch('https://backend-vaxf.onrender.com/api/riders/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: '9876543210', password: 'password123' })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ Login successful: ${result.rider.name} (${result.mode})`, 'success');
+                    log(`Token: ${result.token ? 'Generated' : 'Missing'}`, 'success');
+                    log(`Message: ${result.message}`, 'info');
+                } else {
+                    log(`❌ Login failed: ${result.message}`, 'error');
+                    log(`Details: ${JSON.stringify(result)}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMultipleCredentials() {
+            const credentials = [
+                { phone: '9876543210', password: 'password123' },
+                { phone: '9876543211', password: 'test123' },
+                { phone: '1234567890', password: 'random' }
+            ];
+            
+            log('🧪 Testing multiple credentials...');
+            
+            for (const cred of credentials) {
+                try {
+                    const response = await fetch('https://backend-vaxf.onrender.com/api/riders/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(cred)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        log(`✅ ${cred.phone}: ${result.rider.name} (${result.mode})`, 'success');
+                    } else {
+                        log(`❌ ${cred.phone}: ${result.message}`, 'error');
+                    }
+                } catch (error) {
+                    log(`❌ ${cred.phone}: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Auto-run basic test
+        setTimeout(testRiderRoutes, 1000);
+    </script>
+</body>
+</html>

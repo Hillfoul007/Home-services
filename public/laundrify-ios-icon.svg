@@ -1,0 +1,28 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple background gradient for iOS compatibility -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#C46DD8"/>
+      <stop offset="100%" style="stop-color:#F36BAF"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  
+  <!-- Simple white "L" letter for Laundrify -->
+  <g transform="translate(128, 128)">
+    <!-- Main L shape -->
+    <path d="M50 50 L50 200 L180 200 L180 240 L10 240 L10 50 Z" 
+          fill="white" 
+          stroke="none"/>
+  </g>
+  
+  <!-- Small laundry symbol (simplified washing machine icon) -->
+  <g transform="translate(320, 320)">
+    <!-- Small circle representing a washing machine -->
+    <circle cx="40" cy="40" r="35" fill="white" opacity="0.9"/>
+    <circle cx="40" cy="40" r="20" fill="none" stroke="#C46DD8" stroke-width="4"/>
+    <circle cx="40" cy="40" r="6" fill="#C46DD8"/>
+  </g>
+</svg>

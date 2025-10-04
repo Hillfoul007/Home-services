@@ -1,0 +1,62 @@
+/* Mobile touch improvements for better UX */
+
+/* Enhanced touch targets for mobile buttons */
+.mobile-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+}
+
+.mobile-touch {
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Improved spacing for mobile header icons */
+.mobile-header-icons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mobile-header-icons .mobile-button {
+  border-radius: 12px;
+}
+
+/* Better touch feedback */
+@media (hover: none) and (pointer: coarse) {
+  .mobile-button:active {
+    transform: scale(0.95);
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* Ensure minimum touch target sizes on mobile */
+@media (max-width: 768px) {
+  button {
+    min-height: 44px;
+  }
+
+  .text-xs {
+    font-size: 14px; /* Slightly larger for better readability */
+  }
+
+  .booking-service-item {
+    padding: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+
+  .service-price-display {
+    font-size: 16px;
+    font-weight: 600;
+    color: #059669;
+  }
+}

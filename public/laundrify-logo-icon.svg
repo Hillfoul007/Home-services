@@ -1,0 +1,47 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with brand colors -->
+  <defs>
+    <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#C46DD8;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#F36BAF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C46DD8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#backgroundGradient)"/>
+  
+  <!-- Logo container - centered -->
+  <g transform="translate(56, 126)">
+    <!-- White background circle for logo -->
+    <rect x="0" y="0" width="400" height="260" rx="40" fill="white" opacity="0.95"/>
+    
+    <!-- Laundrify Logo Text -->
+    <text x="200" y="80" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#C46DD8" text-anchor="middle">Laundrify</text>
+    
+    <!-- Subtitle -->
+    <text x="200" y="120" font-family="Arial, sans-serif" font-size="20" fill="#666" text-anchor="middle">Quick clean &amp; convenient</text>
+    
+    <!-- Laundry icon -->
+    <g transform="translate(160, 140)">
+      <!-- Washing machine drum -->
+      <circle cx="40" cy="40" r="35" fill="none" stroke="#C46DD8" stroke-width="4"/>
+      <circle cx="40" cy="40" r="25" fill="none" stroke="#C46DD8" stroke-width="2"/>
+      <circle cx="40" cy="40" r="15" fill="none" stroke="#C46DD8" stroke-width="1"/>
+      
+      <!-- Water drops -->
+      <circle cx="20" cy="20" r="3" fill="#4FC3F7" opacity="0.8"/>
+      <circle cx="60" cy="25" r="2" fill="#4FC3F7" opacity="0.6"/>
+      <circle cx="65" cy="55" r="3" fill="#4FC3F7" opacity="0.8"/>
+      <circle cx="15" cy="60" r="2" fill="#4FC3F7" opacity="0.6"/>
+    </g>
+  </g>
+  
+  <!-- Sparkle effects -->
+  <g opacity="0.7">
+    <circle cx="450" cy="100" r="6" fill="white"/>
+    <circle cx="80" cy="420" r="4" fill="white"/>
+    <circle cx="430" cy="420" r="5" fill="white"/>
+    <circle cx="60" cy="100" r="3" fill="white"/>
+  </g>
+</svg>

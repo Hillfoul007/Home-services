@@ -1,0 +1,88 @@
+name: Build Android AAB
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=2048"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Java (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install Android SDK and build tools
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: default
+          arch: x86_64
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_DVHOSTING_API_KEY: ${{ secrets.VITE_DVHOSTING_API_KEY }}
+        run: npm run build
+
+      - name: Install Capacitor Android (dev deps)
+        run: npm i -D @capacitor/cli @capacitor/core @capacitor/android
+
+      - name: Ensure Android platform (add if missing)
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android || true
+          fi
+
+      - name: Copy web assets to Android
+        run: npx cap copy android && npx cap sync android
+
+      - name: Prepare keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          mkdir -p android/keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/keystore/keystore.jks
+
+      - name: Build Android AAB
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          cd android || exit 1
+          # Use gradlew wrapper to build release bundle. If you prefer Gradle properties, configure signing in android/app/build.gradle
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew bundleRelease -Pandroid.injected.signing.store.file=../keystore/keystore.jks \
+              -Pandroid.injected.signing.store.password="$RELEASE_STORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$RELEASE_KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$RELEASE_KEY_PASSWORD"
+          else
+            echo "Gradle wrapper not found. Ensure the Android project exists and has gradlew."
+            exit 1
+          fi
+
+      - name: Upload AAB artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab

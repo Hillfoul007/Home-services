@@ -1,0 +1,12 @@
+# Netlify redirects for client-side routing
+# Redirect all non-API routes to index.html for React Router
+
+# API routes should pass through to backend
+/api/*  https://backend-vaxf.onrender.com/api/:splat  200
+
+# Ensure CSS and JS files are served with correct MIME types
+/*.css   /assets/*.css   200
+/*.js    /assets/*.js    200
+
+# All other routes should serve the React app
+/*    /index.html   200

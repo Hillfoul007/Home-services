@@ -1,0 +1,84 @@
+/* Mobile Verification Button Fixes */
+
+.mobile-button {
+  /* Ensure buttons are properly touchable on mobile */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-touch {
+  /* Improve touch responsiveness */
+  min-height: 44px; /* iOS recommended minimum touch target */
+  min-width: 44px;
+}
+
+/* Fix for verification popup on mobile */
+@media (max-width: 768px) {
+  [data-radix-dialog-content] {
+    /* Ensure dialog is properly positioned on mobile */
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    max-height: 95vh !important;
+    max-width: 95vw !important;
+    width: auto !important;
+    margin: 0 !important;
+    z-index: 999999 !important; /* Very high z-index for mobile */
+    background: white !important;
+    border-radius: 8px !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  [data-radix-dialog-overlay] {
+    /* Ensure overlay covers entire screen */
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 999998 !important; /* High z-index for mobile */
+    background: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(4px) !important;
+  }
+
+  /* Force dialog to appear on mobile */
+  [data-state="open"][data-radix-dialog-content] {
+    animation: mobile-dialog-in 0.3s ease-out !important;
+  }
+
+  /* Mobile dialog animation */
+  @keyframes mobile-dialog-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  
+  /* Make verification buttons more prominent on mobile */
+  .verification-button-mobile {
+    background: #ef4444 !important;
+    color: white !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+    animation: pulse 2s infinite !important;
+  }
+  
+  .verification-button-mobile:active {
+    background: #dc2626 !important;
+    transform: scale(0.95) !important;
+  }
+}
+
+/* Animation for verification alert */
+@keyframes verification-alert {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.verification-alert {
+  animation: verification-alert 1.5s ease-in-out infinite;
+}

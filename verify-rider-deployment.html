@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rider API Deployment Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 3px; margin: 10px 0; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🚀 Rider API Deployment Verification</h1>
+    
+    <div class="test-section info">
+        <h3>📋 Test Plan</h3>
+        <p>This page will test if the rider routes are deployed and working on both local and production backends.</p>
+        <ul>
+            <li>Test rider routes availability</li>
+            <li>Test login with demo credentials</li>
+            <li>Verify CORS configuration</li>
+            <li>Check error handling</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>🔍 Test 1: Rider Routes Availability</h3>
+        <button onclick="testRiderRoutes()">Test Rider Routes</button>
+        <div id="routes-result" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔐 Test 2: Login with Demo Credentials</h3>
+        <button onclick="testLogin()">Test Login (9876543210 / password123)</button>
+        <div id="login-result" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Test 3: Production vs Local Comparison</h3>
+        <button onclick="testBothEnvironments()">Compare Environments</button>
+        <div id="comparison-result" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>✅ Quick Fix: Update API Configuration</h3>
+        <button onclick="suggestFix()">Get Fix Instructions</button>
+        <div id="fix-result" class="log"></div>
+    </div>
+
+    <script>
+        const log = (elementId, message, type = 'info') => {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            element.innerHTML += `[${timestamp}] ${message}\n`;
+            
+            // Update section styling based on results
+            const section = element.closest('.test-section');
+            section.classList.remove('success', 'error', 'info');
+            if (type === 'success') section.classList.add('success');
+            else if (type === 'error') section.classList.add('error');
+            else section.classList.add('info');
+        };
+
+        const testRiderRoutes = async () => {
+            const resultId = 'routes-result';
+            document.getElementById(resultId).innerHTML = '';
+            log(resultId, '🔍 Testing rider routes availability...');
+            
+            const endpoints = [
+                'https://backend-vaxf.onrender.com/api/riders/test',
+                'http://localhost:3001/api/riders/test'
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    log(resultId, `Testing: ${endpoint}`);
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        log(resultId, `✅ SUCCESS: ${endpoint}`, 'success');
+                        log(resultId, `Response: ${JSON.stringify(result, null, 2)}`);
+                    } else {
+                        log(resultId, `❌ FAILED: ${endpoint} - ${response.status} ${response.statusText}`, 'error');
+                    }
+                } catch (error) {
+                    log(resultId, `❌ ERROR: ${endpoint} - ${error.message}`, 'error');
+                }
+                log(resultId, '');
+            }
+        };
+
+        const testLogin = async () => {
+            const resultId = 'login-result';
+            document.getElementById(resultId).innerHTML = '';
+            log(resultId, '🔐 Testing login with demo credentials...');
+            
+            const credentials = { phone: '9876543210', password: 'password123' };
+            const endpoints = [
+                'https://backend-vaxf.onrender.com/api/riders/login',
+                'http://localhost:3001/api/riders/login'
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    log(resultId, `Testing login: ${endpoint}`);
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(credentials)
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        log(resultId, `✅ LOGIN SUCCESS: ${endpoint}`, 'success');
+                        log(resultId, `Rider: ${result.rider.name} (${result.rider.status})`);
+                        if (result.message) log(resultId, `Message: ${result.message}`);
+                    } else {
+                        const errorText = await response.text();
+                        log(resultId, `❌ LOGIN FAILED: ${endpoint} - ${response.status}`, 'error');
+                        log(resultId, `Error: ${errorText}`);
+                    }
+                } catch (error) {
+                    log(resultId, `❌ ERROR: ${endpoint} - ${error.message}`, 'error');
+                }
+                log(resultId, '');
+            }
+        };
+
+        const testBothEnvironments = async () => {
+            const resultId = 'comparison-result';
+            document.getElementById(resultId).innerHTML = '';
+            log(resultId, '📊 Comparing production vs local environments...');
+            
+            const tests = [
+                { name: 'Health Check', endpoint: '/api/health' },
+                { name: 'Rider Test', endpoint: '/api/riders/test' },
+                { name: 'Admin Routes', endpoint: '/api/admin/test' }
+            ];
+            
+            for (const test of tests) {
+                log(resultId, `\n--- ${test.name} ---`);
+                
+                // Test production
+                try {
+                    const prodResponse = await fetch(`https://backend-vaxf.onrender.com${test.endpoint}`);
+                    log(resultId, `Production: ${prodResponse.status} ${prodResponse.statusText}`);
+                } catch (e) {
+                    log(resultId, `Production: ERROR - ${e.message}`);
+                }
+                
+                // Test local
+                try {
+                    const localResponse = await fetch(`http://localhost:3001${test.endpoint}`);
+                    log(resultId, `Local: ${localResponse.status} ${localResponse.statusText}`);
+                } catch (e) {
+                    log(resultId, `Local: ERROR - ${e.message}`);
+                }
+            }
+        };
+
+        const suggestFix = () => {
+            const resultId = 'fix-result';
+            document.getElementById(resultId).innerHTML = '';
+            
+            log(resultId, '🔧 Deployment Fix Instructions:', 'info');
+            log(resultId, '');
+            log(resultId, '1. Verify backend deployment includes rider routes:');
+            log(resultId, '   - backend/routes/riders.js');
+            log(resultId, '   - backend/models/Rider.js');
+            log(resultId, '   - Route registration in server-laundry.js');
+            log(resultId, '');
+            log(resultId, '2. Check environment variables on production:');
+            log(resultId, '   - JWT_SECRET');
+            log(resultId, '   - MONGODB_URI');
+            log(resultId, '');
+            log(resultId, '3. Test the deployment:');
+            log(resultId, '   curl https://backend-vaxf.onrender.com/api/riders/test');
+            log(resultId, '');
+            log(resultId, '4. If still failing, check logs on Render dashboard');
+            log(resultId, '');
+            log(resultId, '✅ Current demo credentials that should work:');
+            log(resultId, '   Phone: 9876543210');
+            log(resultId, '   Password: password123');
+        };
+
+        // Auto-run basic test on page load
+        window.onload = () => {
+            setTimeout(testRiderRoutes, 1000);
+        };
+    </script>
+</body>
+</html>

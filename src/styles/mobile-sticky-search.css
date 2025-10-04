@@ -1,0 +1,39 @@
+/* Mobile Sticky Controls at Top */
+@media (max-width: 768px) {
+  .mobile-sticky-search {
+    /* Search bar styling within sticky container */
+    background: rgba(31, 41, 55, 0.95);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+  }
+
+  .mobile-sticky-categories {
+    /* Category buttons styling within sticky container */
+    background: transparent;
+    backdrop-filter: blur(8px);
+  }
+
+  /* Ensure scrollable content has proper spacing */
+  .mobile-services-content {
+    margin-top: 16px;
+    padding-top: 8px;
+  }
+
+  /* Improve scrolling performance */
+  .mobile-content-container {
+    scroll-behavior: smooth;
+    transform: translateZ(0); /* Hardware acceleration */
+  }
+
+  /* Better visual separation */
+  .mobile-sticky-search::before {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+}

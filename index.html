@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
+    />
+    <!-- Additional viewport meta for PWA -->
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <style>
+      /* Additional CSS to prevent zoom on double tap */
+      * {
+        touch-action: manipulation;
+      }
+      input,
+      textarea,
+      select {
+        font-size: 16px !important;
+      }
+    </style>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#C46DD8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Laundrify" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="fast2sms" content="Ra0DFfgNTPzaOwBAFpfvhTObIJ1qmVtN" />
+
+    <!-- iOS PWA Icon Cache Busting -->
+    <meta name="apple-mobile-web-app-version" content="4.0" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-TileColor" content="#C46DD8" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+
+    <!-- Additional iOS PWA metadata -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-touch-fullscreen" content="yes" />
+
+    <!-- Permissions Policy for Camera Access -->
+    <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*, geolocation=*" />
+
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple Touch Icons - Use exact Laundrify icon -->
+    <link rel="apple-touch-icon" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="72x72" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="96x96" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/laundrify-exact-icon.svg?v=4" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/laundrify-exact-icon.svg?v=4" />
+
+    <!-- Meta Tags -->
+    <meta
+      name="description"
+      content="Quick clean & convenient thats laundrify"
+    />
+    <meta
+      name="keywords"
+      content="laundry, dry cleaning, wash, iron, doorstep service"
+    />
+    <meta name="author" content="Laundrify" />
+
+    <!-- Open Graph -->
+    <meta
+      property="og:title"
+      content="Laundrify - Quick clean & convenient"
+    />
+    <meta
+      property="og:description"
+      content="Quick clean & convenient thats laundrify"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/laundrify-icon.svg" />
+
+    <title>Laundrify - Quick clean & convenient</title>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=%VITE_GOOGLE_ANALYTICS_ID%"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', '%VITE_GOOGLE_ANALYTICS_ID%');
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Fix FullStory namespace conflict -->
+    <script>
+      window["_fs_namespace"] = "FS";
+    </script>
+
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Cache Buster for URL Corruption Issues -->
+    <script>
+      // Check if URL looks corrupted (contains unexpected characters at end)
+      const currentURL = window.location.href;
+      const hasCorruptedURL = /[a-f0-9]{32}-[a-f0-9]{20}\.fly\.dev[a-zA-Z0-9]+/.test(currentURL);
+
+      if (hasCorruptedURL || localStorage.getItem('force-cache-clear') === 'true') {
+        console.log('🚨 Detected corrupted URL or forced cache clear - running cache buster');
+        const script = document.createElement('script');
+        script.src = '/cache-buster.js';
+        document.head.appendChild(script);
+        localStorage.removeItem('force-cache-clear');
+      }
+    </script>
+
+    <!-- Register Service Worker -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", async () => {
+          try {
+            // Check for URL corruption first
+            const currentURL = window.location.href;
+            const isCorrupted = /[a-f0-9]{32}-[a-f0-9]{20}\.fly\.dev[a-zA-Z0-9]+/.test(currentURL);
+
+            if (isCorrupted) {
+              console.log('🚨 URL corruption detected, skipping SW registration');
+              return;
+            }
+
+            // Unregister existing service workers if needed
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            if (registrations.length > 0) {
+              console.log('🧹 Cleaning up existing service workers...');
+              for (let registration of registrations) {
+                await registration.unregister();
+                console.log("SW unregistered: ", registration);
+              }
+            }
+
+            // Only register SW if we have a valid manifest
+            if (document.querySelector('link[rel="manifest"]')) {
+              const registration = await navigator.serviceWorker.register("/sw.js", {
+                updateViaCache: 'none' // Prevent caching issues
+              });
+              console.log("SW registered: ", registration);
+
+              // Handle updates
+              registration.addEventListener('updatefound', () => {
+                console.log('🔄 Service worker update found');
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('🔄 New service worker ready, reloading...');
+                    window.location.reload();
+                  }
+                });
+              });
+
+              await navigator.serviceWorker.ready;
+              console.log("SW ready");
+            }
+          } catch (error) {
+            console.log("SW registration failed: ", error);
+            // If SW fails, clear cache and reload
+            if (error.message.includes('corrupted') || error.message.includes('invalid')) {
+              localStorage.setItem('force-cache-clear', 'true');
+              window.location.reload();
+            }
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

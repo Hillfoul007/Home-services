@@ -1,0 +1,6 @@
+# Example gradle.properties (DO NOT commit real secrets)
+# You can copy this to android/gradle.properties for local testing only.
+MYAPP_RELEASE_STORE_FILE=../keystore/keystore.jks
+MYAPP_RELEASE_STORE_PASSWORD=change_me
+MYAPP_RELEASE_KEY_ALIAS=laundrify-key
+MYAPP_RELEASE_KEY_PASSWORD=change_me

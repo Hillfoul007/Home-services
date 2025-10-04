@@ -1,0 +1,599 @@
+/* Mobile-specific fixes for better UX */
+
+/* Fix status bar and viewport issues on mobile */
+body {
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  background-color: #ffffff;
+}
+
+/* Fix white line on top for mobile devices with notches */
+@supports (padding: max(0px)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Additional mobile viewport fixes */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fix for PWA status bar */
+.App {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  background-color: #ffffff;
+}
+
+/* Prevent zoom on input focus */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important;
+    transform: none !important;
+  }
+}
+
+/* Ensure consistent button sizing and prevent enlargement */
+.mobile-button {
+  transition: none !important;
+  transform: none !important;
+}
+
+.mobile-button:active {
+  transform: scale(0.95) !important;
+}
+
+/* Ensure ADD buttons are consistent */
+.service-add-button {
+  height: 32px !important;
+  min-height: 32px !important;
+  transition: background-color 0.2s ease !important;
+  transform: none !important;
+}
+
+.service-add-button:hover {
+  transform: none !important;
+  scale: 1 !important;
+}
+
+.service-add-button:active {
+  transform: scale(0.95) !important;
+}
+
+/* Mobile responsive button alignment */
+@media (max-width: 640px) {
+  /* Service cards in grid layout */
+  .service-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  /* Ensure all service cards have consistent height */
+  .service-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .service-card .card-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  .service-card .card-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .service-card .card-actions {
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  /* Force all buttons to align at the same bottom position */
+  .service-add-button,
+  .quantity-controls {
+    margin-top: auto !important;
+  }
+
+  /* Ensure minimum height for content areas to force button alignment */
+  .service-card .card-details {
+    min-height: 140px;
+    justify-content: space-between;
+  }
+
+  .service-card .service-info {
+    flex: 1;
+  }
+
+  .service-card .price-badge-container {
+    margin: 8px 0;
+  }
+}
+
+/* Touch-friendly button sizing */
+.mobile-touch {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent text selection on buttons */
+.mobile-button,
+.service-add-button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Improve touch targets */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Fix iOS input styling */
+input,
+textarea,
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Prevent horizontal scroll */
+.mobile-container {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
+/* Safe area handling for devices with notches */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Fix for modal z-index issues on mobile */
+.mobile-modal {
+  z-index: 10000 !important;
+  position: fixed !important;
+  pointer-events: auto !important;
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Ensure modal overlay is visible and interactive */
+.mobile-modal [data-radix-dialog-overlay] {
+  z-index: 9998 !important;
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure modal content is above overlay */
+.mobile-modal [data-radix-dialog-content] {
+  z-index: 9999 !important;
+  position: fixed !important;
+  pointer-events: auto !important;
+}
+
+/* Prevent body scroll when modal is open */
+.modal-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Fix invisible modal issue on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .mobile-modal {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  .mobile-modal [data-radix-dialog-overlay] {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+    touch-action: manipulation;
+  }
+
+  .mobile-modal [data-radix-dialog-content] {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+    touch-action: manipulation;
+  }
+}
+
+/* Specific fixes for LocationUnavailableModal */
+[data-radix-dialog-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  pointer-events: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+[data-radix-dialog-content] {
+  position: relative !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+/* Ensure modal shows on mobile Safari and other problematic browsers */
+.modal-open {
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+
+/* Force all dialogs to have proper z-index and visibility */
+[role="dialog"] {
+  z-index: 10000 !important;
+  position: fixed !important;
+  pointer-events: auto !important;
+}
+
+/* Prevent background scrolling when modal is open */
+body.modal-open {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Voice search button animation */
+.voice-search-listening {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Enhanced mobile-first responsive design */
+@media (max-width: 480px) {
+  /* Mobile navigation enhancements */
+  .mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    z-index: 1000;
+    padding: env(safe-area-inset-bottom) 0 0 0;
+  }
+
+  /* Card spacing for mobile */
+  .mobile-card {
+    margin: 8px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Form improvements */
+  .mobile-form-container {
+    padding: 16px;
+    margin-bottom: 80px; /* Space for fixed bottom nav */
+  }
+
+  .mobile-input {
+    height: 48px;
+    font-size: 16px;
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+
+  /* Button enhancements */
+  .mobile-primary-button {
+    height: 48px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    width: 100%;
+  }
+
+  .mobile-secondary-button {
+    height: 44px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  /* List items */
+  .mobile-list-item {
+    padding: 16px;
+    border-bottom: 1px solid #f3f4f6;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Modal improvements */
+  .mobile-modal-content {
+    margin: 16px;
+    border-radius: 16px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Header improvements */
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 100;
+    border-bottom: 1px solid #e5e7eb;
+    padding: env(safe-area-inset-top) 16px 16px 16px;
+  }
+
+  /* Spacing utilities */
+  .mobile-spacing-sm {
+    margin: 8px;
+  }
+  .mobile-spacing-md {
+    margin: 16px;
+  }
+  .mobile-spacing-lg {
+    margin: 24px;
+  }
+
+  .mobile-padding-sm {
+    padding: 8px;
+  }
+  .mobile-padding-md {
+    padding: 16px;
+  }
+  .mobile-padding-lg {
+    padding: 24px;
+  }
+}
+
+/* Tablet responsive design */
+@media (min-width: 481px) and (max-width: 768px) {
+  .tablet-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .tablet-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+}
+
+/* Desktop responsive design */
+@media (min-width: 769px) {
+  .desktop-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+  }
+
+  .desktop-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .mobile-card {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+
+  .mobile-nav {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .mobile-header {
+    background: #1f2937;
+    border-color: #374151;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .mobile-button,
+  .mobile-primary-button {
+    border: 2px solid currentColor;
+  }
+
+  .mobile-card {
+    border: 1px solid currentColor;
+  }
+}
+
+/* Quick Pickup Modal specific fixes */
+[data-quick-pickup-modal] {
+  max-height: 90vh !important;
+  overflow: hidden !important;
+}
+
+[data-quick-pickup-modal] form {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+[data-quick-pickup-modal] .safe-area-bottom {
+  padding-bottom: max(1.5rem, calc(1rem + env(safe-area-inset-bottom, 0px))) !important;
+}
+
+/* Ensure Quick Pickup button is always visible on mobile */
+@media (max-width: 768px) {
+  [data-quick-pickup-modal] {
+    top: 2vh !important;
+    height: auto !important;
+    max-height: 96vh !important;
+    margin-bottom: max(2rem, env(safe-area-inset-bottom, 1rem)) !important;
+  }
+
+  [data-quick-pickup-modal] .flex-shrink-0:last-child {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: #f9fafb !important;
+    z-index: 10 !important;
+    border-top: 1px solid #e5e7eb !important;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1) !important;
+    padding-bottom: max(2rem, calc(1.5rem + env(safe-area-inset-bottom, 1rem))) !important;
+  }
+
+  /* Ensure adequate spacing from viewport bottom */
+  [data-quick-pickup-modal] {
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+
+  /* Force proper button container height */
+  [data-quick-pickup-modal] .safe-area-bottom {
+    min-height: 80px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+
+  /* Override minHeight for small screens */
+  @media (max-width: 640px) {
+    [data-quick-pickup-modal] .safe-area-bottom {
+      min-height: 0px !important;
+    }
+  }
+
+  /* Handle mobile viewport height variations */
+  [data-quick-pickup-modal] {
+    max-height: calc(100vh - 4vh) !important;
+    max-height: calc(100dvh - 4vh) !important; /* Dynamic viewport height for mobile */
+  }
+
+  /* Ensure button is never below fold */
+  @supports (height: 100dvh) {
+    [data-quick-pickup-modal] {
+      max-height: 96dvh !important;
+    }
+  }
+}
+
+/* Prevent Select components from causing page scroll */
+[data-radix-select-content] {
+  scroll-margin: 0 !important;
+  scroll-behavior: auto !important;
+}
+
+[data-radix-select-trigger] {
+  scroll-margin: 0 !important;
+}
+
+/* Prevent focus-related scrolling */
+[data-radix-select-trigger]:focus {
+  scroll-margin: 0 !important;
+  scroll-behavior: auto !important;
+}
+
+/* Ensure Select portal doesn't affect page scroll */
+[data-radix-portal] {
+  scroll-margin: 0 !important;
+}
+
+/* Prevent automatic scroll to focused elements in selects */
+[data-radix-select-content] [data-radix-select-item] {
+  scroll-margin: 0 !important;
+}
+
+/* Override any scroll behavior from Radix components */
+[data-radix-select-content],
+[data-radix-select-viewport],
+[data-radix-select-item] {
+  scroll-behavior: auto !important;
+  scroll-margin: 0 !important;
+  scroll-snap-align: none !important;
+}
+
+/* Comprehensive Select scroll prevention */
+[data-radix-select-trigger],
+[data-radix-select-trigger]:focus,
+[data-radix-select-trigger]:focus-visible {
+  scroll-margin: 0 !important;
+  scroll-behavior: auto !important;
+}
+
+/* Prevent any scroll when Select components are focused */
+[data-radix-select-trigger]:focus-within {
+  scroll-margin: 0 !important;
+}
+
+/* Additional scroll prevention for mobile Safari */
+@media (max-width: 768px) {
+  [data-radix-select-trigger],
+  [data-radix-select-trigger]:focus {
+    transform: translateZ(0); /* Force GPU acceleration to prevent scroll jump */
+    will-change: auto;
+  }
+}
