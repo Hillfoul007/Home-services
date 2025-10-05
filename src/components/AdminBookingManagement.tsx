@@ -772,7 +772,7 @@ const AdminBookingManagement: React.FC = () => {
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-gray-500">Assign Rider</Label>
                       <Select
-                        value={booking.rider || ""}
+                        value={booking.rider ?? "__unassigned__"}
                         onValueChange={(value) => handleAssignmentChange(booking, "rider", value)}
                         disabled={isAssignmentUpdating}
                       >
@@ -780,7 +780,7 @@ const AdminBookingManagement: React.FC = () => {
                           <SelectValue placeholder="Select rider" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
+                          <SelectItem value="__unassigned__">Unassigned</SelectItem>
                           {DEFAULT_RIDER_LIST.map((rider) => (
                             <SelectItem key={rider} value={rider}>
                               {rider}
@@ -793,7 +793,7 @@ const AdminBookingManagement: React.FC = () => {
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-gray-500">Assign Vendor</Label>
                       <Select
-                        value={booking.vendor || ""}
+                        value={booking.vendor ?? "__unassigned__"}
                         onValueChange={(value) => handleAssignmentChange(booking, "vendor", value)}
                         disabled={isAssignmentUpdating}
                       >
@@ -801,7 +801,7 @@ const AdminBookingManagement: React.FC = () => {
                           <SelectValue placeholder="Select vendor" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
+                          <SelectItem value="__unassigned__">Unassigned</SelectItem>
                           {DEFAULT_VENDOR_LIST.map((vendor) => (
                             <SelectItem key={vendor} value={vendor}>
                               {vendor}
@@ -1190,13 +1190,13 @@ const AdminBookingManagement: React.FC = () => {
                 <div>
                   <Label>Assign Rider</Label>
                   <Select
-                    value={editingBooking.rider || ""}
+                    value={editingBooking.rider ?? "__unassigned__"}
                     onValueChange={(value) =>
                       setEditingBooking((prev) =>
                         prev
                           ? {
                               ...prev,
-                              rider: value === "" ? null : value,
+                              rider: value === "__unassigned__" ? null : value,
                             }
                           : prev,
                       )
@@ -1206,7 +1206,7 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {DEFAULT_RIDER_LIST.map((rider) => (
                         <SelectItem key={rider} value={rider}>
                           {rider}
@@ -1218,13 +1218,13 @@ const AdminBookingManagement: React.FC = () => {
                 <div>
                   <Label>Assign Vendor</Label>
                   <Select
-                    value={editingBooking.vendor || ""}
+                    value={editingBooking.vendor ?? "__unassigned__"}
                     onValueChange={(value) =>
                       setEditingBooking((prev) =>
                         prev
                           ? {
                               ...prev,
-                              vendor: value === "" ? null : value,
+                              vendor: value === "__unassigned__" ? null : value,
                             }
                           : prev,
                       )
@@ -1234,7 +1234,7 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {DEFAULT_VENDOR_LIST.map((vendor) => (
                         <SelectItem key={vendor} value={vendor}>
                           {vendor}
