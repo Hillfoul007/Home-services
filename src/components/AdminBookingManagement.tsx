@@ -473,11 +473,26 @@ const AdminBookingManagement: React.FC = () => {
   const updateBookingStatus = async (bookingId: string, newStatus: string) => {
     const normalizedStatus = normalizeStatus(newStatus);
 
+    // Map frontend order-flow statuses back to backend-compatible statuses
+    const NEW_TO_LEGACY_MAP: Record<string, string> = {
+      created: "pending",
+      pickup_assigned: "confirmed",
+      pickup_completed: "in_progress",
+      delivered_to_vendor: "in_progress",
+      ready_for_delivery: "in_progress",
+      delivery_assigned: "in_progress",
+      completed: "completed",
+      cancelled: "cancelled",
+    };
+
+    const backendStatus = NEW_TO_LEGACY_MAP[normalizedStatus] || normalizedStatus;
+
     try {
       setMutationFlag(bookingId, "status", true);
-      const response = await apiClient.updateBookingStatus(bookingId, normalizedStatus);
+      const response = await apiClient.updateBookingStatus(bookingId, backendStatus);
 
       if (response.data) {
+        // Keep showing the new normalized status in the admin UI
         applyBookingUpdate(bookingId, { status: normalizedStatus });
         toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
       } else {
