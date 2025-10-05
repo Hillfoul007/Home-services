@@ -1288,26 +1288,41 @@ const AdminBookingManagement: React.FC = () => {
                 <div className="space-y-2">
                   {editingBooking.item_prices && editingBooking.item_prices.length > 0 ? (
                     editingBooking.item_prices.map((item, index) => (
-                      <div key={index} className="grid grid-cols-3 items-center gap-2">
+                      <div key={index} className="grid grid-cols-4 items-center gap-2">
                         <Input
                           value={item.service_name || item.name || ""}
                           onChange={(event) => handleItemPriceChange(index, "service_name", event.target.value)}
                         />
                         <Input
                           type="number"
-                          value={item.quantity ?? 0}
+                          step="0.1"
+                          value={String(item.quantity ?? 0)}
                           onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
                         />
                         <Input
                           type="number"
-                          value={item.unit_price ?? item.price ?? 0}
+                          step="0.01"
+                          value={String(item.unit_price ?? item.price ?? 0)}
                           onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
                         />
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm">₹{(item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price}</div>
+                          <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)}>
+                            Remove
+                          </Button>
+                        </div>
                       </div>
                     ))
                   ) : (
                     <div className="text-sm text-gray-500">No itemized prices available for this order.</div>
                   )}
+
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={addItemToEditing}>Add Item</Button>
+                    <div className="ml-auto text-sm font-medium">
+                      Subtotal: ₹{computeEditingTotals(editingBooking).total}
+                    </div>
+                  </div>
                 </div>
               </div>
 
