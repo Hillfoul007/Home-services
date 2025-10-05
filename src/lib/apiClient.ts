@@ -96,12 +96,14 @@ class EnhancedApiClient {
       } else {
         // If baseURL is relative (starts with '/'), resolve against current origin
         if (this.baseURL.startsWith("/")) {
-          url = new URL(endpoint.startsWith("/") ? endpoint : `/${endpoint}`, window.location.origin + this.baseURL).toString();
+          // Build absolute URL preserving the base path (eg '/api')
+          url = `${window.location.origin}${this.baseURL.replace(/\/$/, "")}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
         } else if (this.baseURL.startsWith("http") || this.baseURL.startsWith("//")) {
-          url = new URL(endpoint.startsWith("/") ? endpoint : `/${endpoint}`, this.baseURL).toString();
+          // Base is absolute URL
+          url = `${this.baseURL.replace(/\/$/, "")}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
         } else {
-          // Fallback: treat base as relative
-          url = new URL(endpoint.startsWith("/") ? endpoint : `/${endpoint}`, window.location.origin + (this.baseURL ? `/${this.baseURL}` : '')).toString();
+          // Fallback: treat base as relative path
+          url = `${window.location.origin}/${this.baseURL.replace(/\/$/, "")}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
         }
       }
     } catch (err) {
