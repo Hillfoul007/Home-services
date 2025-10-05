@@ -88,9 +88,26 @@ class EnhancedApiClient {
       ...requestOptions
     } = options;
 
-    const url = endpoint.startsWith("http")
-      ? endpoint
-      : `${this.baseURL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+    // Build absolute URL robustly to avoid malformed requests like '/api, https://...'
+    let url: string;
+    try {
+      if (endpoint.startsWith("http")) {
+        url = endpoint;
+      } else {
+        // If baseURL is relative (starts with '/'), resolve against current origin
+        if (this.baseURL.startsWith("/")) {
+          url = new URL(endpoint.startsWith("/") ? endpoint : `/${endpoint}`, window.location.origin + this.baseURL).toString();
+        } else if (this.baseURL.startsWith("http") || this.baseURL.startsWith("//")) {
+          url = new URL(endpoint.startsWith("/") ? endpoint : `/${endpoint}`, this.baseURL).toString();
+        } else {
+          // Fallback: treat base as relative
+          url = new URL(endpoint.startsWith("/") ? endpoint : `/${endpoint}`, window.location.origin + (this.baseURL ? `/${this.baseURL}` : '')).toString();
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ Failed to construct absolute URL, falling back to simple concatenation:", err);
+      url = endpoint.startsWith("/") ? `${this.baseURL}${endpoint}` : `${this.baseURL}/${endpoint}`;
+    }
 
     console.log(`🔧 API Client URL Construction:`, {
       endpoint,
