@@ -30,7 +30,6 @@ const config = {
         "https://laundrify-app-uqkw.onrender.com",
         "https://testversion.onrender.com",
         "https://cleancarepro-1-p2oc.onrender.com",
-        "https://backend-vaxf.onrender.com",
         "https://cleancare-pro-production.up.railway.app",
         "https://cleancare-pro-api-production-129e.up.railway.app",
 
