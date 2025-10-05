@@ -31,7 +31,15 @@ class EnhancedApiClient {
   private requestQueue: Map<string, Promise<any>> = new Map();
 
   constructor(baseURL: string) {
-    this.baseURL = (baseURL || "").replace(/\/$/, ""); // Remove trailing slash, handle undefined
+    // Defensive sanitize: sometimes envs or build systems inject multiple URLs separated by commas
+    let sanitized = (baseURL || "").replace(/\/$/, "").trim();
+    if (sanitized.includes(",")) {
+      console.warn("🔧 API baseURL contains multiple entries, using first one:", sanitized);
+      sanitized = sanitized.split(/[\,\s]+/)[0];
+    }
+
+    // Ensure relative base like '/api' stays as-is, absolute URLs kept
+    this.baseURL = sanitized;
     this.token = localStorage.getItem("auth_token");
   }
 
