@@ -2,7 +2,7 @@
 # Redirect all non-API routes to index.html for React Router
 
 # API routes should pass through to backend
-/api/*  https://backend-vaxf.onrender.com/api/:splat  200
+/api/*  https://home-services-5alb.onrender.com/api/:splat  200
 
 # Ensure CSS and JS files are served with correct MIME types
 /*.css   /assets/*.css   200
