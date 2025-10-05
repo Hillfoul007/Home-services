@@ -692,165 +692,149 @@ const AdminBookingManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
-        {filteredBookings.map((booking) => {
-          const mutation = mutationState[booking._id] || {};
-          const isStatusUpdating = Boolean(mutation.status);
-          const isAssignmentUpdating = Boolean(mutation.assignment);
-
-          return (
-            <Card key={booking._id} className="transition-shadow hover:shadow-md">
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium">#{booking.custom_order_id}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">{booking.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">{booking.phone}</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-gray-600">
-                      <MapPin className="mt-[2px] h-4 w-4" />
-                      <span className="line-clamp-2">{booking.address}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(booking.scheduled_date)}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-4 w-4" />
-                      {booking.scheduled_time || "-"}
-                    </div>
-                    {booking.delivery_date && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="h-4 w-4" />
-                        Delivery: {formatDate(booking.delivery_date)}
+      <div className="space-y-6">
+        {/* Bucket A: Pickup & Vendor Flow */}
+        <div>
+          <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
+          <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
+          <div className="mt-3 space-y-4">
+            {filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed","delivered_to_vendor"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed","delivered_to_vendor"].includes(normalizeStatus(b.status))).map(booking => (
+                <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    {/* reuse existing booking card layout by calling a small render helper - inline for simplicity */}
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.phone}</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="space-y-2">
-                    <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                      {getStatusIcon(booking.status)}
-                      <span>{getStatusLabel(booking.status)}</span>
-                    </Badge>
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">Created {formatDate(booking.created_at)}</div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-700">Rider:</span> {booking.rider || "Unassigned"}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-700">Vendor:</span> {booking.vendor || "Unassigned"}
-                    </div>
-                  </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(booking.scheduled_date)}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Clock className="h-4 w-4" />
+                          {booking.scheduled_time || "-"}
+                        </div>
+                      </div>
 
-                  <div className="flex flex-col gap-3">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setViewingBooking(booking);
-                          setShowViewDialog(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingBooking({ ...booking });
-                          setShowEditDialog(true);
-                        }}
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </Button>
+                      <div className="space-y-2">
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-500">Order Status</Label>
-                      <Select
-                        value={normalizeStatus(booking.status)}
-                        onValueChange={(value) => updateBookingStatus(booking._id, value)}
-                        disabled={isStatusUpdating}
-                      >
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ORDER_FLOW_STEPS.map((step) => (
-                            <SelectItem key={step.value} value={step.value}>
-                              {step.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="py-6 text-center">
+                  <p className="text-gray-600">No orders in Pickup/Vendor flow</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Bucket B: Ready for Delivery */}
+        <div>
+          <h3 className="text-lg font-semibold">Ready for Delivery</h3>
+          <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+          <div className="mt-3 space-y-4">
+            {filteredBookings.filter(b => ["ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).map(booking => (
+                <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.name}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(booking.scheduled_date)}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-500">Assign Rider</Label>
-                      <Select
-                        value={booking.rider ?? "__unassigned__"}
-                        onValueChange={(value) => handleAssignmentChange(booking, "rider", value)}
-                        disabled={isAssignmentUpdating}
-                      >
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select rider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                          {DEFAULT_RIDER_LIST.map((rider) => (
-                            <SelectItem key={rider} value={rider}>
-                              {rider}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="py-6 text-center">
+                  <p className="text-gray-600">No orders ready for delivery</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-500">Assign Vendor</Label>
-                      <Select
-                        value={booking.vendor ?? "__unassigned__"}
-                        onValueChange={(value) => handleAssignmentChange(booking, "vendor", value)}
-                        disabled={isAssignmentUpdating}
-                      >
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select vendor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                          {DEFAULT_VENDOR_LIST.map((vendor) => (
-                            <SelectItem key={vendor} value={vendor}>
-                              {vendor}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-
-                <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
-              </CardContent>
-            </Card>
-          );
-        })}
-
+        {/* Global empty state if no bookings at all */}
         {filteredBookings.length === 0 && (
           <Card>
             <CardContent className="py-8 text-center">
