@@ -187,10 +187,7 @@ const AdminUserBooking: React.FC = () => {
       return;
     }
 
-    if (bookingData.services.length === 0) {
-      toast.error("Please add at least one service");
-      return;
-    }
+    // Allow proceeding without services; defaults will be applied
 
     if (!bookingData.scheduled_date || !bookingData.scheduled_time) {
       toast.error("Please select pickup date and time");
@@ -248,13 +245,20 @@ const AdminUserBooking: React.FC = () => {
         }
       }
 
+      const hasServices = bookingData.services.length > 0;
+      const servicesList = hasServices
+        ? bookingData.services.map(service => `${service.name} x${service.quantity} (₹${service.price}/${service.unit})`)
+        : ["Unspecified (to be updated later)"];
+      const subtotal = hasServices ? calculateTotal() : 0;
+      const finalAmt = Math.max(0, subtotal - (bookingData.discount_amount || 0));
+
       const bookingPayload = {
         customer_id: finalCustomerId,
         name: finalUserName,
         phone: finalUserPhone,
-        service: bookingData.service || bookingData.services[0]?.name || "Laundry Service",
+        service: bookingData.service || bookingData.services[0]?.name || "Unspecified",
         service_type: "laundry",
-        services: bookingData.services.map(service => `${service.name} x${service.quantity} (₹${service.price}/${service.unit})`),
+        services: servicesList,
         scheduled_date: bookingData.scheduled_date,
         scheduled_time: bookingData.scheduled_time,
         delivery_date: bookingData.delivery_date || bookingData.scheduled_date,
@@ -262,11 +266,12 @@ const AdminUserBooking: React.FC = () => {
         provider_name: "Laundrify",
         address: bookingData.address,
         additional_details: bookingData.special_instructions,
-        total_price: calculateTotal(),
-        discount_amount: bookingData.discount_amount,
-        final_amount: calculateFinalAmount(),
+        total_price: subtotal,
+        discount_amount: bookingData.discount_amount || 0,
+        final_amount: finalAmt,
         special_instructions: bookingData.special_instructions,
         created_by_admin: true,
+        status: "pending",
       };
 
       console.log("Submitting booking:", bookingPayload);
@@ -621,7 +626,7 @@ const AdminUserBooking: React.FC = () => {
       </div>
 
       {/* Booking Details */}
-      {selectedUser && bookingData.services.length > 0 && (
+      {selectedUser && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
