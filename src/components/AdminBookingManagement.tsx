@@ -402,7 +402,11 @@ const AdminBookingManagement: React.FC = () => {
       const response = await apiClient.adminRequest<{ bookings: Booking[] }>("/admin/bookings?limit=100");
 
       if (response.data) {
-        const processedBookings = (response.data.bookings || []).map((booking: any) => {
+        // Handle bucketed response from backend
+        const rawA = (response.data.bucketA || []);
+        const rawB = (response.data.bucketB || []);
+
+        const process = (booking: any) => {
           const customer = booking.customer_id || {};
           const customerName =
             booking.customerName ||
@@ -423,10 +427,17 @@ const AdminBookingManagement: React.FC = () => {
             services: booking.services || [],
             status: normalizeStatus(booking.status),
           } as Booking;
-        });
+        };
 
-        setBookings(processedBookings);
-        setFilteredBookings(processedBookings);
+        const processedA = rawA.map(process);
+        const processedB = rawB.map(process);
+
+        setBucketA(processedA);
+        setBucketB(processedB);
+
+        const combined = [...processedA, ...processedB];
+        setBookings(combined);
+        setFilteredBookings(combined);
       } else if (response.error) {
         const fallbackResponse = await apiClient.request<{ bookings: Booking[] }>("/bookings?limit=100");
 
