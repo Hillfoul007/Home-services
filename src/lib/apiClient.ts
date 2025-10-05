@@ -160,33 +160,28 @@ class EnhancedApiClient {
 
         const response = await this.fetchWithTimeout(url, options);
 
-        // Clone the response to avoid "body stream already read" errors
-        const responseClone = response.clone();
-
-        // Handle different response types
-        const contentType = response.headers.get("content-type");
-        let data: any;
-
+        // Read body once as ArrayBuffer, then decode. Avoid clone and double reads.
+        const contentType = response.headers.get("content-type") || "";
+        let responseText: string | null = null;
         try {
-          if (contentType?.includes("application/json")) {
-            data = await response.json();
-          } else {
-            const text = await response.text();
-            data = text ? { message: text } : null;
-          }
-        } catch (bodyReadError) {
-          console.warn("Failed to read response body, trying clone:", bodyReadError);
-          try {
-            // Try to read from the cloned response
-            if (contentType?.includes("application/json")) {
-              data = await responseClone.json();
-            } else {
-              const text = await responseClone.text();
-              data = text ? { message: text } : null;
+          const buffer = await response.arrayBuffer();
+          responseText = new TextDecoder("utf-8").decode(buffer);
+        } catch (e) {
+          console.warn("Failed to read response body:", e);
+          responseText = null;
+        }
+
+        let data: any = null;
+        if (responseText) {
+          if (contentType.includes("application/json")) {
+            try {
+              data = JSON.parse(responseText);
+            } catch (e) {
+              console.warn("Failed to parse JSON response:", e);
+              data = { message: responseText };
             }
-          } catch (cloneError) {
-            console.warn("Failed to read response from clone:", cloneError);
-            data = null;
+          } else {
+            data = { message: responseText };
           }
         }
 

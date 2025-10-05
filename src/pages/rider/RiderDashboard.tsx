@@ -593,17 +593,13 @@ export default function RiderDashboard() {
       })
     });
 
-    // Try to parse JSON, otherwise fall back to text for better diagnostics
+    // Read response body once and parse safely
+    const responseText = await response.text();
     let responseData: any = null;
     try {
-      // Use clone to avoid consuming the response body twice
-      responseData = await response.clone().json();
-    } catch (e) {
-      try {
-        responseData = await response.text();
-      } catch (e2) {
-        responseData = null;
-      }
+      responseData = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      responseData = responseText || null;
     }
 
     toast.dismiss(`order-action-${orderId}`);
@@ -618,12 +614,7 @@ export default function RiderDashboard() {
       await fetchAssignedOrders();
     } else {
       // Enhanced diagnostics for debugging server 500 with empty body
-      let rawText = '';
-      try {
-        rawText = await response.clone().text();
-      } catch (e) {
-        rawText = '';
-      }
+      const rawText = responseText;
       console.error('Order action failed:', {
         status: response.status,
         statusText: response.statusText,
