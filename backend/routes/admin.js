@@ -436,6 +436,54 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// Create or select user (admin)
+router.post("/users", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, full_name, phone, user_type = "customer", address } = req.body || {};
+
+    if (!phone || !String(phone).match(/^\d{6,15}$/)) {
+      return res.status(400).json({ error: "Valid phone number is required" });
+    }
+
+    // Try to find existing user by phone
+    let user = await User.findOne({ phone });
+    if (user) {
+      return res.status(200).json({ message: "User already exists", user });
+    }
+
+    // Create new user
+    user = new User({
+      phone,
+      user_type,
+      address: address || "",
+      full_name: full_name || name || "",
+      name: name || full_name || "",
+      is_verified: true,
+      phone_verified: true,
+    });
+
+    await user.save();
+
+    return res.status(201).json({ message: "User created successfully", user });
+  } catch (error) {
+    console.error("❌ Error creating user by admin:", error);
+
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.phone) {
+      // Race condition: user created by another request
+      const existing = await User.findOne({ phone: req.body.phone });
+      if (existing) {
+        return res.status(200).json({ message: "User already exists", user: existing });
+      }
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ error: "Validation error", details: error.errors });
+    }
+
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Get user details for admin
 router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
   try {
