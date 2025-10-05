@@ -1,5 +1,5 @@
 // Enhanced API client with better error handling and CORS support
-import { config, getApiUrl } from "@/config/env";
+import { config, getApiUrl, shouldUseBackend } from "@/config/env";
 
 // Force fresh evaluation of API URL
 const API_BASE_URL = getApiUrl();
