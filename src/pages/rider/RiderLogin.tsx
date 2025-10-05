@@ -246,7 +246,7 @@ export default function RiderLogin() {
             <strong>Mode:</strong> {import.meta.env.MODE} | <strong>Dev:</strong> {import.meta.env.DEV ? 'Yes' : 'No'}
           </p>
 
-          {getRiderApiUrl('/login').includes('backend-vaxf.onrender.com') ? (
+          {getRiderApiUrl('/login').includes('home-services-5alb.onrender.com') ? (
             <div className="bg-green-50 p-2 rounded mt-2 border border-green-200">
               <p className="text-green-800 text-xs font-medium rider-text-small-mobile">✅ Production Backend</p>
               <p className="text-green-700 text-xs rider-text-small-mobile">
