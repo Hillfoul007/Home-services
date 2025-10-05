@@ -767,31 +767,13 @@ class EnhancedApiClient {
 }
 
 // Create and export the enhanced API client instance
-const getCorrectApiUrl = () => {
-  const hostname = window.location.hostname;
-  const isLocalhost = hostname.includes("localhost") || hostname.includes("127.0.0.1");
-  const isDevelopment = import.meta.env.DEV;
-  const isRenderCom = hostname.includes("onrender.com");
-
-  // In development mode with localhost, use relative paths for vite proxy
-  if (isDevelopment && isLocalhost) {
-    return "/api";
-  }
-
-  // For any hosted environment (including render.com), use full backend URL
-  if (isRenderCom || !isLocalhost) {
-    return "https://backend-vaxf.onrender.com/api";
-  }
-
-  // Fallback for localhost
-  return "/api";
-};
-
-const CORRECT_API_URL = getCorrectApiUrl();
-console.log(`🎯 API Client forced URL:`, {
+// Use centralized API URL detection from config (respects VITE_API_BASE_URL and environment rules)
+const CORRECT_API_URL = API_BASE_URL || getApiUrl();
+console.log(`🎯 API Client base URL resolution:`, {
   hostname: window.location.hostname,
-  apiUrl: CORRECT_API_URL,
-  originalApiBaseUrl: API_BASE_URL
+  resolvedApiUrl: CORRECT_API_URL,
+  originalApiBaseUrl: API_BASE_URL,
+  shouldUseBackend: shouldUseBackend(),
 });
 
 export const apiClient = new EnhancedApiClient(CORRECT_API_URL);
