@@ -26,7 +26,7 @@ const config = {
         // Primary production URLs - EXACT MATCHES
         "https://www.laundrify.online",
         "https://laundrify.online", // Without www
-        "https://laundrify-app-5su7.onrender.com",
+        "https://laundrify-app-uqkw.onrender.com",
         "https://testversion.onrender.com",
         "https://cleancarepro-1-p2oc.onrender.com",
         "https://backend-vaxf.onrender.com",
