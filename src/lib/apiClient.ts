@@ -160,33 +160,36 @@ class EnhancedApiClient {
 
         const response = await this.fetchWithTimeout(url, options);
 
-        // Clone the response to avoid "body stream already read" errors
-        const responseClone = response.clone();
+        // Handle different response types safely, avoid clone errors if body already used
+        const contentType = response.headers.get("content-type") || "";
+        let data: any = null;
 
-        // Handle different response types
-        const contentType = response.headers.get("content-type");
-        let data: any;
-
-        try {
-          if (contentType?.includes("application/json")) {
-            data = await response.json();
-          } else {
-            const text = await response.text();
-            data = text ? { message: text } : null;
-          }
-        } catch (bodyReadError) {
-          console.warn("Failed to read response body, trying clone:", bodyReadError);
+        // If the body is already used, we cannot read it or clone it
+        if ((response as any).bodyUsed) {
+          console.warn("⚠️ Response body already used; skipping body parsing.");
+          data = null;
+        } else {
           try {
-            // Try to read from the cloned response
-            if (contentType?.includes("application/json")) {
-              data = await responseClone.json();
+            if (contentType.includes("application/json")) {
+              data = await response.json();
             } else {
-              const text = await responseClone.text();
+              const text = await response.text();
               data = text ? { message: text } : null;
             }
-          } catch (cloneError) {
-            console.warn("Failed to read response from clone:", cloneError);
-            data = null;
+          } catch (bodyReadError) {
+            console.warn("Failed to read response body directly, attempting clone:", bodyReadError);
+            try {
+              const responseClone = response.clone();
+              if (contentType.includes("application/json")) {
+                data = await responseClone.json();
+              } else {
+                const text = await responseClone.text();
+                data = text ? { message: text } : null;
+              }
+            } catch (cloneError) {
+              console.warn("Failed to clone/read response:", cloneError);
+              data = null;
+            }
           }
         }
 
