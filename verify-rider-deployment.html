@@ -73,7 +73,7 @@
             log(resultId, '🔍 Testing rider routes availability...');
             
             const endpoints = [
-                'https://backend-vaxf.onrender.com/api/riders/test',
+                'https://home-services-5alb.onrender.com/api/riders/test',
                 'http://localhost:3001/api/riders/test'
             ];
             
@@ -106,7 +106,7 @@
             
             const credentials = { phone: '9876543210', password: 'password123' };
             const endpoints = [
-                'https://backend-vaxf.onrender.com/api/riders/login',
+                'https://home-services-5alb.onrender.com/api/riders/login',
                 'http://localhost:3001/api/riders/login'
             ];
             
@@ -152,7 +152,7 @@
                 
                 // Test production
                 try {
-                    const prodResponse = await fetch(`https://backend-vaxf.onrender.com${test.endpoint}`);
+                    const prodResponse = await fetch(`https://home-services-5alb.onrender.com${test.endpoint}`);
                     log(resultId, `Production: ${prodResponse.status} ${prodResponse.statusText}`);
                 } catch (e) {
                     log(resultId, `Production: ERROR - ${e.message}`);
@@ -184,7 +184,7 @@
             log(resultId, '   - MONGODB_URI');
             log(resultId, '');
             log(resultId, '3. Test the deployment:');
-            log(resultId, '   curl https://backend-vaxf.onrender.com/api/riders/test');
+            log(resultId, '   curl https://home-services-5alb.onrender.com/api/riders/test');
             log(resultId, '');
             log(resultId, '4. If still failing, check logs on Render dashboard');
             log(resultId, '');
