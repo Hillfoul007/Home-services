@@ -1304,7 +1304,7 @@ const AdminBookingManagement: React.FC = () => {
 
                     try {
                       const payload: any = {
-                        status: normalizeStatus(editingBooking.status),
+                        status: mapToBackendStatus(normalizeStatus(editingBooking.status)),
                         final_amount: editingBooking.final_amount,
                         scheduled_date: editingBooking.scheduled_date,
                         scheduled_time: editingBooking.scheduled_time,
