@@ -62,7 +62,7 @@ const RiderImageDisplay: React.FC<{ src: string; alt: string }> = ({ src, alt })
       return `/api${imagePath}`;
     } else {
       // In production/hosted, use direct backend URL
-      return `https://backend-vaxf.onrender.com${imagePath}`;
+      return `https://home-services-5alb.onrender.com${imagePath}`;
     }
   };
 
@@ -168,7 +168,7 @@ const getAdminApiUrl = (endpoint: string): string => {
     return `/api/admin${endpoint}`;
   } else if (isRenderCom || isLaundrifyDomain || !isLocalhost) {
     // Any hosted environment - use backend server
-    const backendUrl = 'https://backend-vaxf.onrender.com/api/admin' + endpoint;
+    const backendUrl = 'https://home-services-5alb.onrender.com/api/admin' + endpoint;
     console.log('🌐 Using backend server for admin API:', backendUrl);
     return backendUrl;
   }
@@ -226,7 +226,7 @@ export default function AdminRiderManagement() {
 
   // Debug vendor state changes
   useEffect(() => {
-    console.log('🏪 Vendor state debug:', {
+    console.log('��� Vendor state debug:', {
       vendorCount: recommendedVendors.length,
       vendors: recommendedVendors.map(v => ({ name: v.name, distance: v.distance })),
       loadingVendors
