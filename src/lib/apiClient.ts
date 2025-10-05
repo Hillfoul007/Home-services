@@ -160,17 +160,15 @@ class EnhancedApiClient {
 
         const response = await this.fetchWithTimeout(url, options);
 
-        // Safely attempt to read body without throwing if already consumed by wrappers
+        // Read body once as ArrayBuffer, then decode. Avoid clone and double reads.
         const contentType = response.headers.get("content-type") || "";
         let responseText: string | null = null;
         try {
-          responseText = await response.clone().text();
-        } catch (e1) {
-          try {
-            responseText = await response.text();
-          } catch (e2) {
-            responseText = null;
-          }
+          const buffer = await response.arrayBuffer();
+          responseText = new TextDecoder("utf-8").decode(buffer);
+        } catch (e) {
+          console.warn("Failed to read response body:", e);
+          responseText = null;
         }
 
         let data: any = null;
