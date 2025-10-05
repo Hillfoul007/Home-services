@@ -547,7 +547,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleAssignmentChange = (booking: Booking, field: "rider" | "vendor", value: string) => {
-    const formattedValue = value === "" ? null : value;
+    const formattedValue = value === "__unassigned__" ? null : value;
 
     if ((booking[field] ?? null) === formattedValue) {
       return;
