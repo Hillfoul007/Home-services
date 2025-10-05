@@ -562,20 +562,18 @@ const AdminBookingManagement: React.FC = () => {
 
   const handleItemPriceChange = (index: number, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
     setEditingBooking((prev) => {
-      if (!prev?.item_prices) {
-        return prev;
-      }
+      if (!prev) return prev;
 
-      const currentItem = prev.item_prices[index] || {};
-      const nextItems = prev.item_prices.map((item, itemIndex) => (itemIndex === index ? { ...item } : item));
-      const nextItem = { ...currentItem } as ItemPrice;
+      const currentItems = prev.item_prices || [];
+      const nextItems = currentItems.map((item, i) => (i === index ? { ...item } : { ...item }));
+      const nextItem = { ...(nextItems[index] || {}) } as ItemPrice;
 
       if (field === "service_name") {
         nextItem.service_name = rawValue;
       }
 
       if (field === "quantity") {
-        const parsedQuantity = parseInt(rawValue, 10);
+        const parsedQuantity = parseFloat(rawValue);
         nextItem.quantity = Number.isFinite(parsedQuantity) ? parsedQuantity : 0;
       }
 
@@ -584,20 +582,41 @@ const AdminBookingManagement: React.FC = () => {
         nextItem.unit_price = Number.isFinite(parsedPrice) ? parsedPrice : 0;
       }
 
-      const quantity = nextItem.quantity ?? currentItem.quantity ?? 0;
-      const unitPrice =
-        field === "unit_price"
-          ? nextItem.unit_price ?? nextItem.price ?? 0
-          : nextItem.unit_price ?? currentItem.unit_price ?? currentItem.price ?? 0;
+      const quantity = nextItem.quantity ?? 0;
+      const unitPrice = nextItem.unit_price ?? nextItem.price ?? 0;
 
-      nextItem.total_price = (quantity || 0) * (unitPrice || 0);
+      nextItem.total_price = +(Number(quantity || 0) * Number(unitPrice || 0)).toFixed(2);
       nextItems[index] = nextItem;
 
       return {
         ...prev,
         item_prices: nextItems,
-      };
+      } as Booking;
     });
+  };
+
+  const addItemToEditing = () => {
+    setEditingBooking((prev) => {
+      if (!prev) return prev;
+      const nextItems = Array.isArray(prev.item_prices) ? [...prev.item_prices] : [];
+      nextItems.push({ service_name: "", quantity: 0, unit_price: 0, total_price: 0 });
+      return { ...prev, item_prices: nextItems } as Booking;
+    });
+  };
+
+  const removeItemFromEditing = (index: number) => {
+    setEditingBooking((prev) => {
+      if (!prev) return prev;
+      const nextItems = (prev.item_prices || []).filter((_, i) => i !== index);
+      return { ...prev, item_prices: nextItems } as Booking;
+    });
+  };
+
+  const computeEditingTotals = (bookingData: Booking | null) => {
+    if (!bookingData) return { total: 0, final: 0 };
+    const items = bookingData.item_prices || [];
+    const subtotal = items.reduce((s, it) => s + (Number(it.total_price) || 0), 0);
+    return { total: +(subtotal).toFixed(2), final: +(subtotal).toFixed(2) };
   };
 
   if (loading) {
