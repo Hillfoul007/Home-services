@@ -166,6 +166,22 @@ const normalizeStatus = (status: string) => {
   return LEGACY_STATUS_MAP[normalized] || normalized;
 };
 
+const NEW_TO_LEGACY_MAP: Record<string, string> = {
+  created: "pending",
+  pickup_assigned: "confirmed",
+  pickup_completed: "in_progress",
+  delivered_to_vendor: "in_progress",
+  ready_for_delivery: "in_progress",
+  delivery_assigned: "in_progress",
+  completed: "completed",
+  cancelled: "cancelled",
+};
+
+const mapToBackendStatus = (status: string) => {
+  const normalized = status?.toLowerCase?.().replace(/\s+/g, "_") || status;
+  return NEW_TO_LEGACY_MAP[normalized] || normalized;
+};
+
 const getStatusLabel = (status: string) => {
   const normalized = normalizeStatus(status);
   const match = ORDER_FLOW_STEPS.find((step) => step.value === normalized);
@@ -473,19 +489,7 @@ const AdminBookingManagement: React.FC = () => {
   const updateBookingStatus = async (bookingId: string, newStatus: string) => {
     const normalizedStatus = normalizeStatus(newStatus);
 
-    // Map frontend order-flow statuses back to backend-compatible statuses
-    const NEW_TO_LEGACY_MAP: Record<string, string> = {
-      created: "pending",
-      pickup_assigned: "confirmed",
-      pickup_completed: "in_progress",
-      delivered_to_vendor: "in_progress",
-      ready_for_delivery: "in_progress",
-      delivery_assigned: "in_progress",
-      completed: "completed",
-      cancelled: "cancelled",
-    };
-
-    const backendStatus = NEW_TO_LEGACY_MAP[normalizedStatus] || normalizedStatus;
+    const backendStatus = mapToBackendStatus(normalizedStatus);
 
     try {
       setMutationFlag(bookingId, "status", true);
