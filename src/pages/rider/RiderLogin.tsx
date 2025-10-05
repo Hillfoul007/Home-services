@@ -32,7 +32,7 @@ const getRiderApiUrl = (endpoint: string): string => {
     return `/api/riders${endpoint}`;
   } else if (isRenderCom || isLaundrifyDomain || !isLocalhost) {
     // Any hosted environment - use backend server
-    const backendUrl = 'https://backend-vaxf.onrender.com/api/riders' + endpoint;
+    const backendUrl = 'https://home-services-5alb.onrender.com/api/riders' + endpoint;
     console.log('🌐 Using backend server for rider API:', backendUrl);
     return backendUrl;
   }
@@ -246,7 +246,7 @@ export default function RiderLogin() {
             <strong>Mode:</strong> {import.meta.env.MODE} | <strong>Dev:</strong> {import.meta.env.DEV ? 'Yes' : 'No'}
           </p>
 
-          {getRiderApiUrl('/login').includes('backend-vaxf.onrender.com') ? (
+          {getRiderApiUrl('/login').includes('home-services-5alb.onrender.com') ? (
             <div className="bg-green-50 p-2 rounded mt-2 border border-green-200">
               <p className="text-green-800 text-xs font-medium rider-text-small-mobile">✅ Production Backend</p>
               <p className="text-green-700 text-xs rider-text-small-mobile">
