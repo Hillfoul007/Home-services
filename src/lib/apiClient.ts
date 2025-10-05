@@ -160,19 +160,31 @@ class EnhancedApiClient {
 
         const response = await this.fetchWithTimeout(url, options);
 
-        // Read body once, then parse
-        const contentType = response.headers.get("content-type");
-        const responseText = await response.text();
-        let data: any = null;
-        if (contentType?.includes("application/json")) {
+        // Safely attempt to read body without throwing if already consumed by wrappers
+        const contentType = response.headers.get("content-type") || "";
+        let responseText: string | null = null;
+        try {
+          responseText = await response.clone().text();
+        } catch (e1) {
           try {
-            data = responseText ? JSON.parse(responseText) : null;
-          } catch (e) {
-            console.warn("Failed to parse JSON response:", e);
-            data = responseText ? { message: responseText } : null;
+            responseText = await response.text();
+          } catch (e2) {
+            responseText = null;
           }
-        } else {
-          data = responseText ? { message: responseText } : null;
+        }
+
+        let data: any = null;
+        if (responseText) {
+          if (contentType.includes("application/json")) {
+            try {
+              data = JSON.parse(responseText);
+            } catch (e) {
+              console.warn("Failed to parse JSON response:", e);
+              data = { message: responseText };
+            }
+          } else {
+            data = { message: responseText };
+          }
         }
 
         if (!response.ok) {
