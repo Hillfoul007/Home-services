@@ -314,11 +314,26 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       });
     }
 
+    // Define new order-flow buckets
+    const BUCKET_A = ["created", "pickup_assigned", "pickup_completed", "delivered_to_vendor"];
+    const BUCKET_B = ["ready_for_delivery", "delivery_assigned", "in_progress"]; // 'completed' will be removed from UI
+
+    // By default return only relevant statuses (exclude completed/cancelled)
+    const relevantStatuses = [...BUCKET_A, ...BUCKET_B];
+
     let query = {};
 
-    // Status filter
+    // If a specific status filter is provided, respect it
     if (status && status !== "all") {
-      query.status = status;
+      // Allow comma-separated status filters
+      if (status.includes(",")) {
+        const arr = status.split(",").map((s) => s.trim());
+        query.status = { $in: arr };
+      } else {
+        query.status = status;
+      }
+    } else {
+      query.status = { $in: relevantStatuses };
     }
 
     // Customer filter
@@ -326,7 +341,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       query.customer_id = customer_id;
     }
 
-    // Date range filter
+    // Date range filter (created_at)
     if (start_date || end_date) {
       query.created_at = {};
       if (start_date) query.created_at.$gte = new Date(start_date);
@@ -345,20 +360,41 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       ];
     }
 
+    // Always exclude cancelled and completed orders from buckets (user requested)
+    query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
+
+    // Fetch relevant bookings
     const bookings = await Booking.find(query)
       .populate("customer_id", "full_name phone email")
       .populate("rider_id", "full_name phone")
-      .sort({ created_at: -1 })
+      .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
       .select("+item_prices +charges_breakdown");
 
     const total = await Booking.countDocuments(query);
 
-    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total)`);
+    // Split into buckets
+    const bucketA = bookings.filter((b) => BUCKET_A.includes(b.status));
+    const bucketB = bookings.filter((b) => BUCKET_B.includes(b.status));
+
+    // Sort buckets by nearest pickup time (scheduled_date + scheduled_time)
+    const parsePickupTime = (b) => {
+      try {
+        return new Date(`${b.scheduled_date || b.created_at}T${(b.scheduled_time || '00:00')}`);
+      } catch (e) {
+        return new Date(b.created_at || Date.now());
+      }
+    };
+
+    bucketA.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
+    bucketB.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
+
+    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}`);
 
     res.json({
-      bookings,
+      bucketA,
+      bucketB,
       pagination: {
         total,
         limit: parseInt(limit),
