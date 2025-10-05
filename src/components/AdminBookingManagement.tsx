@@ -326,6 +326,8 @@ const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string 
 
 const AdminBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bucketA, setBucketA] = useState<Booking[]>([]);
+  const [bucketB, setBucketB] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
