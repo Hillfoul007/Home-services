@@ -160,34 +160,19 @@ class EnhancedApiClient {
 
         const response = await this.fetchWithTimeout(url, options);
 
-        // Clone the response to avoid "body stream already read" errors
-        const responseClone = response.clone();
-
-        // Handle different response types
+        // Read body once, then parse
         const contentType = response.headers.get("content-type");
-        let data: any;
-
-        try {
-          if (contentType?.includes("application/json")) {
-            data = await response.json();
-          } else {
-            const text = await response.text();
-            data = text ? { message: text } : null;
-          }
-        } catch (bodyReadError) {
-          console.warn("Failed to read response body, trying clone:", bodyReadError);
+        const responseText = await response.text();
+        let data: any = null;
+        if (contentType?.includes("application/json")) {
           try {
-            // Try to read from the cloned response
-            if (contentType?.includes("application/json")) {
-              data = await responseClone.json();
-            } else {
-              const text = await responseClone.text();
-              data = text ? { message: text } : null;
-            }
-          } catch (cloneError) {
-            console.warn("Failed to read response from clone:", cloneError);
-            data = null;
+            data = responseText ? JSON.parse(responseText) : null;
+          } catch (e) {
+            console.warn("Failed to parse JSON response:", e);
+            data = responseText ? { message: responseText } : null;
           }
+        } else {
+          data = responseText ? { message: responseText } : null;
         }
 
         if (!response.ok) {
