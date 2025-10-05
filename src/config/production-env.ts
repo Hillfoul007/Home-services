@@ -6,7 +6,7 @@
 import { getApiUrl } from './env';
 
 // Define the correct production API URL - now uses centralized config
-export const PRODUCTION_API_URL = "https://backend-vaxf.onrender.com/api";
+export const PRODUCTION_API_URL = "https://home-services-5alb.onrender.com/api";
 
 export const getProductionApiUrl = (): string => {
   // Use centralized API URL detection

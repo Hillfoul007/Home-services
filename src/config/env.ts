@@ -9,7 +9,7 @@ export const isProduction = () => import.meta.env.PROD;
 
 // URL Configuration
 const DEVELOPMENT_API_URL = "/api"; // Use relative path for vite proxy
-const PRODUCTION_API_URL = "https://backend-vaxf.onrender.com/api";
+const PRODUCTION_API_URL = "https://home-services-5alb.onrender.com/api";
 
 // Frontend URLs for CORS configuration
 export const FRONTEND_URLS = {
@@ -24,7 +24,7 @@ export const FRONTEND_URLS = {
   production: [
     "https://laundrify.online",
     "https://www.laundrify.online",
-    "https://laundrify-app-5su7.onrender.com",
+    "https://laundrify-app-uqkw.onrender.com",
     "https://testversion.onrender.com", 
     "https://cleancarepro-1-p2oc.onrender.com",
     "https://cleancare-pro-production.up.railway.app",

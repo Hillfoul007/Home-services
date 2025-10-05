@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/sheet';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { riderApiGet, checkRiderApiHealth } from '@/lib/riderApi';
 
 interface RiderLayoutProps {
   children?: React.ReactNode;
@@ -96,7 +97,6 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
       }
 
       // Use centralized rider API
-      const { riderApiGet, checkRiderApiHealth } = await import('@/lib/riderApi');
 
       // First check if the rider API is available
       const isApiHealthy = await checkRiderApiHealth();

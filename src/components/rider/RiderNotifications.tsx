@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner';
 
 // Using centralized rider API configuration
-import { getRiderApiUrl } from '@/lib/riderApi';
+import { getRiderApiUrl, riderApiGet } from '@/lib/riderApi';
 
 interface Notification {
   _id: string;
@@ -119,7 +119,6 @@ export default function RiderNotifications({ compact = false }: RiderNotificatio
       }
 
       // Use centralized rider API with demo mode fallback
-      const { riderApiGet } = await import('@/lib/riderApi');
       const endpoint = showOnlyUnread ? '/notifications' : '/notifications?includeRead=true';
       const data = await riderApiGet<Notification[]>(endpoint);
 

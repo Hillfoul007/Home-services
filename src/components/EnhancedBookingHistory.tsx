@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { quickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
+import { bookingHelpers } from "@/integrations/mongodb/bookingHelpers";
 
 import {
   createSuccessNotification,
@@ -98,10 +99,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
           console.log("🔄 Force refreshing bookings from backend...");
         }
 
-        // Import MongoDB helpers
-        const { bookingHelpers } = await import(
-          "../integrations/mongodb/bookingHelpers"
-        );
+        // Access MongoDB helpers
         const bookingService = BookingService.getInstance();
 
         console.log(
