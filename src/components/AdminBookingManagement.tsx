@@ -1337,18 +1337,39 @@ const AdminBookingManagement: React.FC = () => {
                     }
 
                     try {
+                      // Recompute totals from items
+                      const totals = computeEditingTotals(editingBooking);
+
                       const payload: any = {
                         status: mapToBackendStatus(normalizeStatus(editingBooking.status)),
-                        final_amount: editingBooking.final_amount,
+                        final_amount: editingBooking.final_amount ?? totals.final,
+                        total_price: totals.total,
                         scheduled_date: editingBooking.scheduled_date,
                         scheduled_time: editingBooking.scheduled_time,
-                        address: editingBooking.address,
+                        address: editingBooking.address || "",
                         rider: editingBooking.rider,
                         vendor: editingBooking.vendor,
                       };
 
-                      if (editingBooking.item_prices) {
-                        payload.item_prices = editingBooking.item_prices;
+                      // Build services array from item names for backend compatibility
+                      if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
+                        payload.item_prices = editingBooking.item_prices.map((it) => ({
+                          service_name: it.service_name || it.name || "Item",
+                          quantity: it.quantity || 0,
+                          unit_price: it.unit_price || it.price || 0,
+                          total_price: it.total_price || 0,
+                        }));
+
+                        payload.services = payload.item_prices.map((it) =>
+                          it.quantity > 1 ? `${it.service_name} x${it.quantity}` : it.service_name,
+                        );
+
+                        payload.service = payload.services.join(", ") || "Misc Service";
+                      } else {
+                        // Allow admin to save without services by providing defaults
+                        payload.item_prices = [];
+                        payload.services = ["Misc Service"];
+                        payload.service = "Misc Service";
                       }
 
                       const response = await apiClient.adminRequest<{ booking?: Booking }>(
