@@ -780,7 +780,7 @@ const getCorrectApiUrl = () => {
 
   // For any hosted environment (including render.com), use full backend URL
   if (isRenderCom || !isLocalhost) {
-    return "https://backend-vaxf.onrender.com/api";
+    return "https://home-services-5alb.onrender.com/api";
   }
 
   // Fallback for localhost
