@@ -77,7 +77,7 @@ The system creates different demo riders based on phone number:
 
 **Error:** `POST https://home-services-5alb.onrender.com/api/riders/login 400 (Bad Request)`
 
-**Cause:** The production backend at `backend-vaxf.onrender.com` doesn't have the rider routes deployed yet.
+**Cause:** The production backend at `home-services-5alb.onrender.com` doesn't have the rider routes deployed yet.
 
 **Evidence:** The local backend (localhost:3001) has rider routes working perfectly.
 
@@ -124,7 +124,7 @@ To make it work on production backend:
 
 1. **Deploy Backend Changes:**
    ```bash
-   # The rider routes need to be deployed to backend-vaxf.onrender.com
+   # The rider routes need to be deployed to home-services-5alb.onrender.com
    git add backend/routes/riders.js
    git add backend/models/Rider.js
    git commit -m "Deploy rider management system"
