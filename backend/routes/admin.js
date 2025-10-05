@@ -403,14 +403,51 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
   try {
     console.log("📝 Admin creating booking for user:", req.body);
 
-    // Add admin creation flag
+    // Basic validation: require customer_id
+    if (!req.body.customer_id) {
+      console.warn("❌ Admin booking creation failed: missing customer_id");
+      return res.status(400).json({ error: "customer_id is required for admin-created bookings" });
+    }
+
+    // Prepare booking data and provide sensible defaults to avoid model validation errors
+    const input = { ...req.body };
+
+    // Ensure item_prices is an array if provided
+    const itemPrices = Array.isArray(input.item_prices) ? input.item_prices : [];
+
+    // Compute totals from item_prices when present
+    const computedTotal = itemPrices.reduce((sum, it) => {
+      const qty = Number(it.quantity) || 0;
+      const unit = Number(it.unit_price || it.price) || 0;
+      const total = Number(it.total_price) || qty * unit;
+      return sum + total;
+    }, 0);
+
+    // Set sensible defaults
+    const scheduledDate = input.scheduled_date || new Date().toISOString().split('T')[0];
+    const scheduledTime = input.scheduled_time || (new Date()).toTimeString().split(' ')[0];
+
     const bookingData = {
-      ...req.body,
+      ...input,
       created_by_admin: true,
-      admin_notes: req.body.admin_notes || "Created by admin",
+      admin_notes: input.admin_notes || "Created by admin",
+      service: input.service || (itemPrices.length > 0 ? (itemPrices[0].service_name || 'Service') : 'Misc Service'),
+      service_type: input.service_type || 'admin_created',
+      services: input.services || (itemPrices.length > 0 ? itemPrices.map(it => it.service_name || it.name || 'Item') : ['Misc Service']),
+      scheduled_date: scheduledDate,
+      scheduled_time: scheduledTime,
+      delivery_date: input.delivery_date || scheduledDate,
+      delivery_time: input.delivery_time || scheduledTime,
+      provider_name: input.provider_name || 'Admin',
+      address: input.address || 'Admin created address',
+      item_prices: itemPrices,
+      total_price: input.total_price || (computedTotal || 0),
+      final_amount: input.final_amount || (computedTotal || input.total_price) || 0,
+      payment_status: input.payment_status || 'pending',
+      status: input.status || 'pending',
     };
 
-    // Use the existing booking creation endpoint logic
+    // Create booking
     const booking = new Booking(bookingData);
     await booking.save();
 
@@ -424,7 +461,7 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error creating admin booking:", error);
-    
+
     if (error.name === "ValidationError") {
       return res.status(400).json({
         error: "Validation error",
