@@ -1400,9 +1400,13 @@ const AdminBookingManagement: React.FC = () => {
                       // Recompute totals from items
                       const totals = computeEditingTotals(editingBooking);
 
+                      const finalAmount = (typeof editingBooking.final_amount === "number" && !Number.isNaN(editingBooking.final_amount) && editingBooking.final_amount > 0)
+                        ? editingBooking.final_amount
+                        : totals.final;
+
                       const payload: any = {
                         status: mapToBackendStatus(normalizeStatus(editingBooking.status)),
-                        final_amount: editingBooking.final_amount ?? totals.final,
+                        final_amount: finalAmount,
                         total_price: totals.total,
                         scheduled_date: editingBooking.scheduled_date,
                         scheduled_time: editingBooking.scheduled_time,
