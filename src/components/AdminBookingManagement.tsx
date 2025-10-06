@@ -1290,11 +1290,12 @@ const AdminBookingManagement: React.FC = () => {
                         <Select
                           value={item.service_name || item.name || ""}
                           onValueChange={(value) => {
+                            const realValue = value === "__none__" ? "" : value;
                             // Set service name and unit price from catalog when available
-                            handleItemPriceChange(index, "service_name", value);
+                            handleItemPriceChange(index, "service_name", realValue);
                             try {
                               const catalog = require("@/data/laundryServices").getSortedServices();
-                              const matched = catalog.find((s: any) => s.name === value);
+                              const matched = catalog.find((s: any) => s.name === realValue);
                               if (matched) {
                                 handleItemPriceChange(index, "unit_price", String(matched.price));
                                 // default quantity to 1 if zero
