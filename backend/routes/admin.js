@@ -517,7 +517,7 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
       total_price: input.total_price || (computedTotal || 0),
       final_amount: input.final_amount || (computedTotal || input.total_price) || 0,
       payment_status: input.payment_status || 'pending',
-      status: input.status || 'pending',
+      status: input.status || 'created',
     };
 
     // Create booking
