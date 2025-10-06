@@ -1311,7 +1311,7 @@ const AdminBookingManagement: React.FC = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Select item</SelectItem>
+                            <SelectItem value="__none__">Select item</SelectItem>
                             {getSortedServices().map((svc) => (
                               <SelectItem key={svc.id || svc.name} value={svc.name}>
                                 {svc.name} — ₹{svc.price}
