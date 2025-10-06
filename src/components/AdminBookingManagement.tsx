@@ -775,6 +775,24 @@ const AdminBookingManagement: React.FC = () => {
                               Ready for Delivery
                             </Button>
                           )}
+
+                          {/* Inline assign rider for quick action */}
+                          <div className="w-36">
+                            <Select
+                              value={booking.rider ?? "__unassigned__"}
+                              onValueChange={(value) => handleAssignmentChange(booking, 'rider', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__unassigned__">Assign Rider</SelectItem>
+                                {DEFAULT_RIDER_LIST.map((r) => (
+                                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -846,6 +864,24 @@ const AdminBookingManagement: React.FC = () => {
                               Ready for Delivery
                             </Button>
                           )}
+
+                          {/* Inline assign rider for quick action */}
+                          <div className="w-36">
+                            <Select
+                              value={booking.rider ?? "__unassigned__"}
+                              onValueChange={(value) => handleAssignmentChange(booking, 'rider', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__unassigned__">Assign Rider</SelectItem>
+                                {DEFAULT_RIDER_LIST.map((r) => (
+                                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
                     </div>
