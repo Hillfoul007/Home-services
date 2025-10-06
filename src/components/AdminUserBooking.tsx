@@ -14,15 +14,11 @@ import {
   MapPin,
   Calendar,
   Clock,
-  Package,
   DollarSign,
-  Plus,
-  Trash2,
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { laundryServices, serviceCategories, getCategoryDisplay } from "@/data/laundryServices";
 import { apiClient } from "@/lib/apiClient";
 
 interface User {
@@ -62,16 +58,6 @@ const AdminUserBooking: React.FC = () => {
     discount_amount: 0,
   });
 
-  const [newService, setNewService] = useState<ServiceItem>({
-    id: "",
-    name: "",
-    quantity: 1,
-    price: 0,
-    unit: "PC",
-    category: "",
-  });
-
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
@@ -142,22 +128,6 @@ const AdminUserBooking: React.FC = () => {
     setUsers([]);
   };
 
-  const addService = () => {
-    if (newService.name && newService.quantity > 0 && newService.price > 0) {
-      setBookingData({
-        ...bookingData,
-        services: [...bookingData.services, { ...newService }],
-      });
-      setNewService({ id: "", name: "", quantity: 1, price: 0, unit: "PC", category: "" });
-    }
-  };
-
-  const removeService = (index: number) => {
-    setBookingData({
-      ...bookingData,
-      services: bookingData.services.filter((_, i) => i !== index),
-    });
-  };
 
   const calculateTotal = () => {
     return bookingData.services.reduce(
@@ -170,16 +140,6 @@ const AdminUserBooking: React.FC = () => {
     return Math.max(0, calculateTotal() - bookingData.discount_amount);
   };
 
-  const selectServiceFromList = (service: typeof laundryServices[0]) => {
-    setNewService({
-      id: service.id,
-      name: service.name,
-      price: service.price,
-      quantity: 1,
-      unit: service.unit,
-      category: service.category,
-    });
-  };
 
   const submitBooking = async () => {
     if (!selectedUser) {
