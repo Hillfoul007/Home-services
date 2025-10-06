@@ -699,8 +699,8 @@ const AdminBookingManagement: React.FC = () => {
           <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
           <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed","delivered_to_vendor"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed","delivered_to_vendor"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     {/* reuse existing booking card layout by calling a small render helper - inline for simplicity */}
