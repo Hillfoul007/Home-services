@@ -770,6 +770,11 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
+                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Ready for Delivery
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -836,6 +841,11 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
+                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Ready for Delivery
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1076,7 +1086,7 @@ const AdminBookingManagement: React.FC = () => {
                       {viewingBooking.charges_breakdown.delivery_fee && (
                         <div className="flex justify-between">
                           <span>Delivery Fee:</span>
-                          <span>₹{viewingBooking.charges_breakdown.delivery_fee}</span>
+                          <span>��{viewingBooking.charges_breakdown.delivery_fee}</span>
                         </div>
                       )}
                     </div>
