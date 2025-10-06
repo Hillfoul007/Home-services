@@ -314,12 +314,25 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       });
     }
 
-    // Define new order-flow buckets
-    const BUCKET_A = ["created", "pickup_assigned", "pickup_completed", "delivered_to_vendor"];
-    const BUCKET_B = ["ready_for_delivery", "delivery_assigned", "in_progress"]; // 'completed' will be removed from UI
+    // Define new order-flow buckets. Include commonly used statuses like 'pending' and 'confirmed'
+    const BUCKET_A = ["pending", "created", "confirmed", "pickup_assigned", "pickup_completed", "delivered_to_vendor"];
+    const BUCKET_B = ["ready_for_delivery", "delivery_assigned", "in_progress"];
 
-    // By default return only relevant statuses (exclude completed/cancelled)
-    const relevantStatuses = [...BUCKET_A, ...BUCKET_B];
+    // By default return a broad set of relevant statuses (exclude completed/cancelled later)
+    const relevantStatuses = [...new Set([...
+      BUCKET_A,
+      ...BUCKET_B,
+      // include other statuses that might appear in the system
+      "pending",
+      "confirmed",
+      "created",
+      "ready_for_delivery",
+      "pickup_assigned",
+      "pickup_completed",
+      "delivery_assigned",
+      "in_progress",
+      "delivered_to_vendor",
+    ])];
 
     let query = {};
 
