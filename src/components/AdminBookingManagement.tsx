@@ -564,34 +564,6 @@ const AdminBookingManagement: React.FC = () => {
     );
   };
 
-  const updateBookingStatus = async (bookingId: string, newStatus: string) => {
-    try {
-      setMutationFlag(bookingId, "status", true);
-      const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${bookingId}`, {
-        method: "PUT",
-        body: { status: newStatus },
-      });
-
-      if (response.data && response.data.booking) {
-        const updatedBooking = response.data.booking;
-        const normalizedStatus = normalizeStatus(updatedBooking.status);
-        applyBookingUpdate(bookingId, { status: normalizedStatus, ...updatedBooking });
-        toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
-      } else if (response.data) {
-        // If API returns success without booking object, apply local change
-        const normalized = normalizeStatus(newStatus);
-        applyBookingUpdate(bookingId, { status: normalized });
-        toast.success(`Booking status updated to ${getStatusLabel(normalizeStatus(newStatus))}`);
-      } else {
-        toast.error(response.error || "Failed to update status");
-      }
-    } catch (error) {
-      console.error("Error updating booking status:", error);
-      toast.error("Error updating booking status");
-    } finally {
-      setMutationFlag(bookingId, "status", false);
-    }
-  };
 
   const handleItemPriceChange = (index: number, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
     setEditingBooking((prev) => {
@@ -1129,7 +1101,7 @@ const AdminBookingManagement: React.FC = () => {
                   )}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
                     <span>Final Amount:</span>
-                    <span>₹{viewingBooking.final_amount}</span>
+                    <span>���{viewingBooking.final_amount}</span>
                   </div>
                 </div>
               </div>
