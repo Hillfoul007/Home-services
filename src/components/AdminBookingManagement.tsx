@@ -167,20 +167,10 @@ const normalizeStatus = (status: string) => {
   return LEGACY_STATUS_MAP[normalized] || normalized;
 };
 
-const NEW_TO_LEGACY_MAP: Record<string, string> = {
-  created: "pending",
-  pickup_assigned: "confirmed",
-  pickup_completed: "in_progress",
-  delivered_to_vendor: "in_progress",
-  ready_for_delivery: "in_progress",
-  delivery_assigned: "in_progress",
-  completed: "completed",
-  cancelled: "cancelled",
-};
-
 const mapToBackendStatus = (status: string) => {
   const normalized = status?.toLowerCase?.().replace(/\s+/g, "_") || status;
-  return NEW_TO_LEGACY_MAP[normalized] || normalized;
+  // Backend now supports new status names; send normalized status directly
+  return normalized;
 };
 
 const getStatusLabel = (status: string) => {
