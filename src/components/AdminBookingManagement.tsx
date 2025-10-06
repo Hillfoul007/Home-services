@@ -1286,10 +1286,38 @@ const AdminBookingManagement: React.FC = () => {
                   {editingBooking.item_prices && editingBooking.item_prices.length > 0 ? (
                     editingBooking.item_prices.map((item, index) => (
                       <div key={index} className="grid grid-cols-4 items-center gap-2">
-                        <Input
+                        <Select
                           value={item.service_name || item.name || ""}
-                          onChange={(event) => handleItemPriceChange(index, "service_name", event.target.value)}
-                        />
+                          onValueChange={(value) => {
+                            // Set service name and unit price from catalog when available
+                            handleItemPriceChange(index, "service_name", value);
+                            try {
+                              const catalog = require("@/data/laundryServices").getSortedServices();
+                              const matched = catalog.find((s: any) => s.name === value);
+                              if (matched) {
+                                handleItemPriceChange(index, "unit_price", String(matched.price));
+                                // default quantity to 1 if zero
+                                if (!item.quantity || item.quantity === 0) {
+                                  handleItemPriceChange(index, "quantity", "1");
+                                }
+                              }
+                            } catch (e) {
+                              // ignore
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Select item</SelectItem>
+                            {getSortedServices().map((svc) => (
+                              <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                {svc.name} — ₹{svc.price}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Input
                           type="number"
                           step="0.1"
