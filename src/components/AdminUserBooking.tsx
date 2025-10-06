@@ -14,15 +14,11 @@ import {
   MapPin,
   Calendar,
   Clock,
-  Package,
   DollarSign,
-  Plus,
-  Trash2,
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { laundryServices, serviceCategories, getCategoryDisplay } from "@/data/laundryServices";
 import { apiClient } from "@/lib/apiClient";
 
 interface User {
@@ -62,16 +58,6 @@ const AdminUserBooking: React.FC = () => {
     discount_amount: 0,
   });
 
-  const [newService, setNewService] = useState<ServiceItem>({
-    id: "",
-    name: "",
-    quantity: 1,
-    price: 0,
-    unit: "PC",
-    category: "",
-  });
-
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
@@ -142,22 +128,6 @@ const AdminUserBooking: React.FC = () => {
     setUsers([]);
   };
 
-  const addService = () => {
-    if (newService.name && newService.quantity > 0 && newService.price > 0) {
-      setBookingData({
-        ...bookingData,
-        services: [...bookingData.services, { ...newService }],
-      });
-      setNewService({ id: "", name: "", quantity: 1, price: 0, unit: "PC", category: "" });
-    }
-  };
-
-  const removeService = (index: number) => {
-    setBookingData({
-      ...bookingData,
-      services: bookingData.services.filter((_, i) => i !== index),
-    });
-  };
 
   const calculateTotal = () => {
     return bookingData.services.reduce(
@@ -170,25 +140,10 @@ const AdminUserBooking: React.FC = () => {
     return Math.max(0, calculateTotal() - bookingData.discount_amount);
   };
 
-  const selectServiceFromList = (service: typeof laundryServices[0]) => {
-    setNewService({
-      id: service.id,
-      name: service.name,
-      price: service.price,
-      quantity: 1,
-      unit: service.unit,
-      category: service.category,
-    });
-  };
 
   const submitBooking = async () => {
     if (!selectedUser) {
       toast.error("Please select a user first");
-      return;
-    }
-
-    if (bookingData.services.length === 0) {
-      toast.error("Please add at least one service");
       return;
     }
 
@@ -252,7 +207,7 @@ const AdminUserBooking: React.FC = () => {
         customer_id: finalCustomerId,
         name: finalUserName,
         phone: finalUserPhone,
-        service: bookingData.service || bookingData.services[0]?.name || "Laundry Service",
+        service: bookingData.service || bookingData.services[0]?.name || "",
         service_type: "laundry",
         services: bookingData.services.map(service => `${service.name} x${service.quantity} (₹${service.price}/${service.unit})`),
         scheduled_date: bookingData.scheduled_date,
@@ -467,161 +422,10 @@ const AdminUserBooking: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Service Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Services
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Service Category Filter */}
-            <div>
-              <Label>Service Category</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {serviceCategories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.icon} {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Quick Service Selection */}
-            <div>
-              <Label>Quick Add Services</Label>
-              <div className="grid grid-cols-1 gap-2 mt-2 max-h-60 overflow-y-auto">
-                {laundryServices
-                  .filter(service => selectedCategory === "all" || service.category === selectedCategory)
-                  .map((service) => (
-                    <Button
-                      key={service.id}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs justify-between h-auto py-2 px-3"
-                      onClick={() => selectServiceFromList(service)}
-                    >
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">{service.name}</span>
-                        <span className="text-xs text-gray-500">{getCategoryDisplay(service.category)}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">₹{service.price}</div>
-                        <div className="text-xs text-gray-500">per {service.unit}</div>
-                      </div>
-                    </Button>
-                  ))}
-              </div>
-            </div>
-
-            {/* Custom Service Addition */}
-            <div className="border-t pt-4 space-y-3">
-              <Label>Add Custom Service</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="Service name"
-                  value={newService.name}
-                  onChange={(e) => setNewService({ ...newService, name: e.target.value })}
-                />
-                <Input
-                  type="number"
-                  placeholder="Price (₹)"
-                  value={newService.price || ""}
-                  onChange={(e) =>
-                    setNewService({ ...newService, price: parseFloat(e.target.value) || 0 })
-                  }
-                />
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  placeholder="Qty"
-                  value={newService.quantity || ""}
-                  onChange={(e) =>
-                    setNewService({ ...newService, quantity: parseInt(e.target.value) || 1 })
-                  }
-                  className="w-20"
-                />
-                <Select
-                  value={newService.unit}
-                  onValueChange={(value) => setNewService({ ...newService, unit: value })}
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PC">PC</SelectItem>
-                    <SelectItem value="KG">KG</SelectItem>
-                    <SelectItem value="SET">SET</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button onClick={addService} className="flex-1">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Service
-                </Button>
-              </div>
-            </div>
-
-            {/* Added Services */}
-            {bookingData.services.length > 0 && (
-              <div className="border-t pt-4">
-                <Label>Selected Services</Label>
-                <div className="space-y-2 mt-2">
-                  {bookingData.services.map((service, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                    >
-                      <div>
-                        <div className="font-medium">{service.name}</div>
-                        <div className="text-sm text-gray-600">
-                          {service.quantity} {service.unit} × ₹{service.price} = ₹{service.quantity * service.price}
-                        </div>
-                        {service.category && (
-                          <div className="text-xs text-gray-500">{getCategoryDisplay(service.category)}</div>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => removeService(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <div className="flex justify-between font-medium">
-                    <span>Subtotal:</span>
-                    <span>₹{calculateTotal()}</span>
-                  </div>
-                  {bookingData.discount_amount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
-                      <span>-₹{bookingData.discount_amount}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-lg font-bold text-blue-600 border-t pt-2 mt-2">
-                    <span>Total:</span>
-                    <span>₹{calculateFinalAmount()}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Booking Details */}
-      {selectedUser && bookingData.services.length > 0 && (
+      {selectedUser && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
