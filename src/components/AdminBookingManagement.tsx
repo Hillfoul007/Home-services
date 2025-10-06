@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { getSortedServices } from "@/data/laundryServices";
 
 interface ItemPrice {
   service_name?: string;
