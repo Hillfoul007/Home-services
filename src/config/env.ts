@@ -47,8 +47,10 @@ export const getApiUrl = (): string => {
   // First check for explicit environment variable
   const envApiUrl = import.meta.env.VITE_API_BASE_URL;
   if (envApiUrl && envApiUrl.trim() !== "") {
-    console.log(`🔧 Using explicit env API URL: ${envApiUrl}`);
-    return envApiUrl.endsWith('/api') ? envApiUrl : `${envApiUrl}/api`;
+    // Support comma-separated list of URLs in env var; use the first valid one.
+    const firstUrl = envApiUrl.split(',').map((s: string) => s.trim()).find(Boolean) || envApiUrl.trim();
+    console.log(`🔧 Using explicit env API URL: ${envApiUrl} -> selected: ${firstUrl}`);
+    return firstUrl.endsWith('/api') ? firstUrl : `${firstUrl}/api`;
   }
 
   // Detect environment based on hostname
