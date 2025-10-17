@@ -329,9 +329,66 @@ const AdminBookingManagement: React.FC = () => {
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [mutationState, setMutationState] = useState<Record<string, MutationFlags>>({});
 
+  const [lastPollAt, setLastPollAt] = useState<string | null>(null);
+
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  // Poll for updates since last poll and apply them to local state
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const sinceParam = lastPollAt || new Date().toISOString();
+        const response = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(
+          `/admin/bookings?modified_since=${encodeURIComponent(sinceParam)}&limit=100`,
+        );
+
+        if (cancelled) return;
+
+        if (response.data) {
+          const updates: Booking[] = [...(response.data.bucketA || []), ...(response.data.bucketB || [])];
+          if (updates.length > 0) {
+            updates.forEach((b) => {
+              applyBookingUpdate(b._id, {
+                ...b,
+                status: normalizeStatus(b.status),
+              });
+            });
+
+            // Update last poll to the newest updated_at from updates
+            const maxUpdated = updates
+              .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()).toISOString())
+              .sort()
+              .pop();
+
+            if (maxUpdated) {
+              setLastPollAt(maxUpdated);
+            } else {
+              setLastPollAt(new Date().toISOString());
+            }
+          } else {
+            // Nothing new, advance lastPollAt
+            setLastPollAt(new Date().toISOString());
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Polling for admin booking updates failed', error);
+      }
+    };
+
+    // Start polling interval
+    const id = setInterval(poll, 8000);
+
+    // Also run one immediately
+    poll();
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [lastPollAt]);
 
   useEffect(() => {
     filterBookings();
