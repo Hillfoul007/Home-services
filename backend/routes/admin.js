@@ -377,6 +377,20 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     // Always exclude cancelled and completed orders from buckets (user requested)
     query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
 
+    // Filter by modified_since (returns only bookings updated after the provided ISO timestamp)
+    if (modified_since) {
+      try {
+        const sinceDate = new Date(modified_since);
+        if (!isNaN(sinceDate.getTime())) {
+          query.updated_at = { $gt: sinceDate };
+        } else {
+          console.warn('⚠️ Invalid modified_since value provided to /admin/bookings:', modified_since);
+        }
+      } catch (e) {
+        console.warn('⚠️ Error parsing modified_since parameter:', e.message);
+      }
+    }
+
     // Fetch relevant bookings
     const bookings = await Booking.find(query)
       .populate("customer_id", "full_name phone email")
