@@ -93,8 +93,8 @@ Every API call now has **multiple layers of fallback**:
 | Environment | Frontend | Backend | Status |
 |------------|----------|---------|--------|
 | Local Dev | localhost:10000 | localhost:3001 | ✅ Full DB |
-| Production | laundrify.online | backend-vaxf.onrender.com | ✅ Demo Mode |
-| Any Hosted | Any domain | backend-vaxf.onrender.com | ✅ Auto-detect |
+| Production | laundrify.online | home-services-5alb.onrender.com | ✅ Demo Mode |
+| Any Hosted | Any domain | home-services-5alb.onrender.com | ✅ Auto-detect |
 
 ## 🔍 **Debug Information**
 
@@ -117,13 +117,13 @@ Check browser console for helpful logs:
 ## 🚨 **Previous Errors - NOW FIXED**
 
 ❌ **OLD**: `POST https://www.laundrify.online/api/riders/login 400 (Bad Request)`  
-✅ **NEW**: `POST https://backend-vaxf.onrender.com/api/riders/login 200 (OK)`
+✅ **NEW**: `POST https://home-services-5alb.onrender.com/api/riders/login 200 (OK)`
 
 ❌ **OLD**: `GET https://www.laundrify.online/api/riders/orders 400 (Bad Request)`  
-✅ **NEW**: `GET https://backend-vaxf.onrender.com/api/riders/orders 200 (OK)`
+✅ **NEW**: `GET https://home-services-5alb.onrender.com/api/riders/orders 200 (OK)`
 
 ❌ **OLD**: `POST https://www.laundrify.online/api/riders/toggle-status 400 (Bad Request)`  
-✅ **NEW**: `POST https://backend-vaxf.onrender.com/api/riders/toggle-status 200 (OK)`
+✅ **NEW**: `POST https://home-services-5alb.onrender.com/api/riders/toggle-status 200 (OK)`
 
 ## 🔮 **Next Steps**
 
