@@ -173,6 +173,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       start_date,
       end_date,
       search,
+      modified_since,
     } = req.query;
 
     console.log("📋 Admin bookings request:", req.query);
