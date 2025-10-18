@@ -46,8 +46,9 @@ export default function RiderOrders() {
   // If navigated from Accept action, Dialogflow or RiderDashboard passes state { fromAccept: true }
   useEffect(() => {
     try {
-      if ((location as any)?.state && (location as any).state.fromAccept) {
-        console.log('➡️ Entering edit mode: navigated from accept');
+      const state = (location as any)?.state;
+      if (state && (state.fromAccept || state.editCart)) {
+        console.log('➡️ Entering edit mode: navigated from accept or editCart');
         setIsEditing(true);
       }
     } catch (e) {
@@ -881,10 +882,12 @@ export default function RiderOrders() {
 
   const saveOrderChanges = async () => {
     // If verification is required and not approved, show error
-    if (verificationStatus && verificationStatus !== 'approved') {
-      toast.error('Customer verification required before saving changes');
-      return;
-    }
+  // FORCE_DISABLE_VERIFICATION can be toggled to bypass customer OTP/verification for faster rider workflow
+  const FORCE_DISABLE_VERIFICATION = true;
+  if (verificationStatus && verificationStatus !== 'approved' && !FORCE_DISABLE_VERIFICATION) {
+    toast.error('Customer verification required before saving changes');
+    return;
+  }
 
     setIsSaving(true);
     let timeoutId: NodeJS.Timeout | null = null;
@@ -997,8 +1000,9 @@ export default function RiderOrders() {
           items: editedItems,
           updatedBy: 'rider',
           notes: `Order updated by rider ${new Date().toLocaleString()}. ${verificationStatus === 'approved' ? 'Customer approved changes.' : 'Customer will be notified to verify changes.'}`,
-          requiresVerification: verificationStatus !== 'approved',
-          verificationStatus: verificationStatus || 'pending',
+          // Respect FORCE_DISABLE_VERIFICATION when deciding whether to require customer verification
+          requiresVerification: FORCE_DISABLE_VERIFICATION ? false : (verificationStatus !== 'approved'),
+          verificationStatus: FORCE_DISABLE_VERIFICATION ? 'approved' : (verificationStatus || 'pending'),
           notificationData: notificationData
         }),
         signal: controller.signal
