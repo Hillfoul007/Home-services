@@ -70,6 +70,11 @@ export default function RiderOrders() {
   const pickupInputRef = useRef<HTMLInputElement | null>(null);
   const deliveryInputRef = useRef<HTMLInputElement | null>(null);
 
+  // OTP/verification related state (declare at top-level to follow React hooks rules)
+  const [customerOtp, setCustomerOtp] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+
   // Initialize customer verification service
   const verificationService = CustomerVerificationService.getInstance();
 
@@ -1300,10 +1305,6 @@ export default function RiderOrders() {
   }
 
   const totalAmount = editedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-
-  const [customerOtp, setCustomerOtp] = useState('');
-  const [otpRequested, setOtpRequested] = useState(false);
-  const [otpVerifying, setOtpVerifying] = useState(false);
 
   const requestCustomerOTP = async (type: 'pickup'|'delivery') => {
     try {
