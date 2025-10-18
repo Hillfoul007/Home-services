@@ -303,6 +303,20 @@ router.post('/request-otp', async (req, res) => {
   }
 });
 
+// Debug endpoint: Get OTP status for a phone
+router.get('/otp-status/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const purpose = req.query.purpose || 'login';
+    if (!phone) return res.status(400).json({ message: 'Phone required' });
+    const status = otpService.getOTPStatus(phone, String(purpose));
+    return res.json({ success: true, phone, purpose, status });
+  } catch (error) {
+    console.error('❌ OTP status error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Verify OTP and login rider
 router.post('/verify-otp', async (req, res) => {
   try {
@@ -1287,7 +1301,7 @@ router.put('/orders/:orderId/update', verifyRiderToken, async (req, res) => {
     });
 
     // Log the complete request body for debugging
-    console.log('�� Complete request body:', JSON.stringify(req.body, null, 2));
+    console.log('📤 Complete request body:', JSON.stringify(req.body, null, 2));
 
     // Get Indian timezone date
     const getIndianTime = () => {
