@@ -176,8 +176,20 @@ const bookingSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "confirmed", "in_progress", "completed", "cancelled"],
-      default: "pending",
+      enum: [
+        "created",
+        "pending",
+        "confirmed",
+        "pickup_assigned",
+        "pickup_completed",
+        "ready_for_delivery",
+        "delivery_assigned",
+        "in_progress",
+        "delivered_to_vendor",
+        "completed",
+        "cancelled",
+      ],
+      default: "created",
     },
     estimated_duration: {
       type: Number,

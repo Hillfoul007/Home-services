@@ -32,7 +32,7 @@ const getRiderApiUrl = (endpoint: string): string => {
     return `/api/riders${endpoint}`;
   } else if (isRenderCom || isLaundrifyDomain || !isLocalhost) {
     // Any hosted environment - use backend server
-    const backendUrl = 'https://backend-vaxf.onrender.com/api/riders' + endpoint;
+    const backendUrl = 'https://home-services-5alb.onrender.com/api/riders' + endpoint;
     console.log('🌐 Using backend server for rider API:', backendUrl);
     return backendUrl;
   }

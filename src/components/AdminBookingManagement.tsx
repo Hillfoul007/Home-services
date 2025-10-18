@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { getSortedServices } from "@/data/laundryServices";
 
 interface ItemPrice {
   service_name?: string;
@@ -164,6 +165,12 @@ const normalizeStatus = (status: string) => {
 
   const normalized = status.toLowerCase().replace(/\s+/g, "_");
   return LEGACY_STATUS_MAP[normalized] || normalized;
+};
+
+const mapToBackendStatus = (status: string) => {
+  const normalized = status?.toLowerCase?.().replace(/\s+/g, "_") || status;
+  // Backend now supports new status names; send normalized status directly
+  return normalized;
 };
 
 const getStatusLabel = (status: string) => {
@@ -310,6 +317,8 @@ const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string 
 
 const AdminBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bucketA, setBucketA] = useState<Booking[]>([]);
+  const [bucketB, setBucketB] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -320,9 +329,66 @@ const AdminBookingManagement: React.FC = () => {
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [mutationState, setMutationState] = useState<Record<string, MutationFlags>>({});
 
+  const [lastPollAt, setLastPollAt] = useState<string | null>(null);
+
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  // Poll for updates since last poll and apply them to local state
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const sinceParam = lastPollAt || new Date().toISOString();
+        const response = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(
+          `/admin/bookings?modified_since=${encodeURIComponent(sinceParam)}&limit=100`,
+        );
+
+        if (cancelled) return;
+
+        if (response.data) {
+          const updates: Booking[] = [...(response.data.bucketA || []), ...(response.data.bucketB || [])];
+          if (updates.length > 0) {
+            updates.forEach((b) => {
+              applyBookingUpdate(b._id, {
+                ...b,
+                status: normalizeStatus(b.status),
+              });
+            });
+
+            // Update last poll to the newest updated_at from updates
+            const maxUpdated = updates
+              .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()).toISOString())
+              .sort()
+              .pop();
+
+            if (maxUpdated) {
+              setLastPollAt(maxUpdated);
+            } else {
+              setLastPollAt(new Date().toISOString());
+            }
+          } else {
+            // Nothing new, advance lastPollAt
+            setLastPollAt(new Date().toISOString());
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Polling for admin booking updates failed', error);
+      }
+    };
+
+    // Start polling interval
+    const id = setInterval(poll, 8000);
+
+    // Also run one immediately
+    poll();
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [lastPollAt]);
 
   useEffect(() => {
     filterBookings();
@@ -384,7 +450,11 @@ const AdminBookingManagement: React.FC = () => {
       const response = await apiClient.adminRequest<{ bookings: Booking[] }>("/admin/bookings?limit=100");
 
       if (response.data) {
-        const processedBookings = (response.data.bookings || []).map((booking: any) => {
+        // Handle bucketed response from backend
+        const rawA = (response.data.bucketA || []);
+        const rawB = (response.data.bucketB || []);
+
+        const process = (booking: any) => {
           const customer = booking.customer_id || {};
           const customerName =
             booking.customerName ||
@@ -405,10 +475,17 @@ const AdminBookingManagement: React.FC = () => {
             services: booking.services || [],
             status: normalizeStatus(booking.status),
           } as Booking;
-        });
+        };
 
-        setBookings(processedBookings);
-        setFilteredBookings(processedBookings);
+        const processedA = rawA.map(process);
+        const processedB = rawB.map(process);
+
+        setBucketA(processedA);
+        setBucketB(processedB);
+
+        const combined = [...processedA, ...processedB];
+        setBookings(combined);
+        setFilteredBookings(combined);
       } else if (response.error) {
         const fallbackResponse = await apiClient.request<{ bookings: Booking[] }>("/bookings?limit=100");
 
@@ -473,11 +550,14 @@ const AdminBookingManagement: React.FC = () => {
   const updateBookingStatus = async (bookingId: string, newStatus: string) => {
     const normalizedStatus = normalizeStatus(newStatus);
 
+    const backendStatus = mapToBackendStatus(normalizedStatus);
+
     try {
       setMutationFlag(bookingId, "status", true);
-      const response = await apiClient.updateBookingStatus(bookingId, normalizedStatus);
+      const response = await apiClient.updateBookingStatus(bookingId, backendStatus);
 
       if (response.data) {
+        // Keep showing the new normalized status in the admin UI
         applyBookingUpdate(bookingId, { status: normalizedStatus });
         toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
       } else {
@@ -528,7 +608,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleAssignmentChange = (booking: Booking, field: "rider" | "vendor", value: string) => {
-    const formattedValue = value === "" ? null : value;
+    const formattedValue = value === "__unassigned__" ? null : value;
 
     if ((booking[field] ?? null) === formattedValue) {
       return;
@@ -541,22 +621,21 @@ const AdminBookingManagement: React.FC = () => {
     );
   };
 
+
   const handleItemPriceChange = (index: number, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
     setEditingBooking((prev) => {
-      if (!prev?.item_prices) {
-        return prev;
-      }
+      if (!prev) return prev;
 
-      const currentItem = prev.item_prices[index] || {};
-      const nextItems = prev.item_prices.map((item, itemIndex) => (itemIndex === index ? { ...item } : item));
-      const nextItem = { ...currentItem } as ItemPrice;
+      const currentItems = prev.item_prices || [];
+      const nextItems = currentItems.map((item, i) => (i === index ? { ...item } : { ...item }));
+      const nextItem = { ...(nextItems[index] || {}) } as ItemPrice;
 
       if (field === "service_name") {
         nextItem.service_name = rawValue;
       }
 
       if (field === "quantity") {
-        const parsedQuantity = parseInt(rawValue, 10);
+        const parsedQuantity = parseFloat(rawValue);
         nextItem.quantity = Number.isFinite(parsedQuantity) ? parsedQuantity : 0;
       }
 
@@ -565,20 +644,41 @@ const AdminBookingManagement: React.FC = () => {
         nextItem.unit_price = Number.isFinite(parsedPrice) ? parsedPrice : 0;
       }
 
-      const quantity = nextItem.quantity ?? currentItem.quantity ?? 0;
-      const unitPrice =
-        field === "unit_price"
-          ? nextItem.unit_price ?? nextItem.price ?? 0
-          : nextItem.unit_price ?? currentItem.unit_price ?? currentItem.price ?? 0;
+      const quantity = nextItem.quantity ?? 0;
+      const unitPrice = nextItem.unit_price ?? nextItem.price ?? 0;
 
-      nextItem.total_price = (quantity || 0) * (unitPrice || 0);
+      nextItem.total_price = +(Number(quantity || 0) * Number(unitPrice || 0)).toFixed(2);
       nextItems[index] = nextItem;
 
       return {
         ...prev,
         item_prices: nextItems,
-      };
+      } as Booking;
     });
+  };
+
+  const addItemToEditing = () => {
+    setEditingBooking((prev) => {
+      if (!prev) return prev;
+      const nextItems = Array.isArray(prev.item_prices) ? [...prev.item_prices] : [];
+      nextItems.push({ service_name: "", quantity: 0, unit_price: 0, total_price: 0 });
+      return { ...prev, item_prices: nextItems } as Booking;
+    });
+  };
+
+  const removeItemFromEditing = (index: number) => {
+    setEditingBooking((prev) => {
+      if (!prev) return prev;
+      const nextItems = (prev.item_prices || []).filter((_, i) => i !== index);
+      return { ...prev, item_prices: nextItems } as Booking;
+    });
+  };
+
+  const computeEditingTotals = (bookingData: Booking | null) => {
+    if (!bookingData) return { total: 0, final: 0 };
+    const items = bookingData.item_prices || [];
+    const subtotal = items.reduce((s, it) => s + (Number(it.total_price) || 0), 0);
+    return { total: +(subtotal).toFixed(2), final: +(subtotal).toFixed(2) };
   };
 
   if (loading) {
@@ -641,165 +741,195 @@ const AdminBookingManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
-        {filteredBookings.map((booking) => {
-          const mutation = mutationState[booking._id] || {};
-          const isStatusUpdating = Boolean(mutation.status);
-          const isAssignmentUpdating = Boolean(mutation.assignment);
-
-          return (
-            <Card key={booking._id} className="transition-shadow hover:shadow-md">
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium">#{booking.custom_order_id}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">{booking.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">{booking.phone}</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-gray-600">
-                      <MapPin className="mt-[2px] h-4 w-4" />
-                      <span className="line-clamp-2">{booking.address}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(booking.scheduled_date)}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-4 w-4" />
-                      {booking.scheduled_time || "-"}
-                    </div>
-                    {booking.delivery_date && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="h-4 w-4" />
-                        Delivery: {formatDate(booking.delivery_date)}
+      <div className="space-y-6">
+        {/* Bucket A: Pickup & Vendor Flow */}
+        <div>
+          <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
+          <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
+          <div className="mt-3 space-y-4">
+            {filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).map(booking => (
+                <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    {/* reuse existing booking card layout by calling a small render helper - inline for simplicity */}
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.phone}</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="space-y-2">
-                    <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                      {getStatusIcon(booking.status)}
-                      <span>{getStatusLabel(booking.status)}</span>
-                    </Badge>
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">Created {formatDate(booking.created_at)}</div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-700">Rider:</span> {booking.rider || "Unassigned"}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-700">Vendor:</span> {booking.vendor || "Unassigned"}
-                    </div>
-                  </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(booking.scheduled_date)}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Clock className="h-4 w-4" />
+                          {booking.scheduled_time || "-"}
+                        </div>
+                      </div>
 
-                  <div className="flex flex-col gap-3">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setViewingBooking(booking);
-                          setShowViewDialog(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingBooking({ ...booking });
-                          setShowEditDialog(true);
-                        }}
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                      <div className="space-y-2">
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                        </div>
+                      </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-500">Order Status</Label>
-                      <Select
-                        value={normalizeStatus(booking.status)}
-                        onValueChange={(value) => updateBookingStatus(booking._id, value)}
-                        disabled={isStatusUpdating}
-                      >
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ORDER_FLOW_STEPS.map((step) => (
-                            <SelectItem key={step.value} value={step.value}>
-                              {step.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Ready for Delivery
+                            </Button>
+                          )}
+
+                          {/* Inline assign rider for quick action */}
+                          <div className="w-36">
+                            <Select
+                              value={booking.rider ?? "__unassigned__"}
+                              onValueChange={(value) => handleAssignmentChange(booking, 'rider', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__unassigned__">Assign Rider</SelectItem>
+                                {DEFAULT_RIDER_LIST.map((r) => (
+                                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-500">Assign Rider</Label>
-                      <Select
-                        value={booking.rider || ""}
-                        onValueChange={(value) => handleAssignmentChange(booking, "rider", value)}
-                        disabled={isAssignmentUpdating}
-                      >
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select rider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
-                          {DEFAULT_RIDER_LIST.map((rider) => (
-                            <SelectItem key={rider} value={rider}>
-                              {rider}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="py-6 text-center">
+                  <p className="text-gray-600">No orders in Pickup/Vendor flow</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Bucket B: Ready for Delivery */}
+        <div>
+          <h3 className="text-lg font-semibold">Ready for Delivery</h3>
+          <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+          <div className="mt-3 space-y-4">
+            {filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).map(booking => (
+                <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.name}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(booking.scheduled_date)}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Ready for Delivery
+                            </Button>
+                          )}
+
+                          {/* Inline assign rider for quick action */}
+                          <div className="w-36">
+                            <Select
+                              value={booking.rider ?? "__unassigned__"}
+                              onValueChange={(value) => handleAssignmentChange(booking, 'rider', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__unassigned__">Assign Rider</SelectItem>
+                                {DEFAULT_RIDER_LIST.map((r) => (
+                                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-500">Assign Vendor</Label>
-                      <Select
-                        value={booking.vendor || ""}
-                        onValueChange={(value) => handleAssignmentChange(booking, "vendor", value)}
-                        disabled={isAssignmentUpdating}
-                      >
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select vendor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
-                          {DEFAULT_VENDOR_LIST.map((vendor) => (
-                            <SelectItem key={vendor} value={vendor}>
-                              {vendor}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
+                    <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="py-6 text-center">
+                  <p className="text-gray-600">No orders ready for delivery</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
 
-                <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
-              </CardContent>
-            </Card>
-          );
-        })}
-
+        {/* Global empty state if no bookings at all */}
         {filteredBookings.length === 0 && (
           <Card>
             <CardContent className="py-8 text-center">
@@ -1021,14 +1151,14 @@ const AdminBookingManagement: React.FC = () => {
                       {viewingBooking.charges_breakdown.delivery_fee && (
                         <div className="flex justify-between">
                           <span>Delivery Fee:</span>
-                          <span>₹{viewingBooking.charges_breakdown.delivery_fee}</span>
+                          <span>��{viewingBooking.charges_breakdown.delivery_fee}</span>
                         </div>
                       )}
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
                     <span>Final Amount:</span>
-                    <span>₹{viewingBooking.final_amount}</span>
+                    <span>���{viewingBooking.final_amount}</span>
                   </div>
                 </div>
               </div>
@@ -1171,13 +1301,13 @@ const AdminBookingManagement: React.FC = () => {
                 <div>
                   <Label>Assign Rider</Label>
                   <Select
-                    value={editingBooking.rider || ""}
+                    value={editingBooking.rider ?? "__unassigned__"}
                     onValueChange={(value) =>
                       setEditingBooking((prev) =>
                         prev
                           ? {
                               ...prev,
-                              rider: value === "" ? null : value,
+                              rider: value === "__unassigned__" ? null : value,
                             }
                           : prev,
                       )
@@ -1187,7 +1317,7 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {DEFAULT_RIDER_LIST.map((rider) => (
                         <SelectItem key={rider} value={rider}>
                           {rider}
@@ -1199,13 +1329,13 @@ const AdminBookingManagement: React.FC = () => {
                 <div>
                   <Label>Assign Vendor</Label>
                   <Select
-                    value={editingBooking.vendor || ""}
+                    value={editingBooking.vendor ?? "__unassigned__"}
                     onValueChange={(value) =>
                       setEditingBooking((prev) =>
                         prev
                           ? {
                               ...prev,
-                              vendor: value === "" ? null : value,
+                              vendor: value === "__unassigned__" ? null : value,
                             }
                           : prev,
                       )
@@ -1215,7 +1345,7 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {DEFAULT_VENDOR_LIST.map((vendor) => (
                         <SelectItem key={vendor} value={vendor}>
                           {vendor}
@@ -1250,26 +1380,66 @@ const AdminBookingManagement: React.FC = () => {
                 <div className="space-y-2">
                   {editingBooking.item_prices && editingBooking.item_prices.length > 0 ? (
                     editingBooking.item_prices.map((item, index) => (
-                      <div key={index} className="grid grid-cols-3 items-center gap-2">
-                        <Input
+                      <div key={index} className="grid grid-cols-4 items-center gap-2">
+                        <Select
                           value={item.service_name || item.name || ""}
-                          onChange={(event) => handleItemPriceChange(index, "service_name", event.target.value)}
-                        />
+                          onValueChange={(value) => {
+                            const realValue = value === "__none__" ? "" : value;
+                            // Set service name and unit price from catalog when available
+                            handleItemPriceChange(index, "service_name", realValue);
+                            const catalog = getSortedServices();
+                            const matched = catalog.find((s: any) => s.name === realValue);
+                            if (matched) {
+                              handleItemPriceChange(index, "unit_price", String(matched.price));
+                              // default quantity to 1 if zero
+                              if (!item.quantity || item.quantity === 0) {
+                                handleItemPriceChange(index, "quantity", "1");
+                              }
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Select item</SelectItem>
+                            {getSortedServices().map((svc) => (
+                              <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                {svc.name} — ₹{svc.price}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Input
                           type="number"
-                          value={item.quantity ?? 0}
+                          step="0.1"
+                          value={String(item.quantity ?? 0)}
                           onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
                         />
                         <Input
                           type="number"
-                          value={item.unit_price ?? item.price ?? 0}
+                          step="0.01"
+                          value={String(item.unit_price ?? item.price ?? 0)}
                           onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
                         />
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm">₹{(item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price}</div>
+                          <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)}>
+                            Remove
+                          </Button>
+                        </div>
                       </div>
                     ))
                   ) : (
                     <div className="text-sm text-gray-500">No itemized prices available for this order.</div>
                   )}
+
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={addItemToEditing}>Add Item</Button>
+                    <div className="ml-auto text-sm font-medium">
+                      Subtotal: ₹{computeEditingTotals(editingBooking).total}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1284,18 +1454,43 @@ const AdminBookingManagement: React.FC = () => {
                     }
 
                     try {
+                      // Recompute totals from items
+                      const totals = computeEditingTotals(editingBooking);
+
+                      const finalAmount = (typeof editingBooking.final_amount === "number" && !Number.isNaN(editingBooking.final_amount) && editingBooking.final_amount > 0)
+                        ? editingBooking.final_amount
+                        : totals.final;
+
                       const payload: any = {
-                        status: normalizeStatus(editingBooking.status),
-                        final_amount: editingBooking.final_amount,
+                        status: mapToBackendStatus(normalizeStatus(editingBooking.status)),
+                        final_amount: finalAmount,
+                        total_price: totals.total,
                         scheduled_date: editingBooking.scheduled_date,
                         scheduled_time: editingBooking.scheduled_time,
-                        address: editingBooking.address,
+                        address: editingBooking.address || "",
                         rider: editingBooking.rider,
                         vendor: editingBooking.vendor,
                       };
 
-                      if (editingBooking.item_prices) {
-                        payload.item_prices = editingBooking.item_prices;
+                      // Build services array from item names for backend compatibility
+                      if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
+                        payload.item_prices = editingBooking.item_prices.map((it) => ({
+                          service_name: it.service_name || it.name || "Item",
+                          quantity: it.quantity || 0,
+                          unit_price: it.unit_price || it.price || 0,
+                          total_price: it.total_price || 0,
+                        }));
+
+                        payload.services = payload.item_prices.map((it) =>
+                          it.quantity > 1 ? `${it.service_name} x${it.quantity}` : it.service_name,
+                        );
+
+                        payload.service = payload.services.join(", ") || "Misc Service";
+                      } else {
+                        // Allow admin to save without services by providing defaults
+                        payload.item_prices = [];
+                        payload.services = ["Misc Service"];
+                        payload.service = "Misc Service";
                       }
 
                       const response = await apiClient.adminRequest<{ booking?: Booking }>(

@@ -1,7 +1,7 @@
 # Rider System Demo Credentials & Testing Guide
 
 ## 🚨 Current Status
-The rider system is **fully implemented** but experiencing a deployment issue where the production backend (`backend-vaxf.onrender.com`) doesn't have the rider routes deployed yet.
+The rider system is **fully implemented** but experiencing a deployment issue where the production backend (`home-services-5alb.onrender.com`) doesn't have the rider routes deployed yet.
 
 ## 📱 Demo Credentials for Testing
 
@@ -49,7 +49,7 @@ The production backend needs the rider routes deployed. The code exists in:
 
 To fix the production deployment:
 
-1. **Deploy Backend:** The rider routes need to be deployed to `backend-vaxf.onrender.com`
+1. **Deploy Backend:** The rider routes need to be deployed to `home-services-5alb.onrender.com`
 2. **Database Migration:** Run the rider table creation script
 3. **Environment Variables:** Ensure JWT secrets are configured
 
@@ -89,7 +89,7 @@ The system includes sample orders for testing:
 
 ---
 
-**Current Error:** `POST https://backend-vaxf.onrender.com/api/riders/login 400 (Bad Request)`
+**Current Error:** `POST https://home-services-5alb.onrender.com/api/riders/login 400 (Bad Request)`
 
 **Cause:** Production backend missing rider route deployment
 

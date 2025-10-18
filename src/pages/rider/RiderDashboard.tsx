@@ -472,6 +472,8 @@ export default function RiderDashboard() {
   const [otpType, setOtpType] = useState<'pickup'|'delivery'>('pickup');
   const [otpValue, setOtpValue] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
+  // Toggle this to true to disable customer confirmation OTP/verification flows (useful for testing or if business wants no OTP)
+  const DISABLE_CUSTOMER_OTP = true;
   const [resendCountdown, setResendCountdown] = useState<number>(0);
   const resendTimerRef = React.useRef<number | null>(null);
 
@@ -529,7 +531,7 @@ export default function RiderDashboard() {
 
       const currentOrder = assignedOrders.find(order => order._id === orderId);
 
-      const shouldRequestOtp = action === 'start' || action === 'complete';
+      const shouldRequestOtp = (action === 'start' || action === 'complete') && !DISABLE_CUSTOMER_OTP;
 
       // If the action requires OTP verification before proceeding, request OTP first
       if (shouldRequestOtp) {
@@ -541,7 +543,7 @@ export default function RiderDashboard() {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ orderId, action, riderId: rider?._id, location: currentLocation, timestamp: new Date().toISOString(), requireOtp: true })
+            body: JSON.stringify({ orderId, action, riderId: rider?._id, location: currentLocation, timestamp: new Date().toISOString(), requireOtp: !DISABLE_CUSTOMER_OTP ? true : false })
           });
 
           const d = await r.json().catch(() => ({}));

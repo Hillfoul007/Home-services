@@ -275,17 +275,24 @@ router.post('/request-otp', async (req, res) => {
     const otp = otpService.generateOTP();
     otpService.storeOTP(phone, otp, 'login');
 
+    console.log('🔐 Sending OTP (debug):', { phone, env: process.env.NODE_ENV, dvhostingKeyPresent: !!process.env.DVHOSTING_API_KEY });
+
     const smsResult = await otpService.sendOTP(phone, otp, 'login');
 
-    if (!smsResult.success) {
+    console.log('📲 DVHosting sendOTP result:', smsResult);
+
+    if (!smsResult || !smsResult.success) {
+      console.error('❌ sendOTP failed for phone', phone, smsResult);
       return res.status(500).json({
-        message: 'Failed to send OTP. Please try again.'
+        message: 'Failed to send OTP. Please try again.',
+        error: smsResult && smsResult.error ? smsResult.error : undefined
       });
     }
 
     res.json({
       message: 'OTP sent successfully to your phone number',
-      expiresIn: '10 minutes'
+      expiresIn: '10 minutes',
+      debug: { smsResult }
     });
   } catch (error) {
     console.error('❌ OTP request error:', error);
@@ -293,6 +300,20 @@ router.post('/request-otp', async (req, res) => {
       message: 'Failed to send OTP. Please try again.',
       error: 'Internal server error'
     });
+  }
+});
+
+// Debug endpoint: Get OTP status for a phone
+router.get('/otp-status/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const purpose = req.query.purpose || 'login';
+    if (!phone) return res.status(400).json({ message: 'Phone required' });
+    const status = otpService.getOTPStatus(phone, String(purpose));
+    return res.json({ success: true, phone, purpose, status });
+  } catch (error) {
+    console.error('❌ OTP status error:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -2092,6 +2113,118 @@ router.post('/admin/orders/assign', async (req, res) => {
     res.status(500).json({ message: 'Failed to assign order', error: error.message });
   }
 });
+
+// Rider: Update order status (rider actions)
+router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, notes, photos } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const booking = await Booking.findById(orderId);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Ensure the rider is assigned to this booking (unless demo mode)
+    const riderIdFromToken = req.rider?.riderId || req.rider?.rider_id || null;
+    if (mongoose.connection.readyState && booking.assignedRider && String(booking.assignedRider) !== String(riderIdFromToken)) {
+      console.warn('⚠️ Rider attempting to update order not assigned to them', { orderId, riderIdFromToken });
+      return res.status(403).json({ message: 'You are not assigned to this order' });
+    }
+
+    // Normalize incoming status to known enum where possible
+    const incoming = (String(status || '')).toLowerCase().replace(/\s+/g, '_');
+
+    // Map common rider statuses to booking.status and timestamp fields
+    const timestampNow = new Date();
+    switch (incoming) {
+      case 'accepted':
+      case 'confirm':
+      case 'confirm_order':
+        booking.riderStatus = 'accepted';
+        booking.acceptedAt = timestampNow;
+        booking.status = 'pickup_assigned';
+        break;
+      case 'picked_up':
+      case 'pickup_completed':
+        booking.riderStatus = 'picked_up';
+        booking.pickedUpAt = timestampNow;
+        booking.status = 'pickup_completed';
+        break;
+      case 'delivered_to_vendor':
+      case 'delivered_vendor':
+        booking.deliveredAt = timestampNow;
+        booking.status = 'delivered_to_vendor';
+        break;
+      case 'ready_for_delivery':
+      case 'ready':
+        booking.status = 'ready_for_delivery';
+        break;
+      case 'delivery_assigned':
+      case 'out_for_delivery':
+        booking.status = 'delivery_assigned';
+        break;
+      case 'delivered':
+      case 'completed':
+        booking.deliveredAt = timestampNow;
+        booking.completed_at = timestampNow;
+        booking.status = 'completed';
+        break;
+      case 'cancelled':
+        booking.status = 'cancelled';
+        break;
+      default:
+        // Accept unknown statuses by writing them directly to booking.status
+        booking.status = incoming;
+    }
+
+    // Attach notes or photos if provided
+    if (notes) {
+      booking.additional_details = booking.additional_details
+        ? `${booking.additional_details}\n[${timestampNow.toISOString()}] ${notes}`
+        : `[${timestampNow.toISOString()}] ${notes}`;
+    }
+
+    if (Array.isArray(photos) && photos.length > 0) {
+      booking.delivery_photos = [...(booking.delivery_photos || []), ...photos];
+    }
+
+    booking.updated_at = timestampNow;
+
+    await booking.save();
+
+    // Optionally create a notification for the customer about status change
+    try {
+      const Notification = require('../models/Notification');
+      if (booking.customer_id) {
+        await Notification.create({
+          user_id: booking.customer_id,
+          title: 'Order status updated',
+          message: `Your order ${booking.custom_order_id || booking._id} status changed to ${booking.status}`,
+          type: 'booking_status',
+          data: { bookingId: booking._id, status: booking.status },
+          related_order: booking._id,
+        });
+      }
+    } catch (notifErr) {
+      console.warn('⚠️ Failed to create customer notification for status update', notifErr.message);
+    }
+
+    res.json({ message: 'Order status updated', booking });
+  } catch (error) {
+    console.error('❌ Rider order status update error:', error);
+    res.status(500).json({ message: 'Failed to update order status', error: error.message });
+  }
+});
+
 
 // Debug catch-all route for unmatched rider routes
 router.all('*', (req, res) => {
