@@ -275,17 +275,24 @@ router.post('/request-otp', async (req, res) => {
     const otp = otpService.generateOTP();
     otpService.storeOTP(phone, otp, 'login');
 
+    console.log('🔐 Sending OTP (debug):', { phone, env: process.env.NODE_ENV, dvhostingKeyPresent: !!process.env.DVHOSTING_API_KEY });
+
     const smsResult = await otpService.sendOTP(phone, otp, 'login');
 
-    if (!smsResult.success) {
+    console.log('📲 DVHosting sendOTP result:', smsResult);
+
+    if (!smsResult || !smsResult.success) {
+      console.error('❌ sendOTP failed for phone', phone, smsResult);
       return res.status(500).json({
-        message: 'Failed to send OTP. Please try again.'
+        message: 'Failed to send OTP. Please try again.',
+        error: smsResult && smsResult.error ? smsResult.error : undefined
       });
     }
 
     res.json({
       message: 'OTP sent successfully to your phone number',
-      expiresIn: '10 minutes'
+      expiresIn: '10 minutes',
+      debug: { smsResult }
     });
   } catch (error) {
     console.error('❌ OTP request error:', error);
@@ -1280,7 +1287,7 @@ router.put('/orders/:orderId/update', verifyRiderToken, async (req, res) => {
     });
 
     // Log the complete request body for debugging
-    console.log('📤 Complete request body:', JSON.stringify(req.body, null, 2));
+    console.log('�� Complete request body:', JSON.stringify(req.body, null, 2));
 
     // Get Indian timezone date
     const getIndianTime = () => {
