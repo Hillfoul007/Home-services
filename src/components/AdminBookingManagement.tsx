@@ -741,7 +741,7 @@ const AdminBookingManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Bucket A: Pickup & Vendor Flow */}
         <div>
           <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
