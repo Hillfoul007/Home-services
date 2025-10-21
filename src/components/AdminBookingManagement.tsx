@@ -742,9 +742,31 @@ const AdminBookingManagement: React.FC = () => {
         </CardContent>
       </Card>
 
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setViewMode('both')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'both' ? 'bg-white shadow-sm' : 'bg-transparent')}>
+            <Package className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium">All</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.length}</span>
+          </button>
+
+          <button onClick={() => setViewMode('pickup')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'pickup' ? 'bg-white shadow-sm' : 'bg-transparent')}>
+            <MapPin className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium">Pickup</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length}</span>
+          </button>
+
+          <button onClick={() => setViewMode('ready')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'ready' ? 'bg-white shadow-sm' : 'bg-transparent')}>
+            <Clock className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium">Ready for Delivery</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length}</span>
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Bucket A: Pickup & Vendor Flow */}
-        <div>
+        <div className={viewMode === 'ready' ? 'hidden' : ''}>
           <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
           <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
           <div className="mt-3 space-y-4">
@@ -842,7 +864,7 @@ const AdminBookingManagement: React.FC = () => {
         </div>
 
         {/* Bucket B: Ready for Delivery */}
-        <div>
+        <div className={viewMode === 'pickup' ? 'hidden' : ''}>
           <h3 className="text-lg font-semibold">Ready for Delivery</h3>
           <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
           <div className="mt-3 space-y-4">
