@@ -330,6 +330,7 @@ const AdminBookingManagement: React.FC = () => {
   const [mutationState, setMutationState] = useState<Record<string, MutationFlags>>({});
 
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
 
   useEffect(() => {
     fetchBookings();
