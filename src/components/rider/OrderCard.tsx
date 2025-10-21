@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { MapPin, Phone, CheckCircle, XCircle, Navigation } from 'lucide-react';
+import { MapPin, Phone, Navigation } from 'lucide-react';
+import { toast } from 'sonner';
 
 type Order = {
   _id: string;
@@ -12,26 +13,36 @@ type Order = {
   pickupTime?: string;
   type?: string;
   riderStatus?: string;
+  coordinates?: { lat?: number; lng?: number };
+  vendorCoordinates?: { lat?: number; lng?: number } | null;
 };
 
-import { toast } from 'sonner';
+function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const R = 6371000; // meters
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const sinDlat = Math.sin(dLat / 2);
+  const sinDlon = Math.sin(dLon / 2);
+  const aHarv = sinDlat * sinDlat + sinDlon * sinDlon * Math.cos(lat1) * Math.cos(lat2);
+  const c = 2 * Math.atan2(Math.sqrt(aHarv), Math.sqrt(1 - aHarv));
+  return R * c;
+}
 
 export default function OrderCard({
   order,
-  onAccept,
-  onReject,
-  onStart,
-  onComplete,
+  currentLocation,
   onNavigate,
-  onEditCart,
+  onPickup,
+  onDeliver,
 }: {
   order: Order;
-  onAccept: (id: string) => void;
-  onReject: (id: string) => void;
-  onStart: (id: string) => void;
-  onComplete: (id: string) => void;
+  currentLocation: { lat: number; lng: number } | null;
   onNavigate: (order: Order) => void;
-  onEditCart: (order: Order) => void;
+  onPickup: (id: string) => void;
+  onDeliver: (id: string) => void;
 }) {
   const statusLabel = order.riderStatus || 'unassigned';
 
@@ -43,6 +54,22 @@ export default function OrderCard({
       toast.error('Action failed. Please try again.');
     }
   };
+
+  const pickupCoords = order.coordinates && typeof order.coordinates.lat === 'number' && typeof order.coordinates.lng === 'number'
+    ? { lat: order.coordinates.lat, lng: order.coordinates.lng }
+    : null;
+
+  const vendorCoords = order.vendorCoordinates && typeof order.vendorCoordinates.lat === 'number' && typeof order.vendorCoordinates.lng === 'number'
+    ? { lat: order.vendorCoordinates.lat, lng: order.vendorCoordinates.lng }
+    : null;
+
+  const distanceToPickup = (currentLocation && pickupCoords) ? Math.round(haversineMeters(currentLocation, pickupCoords)) : null;
+  const distanceToVendor = (currentLocation && vendorCoords) ? Math.round(haversineMeters(currentLocation, vendorCoords)) : null;
+
+  // Enabled when within 200 meters
+  const pickupEnabled = distanceToPickup !== null ? distanceToPickup <= 200 : false;
+  // For delivery: require pickup already happened (status picked_up) and either vendor coords are unknown (allow) or within 200m
+  const deliverEnabled = statusLabel === 'picked_up' && (vendorCoords ? (distanceToVendor !== null ? distanceToVendor <= 200 : false) : true);
 
   return (
     <Card className="mb-3">
@@ -76,32 +103,20 @@ export default function OrderCard({
           <Button size="sm" onClick={() => safeCall(onNavigate, order)} className="flex-1">
             <Navigation className="mr-2 h-4 w-4" /> Navigate
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => safeCall(onEditCart, order)}>
-            Edit Cart
-          </Button>
         </div>
 
         <div className="flex items-center gap-2 justify-end">
-          {statusLabel === 'assigned' && (
-            <>
-              <Button size="sm" onClick={() => safeCall(onAccept, order._id)}>
-                <CheckCircle className="mr-2 h-4 w-4" /> Accept
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => safeCall(onReject, order._id)}>
-                <XCircle className="mr-2 h-4 w-4" /> Reject
-              </Button>
-            </>
-          )}
-
-          {statusLabel === 'accepted' && (
-            <Button size="sm" onClick={() => safeCall(onStart, order._id)}>
-              Start
+          {/* Show pickup button when order not yet picked up */}
+          {statusLabel !== 'picked_up' && (
+            <Button size="sm" onClick={() => safeCall(onPickup, order._id)} disabled={!pickupEnabled}>
+              {pickupEnabled ? 'Mark Picked Up' : `Reach customer to enable`}
             </Button>
           )}
 
-          {(statusLabel === 'on_the_way' || statusLabel === 'picked_up') && (
-            <Button size="sm" onClick={() => safeCall(onComplete, order._id)}>
-              Delivered
+          {/* After picked up, show deliver button */}
+          {statusLabel === 'picked_up' && (
+            <Button size="sm" onClick={() => safeCall(onDeliver, order._id)} disabled={!deliverEnabled}>
+              {deliverEnabled ? 'Mark Delivered' : 'Reach vendor to enable'}
             </Button>
           )}
         </div>
