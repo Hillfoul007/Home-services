@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,6 @@ import RiderLayout from '@/components/rider/RiderLayout';
 import RiderNotifications from '@/components/rider/RiderNotifications';
 import { getRiderApiUrl } from '@/lib/riderApi';
 import OrderCard from '@/components/rider/OrderCard';
-import EarningsDashboard from '@/components/rider/EarningsDashboard';
 import TrainingVideo from '@/components/rider/TrainingVideo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -38,7 +37,6 @@ export default function RiderDashboard() {
   const [locationWatcher, setLocationWatcher] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastFetchError, setLastFetchError] = useState<string | null>(null);
-  const [earnings, setEarnings] = useState<{ daily: number; weekly: number }>({ daily: 0, weekly: 0 });
 
   useEffect(() => {
     // Load rider data
@@ -51,9 +49,6 @@ export default function RiderDashboard() {
 
     // Load assigned orders
     fetchAssignedOrders();
-
-    // Load earnings summary (demo or real if API available)
-    fetchEarningsSummary();
 
     // Network status listeners
     const handleOnline = () => {
@@ -76,7 +71,6 @@ export default function RiderDashboard() {
     };
   }, []);
 
-  // Listen for global verification status changes and refresh assigned orders
   useEffect(() => {
     const handler = (e: Event) => {
       try {
@@ -105,7 +99,6 @@ export default function RiderDashboard() {
     } else {
       stopLocationTracking();
     }
-    
     return () => {
       if (locationWatcher) {
         navigator.geolocation.clearWatch(locationWatcher);
@@ -122,7 +115,6 @@ export default function RiderDashboard() {
             lng: position.coords.longitude
           };
           setCurrentLocation(location);
-          
           // Send location to backend
           updateLocationOnServer(location);
         },
@@ -189,7 +181,7 @@ export default function RiderDashboard() {
         console.warn('Location update failed:', response.status, response.statusText);
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
+      if ((error as any).name === 'AbortError') {
         console.warn('Location update timed out');
       } else {
         console.error('Failed to update location:', error);
@@ -286,21 +278,66 @@ export default function RiderDashboard() {
         });
 
         setAllAssignedOrders(sorted);
-        setAssignedOrders(sorted);
+
+        // Smart filtering: show only active/relevant orders to rider to reduce clutter
+        const visible = sorted.filter((o: any) => {
+          const s = (o.riderStatus || 'assigned').toLowerCase();
+          return ['assigned','accepted','on_the_way','picked_up','pending'].includes(s);
+        });
+
+        // If we have current location, prioritize by proximity to pickup
+        const computeCoords = (o: any) => {
+          if (o.coordinates && typeof o.coordinates.lat === 'number' && typeof o.coordinates.lng === 'number') return { lat: o.coordinates.lat, lng: o.coordinates.lng };
+          const m = typeof o.address === 'string' ? o.address.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/) : null;
+          if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+          return null;
+        };
+
+        const toMeters = (a: {lat:number,lng:number}, b: {lat:number,lng:number}) => {
+          const toRad = (v:number) => v * Math.PI / 180;
+          const R = 6371000; // meters
+          const dLat = toRad(b.lat - a.lat);
+          const dLon = toRad(b.lng - a.lng);
+          const lat1 = toRad(a.lat);
+          const lat2 = toRad(b.lat);
+          const sinDlat = Math.sin(dLat/2);
+          const sinDlon = Math.sin(dLon/2);
+          const aHarv = sinDlat*sinDlat + sinDlon*sinDlon * Math.cos(lat1) * Math.cos(lat2);
+          const c = 2 * Math.atan2(Math.sqrt(aHarv), Math.sqrt(1-aHarv));
+          return R * c;
+        };
+
+        let finalVisible = visible;
+        if (currentLocation) {
+          try {
+            finalVisible = visible.slice().sort((a: any, b: any) => {
+              const ac = computeCoords(a);
+              const bc = computeCoords(b);
+              if (!ac && !bc) return 0;
+              if (!ac) return 1;
+              if (!bc) return -1;
+              const da = toMeters(currentLocation, ac);
+              const db = toMeters(currentLocation, bc);
+              return da - db;
+            });
+          } catch (e) {
+            console.warn('Failed to sort by proximity', e);
+          }
+        }
+
+        setAssignedOrders(finalVisible);
         setLastFetchError(null); // Clear any previous errors
 
         // Compute upcoming orders within next 2 hours
         const now = Date.now();
         const twoHours = 2 * 60 * 60 * 1000;
         const upcoming = sorted.filter((o: any) => {
-          // Try scheduled pickup time first (ISO), else fallback to assignedAt
           const timeStr = o.pickupTimeISO || o.scheduledAt || o.pickup_time || o.pickupTime || o.assignedAt;
           let t = null;
           if (typeof timeStr === 'string') {
             const parsed = Date.parse(timeStr);
             if (!isNaN(parsed)) t = parsed;
           }
-          // If not parsable, check relative assignedAt
           if (!t && o.assignedAt) {
             const parsed = Date.parse(o.assignedAt);
             if (!isNaN(parsed)) t = parsed;
@@ -316,7 +353,7 @@ export default function RiderDashboard() {
         setLastFetchError(`Server error: ${response.status}`);
         setDemoOrders();
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         console.warn('Order fetch timed out');
         setLastFetchError('Request timed out - please check your connection');
@@ -339,7 +376,8 @@ export default function RiderDashboard() {
         pickupTime: '2:00 PM - 4:00 PM',
         type: 'Regular',
         riderStatus: 'assigned',
-        assignedAt: new Date().toISOString()
+        assignedAt: new Date().toISOString(),
+        coordinates: null
       },
       {
         _id: 'quick_pickup_demo',
@@ -350,11 +388,11 @@ export default function RiderDashboard() {
         pickupTime: '3:00 PM - 5:00 PM',
         type: 'Quick Pickup',
         riderStatus: 'assigned',
-        assignedAt: new Date().toISOString()
+        assignedAt: new Date().toISOString(),
+        coordinates: null
       }
     ];
     setAssignedOrders(demoOrders);
-
   };
 
   const openGoogleMapsNavigation = (order: any) => {
@@ -397,13 +435,8 @@ export default function RiderDashboard() {
       return;
     }
 
-    // Convert address to lat/lng fallback to coordinates if available (we'll use address strings for maps)
-    const origin = { lat: currentLocation.lat, lng: currentLocation.lng };
-
-    // Simple greedy nearest-neighbour algorithm using haversine distance between coordinates if available
     const parseCoords = (o: any) => {
       if (o.coordinates && typeof o.coordinates.lat === 'number' && typeof o.coordinates.lng === 'number') return { lat: o.coordinates.lat, lng: o.coordinates.lng, address: o.address };
-      // Try to parse from address if it's lat,lng
       const m = typeof o.address === 'string' ? o.address.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/) : null;
       if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]), address: o.address };
       return null;
@@ -425,12 +458,11 @@ export default function RiderDashboard() {
       return R * c;
     };
 
-    // Use nearest neighbour starting from origin for points that have coords; others appended at end
     const withCoords = points.filter(p => p.coords !== null);
     const withoutCoords = points.filter(p => p.coords === null);
 
     const route: any[] = [];
-    let current = origin;
+    let current = { lat: currentLocation.lat, lng: currentLocation.lng };
     const remaining = [...withCoords];
     while (remaining.length > 0) {
       let bestIndex = 0;
@@ -448,13 +480,11 @@ export default function RiderDashboard() {
       current = picked.coords as any;
     }
 
-    // Append orders without coords at the end (best-effort)
     withoutCoords.forEach(p => route.push(p.order));
 
-    // Build maps URL (up to 10 waypoints including origin/destination limit)
     const waypointLimit = 8;
     const encodedWaypoints = route.slice(0, waypointLimit + 1).map(o => encodeURIComponent(o.address || `${o.coordinates?.lat},${o.coordinates?.lng}`));
-    const originStr = `${origin.lat},${origin.lng}`;
+    const originStr = `${currentLocation.lat},${currentLocation.lng}`;
     const destination = encodedWaypoints[encodedWaypoints.length - 1];
     const intermediate = encodedWaypoints.slice(0, encodedWaypoints.length - 1).join('|');
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destination}&travelmode=driving${intermediate ? `&waypoints=${intermediate}` : ''}`;
@@ -472,7 +502,6 @@ export default function RiderDashboard() {
   const [otpType, setOtpType] = useState<'pickup'|'delivery'>('pickup');
   const [otpValue, setOtpValue] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
-  // Toggle this to true to disable customer confirmation OTP/verification flows (useful for testing or if business wants no OTP)
   const DISABLE_CUSTOMER_OTP = true;
   const [resendCountdown, setResendCountdown] = useState<number>(0);
   const resendTimerRef = React.useRef<number | null>(null);
@@ -502,21 +531,15 @@ export default function RiderDashboard() {
     };
   }, []);
 
-  const handleOrderAction = async (orderId: string, action: 'accept' | 'start' | 'complete' | 'reject') => {
+  const handleOrderAction = async (orderId: string, action: 'start' | 'complete') => {
     try {
-      // Validate rider status first
       if (!rider) {
         toast.error('Rider information not found. Please login again.');
         return;
       }
 
       if (rider.status !== 'approved') {
-        toast.error('Only approved riders can accept orders. Your status: ' + rider.status);
-        return;
-      }
-
-      if (!isActive && action === 'accept') {
-        toast.error('Please go active to accept orders.');
+        toast.error('Only approved riders can perform this action. Your status: ' + rider.status);
         return;
       }
 
@@ -529,122 +552,41 @@ export default function RiderDashboard() {
       const apiUrl = getRiderApiUrl('/order-action');
       console.log('🔍 Order action:', action, 'for order:', orderId, 'API URL:', apiUrl);
 
-      const currentOrder = assignedOrders.find(order => order._id === orderId);
-
-      const shouldRequestOtp = (action === 'start' || action === 'complete') && !DISABLE_CUSTOMER_OTP;
-
-      // If the action requires OTP verification before proceeding, request OTP first
-      if (shouldRequestOtp) {
-        toast.loading(`${action.charAt(0).toUpperCase() + action.slice(1)}ing order...`, { id: `order-action-${orderId}` });
-        try {
-          const r = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ orderId, action, riderId: rider?._id, location: currentLocation, timestamp: new Date().toISOString(), requireOtp: !DISABLE_CUSTOMER_OTP ? true : false })
-          });
-
-          const d = await r.json().catch(() => ({}));
-          toast.dismiss(`order-action-${orderId}`);
-
-          if (r.ok && d.need_verification) {
-            toast.success('OTP sent to customer. Please verify to continue.');
-            // Open inline OTP modal so rider can enter the OTP without leaving dashboard
-            setOtpOrderId(orderId);
-            setOtpType(action === 'start' ? 'pickup' : 'delivery');
-            setOtpValue('');
-            setOtpModalOpen(true);
-            // Start resend countdown to prevent spam
-            try { startResendCountdown(30); } catch (e) { console.warn('Failed to start resend countdown', e); }
-          } else if (r.ok) {
-            // Backend chose to perform the action immediately (no OTP needed)
-            if (action === 'start' && currentOrder) {
-              setTimeout(() => openGoogleMapsNavigation(currentOrder), 500);
-            } else {
-              toast.success(`Order ${action}ed successfully!`);
-            }
-          } else {
-            toast.error(d.message || `Failed to ${action} order. Please try again.`);
-          }
-
-          await fetchAssignedOrders();
-        return;
-      } catch (err) {
-        console.warn('OTP request failed, falling back to standard action', err);
-        toast.dismiss(`order-action-${orderId}`);
-        // Fall through to normal action attempt
-      }
-    }
-
-    // Default behavior (accept or fallback when OTP request failed)
-    toast.loading(`${action.charAt(0).toUpperCase() + action.slice(1)}ing order...`, { id: `order-action-${orderId}` });
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        orderId,
-        action,
-        riderId: rider?._id,
-        location: currentLocation,
-        timestamp: new Date().toISOString()
-      })
-    });
-
-    // Try to parse JSON, otherwise fall back to text for better diagnostics
-    let responseData: any = null;
-    try {
-      // Use clone to avoid consuming the response body twice
-      responseData = await response.clone().json();
-    } catch (e) {
-      try {
-        responseData = await response.text();
-      } catch (e2) {
-        responseData = null;
-      }
-    }
-
-    toast.dismiss(`order-action-${orderId}`);
-
-    if (response.ok) {
-      toast.success(`Order ${action}ed successfully!`);
-      if (action === 'accept') {
-        navigate(`/rider/orders/${orderId}`, { state: { fromAccept: true } });
-      } else if (action === 'start' && currentOrder) {
-        setTimeout(() => openGoogleMapsNavigation(currentOrder), 500);
-      }
-      await fetchAssignedOrders();
-    } else {
-      // Enhanced diagnostics for debugging server 500 with empty body
-      let rawText = '';
-      try {
-        rawText = await response.clone().text();
-      } catch (e) {
-        rawText = '';
-      }
-      console.error('Order action failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Array.from(response.headers.entries()),
-        parsedBody: responseData,
-        rawText
+      toast.loading(`${action === 'start' ? 'Processing pickup...' : 'Processing delivery...'}`, { id: `order-action-${orderId}` });
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          orderId,
+          action: action === 'start' ? 'start' : 'complete',
+          riderId: rider?._id,
+          location: currentLocation,
+          timestamp: new Date().toISOString()
+        })
       });
 
-      const msg = typeof responseData === 'string' ? responseData : (responseData?.message || rawText || `Failed to ${action} order. Please try again.`);
-      toast.error(msg);
-    }
-  } catch (error) {
-    console.error('Order action error:', error);
-    toast.dismiss(`order-action-${orderId}`);
-    toast.error('Network error. Please check your connection and try again.');
-  }
-};
+      toast.dismiss(`order-action-${orderId}`);
 
-  // Verify customer OTP from inline dashboard modal
+      if (response.ok) {
+        toast.success(`Order ${action === 'start' ? 'picked up' : 'delivered'} successfully!`);
+        if (action === 'start') {
+          const currentOrder = assignedOrders.find(o => o._id === orderId);
+          if (currentOrder) setTimeout(() => openGoogleMapsNavigation(currentOrder), 500);
+        }
+        await fetchAssignedOrders();
+      } else {
+        const text = await response.text().catch(() => '');
+        toast.error(text || `Failed to ${action === 'start' ? 'pickup' : 'deliver'} order`);
+      }
+    } catch (error) {
+      console.error('Order action error:', error);
+      toast.error('Network error. Please check your connection and try again.');
+    }
+  };
+
   const verifyCustomerOTPInline = async () => {
     if (!otpOrderId) return toast.error('No order selected for OTP verification');
     if (!otpValue) return toast.error('Enter OTP');
@@ -666,9 +608,7 @@ export default function RiderDashboard() {
         setOtpModalOpen(false);
         setOtpValue('');
         setOtpOrderId(null);
-        // Refresh orders
         await fetchAssignedOrders();
-        // Notify global manager
         try {
           if (otpOrderId && (window as any).globalVerificationManager) {
             (window as any).globalVerificationManager.setVerificationStatus(otpOrderId, 'approved');
@@ -688,30 +628,12 @@ export default function RiderDashboard() {
     }
   };
 
-  const handleReject = async (orderId: string) => {
-    await handleOrderAction(orderId, 'reject');
-  };
-
   const handleEditCart = (order: any) => {
     try {
       navigate(`/rider/orders/${order._id}`, { state: { editCart: true } });
     } catch (err) {
       console.error('Navigation error (edit cart):', err);
       toast.error('Unable to open order editor. Please try again.');
-    }
-  };
-
-  const fetchEarningsSummary = async () => {
-    try {
-      const token = localStorage.getItem('riderToken');
-      if (!token) return;
-      const apiUrl = getRiderApiUrl('/earnings/summary');
-      const r = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) return;
-      const data = await r.json();
-      setEarnings({ daily: data.daily || 0, weekly: data.weekly || 0 });
-    } catch (e) {
-      console.warn('Failed to fetch earnings', e);
     }
   };
 
@@ -726,7 +648,7 @@ export default function RiderDashboard() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h2 className="text-lg font-semibold">Assigned Orders</h2>
-              <div className="text-sm text-muted-foreground">Tap an order to view details, edit items or start navigation</div>
+              <div className="text-sm text-muted-foreground">Tap an order to view details or start delivery workflow</div>
             </div>
             <div className="ml-4">
               <Button size="sm" variant="ghost" onClick={() => navigate('/rider/history')}>Order History</Button>
@@ -748,33 +670,29 @@ export default function RiderDashboard() {
                 <OrderCard
                   key={`up_${o._id}`}
                   order={o}
-                  onAccept={(id) => handleOrderAction(id, 'accept')}
-                  onReject={(id) => handleReject(id)}
-                  onStart={(id) => handleOrderAction(id, 'start')}
-                  onComplete={(id) => handleOrderAction(id, 'complete')}
+                  currentLocation={currentLocation}
+                  onPickup={(id) => handleOrderAction(id, 'start')}
+                  onDeliver={(id) => handleOrderAction(id, 'complete')}
                   onNavigate={(order) => openGoogleMapsNavigation(order)}
-                  onEditCart={(order) => handleEditCart(order)}
                 />
               ))
             )}
           </div>
 
-          {/* All assigned orders (newest first) */}
+          {/* Smart assigned orders (prioritized by proximity when possible) */}
           <div>
-            <h3 className="text-md font-medium">All Assigned Orders</h3>
-            {allAssignedOrders.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No assigned orders right now.</div>
+            <h3 className="text-md font-medium">Active Orders</h3>
+            {assignedOrders.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No active orders right now.</div>
             ) : (
-              allAssignedOrders.map((o) => (
+              assignedOrders.map((o) => (
                 <OrderCard
                   key={`all_${o._id}`}
                   order={o}
-                  onAccept={(id) => handleOrderAction(id, 'accept')}
-                  onReject={(id) => handleReject(id)}
-                  onStart={(id) => handleOrderAction(id, 'start')}
-                  onComplete={(id) => handleOrderAction(id, 'complete')}
+                  currentLocation={currentLocation}
+                  onPickup={(id) => handleOrderAction(id, 'start')}
+                  onDeliver={(id) => handleOrderAction(id, 'complete')}
                   onNavigate={(order) => openGoogleMapsNavigation(order)}
-                  onEditCart={(order) => handleEditCart(order)}
                 />
               ))
             )}
@@ -782,7 +700,6 @@ export default function RiderDashboard() {
         </div>
 
         <aside className="lg:col-span-1">
-          <EarningsDashboard daily={earnings.daily} weekly={earnings.weekly} onRefresh={fetchEarningsSummary} />
           <TrainingVideo videoUrl={undefined} />
         </aside>
       </div>
