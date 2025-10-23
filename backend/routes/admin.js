@@ -79,20 +79,35 @@ router.get("/stats", verifyAdminAccess, async (req, res) => {
 // Search users for admin booking
 router.get("/users/search", verifyAdminAccess, async (req, res) => {
   try {
-    const { q } = req.query;
+    const rawQ = (req.query.q || "") + "";
+    const q = rawQ.trim();
     console.log("🔍 Admin user search:", q);
 
-    if (!q || q.length < 3) {
+    if (!q || q.length < 1) {
       return res.json({ users: [] });
     }
 
+    // If query contains digits, try phone-first search with normalization
+    const digitsOnly = q.replace(/\D/g, "");
     let query = {};
 
-    // If query looks like a phone number
-    if (q.match(/^\d+$/)) {
-      query = { phone: { $regex: q, $options: "i" } };
-    } else {
-      // Search by name or email
+    if (digitsOnly.length >= 3) {
+      // Search phones that end with the digits (handles country code variations) or contain digits
+      // Use two patterns: endsWith and contains
+      const endsWithRegex = new RegExp(digitsOnly + "$", "i");
+      const containsRegex = new RegExp(digitsOnly, "i");
+
+      query = {
+        $or: [
+          { phone: { $regex: endsWithRegex } },
+          { phone: { $regex: containsRegex } },
+        ],
+      };
+    } else if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) {
+      // Looks like an email
+      query = { email: { $regex: q, $options: "i" } };
+    } else if (q.length >= 2) {
+      // Fallback name search for short queries (>=2 chars)
       query = {
         $or: [
           { name: { $regex: q, $options: "i" } },
@@ -100,16 +115,61 @@ router.get("/users/search", verifyAdminAccess, async (req, res) => {
           { email: { $regex: q, $options: "i" } },
         ],
       };
+    } else {
+      return res.json({ users: [] });
     }
 
     const users = await User.find(query)
       .select("name full_name phone email user_type")
-      .limit(20);
+      .limit(50);
 
     console.log(`✅ Found ${users.length} users matching "${q}"`);
     res.json({ users });
   } catch (error) {
     console.error("❌ Error searching users:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create user (admin)
+router.post("/users", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, full_name, phone, email, user_type = "customer" } = req.body || {};
+    console.log("🆕 Admin create user request:", { name, phone, email, user_type });
+
+    if (!phone || !/\d{10,12}$/.test(("" + phone).replace(/\D/g, ""))) {
+      return res.status(400).json({ error: "Phone is required and must be 10-12 digits" });
+    }
+
+    // Normalize phone to digits only
+    const normalizedPhone = ("" + phone).replace(/\D/g, "");
+
+    // Prevent duplicates
+    const existing = await User.findOne({ phone: { $regex: new RegExp(normalizedPhone + "$", "i") } });
+    if (existing) {
+      console.log("⚠️ Admin create user: user already exists", existing._id);
+      return res.status(409).json({ error: "User already exists", user: existing });
+    }
+
+    const user = new User({
+      name: name || full_name || "",
+      full_name: full_name || name || "",
+      phone: normalizedPhone,
+      email: email || undefined,
+      user_type,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    await user.save();
+
+    console.log("✅ Admin created user:", user._id);
+    res.status(201).json({ user });
+  } catch (error) {
+    console.error("❌ Error creating user:", error);
+    if (error.code === 11000) {
+      return res.status(400).json({ error: "Duplicate user data", details: error.keyValue });
+    }
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -466,7 +526,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error fetching admin bookings:", error);
+    console.error("��� Error fetching admin bookings:", error);
 
     // Fallback: return mock bookings to keep admin UI functional
     const fallbackMock = [
@@ -1101,7 +1161,7 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
       // Automatically update order status from pending to confirmed when rider is assigned
       if (order.status === 'pending') {
         order.status = 'confirmed';
-        console.log(`📋 Order status updated: pending ��� confirmed for order ${orderId}`);
+        console.log(`�� Order status updated: pending ��� confirmed for order ${orderId}`);
 
         // TODO: Send customer notification about order confirmation
         // This would typically send an SMS or push notification to the customer
