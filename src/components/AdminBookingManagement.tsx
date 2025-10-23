@@ -728,7 +728,7 @@ const AdminBookingManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen h-screen flex flex-col bg-gray-50">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Booking Management</h2>
@@ -742,8 +742,9 @@ const AdminBookingManagement: React.FC = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
+      <div className="flex-1 overflow-auto px-4 py-6">
+        <Card>
+          <CardContent className="pt-6">
           <div className="flex flex-col gap-4 md:flex-row">
             <div className="flex-1">
               <Label htmlFor="search">Search Bookings</Label>
@@ -1002,6 +1003,8 @@ const AdminBookingManagement: React.FC = () => {
             </CardContent>
           </Card>
         )}
+      </div>
+
       </div>
 
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
