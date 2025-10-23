@@ -334,6 +334,42 @@ const AdminBookingManagement: React.FC = () => {
 
   useEffect(() => {
     fetchBookings();
+
+    // Open SSE connection for real-time admin updates (if server supports it)
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource('/admin/bookings/stream');
+      es.addEventListener('booking_change', (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data);
+          console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
+          if (payload && payload._id) {
+            applyBookingUpdate(payload._id, payload);
+
+            // Re-filter bookings to reflect incoming changes
+            setTimeout(() => filterBookings(), 50);
+          }
+        } catch (err) {
+          console.error('Failed to handle SSE booking_change event:', err);
+        }
+      });
+
+      es.onerror = (err) => {
+        console.warn('⚠️ SSE connection error:', err);
+        // Close and let polling resume
+        try { es && es.close(); } catch (e) { /* ignore */ }
+      };
+    } catch (e) {
+      console.warn('SSE not supported or failed to connect:', e);
+    }
+
+    return () => {
+      try {
+        if (es) es.close();
+      } catch (e) {
+        /* ignore */
+      }
+    };
   }, []);
 
   // Poll for updates since last poll and apply them to local state
