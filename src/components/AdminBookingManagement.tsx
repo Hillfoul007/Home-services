@@ -814,7 +814,7 @@ const AdminBookingManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className={viewMode === 'both' ? 'grid grid-cols-1 gap-6 lg:grid-cols-2' : 'grid grid-cols-1 gap-6'}>
         {/* Bucket A: Pickup & Vendor Flow */}
         <div className={viewMode === 'ready' ? 'hidden' : ''}>
           <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
