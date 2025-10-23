@@ -729,7 +729,7 @@ const AdminBookingManagement: React.FC = () => {
 
   return (
     <div className="min-h-screen h-screen flex flex-col bg-gray-50">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className={viewMode === 'both' ? 'flex flex-col gap-4 md:flex-row md:items-center md:justify-between' : 'hidden'}>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Booking Management</h2>
           <p className="text-gray-600">
@@ -742,8 +742,21 @@ const AdminBookingManagement: React.FC = () => {
         </Button>
       </div>
 
+      {viewMode !== 'both' && (
+        <div className="flex items-center justify-between px-3 py-2 bg-white border-b">
+          <div className="flex items-center gap-3">
+            <Button size="sm" variant="ghost" onClick={() => setViewMode('both')}>Back</Button>
+            <h3 className="text-lg font-semibold">{viewMode === 'pickup' ? 'Pickup / Vendor Flow' : 'Ready for Delivery'}</h3>
+            <span className="text-sm text-gray-500">{viewMode === 'pickup' ? filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length} orders</span>
+          </div>
+          <div>
+            <Button size="sm" variant="outline" onClick={fetchBookings}><RefreshCw className="mr-2 h-4 w-4"/> Refresh</Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto px-4 py-6">
-        <Card>
+        <Card className={viewMode === 'both' ? '' : 'hidden'}>
           <CardContent className="pt-6">
           <div className="flex flex-col gap-4 md:flex-row">
             <div className="flex-1">
@@ -779,7 +792,7 @@ const AdminBookingManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      <div className="mb-4 flex items-center gap-3">
+      <div className={viewMode === 'both' ? 'mb-4 flex items-center gap-3' : 'hidden'}>
         <div className="flex items-center gap-2">
           <button onClick={() => setViewMode('both')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'both' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <Package className="h-4 w-4 text-gray-600" />
