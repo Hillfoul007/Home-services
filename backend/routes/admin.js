@@ -162,6 +162,41 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// Server-Sent Events stream for real-time bookings updates
+router.get('/bookings/stream', verifyAdminAccess, async (req, res) => {
+  try {
+    // SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    if (res.flushHeaders) res.flushHeaders();
+
+    console.log('📡 Admin SSE connection established for bookings stream');
+
+    // Open change stream on Booking collection
+    const changeStream = Booking.watch([], { fullDocument: 'updateLookup' });
+
+    changeStream.on('change', (change) => {
+      try {
+        const payload = change.fullDocument || change;
+        res.write('event: booking_change\n');
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      } catch (err) {
+        console.error('Failed to send SSE event:', err);
+      }
+    });
+
+    req.on('close', () => {
+      console.log('📡 Admin SSE client disconnected');
+      try { changeStream.close(); } catch (e) { console.warn('Error closing changeStream', e); }
+      res.end();
+    });
+  } catch (err) {
+    console.error('❌ Failed to establish SSE stream:', err);
+    res.status(500).json({ error: 'Failed to start bookings stream' });
+  }
+});
+
 // Get all bookings with enhanced admin features
 router.get("/bookings", verifyAdminAccess, async (req, res) => {
   try {
