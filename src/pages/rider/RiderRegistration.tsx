@@ -28,16 +28,16 @@ const getRiderApiUrl = (endpoint: string): string => {
   // Always use production backend for rider endpoints due to local server issues
   if (isLocalhost && isDev) {
     console.log('🔄 Using production backend for rider registration API (local server bypass)');
-    return `https://backend-vaxf.onrender.com/api/riders${endpoint}`;
+    return `https://home-services-5alb.onrender.com/api/riders${endpoint}`;
   } else if (isRenderCom || isLaundrifyDomain || !isLocalhost) {
     // Any hosted environment - use backend server
-    const backendUrl = 'https://backend-vaxf.onrender.com/api/riders' + endpoint;
+    const backendUrl = 'https://home-services-5alb.onrender.com/api/riders' + endpoint;
     console.log('🌐 Using backend server for rider registration API:', backendUrl);
     return backendUrl;
   }
 
   // Fallback to production backend
-  return `https://backend-vaxf.onrender.com/api/riders${endpoint}`;
+  return `https://home-services-5alb.onrender.com/api/riders${endpoint}`;
 };
 
 interface RiderRegistrationProps {

@@ -24,7 +24,7 @@ Password: password123
 
 2. **Production Frontend:**
    - Frontend: https://www.laundrify.online/rider
-   - Backend: https://backend-vaxf.onrender.com/api/riders
+   - Backend: https://home-services-5alb.onrender.com/api/riders
    - Status: ⚠️ Backend missing rider routes
 
 ## 🔧 How to Test Right Now
@@ -75,7 +75,7 @@ The system creates different demo riders based on phone number:
 
 ## 🚨 Current Error Explanation
 
-**Error:** `POST https://backend-vaxf.onrender.com/api/riders/login 400 (Bad Request)`
+**Error:** `POST https://home-services-5alb.onrender.com/api/riders/login 400 (Bad Request)`
 
 **Cause:** The production backend at `backend-vaxf.onrender.com` doesn't have the rider routes deployed yet.
 

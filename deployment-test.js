@@ -5,17 +5,17 @@ const testEndpoints = async () => {
   const tests = [
     {
       name: 'Backend Health Check',
-      url: 'https://backend-vaxf.onrender.com/api/health',
+      url: 'https://home-services-5alb.onrender.com/api/health',
       method: 'GET'
     },
     {
       name: 'Rider Routes Test',
-      url: 'https://backend-vaxf.onrender.com/api/riders/test',
+      url: 'https://home-services-5alb.onrender.com/api/riders/test',
       method: 'GET'
     },
     {
       name: 'Rider Login Demo',
-      url: 'https://backend-vaxf.onrender.com/api/riders/login',
+      url: 'https://home-services-5alb.onrender.com/api/riders/login',
       method: 'POST',
       body: { phone: '9876543210', password: 'password123' }
     }

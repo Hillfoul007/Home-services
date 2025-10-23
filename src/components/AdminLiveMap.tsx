@@ -29,7 +29,7 @@ const getAdminApiUrl = (endpoint: string): string => {
   if (isLocalhost && isDev) {
     return `/api/admin${endpoint}`;
   } else if (isRenderCom || isLaundrifyDomain || !isLocalhost) {
-    return `https://backend-vaxf.onrender.com/api/admin${endpoint}`;
+    return `https://home-services-5alb.onrender.com/api/admin${endpoint}`;
   }
 
   return `/api/admin${endpoint}`;

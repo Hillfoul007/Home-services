@@ -55,7 +55,7 @@ export class CustomerVerificationService {
       this.apiBaseUrl = "http://localhost:3001/api";
     } else {
       // For all hosted environments, use production backend
-      this.apiBaseUrl = "https://backend-vaxf.onrender.com/api";
+      this.apiBaseUrl = "https://home-services-5alb.onrender.com/api";
     }
 
     this.loadPendingVerifications();

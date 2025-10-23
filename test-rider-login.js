@@ -34,7 +34,7 @@ const testRiderLogin = async () => {
 
       // Test production backend (if accessible)
       try {
-        const prodResponse = await fetch('https://backend-vaxf.onrender.com/api/riders/login', {
+        const prodResponse = await fetch('https://home-services-5alb.onrender.com/api/riders/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cred)

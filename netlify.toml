@@ -24,7 +24,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://backend-vaxf.onrender.com/api/:splat"
+  to = "https://home-services-5alb.onrender.com/api/:splat"
   status = 200
 
 [[redirects]]

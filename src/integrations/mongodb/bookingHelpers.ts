@@ -47,9 +47,9 @@ interface Booking {
   };
 }
 
-// Helper function to get auth headers
+// Helper function to get auth headers (prefer cleancare_auth_token, fallback to auth_token)
 const getAuthHeaders = () => {
-  const token = localStorage.getItem("auth_token");
+  const token = localStorage.getItem("cleancare_auth_token") || localStorage.getItem("auth_token");
   return {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),

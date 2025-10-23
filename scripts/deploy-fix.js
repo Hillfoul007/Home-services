@@ -71,7 +71,7 @@ const redirectsContent = `# Netlify redirects for client-side routing
 # Redirect all non-API routes to index.html for React Router
 
 # API routes should pass through to backend
-/api/*  https://backend-vaxf.onrender.com/api/:splat  200
+/api/*  https://home-services-5alb.onrender.com/api/:splat  200
 
 # Ensure CSS and JS files are served with correct MIME types
 /*.css   /assets/*.css   200
@@ -112,7 +112,7 @@ const netlifyTomlContent = `[build]
 
 [[redirects]]
   from = "/api/*"
-  to = "https://backend-vaxf.onrender.com/api/:splat"
+  to = "https://home-services-5alb.onrender.com/api/:splat"
   status = 200
 
 [[redirects]]

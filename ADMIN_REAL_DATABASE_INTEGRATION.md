@@ -3,7 +3,7 @@
 ## ✅ **COMPLETED INTEGRATIONS**
 
 ### 🔗 **Real API Connectivity**
-- **Backend URL:** `https://backend-vaxf.onrender.com/api`
+- **Backend URL:** `https://home-services-5alb.onrender.com/api`
 - **Admin Endpoints:** `/admin/*` routes with authentication
 - **Fallback Support:** Graceful degradation to regular API endpoints
 - **Error Handling:** Comprehensive error handling with user feedback

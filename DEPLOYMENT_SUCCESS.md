@@ -21,7 +21,7 @@ Password: password123
 ### Production (Live System)
 - **Rider Portal:** https://www.laundrify.online/rider
 - **Admin Panel:** https://www.laundrify.online/admin
-- **Backend API:** https://backend-vaxf.onrender.com/api/riders
+- **Backend API:** https://home-services-5alb.onrender.com/api/riders
 
 ### Local Development 
 - **Frontend:** http://localhost:10000/rider
@@ -96,8 +96,8 @@ The system intelligently switches between:
 If you get any errors:
 
 1. **Check browser console** for detailed error messages
-2. **Verify backend health:** Visit https://backend-vaxf.onrender.com/api/health
-3. **Test rider routes:** Visit https://backend-vaxf.onrender.com/api/riders/test
+2. **Verify backend health:** Visit https://home-services-5alb.onrender.com/api/health
+3. **Test rider routes:** Visit https://home-services-5alb.onrender.com/api/riders/test
 4. **Use browser dev tools** to inspect network requests
 
 ## 🎉 Success Indicators

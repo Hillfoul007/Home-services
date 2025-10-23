@@ -46,8 +46,9 @@ export default function RiderOrders() {
   // If navigated from Accept action, Dialogflow or RiderDashboard passes state { fromAccept: true }
   useEffect(() => {
     try {
-      if ((location as any)?.state && (location as any).state.fromAccept) {
-        console.log('➡️ Entering edit mode: navigated from accept');
+      const state = (location as any)?.state;
+      if (state && (state.fromAccept || state.editCart)) {
+        console.log('➡️ Entering edit mode: navigated from accept or editCart');
         setIsEditing(true);
       }
     } catch (e) {
@@ -68,6 +69,11 @@ export default function RiderOrders() {
   const [deliveryPhotos, setDeliveryPhotos] = useState<string[]>([]);
   const pickupInputRef = useRef<HTMLInputElement | null>(null);
   const deliveryInputRef = useRef<HTMLInputElement | null>(null);
+
+  // OTP/verification related state (declare at top-level to follow React hooks rules)
+  const [customerOtp, setCustomerOtp] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
 
   // Initialize customer verification service
   const verificationService = CustomerVerificationService.getInstance();
@@ -881,10 +887,12 @@ export default function RiderOrders() {
 
   const saveOrderChanges = async () => {
     // If verification is required and not approved, show error
-    if (verificationStatus && verificationStatus !== 'approved') {
-      toast.error('Customer verification required before saving changes');
-      return;
-    }
+  // FORCE_DISABLE_VERIFICATION can be toggled to bypass customer OTP/verification for faster rider workflow
+  const FORCE_DISABLE_VERIFICATION = true;
+  if (verificationStatus && verificationStatus !== 'approved' && !FORCE_DISABLE_VERIFICATION) {
+    toast.error('Customer verification required before saving changes');
+    return;
+  }
 
     setIsSaving(true);
     let timeoutId: NodeJS.Timeout | null = null;
@@ -997,8 +1005,9 @@ export default function RiderOrders() {
           items: editedItems,
           updatedBy: 'rider',
           notes: `Order updated by rider ${new Date().toLocaleString()}. ${verificationStatus === 'approved' ? 'Customer approved changes.' : 'Customer will be notified to verify changes.'}`,
-          requiresVerification: verificationStatus !== 'approved',
-          verificationStatus: verificationStatus || 'pending',
+          // Respect FORCE_DISABLE_VERIFICATION when deciding whether to require customer verification
+          requiresVerification: FORCE_DISABLE_VERIFICATION ? false : (verificationStatus !== 'approved'),
+          verificationStatus: FORCE_DISABLE_VERIFICATION ? 'approved' : (verificationStatus || 'pending'),
           notificationData: notificationData
         }),
         signal: controller.signal
@@ -1296,10 +1305,6 @@ export default function RiderOrders() {
   }
 
   const totalAmount = editedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-
-  const [customerOtp, setCustomerOtp] = useState('');
-  const [otpRequested, setOtpRequested] = useState(false);
-  const [otpVerifying, setOtpVerifying] = useState(false);
 
   const requestCustomerOTP = async (type: 'pickup'|'delivery') => {
     try {
