@@ -316,6 +316,11 @@ const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string 
   );
 };
 
+interface VendorOption {
+  id: string;
+  name: string;
+}
+
 const AdminBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bucketA, setBucketA] = useState<Booking[]>([]);
@@ -332,6 +337,7 @@ const AdminBookingManagement: React.FC = () => {
 
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
 
   useEffect(() => {
     fetchBookings();
