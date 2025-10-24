@@ -932,8 +932,8 @@ const AdminBookingManagement: React.FC = () => {
 
           <button onClick={() => setViewMode('ready')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'ready' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <Clock className="h-4 w-4 text-gray-600" />
-            <span className="text-sm font-medium">Ready for Delivery</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="text-sm font-medium">Ready/Delivered</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length}</span>
           </button>
         </div>
       </div>
