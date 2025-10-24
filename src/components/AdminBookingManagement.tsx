@@ -1336,12 +1336,12 @@ const AdminBookingManagement: React.FC = () => {
       </Dialog>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Booking</DialogTitle>
           </DialogHeader>
           {editingBooking && (
-            <div className="space-y-4">
+            <div className="space-y-4" key={editingBooking._id}>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-status">Status</Label>
