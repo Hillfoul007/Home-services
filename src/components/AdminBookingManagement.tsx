@@ -566,12 +566,19 @@ const AdminBookingManagement: React.FC = () => {
             customer.phone ||
             "No phone";
 
+          // Ensure item_prices is always an array
+          let itemPrices = booking.item_prices || [];
+          if (!Array.isArray(itemPrices)) {
+            itemPrices = [];
+          }
+
           return {
             ...booking,
             name: customerName,
             phone: customerPhone,
             services: booking.services || [],
             status: normalizeStatus(booking.status),
+            item_prices: itemPrices,
           } as Booking;
         };
 
