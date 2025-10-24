@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
+import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 
 interface ItemPrice {
   service_name?: string;
@@ -480,11 +481,49 @@ const AdminBookingManagement: React.FC = () => {
     );
   };
 
+  const convertQuickPickupToBooking = (quickPickup: QuickPickupDetails): Booking => {
+    const createdAt = new Date(quickPickup.createdAt || Date.now()).toISOString();
+    const itemsCollected = quickPickup.items_collected || [];
+
+    return {
+      _id: quickPickup.id,
+      custom_order_id: quickPickup.custom_order_id || quickPickup.id.substring(0, 8).toUpperCase(),
+      name: quickPickup.customer_name || "Quick Pickup Customer",
+      phone: quickPickup.customer_phone || "N/A",
+      customer_id: quickPickup.userId,
+      service: "Quick Pickup",
+      services: itemsCollected.map((item) => item.name),
+      scheduled_date: quickPickup.pickup_date || new Date().toISOString(),
+      scheduled_time: quickPickup.pickup_time || "ASAP",
+      address: quickPickup.address || "N/A",
+      status: quickPickup.status || "pending",
+      total_price: quickPickup.estimated_cost || quickPickup.actual_cost || 0,
+      final_amount: quickPickup.actual_cost || quickPickup.estimated_cost || 0,
+      created_at: createdAt,
+      updated_at: quickPickup.updatedAt || createdAt,
+      payment_status: "pending",
+      item_prices: itemsCollected.map((item) => ({
+        service_name: item.name,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.total,
+      })),
+      vendor: null,
+      rider: quickPickup.rider_id || null,
+      address_details: {
+        flatNo: quickPickup.house_number || "",
+        landmark: "",
+        type: "quick_pickup",
+      },
+    };
+  };
+
   const fetchBookings = async () => {
     try {
       setLoading(true);
 
       const response = await apiClient.adminRequest<{ bookings: Booking[] }>("/admin/bookings?limit=100");
+      let allBookings: Booking[] = [];
 
       if (response.data) {
         // Handle bucketed response from backend
@@ -520,9 +559,7 @@ const AdminBookingManagement: React.FC = () => {
         setBucketA(processedA);
         setBucketB(processedB);
 
-        const combined = [...processedA, ...processedB];
-        setBookings(combined);
-        setFilteredBookings(combined);
+        allBookings = [...processedA, ...processedB];
       } else if (response.error) {
         const fallbackResponse = await apiClient.request<{ bookings: Booking[] }>("/bookings?limit=100");
 
@@ -550,13 +587,45 @@ const AdminBookingManagement: React.FC = () => {
             } as Booking;
           });
 
-          setBookings(processedFallbackBookings);
-          setFilteredBookings(processedFallbackBookings);
+          allBookings = processedFallbackBookings;
           toast.info("Using regular bookings API (admin endpoint not available)");
         } else {
           toast.error(response.error);
+          allBookings = [];
         }
       }
+
+      // Fetch quick-pickup orders
+      try {
+        const quickPickupResponse = await apiClient.adminRequest<{ quickPickups: QuickPickupDetails[] }>("/admin/quick-pickups?limit=100");
+
+        if (quickPickupResponse.data?.quickPickups) {
+          const convertedQuickPickups = quickPickupResponse.data.quickPickups.map(convertQuickPickupToBooking);
+          allBookings = [...allBookings, ...convertedQuickPickups];
+        } else {
+          // Fallback: try to fetch from regular quick-pickup endpoint
+          const quickPickupService = QuickPickupService.getInstance();
+          const quickPickupResponse = await quickPickupService.getCurrentUserQuickPickups();
+
+          if (quickPickupResponse.success && quickPickupResponse.quickPickups) {
+            const convertedQuickPickups = quickPickupResponse.quickPickups.map(convertQuickPickupToBooking);
+            allBookings = [...allBookings, ...convertedQuickPickups];
+          }
+        }
+      } catch (qpError) {
+        console.warn("Warning: Could not fetch quick-pickup orders:", qpError);
+        // Continue without quick-pickups, don't fail the entire fetch
+      }
+
+      // Sort all bookings by created_at descending (newest first)
+      allBookings.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.createdAt || 0).getTime();
+        const dateB = new Date(b.created_at || b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setBookings(allBookings);
+      setFilteredBookings(allBookings);
     } catch (error) {
       console.error("Error fetching bookings:", error);
       toast.error("Error fetching bookings");
@@ -877,24 +946,6 @@ const AdminBookingManagement: React.FC = () => {
                               Ready for Delivery
                             </Button>
                           )}
-
-                          {/* Inline assign rider for quick action */}
-                          <div className="w-36">
-                            <Select
-                              value={booking.rider ?? "__unassigned__"}
-                              onValueChange={(value) => handleAssignmentChange(booking, 'rider', value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__unassigned__">Assign Rider</SelectItem>
-                                {DEFAULT_RIDER_LIST.map((r) => (
-                                  <SelectItem key={r} value={r}>{r}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -966,24 +1017,6 @@ const AdminBookingManagement: React.FC = () => {
                               Ready for Delivery
                             </Button>
                           )}
-
-                          {/* Inline assign rider for quick action */}
-                          <div className="w-36">
-                            <Select
-                              value={booking.rider ?? "__unassigned__"}
-                              onValueChange={(value) => handleAssignmentChange(booking, 'rider', value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__unassigned__">Assign Rider</SelectItem>
-                                {DEFAULT_RIDER_LIST.map((r) => (
-                                  <SelectItem key={r} value={r}>{r}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1372,63 +1405,33 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Assign Rider</Label>
-                  <Select
-                    value={editingBooking.rider ?? "__unassigned__"}
-                    onValueChange={(value) =>
-                      setEditingBooking((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              rider: value === "__unassigned__" ? null : value,
-                            }
-                          : prev,
-                      )
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                      {DEFAULT_RIDER_LIST.map((rider) => (
-                        <SelectItem key={rider} value={rider}>
-                          {rider}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Assign Vendor</Label>
-                  <Select
-                    value={editingBooking.vendor ?? "__unassigned__"}
-                    onValueChange={(value) =>
-                      setEditingBooking((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              vendor: value === "__unassigned__" ? null : value,
-                            }
-                          : prev,
-                      )
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                      {DEFAULT_VENDOR_LIST.map((vendor) => (
-                        <SelectItem key={vendor} value={vendor}>
-                          {vendor}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label>Assign Vendor</Label>
+                <Select
+                  value={editingBooking.vendor ?? "__unassigned__"}
+                  onValueChange={(value) =>
+                    setEditingBooking((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            vendor: value === "__unassigned__" ? null : value,
+                          }
+                        : prev,
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                    {DEFAULT_VENDOR_LIST.map((vendor) => (
+                      <SelectItem key={vendor} value={vendor}>
+                        {vendor}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
@@ -1451,68 +1454,92 @@ const AdminBookingManagement: React.FC = () => {
               </div>
 
               <div className="border-t pt-4">
-                <h4 className="mb-3 font-semibold">Edit Cart / Items</h4>
-                <div className="space-y-2">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Edit Cart / Items
+                </h4>
+                <div className="space-y-3">
                   {editingBooking.item_prices && editingBooking.item_prices.length > 0 ? (
-                    editingBooking.item_prices.map((item, index) => (
-                      <div key={index} className="grid grid-cols-4 items-center gap-2">
-                        <Select
-                          value={item.service_name || item.name || ""}
-                          onValueChange={(value) => {
-                            const realValue = value === "__none__" ? "" : value;
-                            // Set service name and unit price from catalog when available
-                            handleItemPriceChange(index, "service_name", realValue);
-                            const catalog = getSortedServices();
-                            const matched = catalog.find((s: any) => s.name === realValue);
-                            if (matched) {
-                              handleItemPriceChange(index, "unit_price", String(matched.price));
-                              // default quantity to 1 if zero
-                              if (!item.quantity || item.quantity === 0) {
-                                handleItemPriceChange(index, "quantity", "1");
-                              }
-                            }
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Select item</SelectItem>
-                            {getSortedServices().map((svc) => (
-                              <SelectItem key={svc.id || svc.name} value={svc.name}>
-                                {svc.name} — ₹{svc.price}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={String(item.quantity ?? 0)}
-                          onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
-                        />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={String(item.unit_price ?? item.price ?? 0)}
-                          onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
-                        />
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm">₹{(item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price}</div>
-                          <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)}>
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    ))
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50">
+                            <th className="text-left py-3 px-4 font-semibold">Service Name</th>
+                            <th className="text-center py-3 px-4 font-semibold w-24">Quantity</th>
+                            <th className="text-center py-3 px-4 font-semibold w-24">Unit Price</th>
+                            <th className="text-right py-3 px-4 font-semibold w-24">Total</th>
+                            <th className="text-center py-3 px-4 font-semibold w-16">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editingBooking.item_prices.map((item, index) => (
+                            <tr key={index} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-4">
+                                <Select
+                                  value={item.service_name || item.name || ""}
+                                  onValueChange={(value) => {
+                                    const realValue = value === "__none__" ? "" : value;
+                                    handleItemPriceChange(index, "service_name", realValue);
+                                    const catalog = getSortedServices();
+                                    const matched = catalog.find((s: any) => s.name === realValue);
+                                    if (matched) {
+                                      handleItemPriceChange(index, "unit_price", String(matched.price));
+                                      if (!item.quantity || item.quantity === 0) {
+                                        handleItemPriceChange(index, "quantity", "1");
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">Select item</SelectItem>
+                                    {getSortedServices().map((svc) => (
+                                      <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                        {svc.name} — ₹{svc.price}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="py-3 px-4">
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  value={String(item.quantity ?? 0)}
+                                  onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
+                                  className="h-8 text-center"
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={String(item.unit_price ?? item.price ?? 0)}
+                                  onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
+                                  className="h-8 text-center"
+                                />
+                              </td>
+                              <td className="py-3 px-4 text-right font-medium">₹{((item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price)}</td>
+                              <td className="py-3 px-4 text-center">
+                                <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)} className="h-8">
+                                  Remove
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   ) : (
-                    <div className="text-sm text-gray-500">No itemized prices available for this order.</div>
+                    <div className="text-sm text-gray-500 p-4 border rounded border-dashed">No itemized prices available for this order.</div>
                   )}
 
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={addItemToEditing}>Add Item</Button>
-                    <div className="ml-auto text-sm font-medium">
-                      Subtotal: ₹{computeEditingTotals(editingBooking).total}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <Button size="sm" onClick={addItemToEditing} variant="outline">Add Item</Button>
+                    <div className="text-lg font-semibold">
+                      Subtotal: <span className="text-green-600">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
