@@ -697,14 +697,20 @@ const AdminBookingManagement: React.FC = () => {
 
     try {
       setMutationFlag(bookingId, "status", true);
-      const response = await apiClient.updateBookingStatus(bookingId, backendStatus);
+      const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${bookingId}`, {
+        method: "PUT",
+        body: { status: backendStatus },
+      });
 
       if (response.data) {
-        // Keep showing the new normalized status in the admin UI
-        applyBookingUpdate(bookingId, { status: normalizedStatus });
+        const updated = response.data.booking;
+        if (updated) {
+          applyBookingUpdate(bookingId, { ...updated, status: normalizeStatus(updated.status) });
+        } else {
+          applyBookingUpdate(bookingId, { status: normalizedStatus });
+        }
         toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
 
-        // Trigger immediate polling to sync updates
         setTimeout(() => {
           console.log("🔄 Triggering immediate poll after status update");
           setLastPollAt(getISTTimestamp());
