@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
+import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 
 interface ItemPrice {
   service_name?: string;
