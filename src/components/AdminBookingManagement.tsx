@@ -1689,6 +1689,12 @@ const AdminBookingManagement: React.FC = () => {
                         toast.success("Booking updated successfully");
                         setShowEditDialog(false);
                         setEditingBooking(null);
+
+                        // Trigger immediate polling to sync updates
+                        setTimeout(() => {
+                          console.log("🔄 Triggering immediate poll after booking edit");
+                          setLastPollAt(getISTTimestamp());
+                        }, 500);
                       } else {
                         toast.error(response.error || "Failed to update booking");
                       }
