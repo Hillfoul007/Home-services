@@ -1421,68 +1421,92 @@ const AdminBookingManagement: React.FC = () => {
               </div>
 
               <div className="border-t pt-4">
-                <h4 className="mb-3 font-semibold">Edit Cart / Items</h4>
-                <div className="space-y-2">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Edit Cart / Items
+                </h4>
+                <div className="space-y-3">
                   {editingBooking.item_prices && editingBooking.item_prices.length > 0 ? (
-                    editingBooking.item_prices.map((item, index) => (
-                      <div key={index} className="grid grid-cols-4 items-center gap-2">
-                        <Select
-                          value={item.service_name || item.name || ""}
-                          onValueChange={(value) => {
-                            const realValue = value === "__none__" ? "" : value;
-                            // Set service name and unit price from catalog when available
-                            handleItemPriceChange(index, "service_name", realValue);
-                            const catalog = getSortedServices();
-                            const matched = catalog.find((s: any) => s.name === realValue);
-                            if (matched) {
-                              handleItemPriceChange(index, "unit_price", String(matched.price));
-                              // default quantity to 1 if zero
-                              if (!item.quantity || item.quantity === 0) {
-                                handleItemPriceChange(index, "quantity", "1");
-                              }
-                            }
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Select item</SelectItem>
-                            {getSortedServices().map((svc) => (
-                              <SelectItem key={svc.id || svc.name} value={svc.name}>
-                                {svc.name} — ₹{svc.price}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={String(item.quantity ?? 0)}
-                          onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
-                        />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={String(item.unit_price ?? item.price ?? 0)}
-                          onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
-                        />
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm">₹{(item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price}</div>
-                          <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)}>
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    ))
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50">
+                            <th className="text-left py-3 px-4 font-semibold">Service Name</th>
+                            <th className="text-center py-3 px-4 font-semibold w-24">Quantity</th>
+                            <th className="text-center py-3 px-4 font-semibold w-24">Unit Price</th>
+                            <th className="text-right py-3 px-4 font-semibold w-24">Total</th>
+                            <th className="text-center py-3 px-4 font-semibold w-16">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editingBooking.item_prices.map((item, index) => (
+                            <tr key={index} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-4">
+                                <Select
+                                  value={item.service_name || item.name || ""}
+                                  onValueChange={(value) => {
+                                    const realValue = value === "__none__" ? "" : value;
+                                    handleItemPriceChange(index, "service_name", realValue);
+                                    const catalog = getSortedServices();
+                                    const matched = catalog.find((s: any) => s.name === realValue);
+                                    if (matched) {
+                                      handleItemPriceChange(index, "unit_price", String(matched.price));
+                                      if (!item.quantity || item.quantity === 0) {
+                                        handleItemPriceChange(index, "quantity", "1");
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">Select item</SelectItem>
+                                    {getSortedServices().map((svc) => (
+                                      <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                        {svc.name} — ₹{svc.price}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="py-3 px-4">
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  value={String(item.quantity ?? 0)}
+                                  onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
+                                  className="h-8 text-center"
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={String(item.unit_price ?? item.price ?? 0)}
+                                  onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
+                                  className="h-8 text-center"
+                                />
+                              </td>
+                              <td className="py-3 px-4 text-right font-medium">₹{((item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price)}</td>
+                              <td className="py-3 px-4 text-center">
+                                <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)} className="h-8">
+                                  Remove
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   ) : (
-                    <div className="text-sm text-gray-500">No itemized prices available for this order.</div>
+                    <div className="text-sm text-gray-500 p-4 border rounded border-dashed">No itemized prices available for this order.</div>
                   )}
 
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={addItemToEditing}>Add Item</Button>
-                    <div className="ml-auto text-sm font-medium">
-                      Subtotal: ₹{computeEditingTotals(editingBooking).total}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <Button size="sm" onClick={addItemToEditing} variant="outline">Add Item</Button>
+                    <div className="text-lg font-semibold">
+                      Subtotal: <span className="text-green-600">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
