@@ -1281,6 +1281,10 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
 
       order.assignedVendor = vendorWithDistanceData.name;
       order.assignedVendorDetails = vendorWithDistanceData;
+      // Progress status when vendor assigned (only if not already beyond this stage)
+      if (!["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"].includes(order.status)) {
+        order.status = "vendor_assigned";
+      }
       await order.save();
     }
 
