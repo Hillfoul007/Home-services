@@ -90,19 +90,14 @@ const ORDER_FLOW_STEPS = [
     description: "Booking received and awaiting pickup scheduling.",
   },
   {
-    value: "pickup_assigned",
-    label: "Pickup Assigned",
-    description: "Pickup rider has been assigned.",
+    value: "vendor_assigned",
+    label: "Vendor Assigned",
+    description: "Processing vendor has been assigned.",
   },
   {
     value: "pickup_completed",
-    label: "Pickup Completed",
+    label: "Pickup Complete",
     description: "Laundry collected from the customer.",
-  },
-  {
-    value: "delivered_to_vendor",
-    label: "Delivered to Vendor",
-    description: "Order handed over to the processing partner.",
   },
   {
     value: "ready_for_delivery",
@@ -110,14 +105,14 @@ const ORDER_FLOW_STEPS = [
     description: "Laundry processed and ready to return.",
   },
   {
-    value: "delivery_assigned",
-    label: "Delivery Assigned",
-    description: "Delivery rider assigned for returning the order.",
+    value: "delivered",
+    label: "Delivered",
+    description: "Delivered back to customer. Awaiting admin completion.",
   },
   {
     value: "completed",
     label: "Order Completed",
-    description: "Order successfully delivered back to the customer.",
+    description: "Moved to Completed Orders.",
   },
   {
     value: "cancelled",
