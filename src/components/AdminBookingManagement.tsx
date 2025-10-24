@@ -209,16 +209,14 @@ const getStatusIcon = (status: string) => {
   switch (normalized) {
     case "created":
       return <AlertCircle className="h-4 w-4" />;
-    case "pickup_assigned":
-      return <MapPin className="h-4 w-4" />;
+    case "vendor_assigned":
+      return <Package className="h-4 w-4" />;
     case "pickup_completed":
       return <CheckCircle className="h-4 w-4" />;
-    case "delivered_to_vendor":
-      return <Package className="h-4 w-4" />;
     case "ready_for_delivery":
       return <Clock className="h-4 w-4" />;
-    case "delivery_assigned":
-      return <MapPin className="h-4 w-4" />;
+    case "delivered":
+      return <CheckCircle className="h-4 w-4" />;
     case "completed":
       return <CheckCircle className="h-4 w-4" />;
     case "cancelled":
