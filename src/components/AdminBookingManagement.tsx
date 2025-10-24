@@ -1448,13 +1448,22 @@ const AdminBookingManagement: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                    {DEFAULT_VENDOR_LIST.map((vendor) => (
-                      <SelectItem key={vendor} value={vendor}>
-                        {vendor}
+                    {vendors.length > 0 ? (
+                      vendors.map((vendor) => (
+                        <SelectItem key={vendor.id} value={vendor.name}>
+                          {vendor.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-vendors" disabled>
+                        No vendors available
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {vendors.length > 0 ? `${vendors.length} vendor(s) available` : 'No saved vendors - create one in Vendors tab'}
+                </p>
               </div>
 
               <div>
