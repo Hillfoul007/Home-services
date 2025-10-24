@@ -996,9 +996,19 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
-                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
-                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
-                              Ready for Delivery
+                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                              Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'ready_for_delivery' && (
+                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                              Mark Delivered
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'delivered' && (
+                            <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
+                              Mark Complete
                             </Button>
                           )}
                         </div>
@@ -1067,9 +1077,19 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
-                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
-                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
-                              Ready for Delivery
+                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                              Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'ready_for_delivery' && (
+                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                              Mark Delivered
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'delivered' && (
+                            <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
+                              Mark Complete
                             </Button>
                           )}
                         </div>
