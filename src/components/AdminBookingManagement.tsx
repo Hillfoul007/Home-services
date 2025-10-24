@@ -395,12 +395,19 @@ const AdminBookingManagement: React.FC = () => {
     };
   }, []);
 
+  // Helper to get current time in IST format (matching server timezone)
+  const getISTTimestamp = (): string => {
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    return new Date(indianTime).toISOString();
+  };
+
   // Poll for updates since last poll and apply them to local state
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
       try {
-        const sinceParam = lastPollAt || new Date().toISOString();
+        const sinceParam = lastPollAt || getISTTimestamp();
+        console.log("🔄 Polling for booking updates since:", sinceParam);
         const response = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(
           `/admin/bookings?modified_since=${encodeURIComponent(sinceParam)}&limit=100`,
         );
@@ -409,6 +416,7 @@ const AdminBookingManagement: React.FC = () => {
 
         if (response.data) {
           const updates: Booking[] = [...(response.data.bucketA || []), ...(response.data.bucketB || [])];
+          console.log(`🔄 Poll returned ${updates.length} updated bookings`);
           if (updates.length > 0) {
             updates.forEach((b) => {
               applyBookingUpdate(b._id, {
@@ -419,18 +427,15 @@ const AdminBookingManagement: React.FC = () => {
 
             // Update last poll to the newest updated_at from updates
             const maxUpdated = updates
-              .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()).toISOString())
-              .sort()
-              .pop();
+              .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()))
+              .reduce((max, curr) => (curr > max ? curr : max));
 
-            if (maxUpdated) {
-              setLastPollAt(maxUpdated);
-            } else {
-              setLastPollAt(new Date().toISOString());
-            }
+            const nextPollTime = getISTTimestamp();
+            setLastPollAt(nextPollTime);
           } else {
             // Nothing new, advance lastPollAt
-            setLastPollAt(new Date().toISOString());
+            const nextPollTime = getISTTimestamp();
+            setLastPollAt(nextPollTime);
           }
         }
       } catch (error) {
@@ -441,12 +446,15 @@ const AdminBookingManagement: React.FC = () => {
     // Start polling interval
     const id = setInterval(poll, 8000);
 
-    // Also run one immediately
-    poll();
+    // Also run one immediately after a short delay to avoid race conditions
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) poll();
+    }, 500);
 
     return () => {
       cancelled = true;
       clearInterval(id);
+      clearTimeout(timeoutId);
     };
   }, [lastPollAt]);
 
