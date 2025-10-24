@@ -4,6 +4,7 @@ const Booking = require("../models/Booking");
 const User = require("../models/User");
 const Rider = require("../models/Rider");
 const QuickPickup = require("../models/QuickPickup");
+const Vendor = require("../models/Vendor");
 const riderNotificationService = require("../services/riderNotificationService");
 
 const router = express.Router();
