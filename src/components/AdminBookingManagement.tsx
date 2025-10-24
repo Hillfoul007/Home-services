@@ -150,7 +150,6 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
 };
 
 const DEFAULT_RIDER_LIST = Array.from({ length: 10 }).map((_, index) => `Rider ${index + 1}`);
-const DEFAULT_VENDOR_LIST = Array.from({ length: 10 }).map((_, index) => `Vendor ${index + 1}`);
 
 type MutationFlags = {
   status?: boolean;
