@@ -186,16 +186,14 @@ const getStatusColor = (status: string) => {
   switch (normalized) {
     case "created":
       return "bg-yellow-100 text-yellow-800";
-    case "pickup_assigned":
+    case "vendor_assigned":
       return "bg-orange-100 text-orange-800";
     case "pickup_completed":
       return "bg-purple-100 text-purple-800";
-    case "delivered_to_vendor":
-      return "bg-indigo-100 text-indigo-800";
     case "ready_for_delivery":
       return "bg-sky-100 text-sky-800";
-    case "delivery_assigned":
-      return "bg-amber-100 text-amber-800";
+    case "delivered":
+      return "bg-blue-100 text-blue-800";
     case "completed":
       return "bg-green-100 text-green-800";
     case "cancelled":
