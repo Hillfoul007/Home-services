@@ -733,9 +733,13 @@ const AdminBookingManagement: React.FC = () => {
   ) => {
     try {
       setMutationFlag(bookingId, "assignment", true);
+      const body: any = { ...updates };
+      if (typeof updates.vendor !== 'undefined' && updates.vendor !== null) {
+        body.status = mapToBackendStatus('vendor_assigned');
+      }
       const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${bookingId}`, {
         method: "PUT",
-        body: updates,
+        body,
       });
 
       if (response.data) {
