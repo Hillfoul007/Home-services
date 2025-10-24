@@ -1372,63 +1372,33 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Assign Rider</Label>
-                  <Select
-                    value={editingBooking.rider ?? "__unassigned__"}
-                    onValueChange={(value) =>
-                      setEditingBooking((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              rider: value === "__unassigned__" ? null : value,
-                            }
-                          : prev,
-                      )
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                      {DEFAULT_RIDER_LIST.map((rider) => (
-                        <SelectItem key={rider} value={rider}>
-                          {rider}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Assign Vendor</Label>
-                  <Select
-                    value={editingBooking.vendor ?? "__unassigned__"}
-                    onValueChange={(value) =>
-                      setEditingBooking((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              vendor: value === "__unassigned__" ? null : value,
-                            }
-                          : prev,
-                      )
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                      {DEFAULT_VENDOR_LIST.map((vendor) => (
-                        <SelectItem key={vendor} value={vendor}>
-                          {vendor}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label>Assign Vendor</Label>
+                <Select
+                  value={editingBooking.vendor ?? "__unassigned__"}
+                  onValueChange={(value) =>
+                    setEditingBooking((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            vendor: value === "__unassigned__" ? null : value,
+                          }
+                        : prev,
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                    {DEFAULT_VENDOR_LIST.map((vendor) => (
+                      <SelectItem key={vendor} value={vendor}>
+                        {vendor}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
