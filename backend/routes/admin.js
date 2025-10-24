@@ -1493,4 +1493,135 @@ router.post("/customer-verifications", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// Vendor Management Endpoints
+
+// Get all vendors
+router.get("/vendors", verifyAdminAccess, async (req, res) => {
+  try {
+    console.log("📋 Fetching all vendors");
+
+    const vendors = await Vendor.find().sort({ created_at: -1 });
+
+    console.log(`✅ Found ${vendors.length} vendors`);
+    res.json({ success: true, vendors });
+  } catch (error) {
+    console.error("❌ Error fetching vendors:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get single vendor
+router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    console.log(`🔍 Fetching vendor: ${vendorId}`);
+
+    const vendor = await Vendor.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    console.log(`✅ Vendor found: ${vendor.name}`);
+    res.json({ success: true, vendor });
+  } catch (error) {
+    console.error("❌ Error fetching vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create vendor
+router.post("/vendors", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime } = req.body;
+
+    console.log("🆕 Creating new vendor:", { name, address });
+
+    if (!name || !address || !coordinates || !coordinates.lat || !coordinates.lng) {
+      return res.status(400).json({ error: "Name, address, and coordinates (lat, lng) are required" });
+    }
+
+    const vendor = new Vendor({
+      name,
+      address,
+      coordinates,
+      services: services || [],
+      contactPhone: contactPhone || "",
+      rating: rating || 4.0,
+      description: description || "",
+      operatingHours: operatingHours || { open: "09:00", close: "22:00" },
+      minimumOrderValue: minimumOrderValue || 0,
+      deliveryTime: deliveryTime || 30,
+      isActive: true,
+    });
+
+    await vendor.save();
+
+    console.log(`✅ Vendor created successfully: ${vendor._id}`);
+    res.status(201).json({ success: true, vendor });
+  } catch (error) {
+    console.error("❌ Error creating vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update vendor
+router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive } = req.body;
+
+    console.log(`📝 Updating vendor: ${vendorId}`);
+
+    const vendor = await Vendor.findByIdAndUpdate(
+      vendorId,
+      {
+        name,
+        address,
+        coordinates,
+        services,
+        contactPhone,
+        rating,
+        description,
+        operatingHours,
+        minimumOrderValue,
+        deliveryTime,
+        isActive: isActive !== undefined ? isActive : true,
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    console.log(`✅ Vendor updated successfully: ${vendor.name}`);
+    res.json({ success: true, vendor });
+  } catch (error) {
+    console.error("❌ Error updating vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Delete vendor
+router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    console.log(`🗑️ Deleting vendor: ${vendorId}`);
+
+    const vendor = await Vendor.findByIdAndDelete(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    console.log(`✅ Vendor deleted successfully: ${vendor.name}`);
+    res.json({ success: true, message: "Vendor deleted successfully" });
+  } catch (error) {
+    console.error("❌ Error deleting vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;
