@@ -193,8 +193,10 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     delete updateData.created_at;
     delete updateData.customer_id;
 
-    // Add admin update timestamp
-    updateData.updated_at = new Date();
+    // Add admin update timestamp in IST (Asia/Kolkata) timezone
+    // This ensures the timestamp matches the pre-save hook behavior
+    const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
+    updateData.updated_at = new Date(indianTime);
     updateData.updated_by_admin = true;
 
     const booking = await Booking.findByIdAndUpdate(
@@ -208,10 +210,11 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     }
 
     console.log("✅ Booking updated by admin:", booking._id);
+    console.log("✅ Updated timestamp:", booking.updated_at);
     res.json({ message: "Booking updated successfully", booking });
   } catch (error) {
     console.error("❌ Error updating booking:", error);
-    
+
     if (error.name === "ValidationError") {
       return res.status(400).json({
         error: "Validation error",
