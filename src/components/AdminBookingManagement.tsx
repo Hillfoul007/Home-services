@@ -481,11 +481,47 @@ const AdminBookingManagement: React.FC = () => {
     );
   };
 
+  const convertQuickPickupToBooking = (quickPickup: QuickPickupDetails): Booking => {
+    const createdAt = new Date(quickPickup.createdAt || Date.now()).toISOString();
+    return {
+      _id: quickPickup.id,
+      custom_order_id: quickPickup.id.substring(0, 8).toUpperCase(),
+      name: quickPickup.customerName || "Quick Pickup Customer",
+      phone: quickPickup.phone || "N/A",
+      customer_id: quickPickup.userId,
+      service: "Quick Pickup Service",
+      services: quickPickup.items || [],
+      scheduled_date: quickPickup.pickupDate || new Date().toISOString(),
+      scheduled_time: quickPickup.pickupTimeSlot || "ASAP",
+      address: `${quickPickup.pickupLocation?.address || ""}`,
+      status: quickPickup.status || "created",
+      total_price: quickPickup.estimatedPrice || 0,
+      final_amount: quickPickup.estimatedPrice || 0,
+      created_at: createdAt,
+      updated_at: quickPickup.updatedAt || createdAt,
+      payment_status: "pending",
+      item_prices: (quickPickup.items || []).map((item) => ({
+        service_name: item,
+        quantity: 1,
+        unit_price: 0,
+        total_price: 0,
+      })),
+      vendor: null,
+      rider: null,
+      address_details: {
+        flatNo: quickPickup.pickupLocation?.flatNo || "",
+        landmark: quickPickup.pickupLocation?.landmark || "",
+        type: "quick_pickup",
+      },
+    };
+  };
+
   const fetchBookings = async () => {
     try {
       setLoading(true);
 
       const response = await apiClient.adminRequest<{ bookings: Booking[] }>("/admin/bookings?limit=100");
+      let allBookings: Booking[] = [];
 
       if (response.data) {
         // Handle bucketed response from backend
@@ -521,9 +557,7 @@ const AdminBookingManagement: React.FC = () => {
         setBucketA(processedA);
         setBucketB(processedB);
 
-        const combined = [...processedA, ...processedB];
-        setBookings(combined);
-        setFilteredBookings(combined);
+        allBookings = [...processedA, ...processedB];
       } else if (response.error) {
         const fallbackResponse = await apiClient.request<{ bookings: Booking[] }>("/bookings?limit=100");
 
@@ -551,13 +585,37 @@ const AdminBookingManagement: React.FC = () => {
             } as Booking;
           });
 
-          setBookings(processedFallbackBookings);
-          setFilteredBookings(processedFallbackBookings);
+          allBookings = processedFallbackBookings;
           toast.info("Using regular bookings API (admin endpoint not available)");
         } else {
           toast.error(response.error);
+          allBookings = [];
         }
       }
+
+      // Fetch quick-pickup orders
+      try {
+        const quickPickupService = QuickPickupService.getInstance();
+        const quickPickupResponse = await quickPickupService.getMyQuickPickups();
+
+        if (quickPickupResponse.success && quickPickupResponse.quickPickups) {
+          const convertedQuickPickups = quickPickupResponse.quickPickups.map(convertQuickPickupToBooking);
+          allBookings = [...allBookings, ...convertedQuickPickups];
+        }
+      } catch (qpError) {
+        console.warn("Warning: Could not fetch quick-pickup orders:", qpError);
+        // Continue without quick-pickups, don't fail the entire fetch
+      }
+
+      // Sort all bookings by created_at descending (newest first)
+      allBookings.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.createdAt || 0).getTime();
+        const dateB = new Date(b.created_at || b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setBookings(allBookings);
+      setFilteredBookings(allBookings);
     } catch (error) {
       console.error("Error fetching bookings:", error);
       toast.error("Error fetching bookings");
