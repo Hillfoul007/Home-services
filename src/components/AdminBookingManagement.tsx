@@ -1509,78 +1509,82 @@ const AdminBookingManagement: React.FC = () => {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b bg-gray-50">
-                              <th className="text-left py-3 px-4 font-semibold min-w-[200px]">Service Name</th>
-                              <th className="text-center py-3 px-4 font-semibold min-w-[100px]">Quantity</th>
-                              <th className="text-center py-3 px-4 font-semibold min-w-[100px]">Unit Price</th>
-                              <th className="text-right py-3 px-4 font-semibold min-w-[80px]">Total</th>
-                              <th className="text-center py-3 px-4 font-semibold min-w-[60px]">Action</th>
+                            <tr className="border-b bg-gray-50 sticky top-0">
+                              <th className="text-left py-3 px-3 font-semibold min-w-[220px]">Service Name</th>
+                              <th className="text-center py-3 px-3 font-semibold min-w-[90px]">Qty</th>
+                              <th className="text-right py-3 px-3 font-semibold min-w-[100px]">Unit Price</th>
+                              <th className="text-right py-3 px-3 font-semibold min-w-[90px]">Total</th>
+                              <th className="text-center py-3 px-3 font-semibold min-w-[70px]">Action</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {editingBooking.item_prices.map((item, index) => (
-                              <tr key={index} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-4">
-                                  <Select
-                                    value={item.service_name || item.name || ""}
-                                    onValueChange={(value) => {
-                                      const realValue = value === "__none__" ? "" : value;
-                                      handleItemPriceChange(index, "service_name", realValue);
-                                      const catalog = getSortedServices();
-                                      const matched = catalog.find((s: any) => s.name === realValue);
-                                      if (matched) {
-                                        handleItemPriceChange(index, "unit_price", String(matched.price));
-                                        if (!item.quantity || item.quantity === 0) {
-                                          handleItemPriceChange(index, "quantity", "1");
+                            {editingBooking.item_prices.map((item, index) => {
+                              const displayPrice = item.unit_price ?? item.price ?? 0;
+                              const displayTotal = item.total_price ?? (item.quantity ?? 0) * displayPrice;
+                              return (
+                                <tr key={index} className="border-b hover:bg-gray-50">
+                                  <td className="py-3 px-3">
+                                    <Select
+                                      value={item.service_name || item.name || ""}
+                                      onValueChange={(value) => {
+                                        const realValue = value === "__none__" ? "" : value;
+                                        handleItemPriceChange(index, "service_name", realValue);
+                                        const catalog = getSortedServices();
+                                        const matched = catalog.find((s: any) => s.name === realValue);
+                                        if (matched) {
+                                          handleItemPriceChange(index, "unit_price", String(matched.price));
+                                          if (!item.quantity || item.quantity === 0) {
+                                            handleItemPriceChange(index, "quantity", "1");
+                                          }
                                         }
-                                      }
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-8">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="__none__">Select item</SelectItem>
-                                      {getSortedServices().map((svc) => (
-                                        <SelectItem key={svc.id || svc.name} value={svc.name}>
-                                          {svc.name} — ₹{svc.price}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </td>
-                                <td className="py-3 px-4">
-                                  <Input
-                                    type="number"
-                                    step="0.1"
-                                    value={String(item.quantity ?? 0)}
-                                    onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
-                                    className="h-8 text-center"
-                                  />
-                                </td>
-                                <td className="py-3 px-4">
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={String(item.unit_price ?? item.price ?? 0)}
-                                    onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
-                                    className="h-8 text-center"
-                                  />
-                                </td>
-                                <td className="py-3 px-4 text-right font-medium">₹{((item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price)}</td>
-                                <td className="py-3 px-4 text-center">
-                                  <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)} className="h-8 whitespace-nowrap">
-                                    Remove
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Select item" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">Select item</SelectItem>
+                                        {getSortedServices().map((svc) => (
+                                          <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                            {svc.name} — ₹{svc.price}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={String(item.quantity ?? 0)}
+                                      onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
+                                      className="h-8 text-center text-xs"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={String(displayPrice)}
+                                      onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
+                                      className="h-8 text-right text-xs"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-3 text-right font-medium">₹{(Number(displayTotal) || 0).toFixed(2)}</td>
+                                  <td className="py-3 px-3 text-center">
+                                    <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)} className="h-8 text-xs">
+                                      Remove
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-gray-500 p-4 border rounded border-dashed">No itemized prices available for this order.</div>
+                    <div className="text-sm text-gray-500 p-4 border rounded border-dashed">No itemized prices available. Click "Add Item" to add services.</div>
                   )}
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
