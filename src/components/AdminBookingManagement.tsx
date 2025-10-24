@@ -710,6 +710,12 @@ const AdminBookingManagement: React.FC = () => {
         // Keep showing the new normalized status in the admin UI
         applyBookingUpdate(bookingId, { status: normalizedStatus });
         toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
+
+        // Trigger immediate polling to sync updates
+        setTimeout(() => {
+          console.log("🔄 Triggering immediate poll after status update");
+          setLastPollAt(getISTTimestamp());
+        }, 500);
       } else {
         toast.error(response.error || "Failed to update booking status");
       }
