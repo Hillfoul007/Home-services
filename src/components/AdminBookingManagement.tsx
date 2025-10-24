@@ -483,34 +483,36 @@ const AdminBookingManagement: React.FC = () => {
 
   const convertQuickPickupToBooking = (quickPickup: QuickPickupDetails): Booking => {
     const createdAt = new Date(quickPickup.createdAt || Date.now()).toISOString();
+    const itemsCollected = quickPickup.items_collected || [];
+
     return {
       _id: quickPickup.id,
-      custom_order_id: quickPickup.id.substring(0, 8).toUpperCase(),
-      name: quickPickup.customerName || "Quick Pickup Customer",
-      phone: quickPickup.phone || "N/A",
+      custom_order_id: quickPickup.custom_order_id || quickPickup.id.substring(0, 8).toUpperCase(),
+      name: quickPickup.customer_name || "Quick Pickup Customer",
+      phone: quickPickup.customer_phone || "N/A",
       customer_id: quickPickup.userId,
-      service: "Quick Pickup Service",
-      services: quickPickup.items || [],
-      scheduled_date: quickPickup.pickupDate || new Date().toISOString(),
-      scheduled_time: quickPickup.pickupTimeSlot || "ASAP",
-      address: `${quickPickup.pickupLocation?.address || ""}`,
-      status: quickPickup.status || "created",
-      total_price: quickPickup.estimatedPrice || 0,
-      final_amount: quickPickup.estimatedPrice || 0,
+      service: "Quick Pickup",
+      services: itemsCollected.map((item) => item.name),
+      scheduled_date: quickPickup.pickup_date || new Date().toISOString(),
+      scheduled_time: quickPickup.pickup_time || "ASAP",
+      address: quickPickup.address || "N/A",
+      status: quickPickup.status || "pending",
+      total_price: quickPickup.estimated_cost || quickPickup.actual_cost || 0,
+      final_amount: quickPickup.actual_cost || quickPickup.estimated_cost || 0,
       created_at: createdAt,
       updated_at: quickPickup.updatedAt || createdAt,
       payment_status: "pending",
-      item_prices: (quickPickup.items || []).map((item) => ({
-        service_name: item,
-        quantity: 1,
-        unit_price: 0,
-        total_price: 0,
+      item_prices: itemsCollected.map((item) => ({
+        service_name: item.name,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.total,
       })),
       vendor: null,
-      rider: null,
+      rider: quickPickup.rider_id || null,
       address_details: {
-        flatNo: quickPickup.pickupLocation?.flatNo || "",
-        landmark: quickPickup.pickupLocation?.landmark || "",
+        flatNo: quickPickup.house_number || "",
+        landmark: "",
         type: "quick_pickup",
       },
     };
