@@ -28,14 +28,14 @@ import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
 import AdminUserBooking from "./AdminUserBooking";
 import AdminServiceLocations from "./AdminServiceLocations";
-import AdminRiderManagement from "./AdminRiderManagement";
+import AdminVendorManagement from "./AdminVendorManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "riders" | "analytics";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -306,9 +306,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <MapPin className="h-4 w-4" />
               Locations
             </TabsTrigger>
-            <TabsTrigger value="riders" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Riders
+            <TabsTrigger value="vendors" className="flex items-center gap-2">
+              <Building className="h-4 w-4" />
+              Vendors
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
@@ -332,8 +332,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminServiceLocations />
           </TabsContent>
 
-          <TabsContent value="riders">
-            <AdminRiderManagement />
+          <TabsContent value="vendors">
+            <AdminVendorManagement />
           </TabsContent>
 
           <TabsContent value="analytics">
