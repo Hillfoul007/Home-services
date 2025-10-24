@@ -339,8 +339,25 @@ const AdminBookingManagement: React.FC = () => {
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
 
+  const fetchVendors = async () => {
+    try {
+      const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
+      if (response.data?.vendors) {
+        const vendorOptions: VendorOption[] = response.data.vendors.map((vendor: any) => ({
+          id: vendor.id || vendor._id,
+          name: vendor.name,
+        }));
+        setVendors(vendorOptions);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch vendors:', error);
+      setVendors([]);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
+    fetchVendors();
 
     // Open SSE connection for real-time admin updates (if server supports it)
     let es: EventSource | null = null;
