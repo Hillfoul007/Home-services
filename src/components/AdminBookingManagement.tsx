@@ -595,12 +595,20 @@ const AdminBookingManagement: React.FC = () => {
 
       // Fetch quick-pickup orders
       try {
-        const quickPickupService = QuickPickupService.getInstance();
-        const quickPickupResponse = await quickPickupService.getMyQuickPickups();
+        const quickPickupResponse = await apiClient.adminRequest<{ quickPickups: QuickPickupDetails[] }>("/admin/quick-pickups?limit=100");
 
-        if (quickPickupResponse.success && quickPickupResponse.quickPickups) {
-          const convertedQuickPickups = quickPickupResponse.quickPickups.map(convertQuickPickupToBooking);
+        if (quickPickupResponse.data?.quickPickups) {
+          const convertedQuickPickups = quickPickupResponse.data.quickPickups.map(convertQuickPickupToBooking);
           allBookings = [...allBookings, ...convertedQuickPickups];
+        } else {
+          // Fallback: try to fetch from regular quick-pickup endpoint
+          const quickPickupService = QuickPickupService.getInstance();
+          const quickPickupResponse = await quickPickupService.getCurrentUserQuickPickups();
+
+          if (quickPickupResponse.success && quickPickupResponse.quickPickups) {
+            const convertedQuickPickups = quickPickupResponse.quickPickups.map(convertQuickPickupToBooking);
+            allBookings = [...allBookings, ...convertedQuickPickups];
+          }
         }
       } catch (qpError) {
         console.warn("Warning: Could not fetch quick-pickup orders:", qpError);
