@@ -150,7 +150,6 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
 };
 
 const DEFAULT_RIDER_LIST = Array.from({ length: 10 }).map((_, index) => `Rider ${index + 1}`);
-const DEFAULT_VENDOR_LIST = Array.from({ length: 10 }).map((_, index) => `Vendor ${index + 1}`);
 
 type MutationFlags = {
   status?: boolean;
@@ -316,6 +315,11 @@ const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string 
   );
 };
 
+interface VendorOption {
+  id: string;
+  name: string;
+}
+
 const AdminBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bucketA, setBucketA] = useState<Booking[]>([]);
@@ -332,9 +336,27 @@ const AdminBookingManagement: React.FC = () => {
 
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+
+  const fetchVendors = async () => {
+    try {
+      const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
+      if (response.data?.vendors) {
+        const vendorOptions: VendorOption[] = response.data.vendors.map((vendor: any) => ({
+          id: vendor.id || vendor._id,
+          name: vendor.name,
+        }));
+        setVendors(vendorOptions);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch vendors:', error);
+      setVendors([]);
+    }
+  };
 
   useEffect(() => {
     fetchBookings();
+    fetchVendors();
 
     // Open SSE connection for real-time admin updates (if server supports it)
     let es: EventSource | null = null;
@@ -373,12 +395,19 @@ const AdminBookingManagement: React.FC = () => {
     };
   }, []);
 
+  // Helper to get current time in IST format (matching server timezone)
+  const getISTTimestamp = (): string => {
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    return new Date(indianTime).toISOString();
+  };
+
   // Poll for updates since last poll and apply them to local state
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
       try {
-        const sinceParam = lastPollAt || new Date().toISOString();
+        const sinceParam = lastPollAt || getISTTimestamp();
+        console.log("🔄 Polling for booking updates since:", sinceParam);
         const response = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(
           `/admin/bookings?modified_since=${encodeURIComponent(sinceParam)}&limit=100`,
         );
@@ -387,6 +416,7 @@ const AdminBookingManagement: React.FC = () => {
 
         if (response.data) {
           const updates: Booking[] = [...(response.data.bucketA || []), ...(response.data.bucketB || [])];
+          console.log(`🔄 Poll returned ${updates.length} updated bookings`);
           if (updates.length > 0) {
             updates.forEach((b) => {
               applyBookingUpdate(b._id, {
@@ -397,18 +427,15 @@ const AdminBookingManagement: React.FC = () => {
 
             // Update last poll to the newest updated_at from updates
             const maxUpdated = updates
-              .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()).toISOString())
-              .sort()
-              .pop();
+              .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()))
+              .reduce((max, curr) => (curr > max ? curr : max));
 
-            if (maxUpdated) {
-              setLastPollAt(maxUpdated);
-            } else {
-              setLastPollAt(new Date().toISOString());
-            }
+            const nextPollTime = getISTTimestamp();
+            setLastPollAt(nextPollTime);
           } else {
             // Nothing new, advance lastPollAt
-            setLastPollAt(new Date().toISOString());
+            const nextPollTime = getISTTimestamp();
+            setLastPollAt(nextPollTime);
           }
         }
       } catch (error) {
@@ -419,12 +446,15 @@ const AdminBookingManagement: React.FC = () => {
     // Start polling interval
     const id = setInterval(poll, 8000);
 
-    // Also run one immediately
-    poll();
+    // Also run one immediately after a short delay to avoid race conditions
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) poll();
+    }, 500);
 
     return () => {
       cancelled = true;
       clearInterval(id);
+      clearTimeout(timeoutId);
     };
   }, [lastPollAt]);
 
@@ -544,12 +574,19 @@ const AdminBookingManagement: React.FC = () => {
             customer.phone ||
             "No phone";
 
+          // Ensure item_prices is always an array
+          let itemPrices = booking.item_prices || [];
+          if (!Array.isArray(itemPrices)) {
+            itemPrices = [];
+          }
+
           return {
             ...booking,
             name: customerName,
             phone: customerPhone,
             services: booking.services || [],
             status: normalizeStatus(booking.status),
+            item_prices: itemPrices,
           } as Booking;
         };
 
@@ -578,12 +615,19 @@ const AdminBookingManagement: React.FC = () => {
               customer.phone ||
               "No phone";
 
+            // Ensure item_prices is always an array
+            let itemPrices = booking.item_prices || [];
+            if (!Array.isArray(itemPrices)) {
+              itemPrices = [];
+            }
+
             return {
               ...booking,
               name: customerName,
               phone: customerPhone,
               services: booking.services || [],
               status: normalizeStatus(booking.status),
+              item_prices: itemPrices,
             } as Booking;
           });
 
@@ -666,6 +710,12 @@ const AdminBookingManagement: React.FC = () => {
         // Keep showing the new normalized status in the admin UI
         applyBookingUpdate(bookingId, { status: normalizedStatus });
         toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
+
+        // Trigger immediate polling to sync updates
+        setTimeout(() => {
+          console.log("🔄 Triggering immediate poll after status update");
+          setLastPollAt(getISTTimestamp());
+        }, 500);
       } else {
         toast.error(response.error || "Failed to update booking status");
       }
@@ -702,6 +752,12 @@ const AdminBookingManagement: React.FC = () => {
         }
 
         toast.success(successMessage);
+
+        // Trigger immediate polling to sync updates
+        setTimeout(() => {
+          console.log("🔄 Triggering immediate poll after assignment update");
+          setLastPollAt(getISTTimestamp());
+        }, 500);
       } else {
         toast.error(response.error || "Failed to update booking");
       }
@@ -1314,12 +1370,12 @@ const AdminBookingManagement: React.FC = () => {
       </Dialog>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Booking</DialogTitle>
           </DialogHeader>
           {editingBooking && (
-            <div className="space-y-4">
+            <div className="space-y-4" key={editingBooking._id}>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-status">Status</Label>
@@ -1425,13 +1481,22 @@ const AdminBookingManagement: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                    {DEFAULT_VENDOR_LIST.map((vendor) => (
-                      <SelectItem key={vendor} value={vendor}>
-                        {vendor}
+                    {vendors.length > 0 ? (
+                      vendors.map((vendor) => (
+                        <SelectItem key={vendor.id} value={vendor.name}>
+                          {vendor.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-vendors" disabled>
+                        No vendors available
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {vendors.length > 0 ? `${vendors.length} vendor(s) available` : 'No saved vendors - create one in Vendors tab'}
+                </p>
               </div>
 
               <div>
@@ -1456,89 +1521,95 @@ const AdminBookingManagement: React.FC = () => {
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  Edit Cart / Items
+                  Edit Cart / Items ({editingBooking.item_prices?.length || 0} items)
                 </h4>
                 <div className="space-y-3">
                   {editingBooking.item_prices && editingBooking.item_prices.length > 0 ? (
-                    <div className="overflow-x-auto border rounded-lg">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b bg-gray-50">
-                            <th className="text-left py-3 px-4 font-semibold">Service Name</th>
-                            <th className="text-center py-3 px-4 font-semibold w-24">Quantity</th>
-                            <th className="text-center py-3 px-4 font-semibold w-24">Unit Price</th>
-                            <th className="text-right py-3 px-4 font-semibold w-24">Total</th>
-                            <th className="text-center py-3 px-4 font-semibold w-16">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editingBooking.item_prices.map((item, index) => (
-                            <tr key={index} className="border-b hover:bg-gray-50">
-                              <td className="py-3 px-4">
-                                <Select
-                                  value={item.service_name || item.name || ""}
-                                  onValueChange={(value) => {
-                                    const realValue = value === "__none__" ? "" : value;
-                                    handleItemPriceChange(index, "service_name", realValue);
-                                    const catalog = getSortedServices();
-                                    const matched = catalog.find((s: any) => s.name === realValue);
-                                    if (matched) {
-                                      handleItemPriceChange(index, "unit_price", String(matched.price));
-                                      if (!item.quantity || item.quantity === 0) {
-                                        handleItemPriceChange(index, "quantity", "1");
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className="h-8">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">Select item</SelectItem>
-                                    {getSortedServices().map((svc) => (
-                                      <SelectItem key={svc.id || svc.name} value={svc.name}>
-                                        {svc.name} — ₹{svc.price}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="py-3 px-4">
-                                <Input
-                                  type="number"
-                                  step="0.1"
-                                  value={String(item.quantity ?? 0)}
-                                  onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
-                                  className="h-8 text-center"
-                                />
-                              </td>
-                              <td className="py-3 px-4">
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={String(item.unit_price ?? item.price ?? 0)}
-                                  onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
-                                  className="h-8 text-center"
-                                />
-                              </td>
-                              <td className="py-3 px-4 text-right font-medium">₹{((item.total_price ?? 0).toFixed ? (item.total_price ?? 0).toFixed(2) : item.total_price)}</td>
-                              <td className="py-3 px-4 text-center">
-                                <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)} className="h-8">
-                                  Remove
-                                </Button>
-                              </td>
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-gray-50 sticky top-0">
+                              <th className="text-left py-3 px-3 font-semibold min-w-[220px]">Service Name</th>
+                              <th className="text-center py-3 px-3 font-semibold min-w-[90px]">Qty</th>
+                              <th className="text-right py-3 px-3 font-semibold min-w-[100px]">Unit Price</th>
+                              <th className="text-right py-3 px-3 font-semibold min-w-[90px]">Total</th>
+                              <th className="text-center py-3 px-3 font-semibold min-w-[70px]">Action</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {editingBooking.item_prices.map((item, index) => {
+                              const displayPrice = item.unit_price ?? item.price ?? 0;
+                              const displayTotal = item.total_price ?? (item.quantity ?? 0) * displayPrice;
+                              return (
+                                <tr key={index} className="border-b hover:bg-gray-50">
+                                  <td className="py-3 px-3">
+                                    <Select
+                                      value={item.service_name || item.name || ""}
+                                      onValueChange={(value) => {
+                                        const realValue = value === "__none__" ? "" : value;
+                                        handleItemPriceChange(index, "service_name", realValue);
+                                        const catalog = getSortedServices();
+                                        const matched = catalog.find((s: any) => s.name === realValue);
+                                        if (matched) {
+                                          handleItemPriceChange(index, "unit_price", String(matched.price));
+                                          if (!item.quantity || item.quantity === 0) {
+                                            handleItemPriceChange(index, "quantity", "1");
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Select item" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">Select item</SelectItem>
+                                        {getSortedServices().map((svc) => (
+                                          <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                            {svc.name} — ₹{svc.price}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={String(item.quantity ?? 0)}
+                                      onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
+                                      className="h-8 text-center text-xs"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={String(displayPrice)}
+                                      onChange={(event) => handleItemPriceChange(index, "unit_price", event.target.value)}
+                                      className="h-8 text-right text-xs"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-3 text-right font-medium">₹{(Number(displayTotal) || 0).toFixed(2)}</td>
+                                  <td className="py-3 px-3 text-center">
+                                    <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)} className="h-8 text-xs">
+                                      Remove
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-gray-500 p-4 border rounded border-dashed">No itemized prices available for this order.</div>
+                    <div className="text-sm text-gray-500 p-4 border rounded border-dashed">No itemized prices available. Click "Add Item" to add services.</div>
                   )}
 
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
                     <Button size="sm" onClick={addItemToEditing} variant="outline">Add Item</Button>
-                    <div className="text-lg font-semibold">
+                    <div className="text-lg font-semibold whitespace-nowrap">
                       Subtotal: <span className="text-green-600">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                     </div>
                   </div>
@@ -1618,6 +1689,12 @@ const AdminBookingManagement: React.FC = () => {
                         toast.success("Booking updated successfully");
                         setShowEditDialog(false);
                         setEditingBooking(null);
+
+                        // Trigger immediate polling to sync updates
+                        setTimeout(() => {
+                          console.log("🔄 Triggering immediate poll after booking edit");
+                          setLastPollAt(getISTTimestamp());
+                        }, 500);
                       } else {
                         toast.error(response.error || "Failed to update booking");
                       }
