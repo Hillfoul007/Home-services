@@ -1487,7 +1487,7 @@ const AdminBookingManagement: React.FC = () => {
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  Edit Cart / Items
+                  Edit Cart / Items ({editingBooking.item_prices?.length || 0} items)
                 </h4>
                 <div className="space-y-3">
                   {editingBooking.item_prices && editingBooking.item_prices.length > 0 ? (
