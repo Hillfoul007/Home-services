@@ -545,19 +545,22 @@ const AdminUserBooking: React.FC = () => {
               </div>
 
               <div className="md:col-span-2">
-                <Label htmlFor="discount">Discount Amount (₹)</Label>
+                <Label htmlFor="discount">Discount Percent (%)</Label>
                 <Input
                   id="discount"
                   type="number"
+                  min={0}
+                  max={100}
                   placeholder="0"
-                  value={bookingData.discount_amount || ""}
+                  value={bookingData.discount_percent || ""}
                   onChange={(e) =>
                     setBookingData({
                       ...bookingData,
-                      discount_amount: parseFloat(e.target.value) || 0,
+                      discount_percent: parseFloat(e.target.value) || 0,
                     })
                   }
                 />
+                <p className="text-xs text-gray-500 mt-1">This percentage will be applied to the cart total automatically.</p>
               </div>
             </div>
 
