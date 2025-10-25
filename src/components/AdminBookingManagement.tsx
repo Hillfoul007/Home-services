@@ -1154,6 +1154,32 @@ const AdminBookingManagement: React.FC = () => {
         )}
       </div>
 
+      {completedOrders.length > 0 && (
+        <div className="mt-6">
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-2">Completed Orders</h3>
+              <p className="text-sm text-gray-500 mb-3">Recently completed orders (last 20)</p>
+              <div className="space-y-3">
+                {completedOrders.map((booking) => (
+                  <div key={booking._id} className="flex items-center justify-between rounded-md border p-3">
+                    <div className="flex items-center gap-3">
+                      <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                        {getStatusIcon(booking.status)}
+                        <span>{getStatusLabel(booking.status)}</span>
+                      </Badge>
+                      <span className="font-medium">#{booking.custom_order_id}</span>
+                      <span className="text-sm text-gray-600">{booking.name}</span>
+                    </div>
+                    <div className="text-sm text-gray-700">₹{booking.final_amount ?? booking.total_price}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       </div>
 
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
