@@ -1036,6 +1036,12 @@ const AdminBookingManagement: React.FC = () => {
                           <Phone className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.phone}</span>
                         </div>
+                        {booking.vendor && (
+                          <div className="flex items-center gap-2">
+                            <Store className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-2">
