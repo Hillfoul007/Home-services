@@ -193,6 +193,23 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     delete updateData.created_at;
     delete updateData.customer_id;
 
+    // Normalize vendor field: frontend may send `vendor` while schema uses `assignedVendor`
+    if (typeof updateData.vendor !== 'undefined') {
+      updateData.assignedVendor = updateData.vendor;
+      delete updateData.vendor;
+    }
+    if (typeof updateData.assigned_vendor !== 'undefined') {
+      // support snake_case too
+      updateData.assignedVendor = updateData.assigned_vendor;
+      delete updateData.assigned_vendor;
+    }
+
+    // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
+    const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
+    if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
+      updateData.status = "vendor_assigned";
+    }
+
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
     // This ensures the timestamp matches the pre-save hook behavior
     const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
