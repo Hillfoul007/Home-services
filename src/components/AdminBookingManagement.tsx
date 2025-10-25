@@ -248,6 +248,9 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       services,
       final_amount: typeof booking.final_amount === 'number' ? booking.final_amount : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
+      // Preserve discount fields if present
+      discount_amount: (booking as any).discount_amount || 0,
+      discount_percent: (booking as any).discount_percent || 0,
     } as Booking;
 
     return normalizedBooking;
