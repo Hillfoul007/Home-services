@@ -895,7 +895,7 @@ const AdminBookingManagement: React.FC = () => {
           <div className="flex items-center gap-3">
             <Button size="sm" variant="ghost" onClick={() => setViewMode('both')}>Back</Button>
             <h3 className="text-lg font-semibold">{viewMode === 'pickup' ? 'Pickup / Vendor Flow' : 'Ready for Delivery'}</h3>
-            <span className="text-sm text-gray-500">{viewMode === 'pickup' ? filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length} orders</span>
+            <span className="text-sm text-gray-500">{viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders</span>
           </div>
           <div>
             <Button size="sm" variant="outline" onClick={fetchBookings}><RefreshCw className="mr-2 h-4 w-4"/> Refresh</Button>
