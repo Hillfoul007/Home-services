@@ -226,6 +226,37 @@ const getStatusIcon = (status: string) => {
   }
 };
 
+// Normalize booking object for admin edit modal to ensure item_prices shape
+const normalizeBookingForEdit = (booking: Booking): Booking => {
+  try {
+    const rawItems: any[] = Array.isArray(booking.item_prices) ? booking.item_prices : [];
+
+    const normalizedItems: ItemPrice[] = rawItems.map((it: any) => {
+      const service_name = it.service_name || it.name || it.service || "Item";
+      const quantity = Number(it.quantity ?? it.qty ?? 1) || 1;
+      const unit_price = Number(it.unit_price ?? it.unitPrice ?? it.price ?? it.rate ?? 0) || 0;
+      const total_price = Number(it.total_price ?? it.total ?? (quantity * unit_price)) || (quantity * unit_price);
+      return { service_name, quantity, unit_price, total_price } as ItemPrice;
+    });
+
+    // If services array is missing, build from item names
+    const services = booking.services && booking.services.length ? booking.services : normalizedItems.map(i => `${i.service_name} x${i.quantity}`);
+
+    const normalizedBooking = {
+      ...booking,
+      item_prices: normalizedItems,
+      services,
+      final_amount: typeof booking.final_amount === 'number' ? booking.final_amount : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
+      total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
+    } as Booking;
+
+    return normalizedBooking;
+  } catch (e) {
+    console.warn('normalizeBookingForEdit failed', e);
+    return booking;
+  }
+};
+
 const formatDate = (dateString?: string) => {
   if (!dateString) {
     return "N/A";
