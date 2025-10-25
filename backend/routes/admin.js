@@ -527,6 +527,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     res.json({
       bucketA,
       bucketB,
+      bookings: status && status !== "all" ? bookings : undefined,
       pagination: {
         total,
         limit: parseInt(limit),
