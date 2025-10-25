@@ -348,9 +348,28 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
+  const fetchCompletedOrders = async () => {
+    try {
+      const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=20`);
+      if (res.data) {
+        const anyData: any = res.data as any;
+        const list = anyData.bookings || [...(anyData.bucketA || []), ...(anyData.bucketB || [])];
+        const processed = list.map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+        setCompletedOrders(processed);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchVendors();
+    fetchCompletedOrders();
 
     // Open SSE connection for real-time admin updates (if server supports it)
     let es: EventSource | null = null;
