@@ -1772,6 +1772,9 @@ const AdminBookingManagement: React.FC = () => {
                         address: editingBooking.address || "",
                         rider: editingBooking.rider,
                         vendor: editingBooking.vendor,
+                        // Include discount fields if present
+                        discount_amount: (editingBooking as any).discount_amount || 0,
+                        discount_percent: (editingBooking as any).discount_percent || 0,
                       };
 
                       // Build services array from item names for backend compatibility
