@@ -23,6 +23,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
@@ -90,19 +91,14 @@ const ORDER_FLOW_STEPS = [
     description: "Booking received and awaiting pickup scheduling.",
   },
   {
-    value: "pickup_assigned",
-    label: "Pickup Assigned",
-    description: "Pickup rider has been assigned.",
+    value: "vendor_assigned",
+    label: "Vendor Assigned",
+    description: "Processing vendor has been assigned.",
   },
   {
     value: "pickup_completed",
-    label: "Pickup Completed",
+    label: "Pickup Complete",
     description: "Laundry collected from the customer.",
-  },
-  {
-    value: "delivered_to_vendor",
-    label: "Delivered to Vendor",
-    description: "Order handed over to the processing partner.",
   },
   {
     value: "ready_for_delivery",
@@ -110,14 +106,14 @@ const ORDER_FLOW_STEPS = [
     description: "Laundry processed and ready to return.",
   },
   {
-    value: "delivery_assigned",
-    label: "Delivery Assigned",
-    description: "Delivery rider assigned for returning the order.",
+    value: "delivered",
+    label: "Delivered",
+    description: "Delivered back to customer. Awaiting admin completion.",
   },
   {
     value: "completed",
     label: "Order Completed",
-    description: "Order successfully delivered back to the customer.",
+    description: "Moved to Completed Orders.",
   },
   {
     value: "cancelled",
@@ -132,19 +128,21 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
   pending: "created",
   new: "created",
   "new_order": "created",
-  confirmed: "pickup_assigned",
-  accepted: "pickup_assigned",
-  assigned: "pickup_assigned",
-  pickup_scheduled: "pickup_assigned",
-  pickup_in_progress: "pickup_assigned",
+  confirmed: "vendor_assigned",
+  accepted: "vendor_assigned",
+  assigned: "vendor_assigned",
+  pickup_assigned: "vendor_assigned",
+  pickup_scheduled: "vendor_assigned",
+  pickup_in_progress: "vendor_assigned",
   picked_up: "pickup_completed",
-  processing: "delivered_to_vendor",
-  in_process: "delivered_to_vendor",
+  processing: "ready_for_delivery",
+  delivered_to_vendor: "ready_for_delivery",
+  in_process: "ready_for_delivery",
   in_progress: "ready_for_delivery",
   ready_for_pickup: "ready_for_delivery",
-  out_for_delivery: "delivery_assigned",
-  delivery_in_progress: "delivery_assigned",
-  delivered: "completed",
+  out_for_delivery: "ready_for_delivery",
+  delivery_assigned: "ready_for_delivery",
+  delivered: "delivered",
   completed: "completed",
   cancelled: "cancelled",
 };
@@ -189,16 +187,14 @@ const getStatusColor = (status: string) => {
   switch (normalized) {
     case "created":
       return "bg-yellow-100 text-yellow-800";
-    case "pickup_assigned":
+    case "vendor_assigned":
       return "bg-orange-100 text-orange-800";
     case "pickup_completed":
       return "bg-purple-100 text-purple-800";
-    case "delivered_to_vendor":
-      return "bg-indigo-100 text-indigo-800";
     case "ready_for_delivery":
       return "bg-sky-100 text-sky-800";
-    case "delivery_assigned":
-      return "bg-amber-100 text-amber-800";
+    case "delivered":
+      return "bg-blue-100 text-blue-800";
     case "completed":
       return "bg-green-100 text-green-800";
     case "cancelled":
@@ -214,22 +210,54 @@ const getStatusIcon = (status: string) => {
   switch (normalized) {
     case "created":
       return <AlertCircle className="h-4 w-4" />;
-    case "pickup_assigned":
-      return <MapPin className="h-4 w-4" />;
+    case "vendor_assigned":
+      return <Package className="h-4 w-4" />;
     case "pickup_completed":
       return <CheckCircle className="h-4 w-4" />;
-    case "delivered_to_vendor":
-      return <Package className="h-4 w-4" />;
     case "ready_for_delivery":
       return <Clock className="h-4 w-4" />;
-    case "delivery_assigned":
-      return <MapPin className="h-4 w-4" />;
+    case "delivered":
+      return <CheckCircle className="h-4 w-4" />;
     case "completed":
       return <CheckCircle className="h-4 w-4" />;
     case "cancelled":
       return <XCircle className="h-4 w-4" />;
     default:
       return <Clock className="h-4 w-4" />;
+  }
+};
+
+// Normalize booking object for admin edit modal to ensure item_prices shape
+const normalizeBookingForEdit = (booking: Booking): Booking => {
+  try {
+    const rawItems: any[] = Array.isArray(booking.item_prices) ? booking.item_prices : [];
+
+    const normalizedItems: ItemPrice[] = rawItems.map((it: any) => {
+      const service_name = it.service_name || it.name || it.service || "Item";
+      const quantity = Number(it.quantity ?? it.qty ?? 1) || 1;
+      const unit_price = Number(it.unit_price ?? it.unitPrice ?? it.price ?? it.rate ?? 0) || 0;
+      const total_price = Number(it.total_price ?? it.total ?? (quantity * unit_price)) || (quantity * unit_price);
+      return { service_name, quantity, unit_price, total_price } as ItemPrice;
+    });
+
+    // If services array is missing, build from item names
+    const services = booking.services && booking.services.length ? booking.services : normalizedItems.map(i => `${i.service_name} x${i.quantity}`);
+
+    const normalizedBooking = {
+      ...booking,
+      item_prices: normalizedItems,
+      services,
+      final_amount: typeof booking.final_amount === 'number' ? booking.final_amount : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
+      total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
+      // Preserve discount fields if present
+      discount_amount: (booking as any).discount_amount || 0,
+      discount_percent: (booking as any).discount_percent || 0,
+    } as Booking;
+
+    return normalizedBooking;
+  } catch (e) {
+    console.warn('normalizeBookingForEdit failed', e);
+    return booking;
   }
 };
 
@@ -337,6 +365,7 @@ const AdminBookingManagement: React.FC = () => {
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<Booking[]>([]);
 
   const fetchVendors = async () => {
     try {
@@ -354,9 +383,28 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
+  const fetchCompletedOrders = async () => {
+    try {
+      const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=20`);
+      if (res.data) {
+        const anyData: any = res.data as any;
+        const list = anyData.bookings || [...(anyData.bucketA || []), ...(anyData.bucketB || [])];
+        const processed = list.map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+        setCompletedOrders(processed);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchVendors();
+    fetchCompletedOrders();
 
     // Open SSE connection for real-time admin updates (if server supports it)
     let es: EventSource | null = null;
@@ -525,6 +573,9 @@ const AdminBookingManagement: React.FC = () => {
       services: itemsCollected.map((item) => item.name),
       scheduled_date: quickPickup.pickup_date || new Date().toISOString(),
       scheduled_time: quickPickup.pickup_time || "ASAP",
+      // Use explicit delivery fields if present, otherwise default to pickup date/time
+      delivery_date: quickPickup.delivery_date || quickPickup.pickup_date || undefined,
+      delivery_time: quickPickup.delivery_time || quickPickup.pickup_time || undefined,
       address: quickPickup.address || "N/A",
       status: quickPickup.status || "pending",
       total_price: quickPickup.estimated_cost || quickPickup.actual_cost || 0,
@@ -580,6 +631,9 @@ const AdminBookingManagement: React.FC = () => {
             itemPrices = [];
           }
 
+          // Normalize vendor field from multiple possible backend names
+          const vendorName = booking.assignedVendor || booking.assigned_vendor || booking.vendor || booking.assignedVendorName || booking.assigned_vendor_name || null;
+
           return {
             ...booking,
             name: customerName,
@@ -587,6 +641,7 @@ const AdminBookingManagement: React.FC = () => {
             services: booking.services || [],
             status: normalizeStatus(booking.status),
             item_prices: itemPrices,
+            vendor: vendorName,
           } as Booking;
         };
 
@@ -621,6 +676,9 @@ const AdminBookingManagement: React.FC = () => {
               itemPrices = [];
             }
 
+            // Normalize vendor field from multiple possible backend names
+            const vendorName = booking.assignedVendor || booking.assigned_vendor || booking.vendor || booking.assignedVendorName || booking.assigned_vendor_name || null;
+
             return {
               ...booking,
               name: customerName,
@@ -628,6 +686,7 @@ const AdminBookingManagement: React.FC = () => {
               services: booking.services || [],
               status: normalizeStatus(booking.status),
               item_prices: itemPrices,
+              vendor: vendorName,
             } as Booking;
           });
 
@@ -704,14 +763,24 @@ const AdminBookingManagement: React.FC = () => {
 
     try {
       setMutationFlag(bookingId, "status", true);
-      const response = await apiClient.updateBookingStatus(bookingId, backendStatus);
+      const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${bookingId}`, {
+        method: "PUT",
+        body: { status: backendStatus },
+      });
 
       if (response.data) {
-        // Keep showing the new normalized status in the admin UI
-        applyBookingUpdate(bookingId, { status: normalizedStatus });
+        const updated = response.data.booking;
+        if (updated) {
+          applyBookingUpdate(bookingId, { ...updated, status: normalizeStatus(updated.status) });
+        } else {
+          applyBookingUpdate(bookingId, { status: normalizedStatus });
+        }
         toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
 
-        // Trigger immediate polling to sync updates
+        if (normalizedStatus === 'completed') {
+          fetchCompletedOrders();
+        }
+
         setTimeout(() => {
           console.log("🔄 Triggering immediate poll after status update");
           setLastPollAt(getISTTimestamp());
@@ -734,9 +803,13 @@ const AdminBookingManagement: React.FC = () => {
   ) => {
     try {
       setMutationFlag(bookingId, "assignment", true);
+      const body: any = { ...updates };
+      if (typeof updates.vendor !== 'undefined' && updates.vendor !== null) {
+        body.status = mapToBackendStatus('vendor_assigned');
+      }
       const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${bookingId}`, {
         method: "PUT",
-        body: updates,
+        body,
       });
 
       if (response.data) {
@@ -872,7 +945,7 @@ const AdminBookingManagement: React.FC = () => {
           <div className="flex items-center gap-3">
             <Button size="sm" variant="ghost" onClick={() => setViewMode('both')}>Back</Button>
             <h3 className="text-lg font-semibold">{viewMode === 'pickup' ? 'Pickup / Vendor Flow' : 'Ready for Delivery'}</h3>
-            <span className="text-sm text-gray-500">{viewMode === 'pickup' ? filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length} orders</span>
+            <span className="text-sm text-gray-500">{viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders</span>
           </div>
           <div>
             <Button size="sm" variant="outline" onClick={fetchBookings}><RefreshCw className="mr-2 h-4 w-4"/> Refresh</Button>
@@ -928,13 +1001,13 @@ const AdminBookingManagement: React.FC = () => {
           <button onClick={() => setViewMode('pickup')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'pickup' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <MapPin className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Pickup</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length}</span>
           </button>
 
           <button onClick={() => setViewMode('ready')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'ready' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <Clock className="h-4 w-4 text-gray-600" />
-            <span className="text-sm font-medium">Ready for Delivery</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="text-sm font-medium">Ready/Delivered</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length}</span>
           </button>
         </div>
       </div>
@@ -945,8 +1018,8 @@ const AdminBookingManagement: React.FC = () => {
           <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
           <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["created","pickup_assigned","pickup_completed"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     {/* reuse existing booking card layout by calling a small render helper - inline for simplicity */}
@@ -964,6 +1037,12 @@ const AdminBookingManagement: React.FC = () => {
                           <Phone className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.phone}</span>
                         </div>
+                        {booking.vendor && (
+                          <div className="flex items-center gap-2">
+                            <Store className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -994,12 +1073,27 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
-                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
+                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                              Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'pickup_completed' && (
                             <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
-                              Ready for Delivery
+                              Mark Ready for Delivery
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'ready_for_delivery' && (
+                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                              Mark Delivered
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'delivered' && (
+                            <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
+                              Mark Complete
                             </Button>
                           )}
                         </div>
@@ -1025,8 +1119,8 @@ const AdminBookingManagement: React.FC = () => {
           <h3 className="text-lg font-semibold">Ready for Delivery</h3>
           <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["delivered_to_vendor","ready_for_delivery","delivery_assigned","in_progress"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
@@ -1039,13 +1133,23 @@ const AdminBookingManagement: React.FC = () => {
                           <User className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.name}</span>
                         </div>
+                        {booking.vendor && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Store className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-2">
                         <div className="text-sm font-medium text-gray-900">{booking.service}</div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(booking.scheduled_date)}
+                          {formatDate(booking.delivery_date || booking.scheduled_date)}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Clock className="h-4 w-4" />
+                          {booking.delivery_time || booking.delivery_time === '' ? (booking.delivery_time || "-") : (booking.scheduled_time || "-")}
                         </div>
                       </div>
 
@@ -1065,12 +1169,27 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
-                          {normalizeStatus(booking.status) === 'delivered_to_vendor' && (
+                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                              Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'pickup_completed' && (
                             <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
-                              Ready for Delivery
+                              Mark Ready for Delivery
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'ready_for_delivery' && (
+                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                              Mark Delivered
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'delivered' && (
+                            <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
+                              Mark Complete
                             </Button>
                           )}
                         </div>
@@ -1106,6 +1225,32 @@ const AdminBookingManagement: React.FC = () => {
           </Card>
         )}
       </div>
+
+      {completedOrders.length > 0 && (
+        <div className="mt-6">
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-2">Completed Orders</h3>
+              <p className="text-sm text-gray-500 mb-3">Recently completed orders (last 20)</p>
+              <div className="space-y-3">
+                {completedOrders.map((booking) => (
+                  <div key={booking._id} className="flex items-center justify-between rounded-md border p-3">
+                    <div className="flex items-center gap-3">
+                      <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                        {getStatusIcon(booking.status)}
+                        <span>{getStatusLabel(booking.status)}</span>
+                      </Badge>
+                      <span className="font-medium">#{booking.custom_order_id}</span>
+                      <span className="text-sm text-gray-600">{booking.name}</span>
+                    </div>
+                    <div className="text-sm text-gray-700">₹{booking.final_amount ?? booking.total_price}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       </div>
 
@@ -1643,6 +1788,9 @@ const AdminBookingManagement: React.FC = () => {
                         address: editingBooking.address || "",
                         rider: editingBooking.rider,
                         vendor: editingBooking.vendor,
+                        // Include discount fields if present
+                        discount_amount: (editingBooking as any).discount_amount || 0,
+                        discount_percent: (editingBooking as any).discount_percent || 0,
                       };
 
                       // Build services array from item names for backend compatibility

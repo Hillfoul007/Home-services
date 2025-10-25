@@ -55,6 +55,8 @@ const AdminUserBooking: React.FC = () => {
     delivery_time: "",
     address: "",
     special_instructions: "",
+    // discount_percent is the admin input; discount_amount is computed automatically
+    discount_percent: 0,
     discount_amount: 0,
   });
 
@@ -122,10 +124,32 @@ const AdminUserBooking: React.FC = () => {
     }
   };
 
-  const selectUser = (user: User) => {
-    setSelectedUser(user);
+  const selectUser = async (user: User) => {
     setSearchTerm("");
     setUsers([]);
+
+    try {
+      const resp = await apiClient.adminRequest<any>(`/admin/users/${encodeURIComponent(user._id)}`);
+      if (resp.data && resp.data.user) {
+        const fetchedUser = resp.data.user;
+        setSelectedUser(fetchedUser as User);
+
+        // Autofill latest/default address into booking form
+        const defaultAddress = resp.data.defaultAddress || (Array.isArray(resp.data.addresses) && resp.data.addresses[0]);
+        if (defaultAddress && defaultAddress.full_address) {
+          setBookingData((prev) => ({ ...prev, address: defaultAddress.full_address }));
+        } else if (fetchedUser.address) {
+          setBookingData((prev) => ({ ...prev, address: fetchedUser.address }));
+        }
+
+        return;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch user details for autofill', error);
+    }
+
+    // Fallback when admin API unavailable
+    setSelectedUser(user);
   };
 
 
@@ -137,7 +161,14 @@ const AdminUserBooking: React.FC = () => {
   };
 
   const calculateFinalAmount = () => {
-    return Math.max(0, calculateTotal() - bookingData.discount_amount);
+    const total = calculateTotal();
+    const percent = Number(bookingData.discount_percent) || 0;
+    const discountAmount = Math.round((total * percent) / 100 * 100) / 100;
+    // keep discount_amount in state in sync
+    if (bookingData.discount_amount !== discountAmount) {
+      setBookingData((prev) => ({ ...prev, discount_amount: discountAmount }));
+    }
+    return Math.max(0, total - discountAmount);
   };
 
 
@@ -218,6 +249,7 @@ const AdminUserBooking: React.FC = () => {
         address: bookingData.address,
         additional_details: bookingData.special_instructions,
         total_price: calculateTotal(),
+        discount_percent: bookingData.discount_percent || 0,
         discount_amount: bookingData.discount_amount,
         final_amount: calculateFinalAmount(),
         special_instructions: bookingData.special_instructions,
@@ -248,6 +280,7 @@ const AdminUserBooking: React.FC = () => {
           delivery_time: "",
           address: "",
           special_instructions: "",
+          discount_percent: 0,
           discount_amount: 0,
         });
       } else {
@@ -514,19 +547,22 @@ const AdminUserBooking: React.FC = () => {
               </div>
 
               <div className="md:col-span-2">
-                <Label htmlFor="discount">Discount Amount (₹)</Label>
+                <Label htmlFor="discount">Discount Percent (%)</Label>
                 <Input
                   id="discount"
                   type="number"
+                  min={0}
+                  max={100}
                   placeholder="0"
-                  value={bookingData.discount_amount || ""}
+                  value={bookingData.discount_percent || ""}
                   onChange={(e) =>
                     setBookingData({
                       ...bookingData,
-                      discount_amount: parseFloat(e.target.value) || 0,
+                      discount_percent: parseFloat(e.target.value) || 0,
                     })
                   }
                 />
+                <p className="text-xs text-gray-500 mt-1">This percentage will be applied to the cart total automatically.</p>
               </div>
             </div>
 

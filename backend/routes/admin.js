@@ -193,6 +193,23 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     delete updateData.created_at;
     delete updateData.customer_id;
 
+    // Normalize vendor field: frontend may send `vendor` while schema uses `assignedVendor`
+    if (typeof updateData.vendor !== 'undefined') {
+      updateData.assignedVendor = updateData.vendor;
+      delete updateData.vendor;
+    }
+    if (typeof updateData.assigned_vendor !== 'undefined') {
+      // support snake_case too
+      updateData.assignedVendor = updateData.assigned_vendor;
+      delete updateData.assigned_vendor;
+    }
+
+    // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
+    const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
+    if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
+      updateData.status = "vendor_assigned";
+    }
+
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
     // This ensures the timestamp matches the pre-save hook behavior
     const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
@@ -415,8 +432,8 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     }
 
     // Define new order-flow buckets. Include commonly used statuses like 'pending' and 'confirmed'
-    const BUCKET_A = ["pending", "created", "confirmed", "pickup_assigned", "pickup_completed"];
-    const BUCKET_B = ["delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress"];
+    const BUCKET_A = ["pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "pickup_completed"];
+    const BUCKET_B = ["delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered"];
 
     // By default return a broad set of relevant statuses (exclude completed/cancelled later)
     const relevantStatuses = [...new Set([...
@@ -426,18 +443,21 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       "pending",
       "confirmed",
       "created",
+      "vendor_assigned",
       "ready_for_delivery",
       "pickup_assigned",
       "pickup_completed",
       "delivery_assigned",
       "in_progress",
       "delivered_to_vendor",
+      "delivered",
     ])];
 
     let query = {};
 
     // If a specific status filter is provided, respect it
-    if (status && status !== "all") {
+    const hasExplicitStatusFilter = !!(status && status !== "all");
+    if (hasExplicitStatusFilter) {
       // Allow comma-separated status filters
       if (status.includes(",")) {
         const arr = status.split(",").map((s) => s.trim());
@@ -473,8 +493,10 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       ];
     }
 
-    // Always exclude cancelled and completed orders from buckets (user requested)
-    query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
+    // Exclude cancelled and completed orders from default buckets unless explicitly requested
+    if (!hasExplicitStatusFilter) {
+      query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
+    }
 
     // Filter by modified_since (returns only bookings updated after the provided ISO timestamp)
     if (modified_since) {
@@ -522,6 +544,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     res.json({
       bucketA,
       bucketB,
+      bookings: status && status !== "all" ? bookings : undefined,
       pagination: {
         total,
         limit: parseInt(limit),
@@ -686,13 +709,28 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       .limit(10)
       .select("custom_order_id service status final_amount created_at");
 
+    // Fetch user addresses (if Address model available)
+    let addresses = [];
+    let defaultAddress = null;
+    try {
+      const Address = require("../models/Address");
+      addresses = await Address.getUserAddresses(user._id);
+      if (Array.isArray(addresses) && addresses.length > 0) {
+        defaultAddress = addresses.find(a => a.is_default) || addresses[0];
+      }
+    } catch (err) {
+      console.warn("Address model not available or failed to fetch addresses:", err && err.message);
+    }
+
     console.log("✅ Admin fetched user details:", user._id);
-    res.json({ 
+    res.json({
       user: {
         ...user.toObject(),
         password: undefined, // Never expose password
       },
-      bookings 
+      bookings,
+      addresses,
+      defaultAddress
     });
   } catch (error) {
     console.error("❌ Error fetching user details:", error);
@@ -1279,6 +1317,10 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
 
       order.assignedVendor = vendorWithDistanceData.name;
       order.assignedVendorDetails = vendorWithDistanceData;
+      // Progress status when vendor assigned (only if not already beyond this stage)
+      if (!["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"].includes(order.status)) {
+        order.status = "vendor_assigned";
+      }
       await order.save();
     }
 

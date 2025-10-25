@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const QuickPickup = require("../models/QuickPickup");
 const User = require("../models/User");
+const Booking = require("../models/Booking");
 
 const router = express.Router();
 
@@ -113,6 +114,21 @@ router.post("/", async (req, res) => {
 
       console.log("📝 Step 15: Sending success response...");
       console.log("✅ Quick pickup created:", quickPickup._id);
+
+      // Attempt to generate a booking-style custom_order_id for display in admin
+      try {
+        const generatedId = await Booking.generateCustomOrderId();
+        // Attach to quickPickup response for admin UI to show consistent IDs
+        quickPickup = quickPickup.toObject ? quickPickup.toObject() : quickPickup;
+        quickPickup.custom_order_id = generatedId;
+      } catch (genErr) {
+        console.warn('⚠️ Could not generate booking-style custom_order_id for quick pickup:', genErr);
+        // Fallback to existing QP format
+        if (!quickPickup.custom_order_id) {
+          quickPickup.custom_order_id = `QP${String(quickPickup._id).slice(-8).toUpperCase()}`;
+        }
+      }
+
       res.status(201).json({
         message: "Quick pickup created successfully",
         quickPickup,
@@ -139,6 +155,14 @@ router.post("/", async (req, res) => {
 
       console.log("📝 Step 6: Mock pickup object created:", mockQuickPickup._id);
       console.log("📝 Step 7: Sending response...");
+
+      // For mock mode, generate a simple mock custom_order_id matching booking format
+      try {
+        const mockId = `M${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2,'0')}00001`;
+        mockQuickPickup.custom_order_id = mockQuickPickup.custom_order_id || mockId;
+      } catch (e) {
+        mockQuickPickup.custom_order_id = mockQuickPickup.custom_order_id || (`QP-${mockQuickPickup._id}`);
+      }
 
       res.status(201).json({
         message: "Quick pickup created successfully (mock mode)",
