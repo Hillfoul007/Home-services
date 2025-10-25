@@ -624,6 +624,9 @@ const AdminBookingManagement: React.FC = () => {
             itemPrices = [];
           }
 
+          // Normalize vendor field from multiple possible backend names
+          const vendorName = booking.assignedVendor || booking.assigned_vendor || booking.vendor || booking.assignedVendorName || booking.assigned_vendor_name || null;
+
           return {
             ...booking,
             name: customerName,
@@ -631,6 +634,7 @@ const AdminBookingManagement: React.FC = () => {
             services: booking.services || [],
             status: normalizeStatus(booking.status),
             item_prices: itemPrices,
+            vendor: vendorName,
           } as Booking;
         };
 
@@ -665,6 +669,9 @@ const AdminBookingManagement: React.FC = () => {
               itemPrices = [];
             }
 
+            // Normalize vendor field from multiple possible backend names
+            const vendorName = booking.assignedVendor || booking.assigned_vendor || booking.vendor || booking.assignedVendorName || booking.assigned_vendor_name || null;
+
             return {
               ...booking,
               name: customerName,
@@ -672,6 +679,7 @@ const AdminBookingManagement: React.FC = () => {
               services: booking.services || [],
               status: normalizeStatus(booking.status),
               item_prices: itemPrices,
+              vendor: vendorName,
             } as Booking;
           });
 
