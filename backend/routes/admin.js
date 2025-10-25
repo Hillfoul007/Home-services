@@ -439,7 +439,8 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     let query = {};
 
     // If a specific status filter is provided, respect it
-    if (status && status !== "all") {
+    const hasExplicitStatusFilter = !!(status && status !== "all");
+    if (hasExplicitStatusFilter) {
       // Allow comma-separated status filters
       if (status.includes(",")) {
         const arr = status.split(",").map((s) => s.trim());
@@ -475,8 +476,10 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       ];
     }
 
-    // Always exclude cancelled and completed orders from buckets (user requested)
-    query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
+    // Exclude cancelled and completed orders from default buckets unless explicitly requested
+    if (!hasExplicitStatusFilter) {
+      query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
+    }
 
     // Filter by modified_since (returns only bookings updated after the provided ISO timestamp)
     if (modified_since) {
