@@ -1126,7 +1126,11 @@ const AdminBookingManagement: React.FC = () => {
                         <div className="text-sm font-medium text-gray-900">{booking.service}</div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(booking.scheduled_date)}
+                          {formatDate(booking.delivery_date || booking.scheduled_date)}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Clock className="h-4 w-4" />
+                          {booking.delivery_time || booking.delivery_time === '' ? (booking.delivery_time || "-") : (booking.scheduled_time || "-")}
                         </div>
                       </div>
 
