@@ -55,6 +55,8 @@ const AdminUserBooking: React.FC = () => {
     delivery_time: "",
     address: "",
     special_instructions: "",
+    // discount_percent is the admin input; discount_amount is computed automatically
+    discount_percent: 0,
     discount_amount: 0,
   });
 
