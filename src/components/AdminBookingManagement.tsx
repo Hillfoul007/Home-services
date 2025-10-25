@@ -1052,7 +1052,7 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
@@ -1138,7 +1138,7 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking({ ...booking }); setShowEditDialog(true); }}>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
