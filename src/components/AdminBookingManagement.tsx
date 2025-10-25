@@ -569,6 +569,9 @@ const AdminBookingManagement: React.FC = () => {
       services: itemsCollected.map((item) => item.name),
       scheduled_date: quickPickup.pickup_date || new Date().toISOString(),
       scheduled_time: quickPickup.pickup_time || "ASAP",
+      // Use explicit delivery fields if present, otherwise default to pickup date/time
+      delivery_date: quickPickup.delivery_date || quickPickup.pickup_date || undefined,
+      delivery_time: quickPickup.delivery_time || quickPickup.pickup_time || undefined,
       address: quickPickup.address || "N/A",
       status: quickPickup.status || "pending",
       total_price: quickPickup.estimated_cost || quickPickup.actual_cost || 0,
