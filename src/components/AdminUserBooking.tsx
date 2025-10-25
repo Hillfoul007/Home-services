@@ -161,7 +161,14 @@ const AdminUserBooking: React.FC = () => {
   };
 
   const calculateFinalAmount = () => {
-    return Math.max(0, calculateTotal() - bookingData.discount_amount);
+    const total = calculateTotal();
+    const percent = Number(bookingData.discount_percent) || 0;
+    const discountAmount = Math.round((total * percent) / 100 * 100) / 100;
+    // keep discount_amount in state in sync
+    if (bookingData.discount_amount !== discountAmount) {
+      setBookingData((prev) => ({ ...prev, discount_amount: discountAmount }));
+    }
+    return Math.max(0, total - discountAmount);
   };
 
 
