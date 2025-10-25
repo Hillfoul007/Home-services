@@ -1029,6 +1029,11 @@ const AdminBookingManagement: React.FC = () => {
                               Mark Pickup Complete
                             </Button>
                           )}
+                          {normalizeStatus(booking.status) === 'pickup_completed' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Mark Ready for Delivery
+                            </Button>
+                          )}
                           {normalizeStatus(booking.status) === 'ready_for_delivery' && (
                             <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
                               Mark Delivered
@@ -1108,6 +1113,11 @@ const AdminBookingManagement: React.FC = () => {
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
                               Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'pickup_completed' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Mark Ready for Delivery
                             </Button>
                           )}
                           {normalizeStatus(booking.status) === 'ready_for_delivery' && (
