@@ -62,17 +62,31 @@ export class LocationDetectionService {
 
       if (!this.apiBaseUrl) {
         console.warn("⚠️ No API URL configured for location detection");
-        return {
-          success: false,
-          error: "API not configured",
-        };
+        return { success: false, error: "API not configured" };
+      }
+
+      // Throttle / deduplicate saves using localStorage to avoid rapid repeated POSTs
+      try {
+        const key = 'lastSavedDetectedLocation';
+        const raw = localStorage.getItem(key);
+        const now = Date.now();
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (
+            parsed.address === locationData.full_address &&
+            now - (parsed.ts || 0) < 5 * 60 * 1000 // 5 minutes
+          ) {
+            console.log('⏱️ Skipping duplicate detected location save (throttled)');
+            return { success: true, data: null };
+          }
+        }
+      } catch (e) {
+        // ignore localStorage errors
       }
 
       const response = await fetch(`${this.apiBaseUrl}/detected-locations`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(locationData),
       });
 
@@ -84,13 +98,20 @@ export class LocationDetectionService {
       const result = await response.json();
       console.log("✅ Location saved to backend:", result);
 
+      try {
+        const key = 'lastSavedDetectedLocation';
+        localStorage.setItem(
+          key,
+          JSON.stringify({ address: locationData.full_address || '', ts: Date.now() }),
+        );
+      } catch (e) {
+        // ignore
+      }
+
       return result;
     } catch (error) {
       console.error("❌ Failed to save detected location:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
   }
 

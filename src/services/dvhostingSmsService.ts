@@ -8,6 +8,10 @@ export class DVHostingSmsService {
   private otpStorage: Map<string, { otp: string; expiresAt: number }> =
     new Map();
   private readonly debugMode = import.meta.env.DEV; // Only log in development
+  // Cache ongoing restore promises to prevent duplicate POSTs
+  private restoreUserPromises: Map<string, Promise<any | null>> = new Map();
+  // Optional short-term result cache to avoid refetch for same phone
+  private restoreUserResults: Map<string, any> = new Map();
 
   constructor() {
     if (this.debugMode) {
@@ -891,46 +895,70 @@ export class DVHostingSmsService {
    */
   async restoreUserFromBackend(phone: string): Promise<any | null> {
     try {
+      const cleanPhone = this.cleanPhone(phone);
+
+      // Return cached result if present
+      if (this.restoreUserResults.has(cleanPhone)) {
+        return this.restoreUserResults.get(cleanPhone);
+      }
+
+      // If there's already an in-flight request for this phone, return that promise
+      if (this.restoreUserPromises.has(cleanPhone)) {
+        return await this.restoreUserPromises.get(cleanPhone);
+      }
+
       // Check if we're in a hosted environment without backend
       const isHostedEnv =
         window.location.hostname.includes("fly.dev") ||
         window.location.hostname.includes("builder.codes");
 
       if (isHostedEnv) {
-        this.log(
-          "🌐 Hosted environment detected - skipping backend user restore",
-        );
+        this.log("🌐 Hosted environment detected - skipping backend user restore");
         return null; // Skip backend calls in hosted environments
       }
 
       // Use centralized API URL
       const apiBaseUrl = getApiUrl();
 
-      this.log("🔄 Restoring user from backend:", phone);
+      this.log("🔄 Restoring user from backend:", cleanPhone);
 
-      const response = await fetch(`${apiBaseUrl}/auth/get-user-by-phone`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ phone }),
-      });
+      const promise = (async () => {
+        try {
+          const response = await fetch(`${apiBaseUrl}/auth/get-user-by-phone`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ phone: cleanPhone }),
+          });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.user) {
-          this.log("✅ User restored from backend");
-          return result.user;
+          if (response.ok) {
+            const result = await response.json();
+            if (result.user) {
+              this.log("✅ User restored from backend");
+              this.restoreUserResults.set(cleanPhone, result.user);
+              return result.user;
+            }
+          }
+
+          this.log("⚠️ User not found in backend");
+          return null;
+        } catch (error) {
+          this.log(
+            "⚠️ Backend user restore error - using localStorage only:",
+            error,
+          );
+          return null;
+        } finally {
+          // Remove in-flight promise after completion
+          this.restoreUserPromises.delete(cleanPhone);
         }
-      }
+      })();
 
-      this.log("⚠️ User not found in backend");
-      return null;
+      this.restoreUserPromises.set(cleanPhone, promise);
+      return await promise;
     } catch (error) {
-      this.log(
-        "⚠️ Backend user restore error - using localStorage only:",
-        error,
-      );
+      this.log("⚠️ restoreUserFromBackend unexpected error:", error);
       return null;
     }
   }
