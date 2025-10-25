@@ -249,6 +249,7 @@ const AdminUserBooking: React.FC = () => {
         address: bookingData.address,
         additional_details: bookingData.special_instructions,
         total_price: calculateTotal(),
+        discount_percent: bookingData.discount_percent || 0,
         discount_amount: bookingData.discount_amount,
         final_amount: calculateFinalAmount(),
         special_instructions: bookingData.special_instructions,
