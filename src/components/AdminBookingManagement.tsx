@@ -330,6 +330,7 @@ const AdminBookingManagement: React.FC = () => {
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<Booking[]>([]);
 
   const fetchVendors = async () => {
     try {
