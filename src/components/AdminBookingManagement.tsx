@@ -731,6 +731,10 @@ const AdminBookingManagement: React.FC = () => {
         }
         toast.success(`Booking status updated to ${getStatusLabel(normalizedStatus)}`);
 
+        if (normalizedStatus === 'completed') {
+          fetchCompletedOrders();
+        }
+
         setTimeout(() => {
           console.log("🔄 Triggering immediate poll after status update");
           setLastPollAt(getISTTimestamp());
