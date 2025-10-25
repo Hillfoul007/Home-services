@@ -122,10 +122,32 @@ const AdminUserBooking: React.FC = () => {
     }
   };
 
-  const selectUser = (user: User) => {
-    setSelectedUser(user);
+  const selectUser = async (user: User) => {
     setSearchTerm("");
     setUsers([]);
+
+    try {
+      const resp = await apiClient.adminRequest<any>(`/admin/users/${encodeURIComponent(user._id)}`);
+      if (resp.data && resp.data.user) {
+        const fetchedUser = resp.data.user;
+        setSelectedUser(fetchedUser as User);
+
+        // Autofill latest/default address into booking form
+        const defaultAddress = resp.data.defaultAddress || (Array.isArray(resp.data.addresses) && resp.data.addresses[0]);
+        if (defaultAddress && defaultAddress.full_address) {
+          setBookingData((prev) => ({ ...prev, address: defaultAddress.full_address }));
+        } else if (fetchedUser.address) {
+          setBookingData((prev) => ({ ...prev, address: fetchedUser.address }));
+        }
+
+        return;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch user details for autofill', error);
+    }
+
+    // Fallback when admin API unavailable
+    setSelectedUser(user);
   };
 
 
