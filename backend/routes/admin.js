@@ -709,13 +709,28 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       .limit(10)
       .select("custom_order_id service status final_amount created_at");
 
+    // Fetch user addresses (if Address model available)
+    let addresses = [];
+    let defaultAddress = null;
+    try {
+      const Address = require("../models/Address");
+      addresses = await Address.getUserAddresses(user._id);
+      if (Array.isArray(addresses) && addresses.length > 0) {
+        defaultAddress = addresses.find(a => a.is_default) || addresses[0];
+      }
+    } catch (err) {
+      console.warn("Address model not available or failed to fetch addresses:", err && err.message);
+    }
+
     console.log("✅ Admin fetched user details:", user._id);
-    res.json({ 
+    res.json({
       user: {
         ...user.toObject(),
         password: undefined, // Never expose password
       },
-      bookings 
+      bookings,
+      addresses,
+      defaultAddress
     });
   } catch (error) {
     console.error("❌ Error fetching user details:", error);
