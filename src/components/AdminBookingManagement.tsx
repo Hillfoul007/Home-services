@@ -1435,9 +1435,15 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Total Price:</span>
                     <span className="font-medium">₹{viewingBooking.total_price}</span>
                   </div>
+                  {((viewingBooking as any).discount_percent || 0) > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Discount %:</span>
+                      <span className="font-medium">{(viewingBooking as any).discount_percent}%</span>
+                    </div>
+                  )}
                   {viewingBooking.discount_amount && viewingBooking.discount_amount > 0 && (
                     <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
+                      <span>Discount Amount:</span>
                       <span>-₹{viewingBooking.discount_amount}</span>
                     </div>
                   )}
