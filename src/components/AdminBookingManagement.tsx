@@ -1157,7 +1157,12 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          {(booking as any).is_quick_pickup && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Calendar className="h-4 w-4" />
                           {formatDate(booking.delivery_date || booking.scheduled_date)}
