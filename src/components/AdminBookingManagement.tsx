@@ -1839,12 +1839,14 @@ const AdminBookingManagement: React.FC = () => {
 
                       // Build services array from item names for backend compatibility
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
-                        payload.item_prices = editingBooking.item_prices.map((it) => ({
-                          service_name: it.service_name || it.name || "Item",
-                          quantity: it.quantity || 0,
-                          unit_price: it.unit_price || it.price || 0,
-                          total_price: it.total_price || 0,
-                        }));
+                        payload.item_prices = editingBooking.item_prices
+                          .filter((it) => it.service_name && it.service_name.trim() !== "")
+                          .map((it) => ({
+                            service_name: it.service_name || it.name || "Item",
+                            quantity: it.quantity || 0,
+                            unit_price: it.unit_price || it.price || 0,
+                            total_price: it.total_price || 0,
+                          }));
 
                         payload.services = payload.item_prices.map((it) =>
                           it.quantity > 1 ? `${it.service_name} x${it.quantity}` : it.service_name,
