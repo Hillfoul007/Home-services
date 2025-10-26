@@ -78,7 +78,13 @@ const AdminVendorManagement: React.FC = () => {
       setLoading(true);
       const response = await apiClient.adminRequest<{ vendors: VendorDetails[] }>('/admin/vendors');
       if (response.data?.vendors) {
-        setVendors(response.data.vendors);
+        // Normalize vendors to have both id and _id for compatibility
+        const normalizedVendors = response.data.vendors.map((v: any) => ({
+          ...v,
+          id: v.id || v._id,
+          _id: v._id || v.id,
+        }));
+        setVendors(normalizedVendors);
       } else {
         // Fallback: use local vendor data if API doesn't return anything
         setVendors([
