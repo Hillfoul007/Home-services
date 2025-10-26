@@ -1820,6 +1820,8 @@ const AdminBookingManagement: React.FC = () => {
                         total_price: totals.total,
                         scheduled_date: editingBooking.scheduled_date,
                         scheduled_time: editingBooking.scheduled_time,
+                        delivery_date: editingBooking.delivery_date || "",
+                        delivery_time: editingBooking.delivery_time || "",
                         address: editingBooking.address || "",
                         rider: editingBooking.rider,
                         vendor: editingBooking.vendor,
