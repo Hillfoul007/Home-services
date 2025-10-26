@@ -315,6 +315,9 @@ export const mapBookingData = (rawBooking: any): MappedBookingData => {
     created_at: rawBooking.created_at || rawBooking.createdAt || "",
     order_notes:
       rawBooking.additional_details || rawBooking.special_instructions,
+    is_quick_pickup: rawBooking.is_quick_pickup || false,
+    quick_pickup_tag: rawBooking.quick_pickup_tag || undefined,
+    discount_percent: rawBooking.discount_percent || 0,
     // Legacy properties for backward compatibility
     totalAmount: pricing.final_amount,
     total_price: pricing.final_amount,
