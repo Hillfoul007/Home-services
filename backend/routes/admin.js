@@ -210,6 +210,28 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       updateData.status = "vendor_assigned";
     }
 
+    // If item_prices are being updated, recalculate totals
+    if (Array.isArray(updateData.item_prices) && updateData.item_prices.length > 0) {
+      const computedTotal = updateData.item_prices.reduce((sum, item) => {
+        const qty = Number(item.quantity) || 0;
+        const unitPrice = Number(item.unit_price || item.price) || 0;
+        const itemTotal = Number(item.total_price) || (qty * unitPrice);
+        return sum + itemTotal;
+      }, 0);
+
+      // If total_price wasn't explicitly set, use the computed value
+      if (typeof updateData.total_price === 'undefined' || updateData.total_price === null) {
+        updateData.total_price = computedTotal;
+      }
+
+      // If final_amount wasn't explicitly set to something different from total_price, use the computed total
+      if (typeof updateData.final_amount === 'undefined' || updateData.final_amount === null) {
+        updateData.final_amount = computedTotal;
+      }
+
+      console.log(`📊 Computed totals from ${updateData.item_prices.length} items: total_price=${updateData.total_price}, final_amount=${updateData.final_amount}`);
+    }
+
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
     // This ensures the timestamp matches the pre-save hook behavior
     const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
@@ -228,6 +250,7 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
 
     console.log("✅ Booking updated by admin:", booking._id);
     console.log("✅ Updated timestamp:", booking.updated_at);
+    console.log(`✅ Final booking state: total_price=${booking.total_price}, final_amount=${booking.final_amount}, item_prices count=${booking.item_prices?.length || 0}`);
     res.json({ message: "Booking updated successfully", booking });
   } catch (error) {
     console.error("❌ Error updating booking:", error);
@@ -1547,7 +1570,7 @@ router.get("/vendors", verifyAdminAccess, async (req, res) => {
 
     const vendors = await Vendor.find().sort({ created_at: -1 });
 
-    console.log(`✅ Found ${vendors.length} vendors`);
+    console.log(`��� Found ${vendors.length} vendors`);
     res.json({ success: true, vendors });
   } catch (error) {
     console.error("❌ Error fetching vendors:", error);
