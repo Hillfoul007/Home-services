@@ -1380,11 +1380,18 @@ const AdminBookingManagement: React.FC = () => {
                   Service Details
                 </h4>
                 <div className="space-y-3">
-                  <div>
-                    <Label>Primary Service</Label>
-                    <p className="font-medium">{viewingBooking.service}</p>
-                    {viewingBooking.service_type && (
-                      <p className="text-sm text-gray-600">Type: {viewingBooking.service_type}</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Primary Service</Label>
+                      <p className="font-medium">{viewingBooking.service}</p>
+                      {viewingBooking.service_type && (
+                        <p className="text-sm text-gray-600">Type: {viewingBooking.service_type}</p>
+                      )}
+                    </div>
+                    {(viewingBooking as any).is_quick_pickup && (
+                      <Badge className="bg-blue-500 hover:bg-blue-600">
+                        🚀 Quick Pickup
+                      </Badge>
                     )}
                   </div>
 
