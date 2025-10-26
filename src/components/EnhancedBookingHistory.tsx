@@ -858,26 +858,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
                           {/* Order placed time */}
                           <div className="text-xs text-gray-500 mt-1">
-                            Ordered:{" "}
-                            {new Date(
-                              booking.created_at ||
-                                booking.createdAt ||
-                                Date.now(),
-                            ).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}{" "}
-                            at{" "}
-                            {new Date(
-                              booking.created_at ||
-                                booking.createdAt ||
-                                Date.now(),
-                            ).toLocaleTimeString("en-IN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            })}
+                            Ordered: {formatDateTimeIST(booking.created_at || booking.createdAt)}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
