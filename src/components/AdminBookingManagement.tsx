@@ -896,7 +896,13 @@ const AdminBookingManagement: React.FC = () => {
     setEditingBooking((prev) => {
       if (!prev) return prev;
       const nextItems = Array.isArray(prev.item_prices) ? [...prev.item_prices] : [];
-      nextItems.push({ service_name: "", quantity: 0, unit_price: 0, total_price: 0 });
+      nextItems.push({
+        service_name: "",
+        quantity: 0,
+        unit_price: 0,
+        total_price: 0,
+        _key: `item-${Date.now()}-${Math.random()}`
+      });
       return { ...prev, item_prices: nextItems } as Booking;
     });
   };
