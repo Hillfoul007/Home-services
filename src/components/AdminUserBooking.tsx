@@ -285,6 +285,7 @@ const AdminUserBooking: React.FC = () => {
           special_instructions: "",
           discount_percent: 0,
           discount_amount: 0,
+          is_quick_pickup: false,
         });
       } else {
         toast.error(`Failed to create booking: ${response.error || "Unknown error"}`);
