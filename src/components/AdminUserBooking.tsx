@@ -565,6 +565,24 @@ const AdminUserBooking: React.FC = () => {
                 />
                 <p className="text-xs text-gray-500 mt-1">This percentage will be applied to the cart total automatically.</p>
               </div>
+
+              <div className="md:col-span-2 flex items-center gap-2">
+                <input
+                  id="quick-pickup"
+                  type="checkbox"
+                  checked={bookingData.is_quick_pickup}
+                  onChange={(e) =>
+                    setBookingData({
+                      ...bookingData,
+                      is_quick_pickup: e.target.checked,
+                    })
+                  }
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="quick-pickup" className="mb-0 cursor-pointer">
+                  Mark as Quick Pickup Order 🚀
+                </Label>
+              </div>
             </div>
 
             <div>
