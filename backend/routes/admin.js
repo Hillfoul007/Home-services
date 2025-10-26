@@ -765,6 +765,22 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       console.warn("Address model not available or failed to fetch addresses:", err && err.message);
     }
 
+    // Fallback: If no addresses found, use the most recent booking's address
+    if (!defaultAddress && bookings.length > 0) {
+      const latestBooking = await Booking.findOne({ customer_id: user._id })
+        .sort({ created_at: -1 })
+        .select("address");
+
+      if (latestBooking && latestBooking.address) {
+        defaultAddress = {
+          full_address: latestBooking.address,
+          address_type: "previous_booking",
+          is_default: false,
+        };
+        console.log("✅ Using address from latest booking for autofill");
+      }
+    }
+
     console.log("✅ Admin fetched user details:", user._id);
     res.json({
       user: {
@@ -1429,7 +1445,7 @@ router.get("/customer-verifications/:customerId", verifyAdminAccess, async (req,
 
     // Only return mock data if customer ID matches demo pattern
     if (customerId.includes('user_9999999999') || customerId.includes('demo')) {
-      console.log('✅ Returning mock verifications for demo customer');
+      console.log('�� Returning mock verifications for demo customer');
       return res.json({ verifications: mockVerifications });
     }
 
