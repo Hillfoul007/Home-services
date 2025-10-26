@@ -31,6 +31,7 @@ interface Booking {
   };
   additional_details?: string;
   total_price: number;
+  discount_percent?: number;
   discount_amount?: number;
   final_amount: number;
   payment_status: "pending" | "paid" | "failed" | "refunded";
@@ -39,6 +40,8 @@ interface Booking {
   updated_at?: Date;
   estimated_duration?: number;
   special_instructions?: string;
+  is_quick_pickup?: boolean;
+  quick_pickup_tag?: string;
   charges_breakdown?: {
     base_price: number;
     tax_amount: number;
