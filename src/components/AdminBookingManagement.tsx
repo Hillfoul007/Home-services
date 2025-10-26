@@ -420,7 +420,8 @@ const AdminBookingManagement: React.FC = () => {
         try {
           const payload = JSON.parse(event.data);
           console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
-          if (payload && payload._id) {
+          // Skip updates while user is editing to prevent data loss
+          if (payload && payload._id && !showEditDialog) {
             applyBookingUpdate(payload._id, payload);
 
             // Re-filter bookings to reflect incoming changes
