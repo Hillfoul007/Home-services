@@ -268,22 +268,8 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
   }
 };
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) {
-    return "N/A";
-  }
-
-  const parsed = new Date(dateString);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return "N/A";
-  }
-
-  return parsed.toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const formatDate = (dateString?: string | Date) => {
+  return formatDateTimeIST(dateString as any);
 };
 
 const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string }> = ({
