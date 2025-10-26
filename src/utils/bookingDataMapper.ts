@@ -34,6 +34,9 @@ export interface MappedBookingData {
   payment_status: string;
   created_at: string;
   order_notes?: string;
+  is_quick_pickup?: boolean;
+  quick_pickup_tag?: string;
+  discount_percent?: number;
   // Legacy properties for backward compatibility
   totalAmount?: number;
   total_price?: number;
