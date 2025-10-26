@@ -1479,7 +1479,7 @@ const AdminBookingManagement: React.FC = () => {
                   )}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
                     <span>Final Amount:</span>
-                    <span>�����{viewingBooking.final_amount}</span>
+                    <span>���{viewingBooking.final_amount}</span>
                   </div>
                 </div>
               </div>
@@ -1805,7 +1805,7 @@ const AdminBookingManagement: React.FC = () => {
                   )}
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
-                    <Button size="sm" onClick={addItemToEditing} variant="outline">Add Item</Button>
+                    <Button size="sm" type="button" onClick={addItemToEditing} variant="outline">Add Item</Button>
                     <div className="text-lg font-semibold whitespace-nowrap">
                       Subtotal: <span className="text-green-600">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                     </div>
