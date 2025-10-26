@@ -544,15 +544,18 @@ const AdminBookingManagement: React.FC = () => {
       ),
     );
 
-    setEditingBooking((prev) =>
-      prev && prev._id === bookingId
-        ? {
-            ...prev,
-            ...sanitizedUpdates,
-            status: sanitizedUpdates.status || prev.status,
-          }
-        : prev,
-    );
+    // Don't overwrite editingBooking if user is actively editing the dialog
+    if (!showEditDialog) {
+      setEditingBooking((prev) =>
+        prev && prev._id === bookingId
+          ? {
+              ...prev,
+              ...sanitizedUpdates,
+              status: sanitizedUpdates.status || prev.status,
+            }
+          : prev,
+      );
+    }
 
     setViewingBooking((prev) =>
       prev && prev._id === bookingId
