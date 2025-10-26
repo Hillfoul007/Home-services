@@ -232,12 +232,18 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
   try {
     const rawItems: any[] = Array.isArray(booking.item_prices) ? booking.item_prices : [];
 
-    const normalizedItems: ItemPrice[] = rawItems.map((it: any) => {
+    const normalizedItems: ItemPrice[] = rawItems.map((it: any, index: number) => {
       const service_name = it.service_name || it.name || it.service || "Item";
       const quantity = Number(it.quantity ?? it.qty ?? 1) || 1;
       const unit_price = Number(it.unit_price ?? it.unitPrice ?? it.price ?? it.rate ?? 0) || 0;
       const total_price = Number(it.total_price ?? it.total ?? (quantity * unit_price)) || (quantity * unit_price);
-      return { service_name, quantity, unit_price, total_price } as ItemPrice;
+      return {
+        service_name,
+        quantity,
+        unit_price,
+        total_price,
+        _key: it._key || `item-${booking._id}-${index}`
+      } as any as ItemPrice;
     });
 
     // If services array is missing, build from item names
@@ -1473,7 +1479,7 @@ const AdminBookingManagement: React.FC = () => {
                   )}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
                     <span>Final Amount:</span>
-                    <span>���{viewingBooking.final_amount}</span>
+                    <span>�����{viewingBooking.final_amount}</span>
                   </div>
                 </div>
               </div>
