@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/apiClient';
 
 interface VendorDetails {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   address: string;
   coordinates: {
@@ -24,6 +25,11 @@ interface VendorDetails {
   rating?: number;
   isActive: boolean;
 }
+
+// Helper to get vendor ID (handle both id and _id from database)
+const getVendorId = (vendor: VendorDetails): string => {
+  return vendor.id || (vendor._id as string) || '';
+};
 
 interface FormData {
   name: string;
