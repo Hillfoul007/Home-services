@@ -497,6 +497,13 @@ const AdminBookingManagement: React.FC = () => {
       }
     };
 
+    // Skip polling while edit dialog is open to prevent state overwrites
+    if (showEditDialog) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     // Start polling interval
     const id = setInterval(poll, 8000);
 
@@ -510,7 +517,7 @@ const AdminBookingManagement: React.FC = () => {
       clearInterval(id);
       clearTimeout(timeoutId);
     };
-  }, [lastPollAt]);
+  }, [lastPollAt, showEditDialog]);
 
   useEffect(() => {
     filterBookings();
