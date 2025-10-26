@@ -1731,8 +1731,9 @@ const AdminBookingManagement: React.FC = () => {
                             {editingBooking.item_prices.map((item, index) => {
                               const displayPrice = item.unit_price ?? item.price ?? 0;
                               const displayTotal = item.total_price ?? (item.quantity ?? 0) * displayPrice;
+                              const itemKey = (item as any)._key || `item-${index}`;
                               return (
-                                <tr key={index} className="border-b hover:bg-gray-50">
+                                <tr key={itemKey} className="border-b hover:bg-gray-50">
                                   <td className="py-3 px-3">
                                     <Select
                                       value={item.service_name || item.name || ""}
