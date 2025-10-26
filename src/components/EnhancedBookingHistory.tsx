@@ -796,15 +796,15 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                           </div>
 
                           {/* Quick Pickup Indicator */}
-                          {booking.isQuickPickup && (
+                          {(booking.isQuickPickup || (booking as any).is_quick_pickup) && (
                             <div className="flex items-center gap-1 mt-1">
-                              <div className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                              <div className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <RefreshCw className="h-3 w-3" />
-                                <span>Quick Pickup</span>
+                                <span>🚀 Quick Pickup</span>
                               </div>
-                              {booking.quickPickupNote && (
-                                <div className="text-xs text-orange-600">
-                                  {booking.quickPickupNote}
+                              {((booking as any).quick_pickup_tag || booking.quickPickupNote) && (
+                                <div className="text-xs text-blue-600 font-medium">
+                                  {(booking as any).quick_pickup_tag || booking.quickPickupNote}
                                 </div>
                               )}
                             </div>
