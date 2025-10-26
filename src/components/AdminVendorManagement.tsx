@@ -227,7 +227,13 @@ const AdminVendorManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteVendor = async (vendorId: string) => {
+  const handleDeleteVendor = async (vendor: VendorDetails) => {
+    const vendorId = getVendorId(vendor);
+    if (!vendorId) {
+      toast.error('Vendor ID is missing');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this vendor?')) {
       return;
     }
@@ -238,7 +244,7 @@ const AdminVendorManagement: React.FC = () => {
       });
 
       if (response.data) {
-        setVendors(vendors.filter((v) => v.id !== vendorId));
+        setVendors(vendors.filter((v) => getVendorId(v) !== vendorId));
         toast.success('Vendor deleted successfully');
       } else {
         toast.error(response.error || 'Failed to delete vendor');
