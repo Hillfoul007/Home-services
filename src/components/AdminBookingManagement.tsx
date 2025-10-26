@@ -232,12 +232,18 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
   try {
     const rawItems: any[] = Array.isArray(booking.item_prices) ? booking.item_prices : [];
 
-    const normalizedItems: ItemPrice[] = rawItems.map((it: any) => {
+    const normalizedItems: ItemPrice[] = rawItems.map((it: any, index: number) => {
       const service_name = it.service_name || it.name || it.service || "Item";
       const quantity = Number(it.quantity ?? it.qty ?? 1) || 1;
       const unit_price = Number(it.unit_price ?? it.unitPrice ?? it.price ?? it.rate ?? 0) || 0;
       const total_price = Number(it.total_price ?? it.total ?? (quantity * unit_price)) || (quantity * unit_price);
-      return { service_name, quantity, unit_price, total_price } as ItemPrice;
+      return {
+        service_name,
+        quantity,
+        unit_price,
+        total_price,
+        _key: it._key || `item-${booking._id}-${index}`
+      } as any as ItemPrice;
     });
 
     // If services array is missing, build from item names
@@ -414,7 +420,8 @@ const AdminBookingManagement: React.FC = () => {
         try {
           const payload = JSON.parse(event.data);
           console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
-          if (payload && payload._id) {
+          // Skip updates while user is editing to prevent data loss
+          if (payload && payload._id && !showEditDialog) {
             applyBookingUpdate(payload._id, payload);
 
             // Re-filter bookings to reflect incoming changes
@@ -491,6 +498,13 @@ const AdminBookingManagement: React.FC = () => {
       }
     };
 
+    // Skip polling while edit dialog is open to prevent state overwrites
+    if (showEditDialog) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     // Start polling interval
     const id = setInterval(poll, 8000);
 
@@ -504,7 +518,7 @@ const AdminBookingManagement: React.FC = () => {
       clearInterval(id);
       clearTimeout(timeoutId);
     };
-  }, [lastPollAt]);
+  }, [lastPollAt, showEditDialog]);
 
   useEffect(() => {
     filterBookings();
@@ -538,15 +552,18 @@ const AdminBookingManagement: React.FC = () => {
       ),
     );
 
-    setEditingBooking((prev) =>
-      prev && prev._id === bookingId
-        ? {
-            ...prev,
-            ...sanitizedUpdates,
-            status: sanitizedUpdates.status || prev.status,
-          }
-        : prev,
-    );
+    // Don't overwrite editingBooking if user is actively editing the dialog
+    if (!showEditDialog) {
+      setEditingBooking((prev) =>
+        prev && prev._id === bookingId
+          ? {
+              ...prev,
+              ...sanitizedUpdates,
+              status: sanitizedUpdates.status || prev.status,
+            }
+          : prev,
+      );
+    }
 
     setViewingBooking((prev) =>
       prev && prev._id === bookingId
@@ -896,7 +913,13 @@ const AdminBookingManagement: React.FC = () => {
     setEditingBooking((prev) => {
       if (!prev) return prev;
       const nextItems = Array.isArray(prev.item_prices) ? [...prev.item_prices] : [];
-      nextItems.push({ service_name: "", quantity: 0, unit_price: 0, total_price: 0 });
+      nextItems.push({
+        service_name: "",
+        quantity: 0,
+        unit_price: 0,
+        total_price: 0,
+        _key: `item-${Date.now()}-${Math.random()}`
+      });
       return { ...prev, item_prices: nextItems } as Booking;
     });
   };
@@ -1001,13 +1024,13 @@ const AdminBookingManagement: React.FC = () => {
           <button onClick={() => setViewMode('pickup')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'pickup' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <MapPin className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Pickup</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).length}</span>
           </button>
 
           <button onClick={() => setViewMode('ready')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'ready' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <Clock className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Ready/Delivered</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length}</span>
           </button>
         </div>
       </div>
@@ -1018,8 +1041,8 @@ const AdminBookingManagement: React.FC = () => {
           <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
           <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     {/* reuse existing booking card layout by calling a small render helper - inline for simplicity */}
@@ -1119,8 +1142,8 @@ const AdminBookingManagement: React.FC = () => {
           <h3 className="text-lg font-semibold">Ready for Delivery</h3>
           <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
@@ -1606,6 +1629,45 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-delivery-date">Delivery Date</Label>
+                  <Input
+                    id="edit-delivery-date"
+                    type="date"
+                    value={editingBooking.delivery_date || ""}
+                    onChange={(event) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              delivery_date: event.target.value,
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-delivery-time">Delivery Time</Label>
+                  <Input
+                    id="edit-delivery-time"
+                    type="time"
+                    value={editingBooking.delivery_time || ""}
+                    onChange={(event) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              delivery_time: event.target.value,
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
               <div>
                 <Label>Assign Vendor</Label>
                 <Select
@@ -1686,8 +1748,9 @@ const AdminBookingManagement: React.FC = () => {
                             {editingBooking.item_prices.map((item, index) => {
                               const displayPrice = item.unit_price ?? item.price ?? 0;
                               const displayTotal = item.total_price ?? (item.quantity ?? 0) * displayPrice;
+                              const itemKey = (item as any)._key || `item-${index}`;
                               return (
-                                <tr key={index} className="border-b hover:bg-gray-50">
+                                <tr key={itemKey} className="border-b hover:bg-gray-50">
                                   <td className="py-3 px-3">
                                     <Select
                                       value={item.service_name || item.name || ""}
@@ -1753,7 +1816,7 @@ const AdminBookingManagement: React.FC = () => {
                   )}
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
-                    <Button size="sm" onClick={addItemToEditing} variant="outline">Add Item</Button>
+                    <Button size="sm" type="button" onClick={addItemToEditing} variant="outline">Add Item</Button>
                     <div className="text-lg font-semibold whitespace-nowrap">
                       Subtotal: <span className="text-green-600">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                     </div>
@@ -1775,16 +1838,14 @@ const AdminBookingManagement: React.FC = () => {
                       // Recompute totals from items
                       const totals = computeEditingTotals(editingBooking);
 
-                      const finalAmount = (typeof editingBooking.final_amount === "number" && !Number.isNaN(editingBooking.final_amount) && editingBooking.final_amount > 0)
-                        ? editingBooking.final_amount
-                        : totals.final;
-
                       const payload: any = {
                         status: mapToBackendStatus(normalizeStatus(editingBooking.status)),
-                        final_amount: finalAmount,
+                        final_amount: totals.final,
                         total_price: totals.total,
                         scheduled_date: editingBooking.scheduled_date,
                         scheduled_time: editingBooking.scheduled_time,
+                        delivery_date: editingBooking.delivery_date || "",
+                        delivery_time: editingBooking.delivery_time || "",
                         address: editingBooking.address || "",
                         rider: editingBooking.rider,
                         vendor: editingBooking.vendor,
@@ -1795,12 +1856,14 @@ const AdminBookingManagement: React.FC = () => {
 
                       // Build services array from item names for backend compatibility
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
-                        payload.item_prices = editingBooking.item_prices.map((it) => ({
-                          service_name: it.service_name || it.name || "Item",
-                          quantity: it.quantity || 0,
-                          unit_price: it.unit_price || it.price || 0,
-                          total_price: it.total_price || 0,
-                        }));
+                        payload.item_prices = editingBooking.item_prices
+                          .filter((it) => it.service_name && it.service_name.trim() !== "")
+                          .map((it) => ({
+                            service_name: it.service_name || it.name || "Item",
+                            quantity: it.quantity || 0,
+                            unit_price: it.unit_price || it.price || 0,
+                            total_price: it.total_price || 0,
+                          }));
 
                         payload.services = payload.item_prices.map((it) =>
                           it.quantity > 1 ? `${it.service_name} x${it.quantity}` : it.service_name,
