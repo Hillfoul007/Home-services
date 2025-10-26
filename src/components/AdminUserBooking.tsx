@@ -128,6 +128,7 @@ const AdminUserBooking: React.FC = () => {
   const selectUser = async (user: User) => {
     setSearchTerm("");
     setUsers([]);
+    setSelectedUser(user);
 
     try {
       const resp = await apiClient.adminRequest<any>(`/admin/users/${encodeURIComponent(user._id)}`);
@@ -138,9 +139,13 @@ const AdminUserBooking: React.FC = () => {
         // Autofill latest/default address into booking form
         const defaultAddress = resp.data.defaultAddress || (Array.isArray(resp.data.addresses) && resp.data.addresses[0]);
         if (defaultAddress && defaultAddress.full_address) {
+          console.log("✅ Autofilling address from saved addresses:", defaultAddress.full_address);
           setBookingData((prev) => ({ ...prev, address: defaultAddress.full_address }));
         } else if (fetchedUser.address) {
+          console.log("✅ Autofilling address from user object:", fetchedUser.address);
           setBookingData((prev) => ({ ...prev, address: fetchedUser.address }));
+        } else {
+          console.warn("⚠️ No address found for user. Please enter address manually.");
         }
 
         return;
@@ -148,9 +153,6 @@ const AdminUserBooking: React.FC = () => {
     } catch (error) {
       console.warn('Failed to fetch user details for autofill', error);
     }
-
-    // Fallback when admin API unavailable
-    setSelectedUser(user);
   };
 
 
@@ -355,7 +357,7 @@ const AdminUserBooking: React.FC = () => {
                               {user.name || user.full_name || "Unnamed User"}
                             </div>
                             <div className="text-sm text-gray-600">
-                              📞 {user.phone}
+                              �� {user.phone}
                             </div>
                             {user.email && (
                               <div className="text-sm text-gray-600">
