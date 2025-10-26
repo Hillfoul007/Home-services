@@ -135,8 +135,8 @@ router.get("/users/search", verifyAdminAccess, async (req, res) => {
 // Create user (admin)
 router.post("/users", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, full_name, phone, email, user_type = "customer" } = req.body || {};
-    console.log("🆕 Admin create user request:", { name, phone, email, user_type });
+    const { name, full_name, phone, email, user_type = "customer", address } = req.body || {};
+    console.log("🆕 Admin create user request:", { name, phone, email, user_type, address });
 
     if (!phone || !/\d{10,12}$/.test(("" + phone).replace(/\D/g, ""))) {
       return res.status(400).json({ error: "Phone is required and must be 10-12 digits" });
@@ -164,8 +164,28 @@ router.post("/users", verifyAdminAccess, async (req, res) => {
 
     await user.save();
 
+    // If address is provided, save it to the Address collection
+    let savedAddress = null;
+    if (address && address.trim()) {
+      try {
+        const Address = require("../models/Address");
+        savedAddress = new Address({
+          user_id: user._id,
+          full_address: address,
+          address_type: "home",
+          is_default: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+        await savedAddress.save();
+        console.log("✅ Address saved for user:", user._id);
+      } catch (addrErr) {
+        console.warn("⚠️ Failed to save address for user:", addrErr && addrErr.message);
+      }
+    }
+
     console.log("✅ Admin created user:", user._id);
-    res.status(201).json({ user });
+    res.status(201).json({ user, address: savedAddress });
   } catch (error) {
     console.error("❌ Error creating user:", error);
     if (error.code === 11000) {
