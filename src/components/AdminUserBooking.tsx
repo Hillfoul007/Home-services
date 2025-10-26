@@ -255,6 +255,8 @@ const AdminUserBooking: React.FC = () => {
         final_amount: calculateFinalAmount(),
         special_instructions: bookingData.special_instructions,
         created_by_admin: true,
+        is_quick_pickup: bookingData.is_quick_pickup || false,
+        quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
       };
 
       console.log("Submitting booking:", bookingPayload);
