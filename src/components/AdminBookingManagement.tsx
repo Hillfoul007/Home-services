@@ -1606,6 +1606,45 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-delivery-date">Delivery Date</Label>
+                  <Input
+                    id="edit-delivery-date"
+                    type="date"
+                    value={editingBooking.delivery_date || ""}
+                    onChange={(event) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              delivery_date: event.target.value,
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-delivery-time">Delivery Time</Label>
+                  <Input
+                    id="edit-delivery-time"
+                    type="time"
+                    value={editingBooking.delivery_time || ""}
+                    onChange={(event) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              delivery_time: event.target.value,
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
               <div>
                 <Label>Assign Vendor</Label>
                 <Select
