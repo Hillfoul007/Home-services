@@ -184,6 +184,12 @@ const AdminVendorManagement: React.FC = () => {
       return;
     }
 
+    const vendorId = getVendorId(editingVendor);
+    if (!vendorId) {
+      toast.error('Vendor ID is missing');
+      return;
+    }
+
     try {
       const updatedVendor: VendorDetails = {
         ...editingVendor,
@@ -201,13 +207,13 @@ const AdminVendorManagement: React.FC = () => {
         rating: parseFloat(formData.rating),
       };
 
-      const response = await apiClient.adminRequest(`/admin/vendors/${editingVendor.id}`, {
+      const response = await apiClient.adminRequest(`/admin/vendors/${vendorId}`, {
         method: 'PUT',
         body: updatedVendor,
       });
 
       if (response.data) {
-        setVendors(vendors.map((v) => (v.id === editingVendor.id ? updatedVendor : v)));
+        setVendors(vendors.map((v) => (getVendorId(v) === vendorId ? updatedVendor : v)));
         toast.success('Vendor updated successfully');
         setIsEditDialogOpen(false);
         setEditingVendor(null);
