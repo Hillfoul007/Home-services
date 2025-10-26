@@ -1119,8 +1119,8 @@ const AdminBookingManagement: React.FC = () => {
           <h3 className="text-lg font-semibold">Ready for Delivery</h3>
           <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length > 0 ? (
+              filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
