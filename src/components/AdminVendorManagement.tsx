@@ -479,7 +479,7 @@ const AdminVendorManagement: React.FC = () => {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleDeleteVendor(vendor.id)}
+                      onClick={() => handleDeleteVendor(vendor)}
                       className="gap-2"
                     >
                       <Trash2 className="h-4 w-4" />
