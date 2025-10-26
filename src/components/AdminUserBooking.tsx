@@ -58,6 +58,7 @@ const AdminUserBooking: React.FC = () => {
     // discount_percent is the admin input; discount_amount is computed automatically
     discount_percent: 0,
     discount_amount: 0,
+    is_quick_pickup: false,
   });
 
 
