@@ -1001,13 +1001,13 @@ const AdminBookingManagement: React.FC = () => {
           <button onClick={() => setViewMode('pickup')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'pickup' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <MapPin className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Pickup</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).length}</span>
           </button>
 
           <button onClick={() => setViewMode('ready')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'ready' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <Clock className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Ready/Delivered</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length}</span>
           </button>
         </div>
       </div>
