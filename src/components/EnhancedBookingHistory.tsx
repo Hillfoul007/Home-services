@@ -397,7 +397,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         return;
       }
 
-      console.log("🔥 Starting booking cancellation for ID:", bookingId);
+      console.log("�� Starting booking cancellation for ID:", bookingId);
       setCancellingBooking(bookingId);
 
       try {
@@ -930,25 +930,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                 Order Placed Date
                               </span>
                               <span className="font-medium">
-                                {new Date(
-                                  booking.created_at ||
-                                    booking.createdAt ||
-                                    Date.now(),
-                                ).toLocaleDateString("en-IN", {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                })}{" "}
-                                at{" "}
-                                {new Date(
-                                  booking.created_at ||
-                                    booking.createdAt ||
-                                    Date.now(),
-                                ).toLocaleTimeString("en-IN", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                })}
+                                {formatDateTimeIST(booking.created_at || booking.createdAt)}
                               </span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
