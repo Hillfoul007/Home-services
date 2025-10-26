@@ -225,36 +225,12 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
 
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return "Date TBD";
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return "Date TBD";
-      return date.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return "Date TBD";
-    }
+    return formatDateOnlyIST(dateStr) || "Date TBD";
   };
 
   const formatDateTime = (dateStr: string): string => {
     if (!dateStr) return "N/A";
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return "N/A";
-      return `${date.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })} at ${date.toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      })}`;
-    } catch {
-      return "N/A";
-    }
+    return formatDateTimeIST(dateStr) || "N/A";
   };
 
   if (!currentUser) {
