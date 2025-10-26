@@ -1641,6 +1641,11 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 
     console.log(`📝 Updating vendor: ${vendorId}`);
 
+    // Validate vendorId
+    if (!vendorId || vendorId === 'undefined') {
+      return res.status(400).json({ error: "Vendor ID is required and must be valid" });
+    }
+
     const vendor = await Vendor.findByIdAndUpdate(
       vendorId,
       {
