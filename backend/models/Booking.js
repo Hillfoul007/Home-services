@@ -250,6 +250,21 @@ const bookingSchema = new mongoose.Schema(
         default: 0,
       },
     },
+    discount_percent: {
+      type: Number,
+      default: 0,
+      min: [0, "Discount percent must be non-negative"],
+      max: [100, "Discount percent cannot exceed 100"],
+    },
+    is_quick_pickup: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    quick_pickup_tag: {
+      type: String,
+      default: null,
+    },
     completed_at: {
       type: Date,
     },
