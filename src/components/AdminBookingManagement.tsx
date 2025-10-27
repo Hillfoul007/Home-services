@@ -269,7 +269,7 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
 };
 
 const formatDate = (dateString?: string | Date) => {
-  return formatDateOnlyIST(dateString as any);
+  return formatDateTimeIST(dateString as any);
 };
 
 const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string }> = ({
