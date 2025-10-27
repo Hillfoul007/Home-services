@@ -24,7 +24,7 @@ export default defineConfig({
     // Use latest JS features to reduce bundle size
     target: 'esnext',
     // Reduce polyfills
-    polyfillModulePreload: false,
+    modulePreload: { polyfill: false },
   },
   // Minimal esbuild configuration
   esbuild: {
@@ -49,10 +49,5 @@ export default defineConfig({
   optimizeDeps: {
     include: ["react", "react-dom"],
     exclude: ["vite-plugin-pwa"],
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
   },
 });
