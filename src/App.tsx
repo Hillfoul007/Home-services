@@ -23,6 +23,9 @@ import {
 } from "@/utils/authPersistence";
 import { initializePWAUpdates } from "@/utils/swCleanup";
 import "@/utils/testEnvironment"; // Auto-run environment tests in development
+import VendorLogin from "@/pages/vendor/VendorLogin";
+import VendorDashboard from "@/pages/vendor/VendorDashboard";
+import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
