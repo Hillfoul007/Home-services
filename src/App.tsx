@@ -98,6 +98,9 @@ function App() {
               <Route path="/rider/notifications" element={<RiderNotificationsPage />} />
               <Route path="/rider/history" element={<RiderHistory />} />
               <Route path="/rider/profile" element={<RiderDashboard />} />
+              <Route path="/vendor/login" element={<VendorLogin />} />
+              <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+              <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
