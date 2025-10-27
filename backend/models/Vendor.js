@@ -93,9 +93,9 @@ vendorSchema.pre("save", async function (next) {
   }
 
   try {
-    const bcrypt = require("bcrypt");
-    const salt = await bcrypt.genSalt(10);
-    this.password_hash = await bcrypt.hash(this.password_hash, salt);
+    const bcryptjs = require("bcryptjs");
+    const salt = await bcryptjs.genSalt(10);
+    this.password_hash = await bcryptjs.hash(this.password_hash, salt);
     next();
   } catch (error) {
     next(error);
@@ -105,8 +105,8 @@ vendorSchema.pre("save", async function (next) {
 // Method to compare passwords
 vendorSchema.methods.comparePassword = async function (plainPassword) {
   try {
-    const bcrypt = require("bcrypt");
-    return await bcrypt.compare(plainPassword, this.password_hash);
+    const bcryptjs = require("bcryptjs");
+    return await bcryptjs.compare(plainPassword, this.password_hash);
   } catch (error) {
     return false;
   }
@@ -114,9 +114,9 @@ vendorSchema.methods.comparePassword = async function (plainPassword) {
 
 // Method to update password
 vendorSchema.methods.setPassword = async function (newPassword) {
-  const bcrypt = require("bcrypt");
-  const salt = await bcrypt.genSalt(10);
-  this.password_hash = await bcrypt.hash(newPassword, salt);
+  const bcryptjs = require("bcryptjs");
+  const salt = await bcryptjs.genSalt(10);
+  this.password_hash = await bcryptjs.hash(newPassword, salt);
   this.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
   return this.save();
 };
