@@ -265,6 +265,27 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    items_images: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.ObjectId,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    status_history: {
+      type: [
+        {
+          status: String,
+          changed_at: Date,
+          changed_by: String,
+          vendor_id: mongoose.Schema.Types.ObjectId,
+        },
+      ],
+      default: [],
+    },
     completed_at: {
       type: Date,
     },
