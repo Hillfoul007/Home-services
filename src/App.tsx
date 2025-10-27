@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import LaundryIndex from "@/pages/LaundryIndex";
+import VendorLogin from "@/pages/vendor/VendorLogin";
+import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import LocationConfigPage from "@/pages/LocationConfigPage";
 import AdminPortal from "@/pages/AdminPortal";
 import RiderAuth from "@/pages/rider/RiderAuth";
