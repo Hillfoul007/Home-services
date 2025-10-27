@@ -4,6 +4,7 @@ import path from "path";
 
 // Ultra-minimal configuration for 512MB memory constraint
 export default defineConfig({
+  root: path.resolve(__dirname, "."),
   server: {
     host: "::",
     port: 10000,
