@@ -2,70 +2,123 @@ const mongoose = require("mongoose");
 
 const vendorSchema = new mongoose.Schema(
   {
+    // Auto-generated vendor credentials
+    vendor_id: {
+      type: String,
+      unique: true,
+      sparse: true,
+      required: true,
+      index: true,
+    },
+    password_hash: {
+      type: String,
+      required: true,
+      select: false, // Don't return password by default
+    },
+    
+    // Vendor details
     name: {
       type: String,
-      required: [true, "Vendor name is required"],
-      trim: true,
+      required: true,
     },
+    email: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    phone: {
+      type: String,
+      required: true,
+    },
+    
+    // Address/Location
     address: {
       type: String,
-      required: [true, "Vendor address is required"],
-      trim: true,
     },
     coordinates: {
-      lat: {
-        type: Number,
-        required: [true, "Latitude is required"],
-      },
-      lng: {
-        type: Number,
-        required: [true, "Longitude is required"],
-      },
+      lat: Number,
+      lng: Number,
     },
-    services: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    contactPhone: {
-      type: String,
-      trim: true,
-    },
-    rating: {
-      type: Number,
-      min: 0,
-      max: 5,
-      default: 4.0,
-    },
-    isActive: {
+    
+    // Services offered
+    services: [String],
+    
+    // Status
+    is_active: {
       type: Boolean,
       default: true,
+      index: true,
     },
-    description: {
-      type: String,
-      trim: true,
+    
+    // Assigned orders (denormalized for faster queries)
+    assigned_orders: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "Booking",
+      default: [],
     },
-    operatingHours: {
-      open: String,
-      close: String,
+    
+    // Metadata
+    created_by: mongoose.Schema.Types.ObjectId, // Admin who created
+    created_at: {
+      type: Date,
+      default: () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
     },
-    minimumOrderValue: {
-      type: Number,
-      default: 0,
+    updated_at: {
+      type: Date,
+      default: () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
     },
-    deliveryTime: {
-      type: Number,
-      default: 30,
-    },
+    last_login: Date,
   },
   {
-    timestamps: {
-      createdAt: "created_at",
-      updatedAt: "updated_at",
-    },
+    timestamps: true,
+    collection: "vendors",
   }
 );
 
-const Vendor = mongoose.model("Vendor", vendorSchema);
-module.exports = Vendor;
+// Index for faster queries
+vendorSchema.index({ vendor_id: 1 });
+vendorSchema.index({ is_active: 1, created_at: -1 });
+
+// Generate unique vendor ID
+vendorSchema.statics.generateVendorId = function () {
+  const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase(); // Random alphanumeric
+  return `V${timestamp}${random}`;
+};
+
+// Hash password before saving
+vendorSchema.pre("save", async function (next) {
+  if (!this.isModified("password_hash")) {
+    return next();
+  }
+
+  try {
+    const bcrypt = require("bcrypt");
+    const salt = await bcrypt.genSalt(10);
+    this.password_hash = await bcrypt.hash(this.password_hash, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Method to compare passwords
+vendorSchema.methods.comparePassword = async function (plainPassword) {
+  try {
+    const bcrypt = require("bcrypt");
+    return await bcrypt.compare(plainPassword, this.password_hash);
+  } catch (error) {
+    return false;
+  }
+};
+
+// Method to update password
+vendorSchema.methods.setPassword = async function (newPassword) {
+  const bcrypt = require("bcrypt");
+  const salt = await bcrypt.genSalt(10);
+  this.password_hash = await bcrypt.hash(newPassword, salt);
+  this.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  return this.save();
+};
+
+module.exports = mongoose.model("Vendor", vendorSchema);
