@@ -417,6 +417,20 @@ try {
   console.error("❌ Full notification routes error:", error);
 }
 
+// Vendor routes
+try {
+  const vendorAuthRoutes = require("./routes/vendor-auth");
+  const vendorOrdersRoutes = require("./routes/vendor-orders");
+
+  app.use("/api/vendor/auth", vendorAuthRoutes);
+  console.log("🔗 Vendor auth routes registered at /api/vendor/auth");
+
+  app.use("/api/vendor/orders", vendorOrdersRoutes);
+  console.log("🔗 Vendor order routes registered at /api/vendor/orders");
+} catch (error) {
+  console.error("❌ Failed to load Vendor routes:", error.message);
+}
+
 // Google Sheets integration removed
 
 // Push notification endpoints
