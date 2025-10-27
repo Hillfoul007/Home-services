@@ -4,6 +4,7 @@ import path from "path";
 
 // Ultra-minimal configuration for 512MB memory constraint
 export default defineConfig({
+  root: path.resolve(__dirname, "."),
   server: {
     host: "::",
     port: 10000,
@@ -49,10 +50,5 @@ export default defineConfig({
   optimizeDeps: {
     include: ["react", "react-dom"],
     exclude: ["vite-plugin-pwa"],
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
   },
 });
