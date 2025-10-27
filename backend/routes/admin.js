@@ -1717,7 +1717,7 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
 
-    console.log(`🗑️ Deleting vendor: ${vendorId}`);
+    console.log(`��️ Deleting vendor: ${vendorId}`);
 
     const vendor = await Vendor.findByIdAndDelete(vendorId);
 
@@ -1729,6 +1729,225 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
     res.json({ success: true, message: "Vendor deleted successfully" });
   } catch (error) {
     console.error("❌ Error deleting vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============= LAUNDRY VENDOR MANAGEMENT (Vendor Portal) =============
+
+// Create laundry vendor with auto-generated credentials
+router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, email, phone, address, services } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ error: "Name and phone are required" });
+    }
+
+    console.log(`🆕 Creating laundry vendor: ${name}`);
+
+    // Generate unique vendor ID and temporary password
+    const VendorAuth = require("../models/Vendor");
+    const vendor_id = VendorAuth.generateVendorId();
+    const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    const vendor = new VendorAuth({
+      vendor_id,
+      password_hash: temp_password, // Will be hashed before save
+      name,
+      email,
+      phone,
+      address,
+      services: services || [],
+      is_active: true,
+      created_by: req.admin_id,
+    });
+
+    await vendor.save();
+
+    console.log(`✅ Laundry vendor created: ${vendor_id}`);
+    res.status(201).json({
+      success: true,
+      vendor: {
+        _id: vendor._id,
+        vendor_id,
+        name,
+        email,
+        phone,
+        temp_password, // Share only once!
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error creating laundry vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get all laundry vendors
+router.get("/laundry-vendors", verifyAdminAccess, async (req, res) => {
+  try {
+    console.log("📋 Fetching laundry vendors");
+
+    const VendorAuth = require("../models/Vendor");
+    const vendors = await VendorAuth.find().select("-password_hash").sort({ created_at: -1 });
+
+    console.log(`✅ Found ${vendors.length} laundry vendors`);
+    res.json({ success: true, vendors });
+  } catch (error) {
+    console.error("❌ Error fetching laundry vendors:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get single laundry vendor
+router.get("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    console.log(`🔍 Fetching laundry vendor: ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId).select("-password_hash");
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Get vendor's assigned orders
+    const orders = await Booking.find({ assignedVendor: vendor._id }).select("_id custom_order_id status");
+
+    console.log(`✅ Vendor found: ${vendor.name}`);
+    res.json({
+      success: true,
+      vendor,
+      assigned_orders_count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching laundry vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update laundry vendor password
+router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { new_password } = req.body;
+
+    if (!new_password || new_password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+
+    console.log(`🔐 Updating password for vendor: ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    await vendor.setPassword(new_password);
+
+    console.log(`✅ Vendor password updated: ${vendorId}`);
+    res.json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error updating vendor password:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update laundry vendor details
+router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { name, email, phone, address, services, is_active, vendor_id } = req.body;
+
+    console.log(`📝 Updating laundry vendor: ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const updates = {
+      name,
+      email,
+      phone,
+      address,
+      services,
+      is_active,
+      vendor_id,
+      updated_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+    };
+
+    // Remove undefined fields
+    Object.keys(updates).forEach((key) => updates[key] === undefined && delete updates[key]);
+
+    const vendor = await VendorAuth.findByIdAndUpdate(vendorId, updates, { new: true }).select("-password_hash");
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    console.log(`✅ Vendor updated: ${vendor.name}`);
+    res.json({
+      success: true,
+      vendor,
+    });
+  } catch (error) {
+    console.error("❌ Error updating laundry vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Assign order to vendor
+router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ error: "Order ID is required" });
+    }
+
+    console.log(`📦 Assigning order ${orderId} to vendor ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Update booking with vendor assignment
+    const booking = await Booking.findByIdAndUpdate(
+      orderId,
+      {
+        assignedVendor: vendor._id,
+        status: "vendor_assigned",
+        updated_at: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!booking) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Update vendor's assigned orders
+    if (!vendor.assigned_orders.includes(booking._id)) {
+      vendor.assigned_orders.push(booking._id);
+      await vendor.save();
+    }
+
+    console.log(`✅ Order assigned to vendor: ${vendor.name}`);
+    res.json({
+      success: true,
+      message: "Order assigned successfully",
+      booking,
+    });
+  } catch (error) {
+    console.error("❌ Error assigning order to vendor:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
