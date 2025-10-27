@@ -269,7 +269,8 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
 };
 
 const formatDate = (dateString?: string | Date) => {
-  return formatDateTimeIST(dateString as any);
+  // Show only the date (no time) to avoid showing a redundant time like "5:30 AM" in order cards
+  return formatDateOnlyIST(dateString as any);
 };
 
 const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string }> = ({
