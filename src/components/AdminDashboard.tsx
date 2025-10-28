@@ -341,6 +341,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminVendorManagement />
           </TabsContent>
 
+          <TabsContent value="laundry-vendors">
+            <AdminLaundryVendorManagement />
+          </TabsContent>
+
           <TabsContent value="analytics">
             <Card>
               <CardHeader>
