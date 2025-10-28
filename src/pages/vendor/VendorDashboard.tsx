@@ -57,16 +57,18 @@ const VendorDashboard: React.FC = () => {
 
     setUploadingFor(orderId);
     try {
-      const uploadRes = await vendorService.uploadItemsImage(orderId, selectedFile);
+      const uploadRes = await vendorAuthService.uploadItemsImage(orderId, selectedFile);
       if (!uploadRes || !uploadRes.success) {
         toast.error(uploadRes.error || "Upload failed");
+        setUploadingFor(null);
         return;
       }
 
       // After upload, mark pickup_completed
-      const statusRes = await vendorService.updateOrderStatus(orderId, "pickup_completed");
+      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "pickup_completed");
       if (!statusRes || !statusRes.success) {
         toast.error(statusRes.error || "Failed to update status");
+        setUploadingFor(null);
         return;
       }
 
@@ -82,7 +84,7 @@ const VendorDashboard: React.FC = () => {
 
   const changeStatus = async (orderId: string, status: string) => {
     try {
-      const res = await vendorService.updateOrderStatus(orderId, status);
+      const res = await vendorAuthService.updateOrderStatus(orderId, status);
       if (!res || !res.success) {
         toast.error(res.error || "Failed to update status");
         return;
@@ -92,6 +94,11 @@ const VendorDashboard: React.FC = () => {
     } catch (error: any) {
       toast.error(error?.message || "Update failed");
     }
+  };
+
+  const handleLogout = () => {
+    vendorAuthService.logout();
+    navigate("/vendor/login");
   };
 
   const bucketA = orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed');
