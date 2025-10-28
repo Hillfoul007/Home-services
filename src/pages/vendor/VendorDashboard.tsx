@@ -105,9 +105,23 @@ const VendorDashboard: React.FC = () => {
   const bucketB = orders.filter(o => o.status === 'ready_for_delivery');
   const completed = orders.filter(o => o.status === 'completed' || o.status === 'delivered');
 
+  if (loading && orders.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-gray-600">Loading vendor dashboard...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Vendor Dashboard</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold">Vendor Dashboard</h1>
+        <Button variant="outline" onClick={handleLogout}>Logout</Button>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
           <h2 className="font-medium mb-2">Pickup / Vendor Flow</h2>
