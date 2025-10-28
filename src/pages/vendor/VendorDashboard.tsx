@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { vendorService } from "@/services/vendorService";
+import { useNavigate } from "react-router-dom";
+import { vendorAuthService } from "@/services/vendorAuthService";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateOnlyIST } from "@/utils/timeUtils";
@@ -15,9 +16,12 @@ interface Order {
   scheduled_date?: string;
   scheduled_time?: string;
   items_images?: any[];
+  delivery_date?: string;
+  delivery_time?: string;
 }
 
 const VendorDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -26,8 +30,8 @@ const VendorDashboard: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await vendorService.fetchAssignedOrders();
-      if (res && res.orders) {
+      const res = await vendorAuthService.fetchAssignedOrders();
+      if (res && res.success && res.orders) {
         setOrders(res.orders);
       } else {
         toast.error(res.error || "Failed to fetch orders");
