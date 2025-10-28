@@ -124,72 +124,131 @@ const VendorDashboard: React.FC = () => {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
-          <h2 className="font-medium mb-2">Pickup / Vendor Flow</h2>
+          <div className="mb-4">
+            <h2 className="font-bold text-lg text-blue-600">Assigned Orders</h2>
+            <p className="text-xs text-gray-500">Assigned → Pickup Complete → Processing → Ready to Dispatch</p>
+          </div>
           <div className="space-y-3">
             {bucketA.map(order => (
-              <Card key={order._id} className="p-4">
-                <div className="flex justify-between items-start">
+              <Card key={order._id} className="p-4 border-l-4 border-l-blue-500">
+                <div className="flex justify-between items-start mb-2">
                   <div>
-                    <div className="text-sm text-gray-600">#{order.custom_order_id || order._id}</div>
-                    <div className="font-medium">{order.name} • {order.phone}</div>
-                    <div className="text-sm text-gray-500">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">{formatDateOnlyIST(order.scheduled_date)}</div>
+                    <div className="text-sm font-semibold text-gray-700">#{order.custom_order_id || order._id}</div>
+                    <div className="font-medium text-base">{order.name}</div>
+                    <div className="text-sm text-gray-600">{order.phone}</div>
+                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
+                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatDateOnlyIST(order.scheduled_date)}</div>
+                    {order.delivery_date && (
+                      <div className="text-xs text-gray-500">Delivery: {formatDateOnlyIST(order.delivery_date)}</div>
+                    )}
                   </div>
+                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">{order.status}</span>
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-col gap-2">
                   {order.status === 'vendor_assigned' && (
                     <>
-                      <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
-                      <Button onClick={() => handleUploadAndMark(order._id)} disabled={uploadingFor === order._id}>{uploadingFor === order._id ? 'Uploading...' : 'Upload & Mark Pickup Complete'}</Button>
+                      <div className="text-xs text-gray-600 font-semibold">📸 Upload items list image</div>
+                      <div className="flex gap-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                          className="text-xs flex-1"
+                        />
+                        <Button
+                          onClick={() => handleUploadAndMark(order._id)}
+                          disabled={uploadingFor === order._id}
+                          className="whitespace-nowrap"
+                        >
+                          {uploadingFor === order._id ? 'Uploading...' : 'Upload & Pickup Complete'}
+                        </Button>
+                      </div>
                     </>
                   )}
 
                   {order.status === 'pickup_completed' && (
-                    <Button onClick={() => changeStatus(order._id, 'processing')}>Mark Processing</Button>
+                    <Button onClick={() => changeStatus(order._id, 'processing')} className="w-full">
+                      Mark as Processing
+                    </Button>
                   )}
 
                   {order.status === 'processing' && (
-                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery')}>Mark Ready to Dispatch</Button>
+                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery')} className="w-full bg-green-600 hover:bg-green-700">
+                      Ready to Dispatch
+                    </Button>
                   )}
                 </div>
               </Card>
             ))}
-            {bucketA.length === 0 && <div className="text-sm text-gray-500">No orders in this bucket</div>}
+            {bucketA.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p>No assigned orders</p>
+              </div>
+            )}
           </div>
         </div>
 
         <div>
-          <h2 className="font-medium mb-2">Ready for Delivery</h2>
+          <div className="mb-4">
+            <h2 className="font-bold text-lg text-orange-600">Ready for Delivery</h2>
+            <p className="text-xs text-gray-500">Waiting for admin delivery confirmation</p>
+          </div>
           <div className="space-y-3">
             {bucketB.map(order => (
-              <Card key={order._id} className="p-4">
-                <div>
-                  <div className="text-sm text-gray-600">#{order.custom_order_id || order._id}</div>
-                  <div className="font-medium">{order.name} • {order.phone}</div>
-                  <div className="text-sm text-gray-500">{order.service}</div>
+              <Card key={order._id} className="p-4 border-l-4 border-l-orange-500">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-700">#{order.custom_order_id || order._id}</div>
+                    <div className="font-medium text-base">{order.name}</div>
+                    <div className="text-sm text-gray-600">{order.phone}</div>
+                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
+                    {order.delivery_date && (
+                      <div className="text-xs text-orange-600 mt-1 font-semibold">
+                        📅 {formatDateOnlyIST(order.delivery_date)} at {order.delivery_time}
+                      </div>
+                    )}
+                  </div>
+                  <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">Ready for Delivery</span>
                 </div>
                 <div className="mt-3">
-                  <Button onClick={() => changeStatus(order._id, 'delivered')}>Mark Delivered</Button>
+                  <Button onClick={() => changeStatus(order._id, 'delivered')} className="w-full bg-green-600 hover:bg-green-700">
+                    Mark as Delivered
+                  </Button>
                 </div>
               </Card>
             ))}
-            {bucketB.length === 0 && <div className="text-sm text-gray-500">No orders ready for delivery</div>}
+            {bucketB.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p>No orders ready for delivery</p>
+              </div>
+            )}
           </div>
         </div>
 
         <div>
-          <h2 className="font-medium mb-2">Completed</h2>
+          <div className="mb-4">
+            <h2 className="font-bold text-lg text-green-600">Completed</h2>
+            <p className="text-xs text-gray-500">All deliveries done</p>
+          </div>
           <div className="space-y-3">
             {completed.map(order => (
-              <Card key={order._id} className="p-4">
-                <div>
-                  <div className="text-sm text-gray-600">#{order.custom_order_id || order._id}</div>
-                  <div className="font-medium">{order.name} • {order.phone}</div>
-                  <div className="text-sm text-gray-500">{order.service}</div>
+              <Card key={order._id} className="p-4 border-l-4 border-l-green-500 bg-green-50">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-700">#{order.custom_order_id || order._id}</div>
+                    <div className="font-medium text-base">{order.name}</div>
+                    <div className="text-sm text-gray-600">{order.phone}</div>
+                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
+                  </div>
+                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">✓ Completed</span>
                 </div>
               </Card>
             ))}
-            {completed.length === 0 && <div className="text-sm text-gray-500">No completed orders</div>}
+            {completed.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p>No completed orders</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
