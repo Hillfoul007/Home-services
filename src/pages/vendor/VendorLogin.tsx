@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { vendorService } from "@/services/vendorService";
+import { vendorAuthService } from "@/services/vendorAuthService";
 import { toast } from "sonner";
 
 const VendorLogin: React.FC = () => {
@@ -16,18 +16,17 @@ const VendorLogin: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await vendorService.login(vendorId.trim(), password);
-      // Backend returns { success: true, token, vendor }
-      if (res && (res.token || (res.data && res.data.token))) {
-        const token = res.token || res.data.token;
-        localStorage.setItem("laundrify_token", token);
-        localStorage.setItem("auth_token", token);
+      const res = await vendorAuthService.login(vendorId.trim(), password);
+
+      if (res && res.success && res.token) {
+        localStorage.setItem("laundrify_token", res.token);
+        localStorage.setItem("auth_token", res.token);
         toast.success("Login successful");
         navigate("/vendor/dashboard");
         return;
       }
 
-      const err = (res && (res.error || res.message || (res.data && res.data.error))) || "Login failed";
+      const err = res?.error || "Login failed";
       toast.error(err as string);
     } catch (error: any) {
       toast.error(error?.message || "Login error");
