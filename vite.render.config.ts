@@ -50,9 +50,4 @@ export default defineConfig({
     include: ["react", "react-dom"],
     exclude: ["vite-plugin-pwa"],
   },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
 });
