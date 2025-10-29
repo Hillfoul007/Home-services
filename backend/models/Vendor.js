@@ -7,7 +7,6 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true,
-      required: true,
       index: true,
     },
     password_hash: {
