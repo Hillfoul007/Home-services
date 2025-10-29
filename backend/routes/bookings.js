@@ -446,8 +446,21 @@ router.post("/", async (req, res) => {
     console.log("✅ VALIDATION STEP 5: Customer found/created:", customer._id);
 
     // Prepare item prices for storage
+    // If item_prices are provided in the request, use them directly
+    // Otherwise, create from services array (with defaults)
     let item_prices = [];
-    if (Array.isArray(services)) {
+
+    if (Array.isArray(requestItemPrices) && requestItemPrices.length > 0) {
+      // Use provided item_prices from frontend (which has accurate pricing)
+      item_prices = requestItemPrices.map((item) => ({
+        service_name: item.service_name || item.name || "Item",
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        unit_price: Math.max(0, Number(item.unit_price || item.price) || 0),
+        total_price: Math.max(0, Number(item.total_price) || (Math.max(1, Number(item.quantity) || 1) * (Number(item.unit_price || item.price) || 0))),
+      }));
+      console.log("✅ Using item_prices from request:", item_prices);
+    } else if (Array.isArray(services)) {
+      // Fallback: create from services array (for backward compatibility)
       item_prices = services.map((service) => {
         const serviceName =
           typeof service === "object"
@@ -464,6 +477,7 @@ router.post("/", async (req, res) => {
           total_price: price * quantity,
         };
       });
+      console.log("⚠️ item_prices not provided in request, creating from services:", item_prices);
     }
 
     // Check for potential duplicate bookings (same customer, service, date, time)
