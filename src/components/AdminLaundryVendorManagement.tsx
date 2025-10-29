@@ -93,10 +93,16 @@ const AdminLaundryVendorManagement: React.FC = () => {
       });
 
       if (response.data?.vendor) {
-        toast.success(`Vendor created! ID: ${response.data.vendor.vendor_id}`);
-        setVendors([response.data.vendor as LaundryVendor, ...vendors]);
+        const vendor = response.data.vendor;
+        toast.success(`Vendor created!`);
+        setVendors([vendor as LaundryVendor, ...vendors]);
         setIsAddDialogOpen(false);
         resetForm();
+        // Show generated credentials modal
+        setGeneratedCredentials({
+          vendor_id: vendor.vendor_id,
+          temp_password: vendor.temp_password,
+        });
       } else {
         toast.error(response.error || 'Failed to add vendor');
       }
