@@ -28,7 +28,7 @@ const vendorSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: true,
+      default: "",
     },
     
     // Address/Location
