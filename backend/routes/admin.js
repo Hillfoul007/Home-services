@@ -1932,17 +1932,30 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
 });
 
 // Generate new credentials for existing vendor
-router.post("/laundry-vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
+router.post("/vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
 
     console.log(`🔑 Generating new credentials for vendor: ${vendorId}`);
 
-    const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId);
+    const Vendor = require("../models/Vendor");
+    const vendor = await Vendor.findById(vendorId);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Ensure vendor has required fields for credentials
+    if (!vendor.vendor_id) {
+      vendor.vendor_id = Vendor.generateVendorId();
+    }
+
+    if (!vendor.phone && vendor.contactPhone) {
+      vendor.phone = vendor.contactPhone;
+    }
+
+    if (!vendor.phone) {
+      vendor.phone = ""; // Will be set by pre-save hook or left empty
     }
 
     // Generate new temporary password
@@ -1964,6 +1977,12 @@ router.post("/laundry-vendors/:vendorId/generate-credentials", verifyAdminAccess
     console.error("❌ Error generating credentials:", error);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+// Legacy endpoint for backward compatibility
+router.post("/laundry-vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
+  // Redirect to new endpoint
+  res.redirect(307, `/api/admin/vendors/${req.params.vendorId}/generate-credentials`);
 });
 
 // Assign order to vendor
