@@ -205,7 +205,7 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
 
     const order = await Booking.findOne({
       _id: orderId,
-      assignedVendor: req.vendor_id,
+      assignedVendor: req.vendor_name,
     });
 
     if (!order) {
