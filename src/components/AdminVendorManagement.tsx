@@ -59,6 +59,8 @@ const AdminVendorManagement: React.FC = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<VendorDetails | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState<{ vendor_id: string; temp_password: string; name?: string } | null>(null);
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     address: '',
