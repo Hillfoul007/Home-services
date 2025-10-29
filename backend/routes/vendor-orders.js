@@ -102,7 +102,8 @@ router.post("/orders/:orderId/upload-items-image", verifyVendorToken, upload.sin
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
 
     // Create upload stream
-    const uploadStream = bucket.openUploadStream(`order_${orderId}_items_${Date.now()}.jpg`, {
+    const filename = `order_${orderId}_items_${Date.now()}.jpg`;
+    const uploadStream = bucket.openUploadStream(filename, {
       metadata: {
         orderId,
         vendorId: req.vendor_id,
@@ -115,38 +116,44 @@ router.post("/orders/:orderId/upload-items-image", verifyVendorToken, upload.sin
       return res.status(500).json({ error: "Failed to upload image" });
     });
 
-    uploadStream.on("finish", async (file) => {
-      console.log(`✅ Image uploaded successfully: ${file._id}`);
+    uploadStream.on("finish", async () => {
+      try {
+        const fileId = uploadStream.id;
+        console.log(`✅ Image uploaded successfully: ${fileId}`);
 
-      // Store file reference in order
-      const order = await Booking.findOne({
-        _id: orderId,
-        assignedVendor: req.vendor_name,
-      });
+        // Store file reference in order
+        const order = await Booking.findOne({
+          _id: orderId,
+          assignedVendor: req.vendor_name,
+        });
 
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
+        if (!order) {
+          return res.status(404).json({ error: "Order not found" });
+        }
+
+        // Initialize items_images array if it doesn't exist
+        if (!order.items_images) {
+          order.items_images = [];
+        }
+
+        order.items_images.push({
+          file_id: fileId,
+          filename: filename,
+          uploaded_at: new Date(),
+        });
+
+        await order.save();
+
+        res.json({
+          success: true,
+          message: "Image uploaded successfully",
+          file_id: fileId,
+          filename: filename,
+        });
+      } catch (error) {
+        console.error("❌ Error saving order after upload:", error);
+        res.status(500).json({ error: "Failed to save order after upload" });
       }
-
-      // Initialize items_images array if it doesn't exist
-      if (!order.items_images) {
-        order.items_images = [];
-      }
-
-      order.items_images.push({
-        file_id: file._id,
-        filename: file.filename,
-        uploaded_at: new Date(),
-      });
-
-      await order.save();
-
-      res.json({
-        success: true,
-        message: "Image uploaded successfully",
-        file_id: file._id,
-        filename: file.filename,
-      });
     });
 
     // Pipe the file buffer to GridFS
