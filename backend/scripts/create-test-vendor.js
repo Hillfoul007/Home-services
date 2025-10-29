@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const path = require("path");
 
 // Load environment variables
 require("dotenv").config();
@@ -8,17 +7,11 @@ require("dotenv").config();
 const Vendor = require("../models/Vendor");
 
 // Database config
-const dbConfig = require("../config/database");
+const { connectDB } = require("../config/database");
 
 async function createTestVendor() {
   try {
-    console.log("🔌 Connecting to MongoDB...");
-    await mongoose.connect(dbConfig.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-
-    console.log("✅ Connected to MongoDB");
+    await connectDB();
 
     // Test credentials
     const testVendorData = {
