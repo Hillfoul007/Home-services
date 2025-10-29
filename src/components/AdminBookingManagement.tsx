@@ -1533,6 +1533,34 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               )}
 
+              {viewingBooking.items_images && viewingBooking.items_images.length > 0 && (
+                <div className="border-t pt-4">
+                  <h4 className="mb-3 flex items-center font-semibold">
+                    📸 Vendor Uploaded Images ({viewingBooking.items_images.length})
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    {viewingBooking.items_images.map((image: any, idx: number) => (
+                      <div key={idx} className="relative rounded-lg overflow-hidden bg-gray-100 aspect-square">
+                        <img
+                          src={`/api/vendor/orders/orders/${viewingBooking._id}/items-image/${image.file_id}`}
+                          alt={`Item image ${idx + 1}`}
+                          className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23e5e7eb" width="100" height="100"/%3E%3Ctext x="50" y="50" dominant-baseline="middle" text-anchor="middle" font-size="10" fill="%239ca3af"%3EFailed to load%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs p-2">
+                          <div className="truncate">{image.filename || `Image ${idx + 1}`}</div>
+                          <div className="text-xs text-gray-300 mt-1">
+                            {new Date(image.uploaded_at).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="border-t pt-4">
                 <h4 className="mb-3 font-semibold">Order Timeline</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
