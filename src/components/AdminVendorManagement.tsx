@@ -639,8 +639,8 @@ const AdminVendorManagement: React.FC = () => {
       <Dialog open={!!generatedCredentials} onOpenChange={(open) => !open && setGeneratedCredentials(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>🔑 {generatedCredentials?.name || 'Vendor'} Login Credentials</DialogTitle>
-            <DialogDescription>Share these credentials with the vendor for portal access</DialogDescription>
+            <DialogTitle>🔐 {generatedCredentials?.name || 'Vendor'} Login Credentials</DialogTitle>
+            <DialogDescription>These are the permanent login credentials for this vendor</DialogDescription>
           </DialogHeader>
           {generatedCredentials && (
             <div className="space-y-4">
