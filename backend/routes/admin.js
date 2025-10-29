@@ -1642,12 +1642,20 @@ router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   }
 });
 
-// Create vendor
+// Create vendor - DEPRECATED, use /laundry-vendors instead
+// Kept for backward compatibility but redirects to laundry vendor creation
 router.post("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime } = req.body;
+    const { name, address, phone, email, services, coordinates, contactPhone } = req.body;
 
-    console.log("🆕 Creating new vendor:", { name, address });
+    console.log("🆕 Creating vendor (redirected to laundry vendor):", { name, address, phone });
+
+    // If only name and address provided (no coordinates), create as laundry vendor
+    if (!coordinates && name && (phone || address)) {
+      return res.status(400).json({
+        error: "Use /laundry-vendors endpoint for vendor creation. This endpoint requires coordinates (lat, lng) for order-based vendors."
+      });
+    }
 
     if (!name || !address || !coordinates || !coordinates.lat || !coordinates.lng) {
       return res.status(400).json({ error: "Name, address, and coordinates (lat, lng) are required" });
@@ -1658,12 +1666,12 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
       address,
       coordinates,
       services: services || [],
-      contactPhone: contactPhone || "",
-      rating: rating || 4.0,
-      description: description || "",
-      operatingHours: operatingHours || { open: "09:00", close: "22:00" },
-      minimumOrderValue: minimumOrderValue || 0,
-      deliveryTime: deliveryTime || 30,
+      contactPhone: contactPhone || phone || "",
+      rating: 4.0,
+      description: "",
+      operatingHours: { open: "09:00", close: "22:00" },
+      minimumOrderValue: 0,
+      deliveryTime: 30,
       isActive: true,
     });
 
