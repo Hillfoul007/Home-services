@@ -1864,35 +1864,50 @@ router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req,
 router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, email, phone, address, services, is_active, vendor_id } = req.body;
+    const { name, email, phone, address, services, is_active, vendor_id, password } = req.body;
 
     console.log(`📝 Updating laundry vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const updates = {
-      name,
-      email,
-      phone,
-      address,
-      services,
-      is_active,
-      vendor_id,
-      updated_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
-    };
-
-    // Remove undefined fields
-    Object.keys(updates).forEach((key) => updates[key] === undefined && delete updates[key]);
-
-    const vendor = await VendorAuth.findByIdAndUpdate(vendorId, updates, { new: true }).select("-password_hash");
+    const vendor = await VendorAuth.findById(vendorId);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
     }
 
+    // Update basic fields
+    if (name !== undefined) vendor.name = name;
+    if (email !== undefined) vendor.email = email;
+    if (phone !== undefined) vendor.phone = phone;
+    if (address !== undefined) vendor.address = address;
+    if (services !== undefined) vendor.services = services;
+    if (is_active !== undefined) vendor.is_active = is_active;
+    if (vendor_id !== undefined) vendor.vendor_id = vendor_id;
+
+    // Update password if provided
+    if (password) {
+      const bcryptjs = require("bcryptjs");
+      const salt = await bcryptjs.genSalt(10);
+      vendor.password_hash = await bcryptjs.hash(password, salt);
+      console.log(`🔐 Password updated for vendor: ${vendor.name}`);
+    }
+
+    vendor.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    await vendor.save();
+
     console.log(`✅ Vendor updated: ${vendor.name}`);
     res.json({
       success: true,
-      vendor,
+      vendor: {
+        _id: vendor._id,
+        vendor_id: vendor.vendor_id,
+        name: vendor.name,
+        email: vendor.email,
+        phone: vendor.phone,
+        address: vendor.address,
+        services: vendor.services,
+        is_active: vendor.is_active,
+      },
     });
   } catch (error) {
     console.error("❌ Error updating laundry vendor:", error);
