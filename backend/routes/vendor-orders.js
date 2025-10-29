@@ -22,6 +22,7 @@ const verifyVendorToken = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.vendor_id = decoded.vendor_id;
     req.vendor_id_str = decoded.vendor_id_str;
+    req.vendor_name = decoded.name;
     next();
   } catch (error) {
     console.error("❌ Token verification error:", error);
@@ -34,9 +35,9 @@ router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
   try {
     const { status } = req.query; // Optional filter by status
 
-    console.log(`📋 Fetching orders for vendor: ${req.vendor_id_str}`);
+    console.log(`📋 Fetching orders for vendor: ${req.vendor_id_str} (${req.vendor_name})`);
 
-    let query = { assignedVendor: req.vendor_id };
+    let query = { assignedVendor: req.vendor_name };
 
     if (status) {
       query.status = status;
@@ -59,6 +60,43 @@ router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
   }
 });
 
+// Get vendor uploaded image (public access for admin/vendor viewing)
+router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
+  try {
+    const { orderId, fileId } = req.params;
+
+    console.log(`🖼️ Retrieving items image (public): ${fileId} for order ${orderId}`);
+
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+
+    // Verify order exists (basic security check)
+    const order = await Booking.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Verify image file_id exists in the order
+    const imageExists = order.items_images?.some(img => img.file_id.toString() === fileId);
+    if (!imageExists) {
+      return res.status(404).json({ error: "Image not found for this order" });
+    }
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+
+    downloadStream.on("error", (error) => {
+      console.error("❌ GridFS download error:", error);
+      return res.status(404).json({ error: "Image not found" });
+    });
+
+    res.setHeader("Content-Type", "image/jpeg");
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("❌ Error retrieving items image:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Get single order details
 router.get("/orders/:orderId", verifyVendorToken, async (req, res) => {
   try {
@@ -68,7 +106,7 @@ router.get("/orders/:orderId", verifyVendorToken, async (req, res) => {
 
     const order = await Booking.findOne({
       _id: orderId,
-      assignedVendor: req.vendor_id,
+      assignedVendor: req.vendor_name,
     });
 
     if (!order) {
@@ -101,7 +139,8 @@ router.post("/orders/:orderId/upload-items-image", verifyVendorToken, upload.sin
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
 
     // Create upload stream
-    const uploadStream = bucket.openUploadStream(`order_${orderId}_items_${Date.now()}.jpg`, {
+    const filename = `order_${orderId}_items_${Date.now()}.jpg`;
+    const uploadStream = bucket.openUploadStream(filename, {
       metadata: {
         orderId,
         vendorId: req.vendor_id,
@@ -114,38 +153,44 @@ router.post("/orders/:orderId/upload-items-image", verifyVendorToken, upload.sin
       return res.status(500).json({ error: "Failed to upload image" });
     });
 
-    uploadStream.on("finish", async (file) => {
-      console.log(`✅ Image uploaded successfully: ${file._id}`);
+    uploadStream.on("finish", async () => {
+      try {
+        const fileId = uploadStream.id;
+        console.log(`✅ Image uploaded successfully: ${fileId}`);
 
-      // Store file reference in order
-      const order = await Booking.findOne({
-        _id: orderId,
-        assignedVendor: req.vendor_id,
-      });
+        // Store file reference in order
+        const order = await Booking.findOne({
+          _id: orderId,
+          assignedVendor: req.vendor_name,
+        });
 
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
+        if (!order) {
+          return res.status(404).json({ error: "Order not found" });
+        }
+
+        // Initialize items_images array if it doesn't exist
+        if (!order.items_images) {
+          order.items_images = [];
+        }
+
+        order.items_images.push({
+          file_id: fileId,
+          filename: filename,
+          uploaded_at: new Date(),
+        });
+
+        await order.save();
+
+        res.json({
+          success: true,
+          message: "Image uploaded successfully",
+          file_id: fileId,
+          filename: filename,
+        });
+      } catch (error) {
+        console.error("❌ Error saving order after upload:", error);
+        res.status(500).json({ error: "Failed to save order after upload" });
       }
-
-      // Initialize items_images array if it doesn't exist
-      if (!order.items_images) {
-        order.items_images = [];
-      }
-
-      order.items_images.push({
-        file_id: file._id,
-        filename: file.filename,
-        uploaded_at: new Date(),
-      });
-
-      await order.save();
-
-      res.json({
-        success: true,
-        message: "Image uploaded successfully",
-        file_id: file._id,
-        filename: file.filename,
-      });
     });
 
     // Pipe the file buffer to GridFS
@@ -197,14 +242,14 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
     // Validate status transitions
     const validTransitions = {
       vendor_assigned: ["pickup_completed"],
-      pickup_completed: ["processing"],
-      processing: ["ready_for_delivery"],
+      pickup_completed: ["in_progress"],
+      in_progress: ["ready_for_delivery"],
       ready_for_delivery: ["delivered"],
     };
 
     const order = await Booking.findOne({
       _id: orderId,
-      assignedVendor: req.vendor_id,
+      assignedVendor: req.vendor_name,
     });
 
     if (!order) {
@@ -221,7 +266,7 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
     }
 
     // Special requirement: Must have items image before marking pickup_completed
-    if (status === "processing" && !order.items_images?.length) {
+    if (status === "pickup_completed" && !order.items_images?.length) {
       return res.status(400).json({
         error: "Must upload items list image before marking pickup complete",
       });
