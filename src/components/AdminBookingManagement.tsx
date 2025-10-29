@@ -1542,7 +1542,7 @@ const AdminBookingManagement: React.FC = () => {
                     {viewingBooking.items_images.map((image: any, idx: number) => (
                       <div key={idx} className="relative rounded-lg overflow-hidden bg-gray-100 aspect-square">
                         <img
-                          src={`/api/vendor/orders/orders/${viewingBooking._id}/items-image/${image.file_id}`}
+                          src={`/api/vendor/orders/public/orders/${viewingBooking._id}/items-image/${image.file_id}`}
                           alt={`Item image ${idx + 1}`}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                           onError={(e) => {
