@@ -334,17 +334,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </TabsContent>
 
           <TabsContent value="vendors">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-900 text-sm"><strong>📍 Service Providers:</strong> For restaurant/food vendors. Requires location coordinates (lat/lng).</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
             </div>
             <AdminVendorManagement />
-          </TabsContent>
-
-          <TabsContent value="laundry-vendors">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-blue-900 text-sm"><strong>✓ Laundry Vendors:</strong> Create laundry vendor accounts with auto-generated login ID and password. Vendors can immediately login to their portal.</p>
-            </div>
-            <AdminLaundryVendorManagement />
           </TabsContent>
 
           <TabsContent value="analytics">
