@@ -85,6 +85,27 @@ vendorSchema.statics.generateVendorId = function () {
   return `V${timestamp}${random}`;
 };
 
+// Auto-generate vendor_id if not present
+vendorSchema.pre("save", async function (next) {
+  // Generate vendor_id if missing
+  if (!this.vendor_id) {
+    this.vendor_id = this.constructor.generateVendorId();
+  }
+
+  // Use contactPhone as phone if phone is empty
+  if (!this.phone && this.contactPhone) {
+    this.phone = this.contactPhone;
+  }
+
+  // Ensure password_hash exists (set a default if creating new vendor without password)
+  if (!this.password_hash) {
+    const temp = this.constructor.generateVendorId();
+    this.password_hash = temp;
+  }
+
+  next();
+});
+
 // Hash password before saving
 vendorSchema.pre("save", async function (next) {
   if (!this.isModified("password_hash")) {
