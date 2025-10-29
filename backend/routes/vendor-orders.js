@@ -69,7 +69,7 @@ router.get("/orders/:orderId", verifyVendorToken, async (req, res) => {
 
     const order = await Booking.findOne({
       _id: orderId,
-      assignedVendor: req.vendor_id,
+      assignedVendor: req.vendor_name,
     });
 
     if (!order) {
@@ -163,7 +163,7 @@ router.get("/orders/:orderId/items-image/:fileId", verifyVendorToken, async (req
   try {
     const { fileId } = req.params;
 
-    console.log(`🖼�� Retrieving items image: ${fileId}`);
+    console.log(`🖼️ Retrieving items image: ${fileId}`);
 
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
