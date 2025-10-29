@@ -28,6 +28,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<LaundryVendor | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState<{ vendor_id: string; temp_password: string } | null>(null);
 
   const [formData, setFormData] = useState({
     vendor_id: '',
