@@ -319,97 +319,108 @@ const AdminLaundryVendorManagement: React.FC = () => {
                         </Badge>
                       </div>
                     </div>
-                    <Dialog open={isEditDialogOpen && editingVendor?._id === vendor._id} onOpenChange={setIsEditDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" onClick={() => openEditDialog(vendor)}>
-                          <Edit3 className="h-4 w-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-md">
-                        <DialogHeader>
-                          <DialogTitle>Edit Vendor</DialogTitle>
-                        </DialogHeader>
-                        {editingVendor && (
-                          <div className="space-y-3">
-                            <div>
-                              <Label htmlFor="edit-vendor-id">Vendor ID</Label>
-                              <Input
-                                id="edit-vendor-id"
-                                value={formData.vendor_id}
-                                onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
-                                placeholder="V123456ABC"
-                              />
-                              <p className="text-xs text-gray-500 mt-1">Vendor uses this to login</p>
-                            </div>
-                            <div>
-                              <Label htmlFor="edit-password">Password</Label>
-                              <div className="relative">
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleGenerateCredentials(vendor)}
+                        disabled={credentialsLoading}
+                        className="gap-1"
+                      >
+                        {credentialsLoading ? '...' : '🔑'} Credentials
+                      </Button>
+                      <Dialog open={isEditDialogOpen && editingVendor?._id === vendor._id} onOpenChange={setIsEditDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" onClick={() => openEditDialog(vendor)}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>Edit Vendor</DialogTitle>
+                          </DialogHeader>
+                          {editingVendor && (
+                            <div className="space-y-3">
+                              <div>
+                                <Label htmlFor="edit-vendor-id">Vendor ID</Label>
                                 <Input
-                                  id="edit-password"
-                                  type={showPassword ? "text" : "password"}
-                                  value={formData.password}
-                                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                  placeholder="Leave blank to keep current password"
+                                  id="edit-vendor-id"
+                                  value={formData.vendor_id}
+                                  onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
+                                  placeholder="V123456ABC"
                                 />
-                                <button
-                                  type="button"
-                                  onClick={() => setShowPassword(!showPassword)}
-                                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 text-sm"
-                                >
-                                  {showPassword ? "Hide" : "Show"}
-                                </button>
+                                <p className="text-xs text-gray-500 mt-1">Vendor uses this to login</p>
                               </div>
-                              <p className="text-xs text-gray-500 mt-1">Set new password or leave blank</p>
+                              <div>
+                                <Label htmlFor="edit-password">Password</Label>
+                                <div className="relative">
+                                  <Input
+                                    id="edit-password"
+                                    type={showPassword ? "text" : "password"}
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    placeholder="Leave blank to keep current password"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 text-sm"
+                                  >
+                                    {showPassword ? "Hide" : "Show"}
+                                  </button>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">Set new password or leave blank</p>
+                              </div>
+                              <div>
+                                <Label htmlFor="edit-name">Name *</Label>
+                                <Input
+                                  id="edit-name"
+                                  value={formData.name}
+                                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="edit-phone">Phone *</Label>
+                                <Input
+                                  id="edit-phone"
+                                  value={formData.phone}
+                                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="edit-email">Email</Label>
+                                <Input
+                                  id="edit-email"
+                                  type="email"
+                                  value={formData.email}
+                                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="edit-address">Address</Label>
+                                <Input
+                                  id="edit-address"
+                                  value={formData.address}
+                                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="edit-services">Services</Label>
+                                <Input
+                                  id="edit-services"
+                                  value={formData.services}
+                                  onChange={(e) => setFormData({ ...formData, services: e.target.value })}
+                                />
+                              </div>
+                              <div className="flex gap-2 pt-2">
+                                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleUpdateVendor} className="flex-1">Save</Button>
+                              </div>
                             </div>
-                            <div>
-                              <Label htmlFor="edit-name">Name *</Label>
-                              <Input
-                                id="edit-name"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="edit-phone">Phone *</Label>
-                              <Input
-                                id="edit-phone"
-                                value={formData.phone}
-                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="edit-email">Email</Label>
-                              <Input
-                                id="edit-email"
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="edit-address">Address</Label>
-                              <Input
-                                id="edit-address"
-                                value={formData.address}
-                                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="edit-services">Services</Label>
-                              <Input
-                                id="edit-services"
-                                value={formData.services}
-                                onChange={(e) => setFormData({ ...formData, services: e.target.value })}
-                              />
-                            </div>
-                            <div className="flex gap-2 pt-2">
-                              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-                              <Button onClick={handleUpdateVendor} className="flex-1">Save</Button>
-                            </div>
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   </div>
 
                   {/* Vendor Details */}
