@@ -922,7 +922,12 @@ const AdminBookingManagement: React.FC = () => {
   const computeEditingTotals = (bookingData: Booking | null) => {
     if (!bookingData) return { total: 0, final: 0 };
     const items = bookingData.item_prices || [];
-    const subtotal = items.reduce((s, it) => s + (Number(it.total_price) || 0), 0);
+    const subtotal = items.reduce((s, it) => {
+      const qty = Number(it.quantity ?? 0) || 0;
+      const unitPrice = Number(it.unit_price ?? it.price ?? 0) || 0;
+      const itemTotal = Number(it.total_price) || (qty * unitPrice);
+      return s + itemTotal;
+    }, 0);
     return { total: +(subtotal).toFixed(2), final: +(subtotal).toFixed(2) };
   };
 
