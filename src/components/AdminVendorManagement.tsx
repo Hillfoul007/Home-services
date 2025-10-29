@@ -631,6 +631,66 @@ const AdminVendorManagement: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Credentials Display Dialog */}
+      <Dialog open={!!generatedCredentials} onOpenChange={(open) => !open && setGeneratedCredentials(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>🔑 {generatedCredentials?.name || 'Vendor'} Login Credentials</DialogTitle>
+            <DialogDescription>Share these credentials with the vendor for portal access</DialogDescription>
+          </DialogHeader>
+          {generatedCredentials && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Vendor ID</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-white border rounded px-3 py-2 font-mono text-sm break-all">
+                      {generatedCredentials.vendor_id}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.vendor_id);
+                        toast.success('Vendor ID copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Password</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-white border rounded px-3 py-2 font-mono text-sm break-all">
+                      {generatedCredentials.temp_password}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.temp_password);
+                        toast.success('Password copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-900">
+                  <strong>Note:</strong> Share these credentials securely with the vendor. They can use these to login to their vendor portal immediately.
+                </p>
+              </div>
+              <Button onClick={() => setGeneratedCredentials(null)} className="w-full">
+                Done
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
