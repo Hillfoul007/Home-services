@@ -35,9 +35,9 @@ router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
   try {
     const { status } = req.query; // Optional filter by status
 
-    console.log(`📋 Fetching orders for vendor: ${req.vendor_id_str}`);
+    console.log(`📋 Fetching orders for vendor: ${req.vendor_id_str} (${req.vendor_name})`);
 
-    let query = { assignedVendor: req.vendor_id };
+    let query = { assignedVendor: req.vendor_name };
 
     if (status) {
       query.status = status;
@@ -163,7 +163,7 @@ router.get("/orders/:orderId/items-image/:fileId", verifyVendorToken, async (req
   try {
     const { fileId } = req.params;
 
-    console.log(`🖼️ Retrieving items image: ${fileId}`);
+    console.log(`🖼�� Retrieving items image: ${fileId}`);
 
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
