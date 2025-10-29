@@ -121,7 +121,7 @@ router.post("/orders/:orderId/upload-items-image", verifyVendorToken, upload.sin
       // Store file reference in order
       const order = await Booking.findOne({
         _id: orderId,
-        assignedVendor: req.vendor_id,
+        assignedVendor: req.vendor_name,
       });
 
       if (!order) {
