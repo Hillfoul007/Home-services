@@ -83,6 +83,11 @@ interface Booking {
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
+  items_images?: Array<{
+    file_id: string;
+    filename: string;
+    uploaded_at: string;
+  }>;
 }
 
 const ORDER_FLOW_STEPS = [
