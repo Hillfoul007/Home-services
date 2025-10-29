@@ -60,6 +60,43 @@ router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
   }
 });
 
+// Get vendor uploaded image (public access for admin/vendor viewing)
+router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
+  try {
+    const { orderId, fileId } = req.params;
+
+    console.log(`🖼️ Retrieving items image (public): ${fileId} for order ${orderId}`);
+
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+
+    // Verify order exists (basic security check)
+    const order = await Booking.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Verify image file_id exists in the order
+    const imageExists = order.items_images?.some(img => img.file_id.toString() === fileId);
+    if (!imageExists) {
+      return res.status(404).json({ error: "Image not found for this order" });
+    }
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+
+    downloadStream.on("error", (error) => {
+      console.error("❌ GridFS download error:", error);
+      return res.status(404).json({ error: "Image not found" });
+    });
+
+    res.setHeader("Content-Type", "image/jpeg");
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("❌ Error retrieving items image:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Get single order details
 router.get("/orders/:orderId", verifyVendorToken, async (req, res) => {
   try {
