@@ -154,6 +154,27 @@ const AdminLaundryVendorManagement: React.FC = () => {
     }
   };
 
+  const handleGenerateCredentials = async (vendor: LaundryVendor) => {
+    try {
+      setCredentialsLoading(true);
+      const response = await apiClient.adminRequest(`/admin/laundry-vendors/${vendor._id}/generate-credentials`, {
+        method: 'POST',
+      });
+
+      if (response.data?.credentials) {
+        setGeneratedCredentials(response.data.credentials);
+        toast.success('New credentials generated!');
+      } else {
+        toast.error(response.error || 'Failed to generate credentials');
+      }
+    } catch (error) {
+      console.error('Error generating credentials:', error);
+      toast.error('Error generating credentials');
+    } finally {
+      setCredentialsLoading(false);
+    }
+  };
+
   const openEditDialog = (vendor: LaundryVendor) => {
     setEditingVendor(vendor);
     setFormData({
