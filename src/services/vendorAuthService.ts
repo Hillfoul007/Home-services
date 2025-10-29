@@ -138,7 +138,7 @@ class VendorAuthService {
       const formData = new FormData();
       formData.append('items_image', file);
 
-      const response = await fetch(`${this.baseUrl}-orders/orders/${orderId}/upload-items-image`, {
+      const response = await fetch(`${this.baseUrl}/orders/orders/${orderId}/upload-items-image`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
