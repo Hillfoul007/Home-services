@@ -1160,7 +1160,7 @@ const AdminBookingManagement: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-medium text-gray-900">{booking.service}</div>
                           {(booking as any).is_quick_pickup && (
-                            <Badge className="bg-blue-100 text-blue-800 text-xs">���� Quick Pickup</Badge>
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -1868,12 +1868,18 @@ const AdminBookingManagement: React.FC = () => {
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
                         payload.item_prices = editingBooking.item_prices
                           .filter((it) => it.service_name && it.service_name.trim() !== "")
-                          .map((it) => ({
-                            service_name: it.service_name || it.name || "Item",
-                            quantity: it.quantity || 0,
-                            unit_price: it.unit_price || it.price || 0,
-                            total_price: it.total_price || 0,
-                          }));
+                          .map((it) => {
+                            const qty = Number(it.quantity ?? 1) || 1;
+                            const unitPrice = Number(it.unit_price ?? it.price ?? 0) || 0;
+                            const totalPrice = Number(it.total_price ?? (qty * unitPrice)) || (qty * unitPrice);
+
+                            return {
+                              service_name: it.service_name || it.name || "Item",
+                              quantity: qty,
+                              unit_price: unitPrice,
+                              total_price: totalPrice,
+                            };
+                          });
 
                         payload.services = payload.item_prices.map((it) =>
                           it.quantity > 1 ? `${it.service_name} x${it.quantity}` : it.service_name,
