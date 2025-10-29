@@ -14,6 +14,10 @@ const vendorSchema = new mongoose.Schema(
       required: true,
       select: false, // Don't return password by default
     },
+    temp_password: {
+      type: String,
+      select: false, // Store plain password temporarily for admin viewing
+    },
     
     // Vendor details
     name: {
