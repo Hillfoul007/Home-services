@@ -229,7 +229,7 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
     }
 
     // Special requirement: Must have items image before marking pickup_completed
-    if (status === "processing" && !order.items_images?.length) {
+    if (status === "pickup_completed" && !order.items_images?.length) {
       return res.status(400).json({
         error: "Must upload items list image before marking pickup complete",
       });
