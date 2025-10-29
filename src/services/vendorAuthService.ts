@@ -73,7 +73,7 @@ class VendorAuthService {
 
   async verifyToken(token: string): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}-auth/verify`, {
+      const response = await fetch(`${this.baseUrl}/auth/verify`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
