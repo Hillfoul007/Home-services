@@ -3,7 +3,6 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Booking = require("../models/Booking");
 const Vendor = require("../models/Vendor");
-const Grid = require("gridfs-stream");
 const mongoose = require("mongoose");
 const multer = require("multer");
 
