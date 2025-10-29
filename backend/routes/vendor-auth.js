@@ -20,10 +20,14 @@ router.post("/login", async (req, res) => {
     const vendor = await Vendor.findOne({ vendor_id }).select("+password_hash");
 
     if (!vendor) {
+      console.error(`❌ Vendor not found: ${vendor_id}`);
       return res.status(401).json({ error: "Invalid vendor ID or password" });
     }
 
+    console.log(`✅ Vendor found: ${vendor.name}, Active: ${vendor.is_active}`);
+
     if (!vendor.is_active) {
+      console.error(`❌ Vendor inactive: ${vendor_id}`);
       return res.status(403).json({ error: "Vendor account is inactive" });
     }
 
@@ -31,8 +35,11 @@ router.post("/login", async (req, res) => {
     const isPasswordValid = await vendor.comparePassword(password);
 
     if (!isPasswordValid) {
+      console.error(`❌ Password mismatch for vendor: ${vendor_id}`);
       return res.status(401).json({ error: "Invalid vendor ID or password" });
     }
+
+    console.log(`✅ Password valid for vendor: ${vendor_id}`);
 
     // Update last login
     vendor.last_login = new Date();
