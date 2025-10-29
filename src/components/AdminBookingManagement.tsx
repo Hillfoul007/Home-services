@@ -865,28 +865,28 @@ const AdminBookingManagement: React.FC = () => {
     setEditingBooking((prev) => {
       if (!prev) return prev;
 
-      const currentItems = prev.item_prices || [];
-      const nextItems = currentItems.map((item, i) => (i === index ? { ...item } : { ...item }));
-      const nextItem = { ...(nextItems[index] || {}) } as ItemPrice;
+      const currentItems = Array.isArray(prev.item_prices) ? prev.item_prices : [];
+      const nextItems = [...currentItems];
+      const currentItem = nextItems[index] || {};
+      const nextItem = { ...currentItem } as ItemPrice;
 
       if (field === "service_name") {
         nextItem.service_name = rawValue;
-      }
-
-      if (field === "quantity") {
+      } else if (field === "quantity") {
         const parsedQuantity = parseFloat(rawValue);
-        nextItem.quantity = Number.isFinite(parsedQuantity) ? parsedQuantity : 0;
-      }
-
-      if (field === "unit_price") {
+        nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 1;
+      } else if (field === "unit_price") {
         const parsedPrice = parseFloat(rawValue);
-        nextItem.unit_price = Number.isFinite(parsedPrice) ? parsedPrice : 0;
+        nextItem.unit_price = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
       }
 
-      const quantity = nextItem.quantity ?? 0;
-      const unitPrice = nextItem.unit_price ?? nextItem.price ?? 0;
+      // Ensure all required fields exist
+      const quantity = Number(nextItem.quantity ?? 1) || 1;
+      const unitPrice = Number(nextItem.unit_price ?? nextItem.price ?? 0) || 0;
 
-      nextItem.total_price = +(Number(quantity || 0) * Number(unitPrice || 0)).toFixed(2);
+      // Recalculate total_price based on current quantity and unit_price
+      nextItem.total_price = +(quantity * unitPrice).toFixed(2);
+
       nextItems[index] = nextItem;
 
       return {
@@ -1160,7 +1160,7 @@ const AdminBookingManagement: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-medium text-gray-900">{booking.service}</div>
                           {(booking as any).is_quick_pickup && (
-                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">���� Quick Pickup</Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
