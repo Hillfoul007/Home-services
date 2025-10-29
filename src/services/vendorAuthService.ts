@@ -48,7 +48,7 @@ class VendorAuthService {
     try {
       console.log('🔐 Vendor login attempt:', vendorId);
 
-      const response = await fetch(`${this.baseUrl}-auth/login`, {
+      const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
