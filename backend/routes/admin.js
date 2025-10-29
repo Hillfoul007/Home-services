@@ -230,26 +230,34 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       updateData.status = "vendor_assigned";
     }
 
-    // If item_prices are being updated, recalculate totals
+    // If item_prices are being updated, recalculate totals and normalize values
     if (Array.isArray(updateData.item_prices) && updateData.item_prices.length > 0) {
+      // Normalize and validate each item
+      updateData.item_prices = updateData.item_prices.map(item => ({
+        service_name: item.service_name || item.name || 'Item',
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        unit_price: Math.max(0, Number(item.unit_price || item.price) || 0),
+        total_price: Math.max(0, Number(item.total_price) || (Math.max(1, Number(item.quantity) || 1) * (Number(item.unit_price || item.price) || 0)))
+      }));
+
       const computedTotal = updateData.item_prices.reduce((sum, item) => {
-        const qty = Number(item.quantity) || 0;
-        const unitPrice = Number(item.unit_price || item.price) || 0;
-        const itemTotal = Number(item.total_price) || (qty * unitPrice);
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const unitPrice = Math.max(0, Number(item.unit_price) || 0);
+        const itemTotal = qty * unitPrice;
         return sum + itemTotal;
       }, 0);
 
-      // If total_price wasn't explicitly set, use the computed value
-      if (typeof updateData.total_price === 'undefined' || updateData.total_price === null) {
-        updateData.total_price = computedTotal;
-      }
+      // Always use the computed total from item_prices (freshly calculated above)
+      updateData.total_price = computedTotal;
 
-      // If final_amount wasn't explicitly set to something different from total_price, use the computed total
+      // If final_amount wasn't explicitly set, use the computed total (accounting for discounts)
       if (typeof updateData.final_amount === 'undefined' || updateData.final_amount === null) {
-        updateData.final_amount = computedTotal;
+        const discountAmount = Number(updateData.discount_amount) || 0;
+        updateData.final_amount = Math.max(0, computedTotal - discountAmount);
       }
 
       console.log(`📊 Computed totals from ${updateData.item_prices.length} items: total_price=${updateData.total_price}, final_amount=${updateData.final_amount}`);
+      console.log(`📝 Normalized item_prices:`, updateData.item_prices.map(it => ({ service_name: it.service_name, qty: it.quantity, price: it.unit_price, total: it.total_price })));
     }
 
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
@@ -1634,12 +1642,20 @@ router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   }
 });
 
-// Create vendor
+// Create vendor - DEPRECATED, use /laundry-vendors instead
+// Kept for backward compatibility but redirects to laundry vendor creation
 router.post("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime } = req.body;
+    const { name, address, phone, email, services, coordinates, contactPhone } = req.body;
 
-    console.log("🆕 Creating new vendor:", { name, address });
+    console.log("🆕 Creating vendor (redirected to laundry vendor):", { name, address, phone });
+
+    // If only name and address provided (no coordinates), create as laundry vendor
+    if (!coordinates && name && (phone || address)) {
+      return res.status(400).json({
+        error: "Use /laundry-vendors endpoint for vendor creation. This endpoint requires coordinates (lat, lng) for order-based vendors."
+      });
+    }
 
     if (!name || !address || !coordinates || !coordinates.lat || !coordinates.lng) {
       return res.status(400).json({ error: "Name, address, and coordinates (lat, lng) are required" });
@@ -1650,12 +1666,12 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
       address,
       coordinates,
       services: services || [],
-      contactPhone: contactPhone || "",
-      rating: rating || 4.0,
-      description: description || "",
-      operatingHours: operatingHours || { open: "09:00", close: "22:00" },
-      minimumOrderValue: minimumOrderValue || 0,
-      deliveryTime: deliveryTime || 30,
+      contactPhone: contactPhone || phone || "",
+      rating: 4.0,
+      description: "",
+      operatingHours: { open: "09:00", close: "22:00" },
+      minimumOrderValue: 0,
+      deliveryTime: 30,
       isActive: true,
     });
 
@@ -1913,6 +1929,77 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     console.error("❌ Error updating laundry vendor:", error);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+// Generate new credentials for existing vendor (only once)
+router.post("/vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const Vendor = require("../models/Vendor");
+    const vendor = await Vendor.findById(vendorId).select("+temp_password");
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Check if credentials already exist
+    if (vendor.temp_password) {
+      console.log(`🔑 Credentials already exist for vendor: ${vendor.name}`);
+      return res.json({
+        success: true,
+        credentials: {
+          vendor_id: vendor.vendor_id,
+          temp_password: vendor.temp_password,
+          name: vendor.name,
+        },
+        message: "Existing credentials retrieved (not newly generated)",
+      });
+    }
+
+    console.log(`🔑 Generating credentials for vendor: ${vendorId}`);
+
+    // Ensure vendor has required fields for credentials
+    if (!vendor.vendor_id) {
+      vendor.vendor_id = Vendor.generateVendorId();
+    }
+
+    if (!vendor.phone && vendor.contactPhone) {
+      vendor.phone = vendor.contactPhone;
+    }
+
+    if (!vendor.phone) {
+      vendor.phone = ""; // Will be set by pre-save hook or left empty
+    }
+
+    // Generate new temporary password
+    const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Store plain password temporarily for admin to view
+    vendor.temp_password = temp_password;
+
+    // Hash and set password
+    await vendor.setPassword(temp_password);
+
+    console.log(`✅ Credentials generated for vendor: ${vendor.name}`);
+    res.json({
+      success: true,
+      credentials: {
+        vendor_id: vendor.vendor_id,
+        temp_password,
+        name: vendor.name,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error generating credentials:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Legacy endpoint for backward compatibility
+router.post("/laundry-vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
+  // Redirect to new endpoint
+  res.redirect(307, `/api/admin/vendors/${req.params.vendorId}/generate-credentials`);
 });
 
 // Assign order to vendor

@@ -7,13 +7,16 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true,
-      required: true,
       index: true,
     },
     password_hash: {
       type: String,
       required: true,
       select: false, // Don't return password by default
+    },
+    temp_password: {
+      type: String,
+      select: false, // Store plain password temporarily for admin viewing
     },
     
     // Vendor details
@@ -28,9 +31,12 @@ const vendorSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: true,
+      default: "",
     },
-    
+    contactPhone: {
+      type: String,
+    },
+
     // Address/Location
     address: {
       type: String,
@@ -86,13 +92,40 @@ vendorSchema.statics.generateVendorId = function () {
   return `V${timestamp}${random}`;
 };
 
-// Hash password before saving
+// Auto-generate vendor_id if not present
+vendorSchema.pre("save", async function (next) {
+  // Generate vendor_id if missing
+  if (!this.vendor_id) {
+    this.vendor_id = this.constructor.generateVendorId();
+  }
+
+  // Use contactPhone as phone if phone is empty
+  if (!this.phone && this.contactPhone) {
+    this.phone = this.contactPhone;
+  }
+
+  // Ensure password_hash exists (set a default if creating new vendor without password)
+  if (!this.password_hash) {
+    const temp = this.constructor.generateVendorId();
+    this.password_hash = temp;
+  }
+
+  next();
+});
+
+// Hash password before saving (only if not already hashed)
 vendorSchema.pre("save", async function (next) {
   if (!this.isModified("password_hash")) {
     return next();
   }
 
   try {
+    // Skip hashing if already hashed (starts with $2a$, $2b$, or $2y$)
+    if (this.password_hash && /^\$2[aby]\$/.test(this.password_hash)) {
+      console.log("✓ Password already hashed, skipping hashing");
+      return next();
+    }
+
     const bcryptjs = require("bcryptjs");
     const salt = await bcryptjs.genSalt(10);
     this.password_hash = await bcryptjs.hash(this.password_hash, salt);

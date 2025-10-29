@@ -690,6 +690,9 @@ export class BookingService {
         }
       }
 
+      // Import laundryServices for pricing lookup
+      const { laundryServices } = await import("@/data/laundryServices");
+
       // Ensure services is a proper array with at least one service
       let servicesArray = [];
       if (Array.isArray(booking.services)) {
@@ -704,8 +707,34 @@ export class BookingService {
         servicesArray = ["Home Service"]; // Default service
       }
 
+      // Build item_prices array with actual service prices from catalog
+      const item_prices = servicesArray.map((serviceName) => {
+        // Find the service in the catalog to get actual price
+        const service = laundryServices.find(
+          (s) => s.name.toLowerCase() === (serviceName || "").toLowerCase()
+        );
+
+        const unit_price = service ? service.price : 50; // Default to 50 only if service not found
+        const quantity = 1; // Default quantity
+
+        return {
+          service_name: serviceName,
+          quantity: quantity,
+          unit_price: unit_price,
+          total_price: quantity * unit_price,
+        };
+      });
+
+      // Calculate total_price from item_prices (ensures accuracy)
+      const calculatedTotal = item_prices.reduce((sum, item) => sum + item.total_price, 0);
+
+      // Use either calculated total or provided amount, whichever is valid and non-zero
+      let totalPrice = Number(booking.totalAmount || calculatedTotal || 50);
+      if (isNaN(totalPrice) || totalPrice <= 0) {
+        totalPrice = calculatedTotal > 0 ? calculatedTotal : 50;
+      }
+
       // Ensure total_price is a valid number greater than 0
-      const totalPrice = Number(booking.totalAmount || 50);
       if (isNaN(totalPrice) || totalPrice <= 0) {
         throw new Error("Invalid total price - must be greater than 0");
       }
@@ -774,6 +803,7 @@ export class BookingService {
           service_fee: 0,
           discount: booking.discount_amount || 0,
         },
+        item_prices: item_prices,
       };
 
       console.log(

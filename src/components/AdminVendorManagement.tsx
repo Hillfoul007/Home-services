@@ -59,6 +59,8 @@ const AdminVendorManagement: React.FC = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<VendorDetails | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState<{ vendor_id: string; temp_password: string; name?: string } | null>(null);
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     address: '',
@@ -258,6 +260,31 @@ const AdminVendorManagement: React.FC = () => {
     } catch (error) {
       console.error('Error deleting vendor:', error);
       toast.error('Error deleting vendor');
+    }
+  };
+
+  const handleGenerateCredentials = async (vendor: VendorDetails) => {
+    try {
+      setCredentialsLoading(true);
+      const vendorId = getVendorId(vendor);
+      const response = await apiClient.adminRequest(`/admin/vendors/${vendorId}/generate-credentials`, {
+        method: 'POST',
+      });
+
+      if (response.data?.credentials) {
+        setGeneratedCredentials(response.data.credentials);
+        const message = response.data.message
+          ? 'Existing credentials retrieved'
+          : 'New credentials generated!';
+        toast.success(message);
+      } else {
+        toast.error(response.error || 'Failed to generate credentials');
+      }
+    } catch (error) {
+      console.error('Error generating credentials:', error);
+      toast.error('Error generating credentials');
+    } finally {
+      setCredentialsLoading(false);
     }
   };
 
@@ -476,6 +503,15 @@ const AdminVendorManagement: React.FC = () => {
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => handleGenerateCredentials(vendor)}
+                      disabled={credentialsLoading}
+                      className="gap-2"
+                    >
+                      {credentialsLoading ? '...' : '🔑'} Credentials
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => openEditDialog(vendor)}
                       className="gap-2"
                     >
@@ -594,6 +630,66 @@ const AdminVendorManagement: React.FC = () => {
                 </Button>
                 <Button onClick={handleUpdateVendor}>Update Vendor</Button>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Credentials Display Dialog */}
+      <Dialog open={!!generatedCredentials} onOpenChange={(open) => !open && setGeneratedCredentials(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>🔐 {generatedCredentials?.name || 'Vendor'} Login Credentials</DialogTitle>
+            <DialogDescription>These are the permanent login credentials for this vendor</DialogDescription>
+          </DialogHeader>
+          {generatedCredentials && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Vendor ID</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-white border rounded px-3 py-2 font-mono text-sm break-all">
+                      {generatedCredentials.vendor_id}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.vendor_id);
+                        toast.success('Vendor ID copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Password</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-white border rounded px-3 py-2 font-mono text-sm break-all">
+                      {generatedCredentials.temp_password}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.temp_password);
+                        toast.success('Password copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-900">
+                  <strong>✓ Important:</strong> Share these credentials securely with the vendor. They can use the Vendor ID and password to login to their vendor portal. These credentials are saved and will not change unless regenerated.
+                </p>
+              </div>
+              <Button onClick={() => setGeneratedCredentials(null)} className="w-full">
+                Done
+              </Button>
             </div>
           )}
         </DialogContent>

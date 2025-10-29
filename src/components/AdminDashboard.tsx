@@ -29,14 +29,13 @@ import AdminBookingManagement from "./AdminBookingManagement";
 import AdminUserBooking from "./AdminUserBooking";
 import AdminServiceLocations from "./AdminServiceLocations";
 import AdminVendorManagement from "./AdminVendorManagement";
-import AdminLaundryVendorManagement from "./AdminLaundryVendorManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "laundry-vendors" | "analytics";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -309,10 +308,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             </TabsTrigger>
             <TabsTrigger value="vendors" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
-              Services
-            </TabsTrigger>
-            <TabsTrigger value="laundry-vendors" className="flex items-center gap-2">
-              <Building className="h-4 w-4" />
               Vendors
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
@@ -338,11 +333,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </TabsContent>
 
           <TabsContent value="vendors">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
+            </div>
             <AdminVendorManagement />
-          </TabsContent>
-
-          <TabsContent value="laundry-vendors">
-            <AdminLaundryVendorManagement />
           </TabsContent>
 
           <TabsContent value="analytics">

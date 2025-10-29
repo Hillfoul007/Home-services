@@ -83,6 +83,11 @@ interface Booking {
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
+  items_images?: Array<{
+    file_id: string;
+    filename: string;
+    uploaded_at: string;
+  }>;
 }
 
 const ORDER_FLOW_STEPS = [
@@ -865,28 +870,28 @@ const AdminBookingManagement: React.FC = () => {
     setEditingBooking((prev) => {
       if (!prev) return prev;
 
-      const currentItems = prev.item_prices || [];
-      const nextItems = currentItems.map((item, i) => (i === index ? { ...item } : { ...item }));
-      const nextItem = { ...(nextItems[index] || {}) } as ItemPrice;
+      const currentItems = Array.isArray(prev.item_prices) ? prev.item_prices : [];
+      const nextItems = [...currentItems];
+      const currentItem = nextItems[index] || {};
+      const nextItem = { ...currentItem } as ItemPrice;
 
       if (field === "service_name") {
         nextItem.service_name = rawValue;
-      }
-
-      if (field === "quantity") {
+      } else if (field === "quantity") {
         const parsedQuantity = parseFloat(rawValue);
-        nextItem.quantity = Number.isFinite(parsedQuantity) ? parsedQuantity : 0;
-      }
-
-      if (field === "unit_price") {
+        nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 1;
+      } else if (field === "unit_price") {
         const parsedPrice = parseFloat(rawValue);
-        nextItem.unit_price = Number.isFinite(parsedPrice) ? parsedPrice : 0;
+        nextItem.unit_price = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
       }
 
-      const quantity = nextItem.quantity ?? 0;
-      const unitPrice = nextItem.unit_price ?? nextItem.price ?? 0;
+      // Ensure all required fields exist
+      const quantity = Number(nextItem.quantity ?? 1) || 1;
+      const unitPrice = Number(nextItem.unit_price ?? nextItem.price ?? 0) || 0;
 
-      nextItem.total_price = +(Number(quantity || 0) * Number(unitPrice || 0)).toFixed(2);
+      // Recalculate total_price based on current quantity and unit_price
+      nextItem.total_price = +(quantity * unitPrice).toFixed(2);
+
       nextItems[index] = nextItem;
 
       return {
@@ -922,7 +927,12 @@ const AdminBookingManagement: React.FC = () => {
   const computeEditingTotals = (bookingData: Booking | null) => {
     if (!bookingData) return { total: 0, final: 0 };
     const items = bookingData.item_prices || [];
-    const subtotal = items.reduce((s, it) => s + (Number(it.total_price) || 0), 0);
+    const subtotal = items.reduce((s, it) => {
+      const qty = Number(it.quantity ?? 0) || 0;
+      const unitPrice = Number(it.unit_price ?? it.price ?? 0) || 0;
+      const itemTotal = Number(it.total_price) || (qty * unitPrice);
+      return s + itemTotal;
+    }, 0);
     return { total: +(subtotal).toFixed(2), final: +(subtotal).toFixed(2) };
   };
 
@@ -1523,6 +1533,34 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               )}
 
+              {viewingBooking.items_images && viewingBooking.items_images.length > 0 && (
+                <div className="border-t pt-4">
+                  <h4 className="mb-3 flex items-center font-semibold">
+                    📸 Vendor Uploaded Images ({viewingBooking.items_images.length})
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    {viewingBooking.items_images.map((image: any, idx: number) => (
+                      <div key={idx} className="relative rounded-lg overflow-hidden bg-gray-100 aspect-square">
+                        <img
+                          src={`/api/vendor/orders/public/orders/${viewingBooking._id}/items-image/${image.file_id}`}
+                          alt={`Item image ${idx + 1}`}
+                          className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23e5e7eb" width="100" height="100"/%3E%3Ctext x="50" y="50" dominant-baseline="middle" text-anchor="middle" font-size="10" fill="%239ca3af"%3EFailed to load%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs p-2">
+                          <div className="truncate">{image.filename || `Image ${idx + 1}`}</div>
+                          <div className="text-xs text-gray-300 mt-1">
+                            {new Date(image.uploaded_at).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="border-t pt-4">
                 <h4 className="mb-3 font-semibold">Order Timeline</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1868,12 +1906,18 @@ const AdminBookingManagement: React.FC = () => {
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
                         payload.item_prices = editingBooking.item_prices
                           .filter((it) => it.service_name && it.service_name.trim() !== "")
-                          .map((it) => ({
-                            service_name: it.service_name || it.name || "Item",
-                            quantity: it.quantity || 0,
-                            unit_price: it.unit_price || it.price || 0,
-                            total_price: it.total_price || 0,
-                          }));
+                          .map((it) => {
+                            const qty = Number(it.quantity ?? 1) || 1;
+                            const unitPrice = Number(it.unit_price ?? it.price ?? 0) || 0;
+                            const totalPrice = Number(it.total_price ?? (qty * unitPrice)) || (qty * unitPrice);
+
+                            return {
+                              service_name: it.service_name || it.name || "Item",
+                              quantity: qty,
+                              unit_price: unitPrice,
+                              total_price: totalPrice,
+                            };
+                          });
 
                         payload.services = payload.item_prices.map((it) =>
                           it.quantity > 1 ? `${it.service_name} x${it.quantity}` : it.service_name,
