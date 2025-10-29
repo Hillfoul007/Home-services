@@ -205,8 +205,8 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
     // Validate status transitions
     const validTransitions = {
       vendor_assigned: ["pickup_completed"],
-      pickup_completed: ["processing"],
-      processing: ["ready_for_delivery"],
+      pickup_completed: ["in_progress"],
+      in_progress: ["ready_for_delivery"],
       ready_for_delivery: ["delivered"],
     };
 
