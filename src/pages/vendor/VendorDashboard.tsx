@@ -304,15 +304,49 @@ const VendorDashboard: React.FC = () => {
           <div className="space-y-3">
             {completed.map(order => (
               <Card key={order._id} className="p-4 border-l-4 border-l-green-500 bg-green-50">
-                <div className="flex justify-between items-start">
-                  <div>
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
                     <div className="text-sm font-semibold text-gray-700">#{order.custom_order_id || order._id}</div>
                     <div className="font-medium text-base">{order.name}</div>
                     <div className="text-sm text-gray-600">{order.phone}</div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
                   </div>
-                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">✓ Completed</span>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">✓ Completed</span>
+                    {order.items_images && order.items_images.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
+                        className="text-xs"
+                      >
+                        {expandedOrderId === order._id ? 'Hide Photos' : `View Photos (${order.items_images.length})`}
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
+                {expandedOrderId === order._id && order.items_images && order.items_images.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="grid grid-cols-2 gap-3">
+                      {order.items_images.map((image: any, idx: number) => (
+                        <div key={idx} className="relative bg-gray-100 rounded overflow-hidden aspect-square">
+                          <img
+                            src={`/api/vendor/orders/orders/${order._id}/items-image/${image.file_id}`}
+                            alt={`Items ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23e5e7eb" width="100" height="100"/%3E%3Ctext x="50" y="50" dominant-baseline="middle" text-anchor="middle" font-size="12" fill="%239ca3af"%3EFailed to load%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1">
+                            {new Date(image.uploaded_at).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </Card>
             ))}
             {completed.length === 0 && (
