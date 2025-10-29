@@ -309,11 +309,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             </TabsTrigger>
             <TabsTrigger value="vendors" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
-              Service Providers
-            </TabsTrigger>
-            <TabsTrigger value="laundry-vendors" className="flex items-center gap-2">
-              <Building className="h-4 w-4" />
-              Laundry Vendors
+              Vendors
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
