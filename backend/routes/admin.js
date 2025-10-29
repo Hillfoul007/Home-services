@@ -1931,19 +1931,33 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
   }
 });
 
-// Generate new credentials for existing vendor
+// Generate new credentials for existing vendor (only once)
 router.post("/vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
 
-    console.log(`🔑 Generating new credentials for vendor: ${vendorId}`);
-
     const Vendor = require("../models/Vendor");
-    const vendor = await Vendor.findById(vendorId);
+    const vendor = await Vendor.findById(vendorId).select("+temp_password");
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
     }
+
+    // Check if credentials already exist
+    if (vendor.temp_password) {
+      console.log(`🔑 Credentials already exist for vendor: ${vendor.name}`);
+      return res.json({
+        success: true,
+        credentials: {
+          vendor_id: vendor.vendor_id,
+          temp_password: vendor.temp_password,
+          name: vendor.name,
+        },
+        message: "Existing credentials retrieved (not newly generated)",
+      });
+    }
+
+    console.log(`🔑 Generating credentials for vendor: ${vendorId}`);
 
     // Ensure vendor has required fields for credentials
     if (!vendor.vendor_id) {
@@ -1961,10 +1975,13 @@ router.post("/vendors/:vendorId/generate-credentials", verifyAdminAccess, async 
     // Generate new temporary password
     const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-    // Update vendor with new password
+    // Store plain password temporarily for admin to view
+    vendor.temp_password = temp_password;
+
+    // Hash and set password
     await vendor.setPassword(temp_password);
 
-    console.log(`✅ New credentials generated for vendor: ${vendor.name}`);
+    console.log(`✅ Credentials generated for vendor: ${vendor.name}`);
     res.json({
       success: true,
       credentials: {
