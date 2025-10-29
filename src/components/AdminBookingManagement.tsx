@@ -392,6 +392,11 @@ const AdminBookingManagement: React.FC = () => {
           status: normalizeStatus(b.status),
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
+        processed.sort((a, b) => {
+          const dateA = new Date(a.completed_at || a.updated_at || 0).getTime();
+          const dateB = new Date(b.completed_at || b.updated_at || 0).getTime();
+          return dateB - dateA;
+        });
         setCompletedOrders(processed);
       }
     } catch (e) {
@@ -1076,10 +1081,6 @@ const AdminBookingManagement: React.FC = () => {
                           <Calendar className="h-4 w-4" />
                           {formatDate(booking.scheduled_date)}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Clock className="h-4 w-4" />
-                          {booking.scheduled_time || "-"}
-                        </div>
                       </div>
 
                       <div className="space-y-2">
@@ -1177,10 +1178,6 @@ const AdminBookingManagement: React.FC = () => {
                           <Calendar className="h-4 w-4" />
                           {formatDate(booking.delivery_date || booking.scheduled_date)}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Clock className="h-4 w-4" />
-                          {booking.delivery_time || booking.delivery_time === '' ? (booking.delivery_time || "-") : (booking.scheduled_time || "-")}
-                        </div>
                       </div>
 
                       <div className="space-y-2">
@@ -1266,12 +1263,7 @@ const AdminBookingManagement: React.FC = () => {
                 {completedOrders.map((booking) => (
                   <div key={booking._id} className="flex items-center justify-between rounded-md border p-3">
                     <div className="flex items-center gap-3">
-                      <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                        {getStatusIcon(booking.status)}
-                        <span>{getStatusLabel(booking.status)}</span>
-                      </Badge>
                       <span className="font-medium">#{booking.custom_order_id}</span>
-                      <span className="text-sm text-gray-600">{booking.name}</span>
                     </div>
                     <div className="text-sm text-gray-700">₹{booking.final_amount ?? booking.total_price}</div>
                   </div>
