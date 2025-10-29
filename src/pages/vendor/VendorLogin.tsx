@@ -8,6 +8,7 @@ import { toast } from "sonner";
 const VendorLogin: React.FC = () => {
   const [vendorId, setVendorId] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -43,7 +44,21 @@ const VendorLogin: React.FC = () => {
           <label className="block mb-2 text-sm text-gray-600">Vendor ID</label>
           <Input value={vendorId} onChange={(e) => setVendorId(e.target.value)} placeholder="Vendor ID" />
           <label className="block mt-4 mb-2 text-sm text-gray-600">Password</label>
-          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
+          <div className="relative">
+            <Input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
 
           <div className="mt-6 flex justify-end">
             <Button type="submit" disabled={loading || !vendorId || !password}>{loading ? 'Signing in...' : 'Sign in'}</Button>
