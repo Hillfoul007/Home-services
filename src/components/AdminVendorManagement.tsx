@@ -684,7 +684,7 @@ const AdminVendorManagement: React.FC = () => {
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-900">
-                  <strong>Note:</strong> Share these credentials securely with the vendor. They can use these to login to their vendor portal immediately.
+                  <strong>✓ Important:</strong> Share these credentials securely with the vendor. They can use the Vendor ID and password to login to their vendor portal. These credentials are saved and will not change unless regenerated.
                 </p>
               </div>
               <Button onClick={() => setGeneratedCredentials(null)} className="w-full">
