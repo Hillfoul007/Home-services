@@ -113,13 +113,19 @@ vendorSchema.pre("save", async function (next) {
   next();
 });
 
-// Hash password before saving
+// Hash password before saving (only if not already hashed)
 vendorSchema.pre("save", async function (next) {
   if (!this.isModified("password_hash")) {
     return next();
   }
 
   try {
+    // Skip hashing if already hashed (starts with $2a$, $2b$, or $2y$)
+    if (this.password_hash && /^\$2[aby]\$/.test(this.password_hash)) {
+      console.log("✓ Password already hashed, skipping hashing");
+      return next();
+    }
+
     const bcryptjs = require("bcryptjs");
     const salt = await bcryptjs.genSalt(10);
     this.password_hash = await bcryptjs.hash(this.password_hash, salt);
