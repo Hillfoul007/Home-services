@@ -63,6 +63,7 @@ router.post("/", async (req, res) => {
       coupon_code,
       special_instructions,
       charges_breakdown,
+      item_prices: requestItemPrices,
     } = req.body;
 
     // Validation
