@@ -230,26 +230,34 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       updateData.status = "vendor_assigned";
     }
 
-    // If item_prices are being updated, recalculate totals
+    // If item_prices are being updated, recalculate totals and normalize values
     if (Array.isArray(updateData.item_prices) && updateData.item_prices.length > 0) {
+      // Normalize and validate each item
+      updateData.item_prices = updateData.item_prices.map(item => ({
+        service_name: item.service_name || item.name || 'Item',
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        unit_price: Math.max(0, Number(item.unit_price || item.price) || 0),
+        total_price: Math.max(0, Number(item.total_price) || (Math.max(1, Number(item.quantity) || 1) * (Number(item.unit_price || item.price) || 0)))
+      }));
+
       const computedTotal = updateData.item_prices.reduce((sum, item) => {
-        const qty = Number(item.quantity) || 0;
-        const unitPrice = Number(item.unit_price || item.price) || 0;
-        const itemTotal = Number(item.total_price) || (qty * unitPrice);
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const unitPrice = Math.max(0, Number(item.unit_price) || 0);
+        const itemTotal = qty * unitPrice;
         return sum + itemTotal;
       }, 0);
 
-      // If total_price wasn't explicitly set, use the computed value
-      if (typeof updateData.total_price === 'undefined' || updateData.total_price === null) {
-        updateData.total_price = computedTotal;
-      }
+      // Always use the computed total from item_prices (freshly calculated above)
+      updateData.total_price = computedTotal;
 
-      // If final_amount wasn't explicitly set to something different from total_price, use the computed total
+      // If final_amount wasn't explicitly set, use the computed total (accounting for discounts)
       if (typeof updateData.final_amount === 'undefined' || updateData.final_amount === null) {
-        updateData.final_amount = computedTotal;
+        const discountAmount = Number(updateData.discount_amount) || 0;
+        updateData.final_amount = Math.max(0, computedTotal - discountAmount);
       }
 
       console.log(`📊 Computed totals from ${updateData.item_prices.length} items: total_price=${updateData.total_price}, final_amount=${updateData.final_amount}`);
+      console.log(`📝 Normalized item_prices:`, updateData.item_prices.map(it => ({ service_name: it.service_name, qty: it.quantity, price: it.unit_price, total: it.total_price })));
     }
 
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
