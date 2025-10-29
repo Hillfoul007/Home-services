@@ -500,6 +500,15 @@ const AdminVendorManagement: React.FC = () => {
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => handleGenerateCredentials(vendor)}
+                      disabled={credentialsLoading}
+                      className="gap-2"
+                    >
+                      {credentialsLoading ? '...' : '🔑'} Credentials
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => openEditDialog(vendor)}
                       className="gap-2"
                     >
