@@ -511,6 +511,19 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // Recalculate and validate totals based on item_prices
+    const calculatedTotal = item_prices.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
+    const finalTotalPrice = calculatedTotal > 0 ? calculatedTotal : total_price;
+    const finalDiscount = Number(discount_amount) || 0;
+    const finalAmount = Math.max(0, finalTotalPrice - finalDiscount);
+
+    console.log("📊 Final totals calculation:");
+    console.log(`   - Calculated from items: ₹${calculatedTotal}`);
+    console.log(`   - Request total_price: ₹${total_price}`);
+    console.log(`   - Using total_price: ₹${finalTotalPrice}`);
+    console.log(`   - Discount: ₹${finalDiscount}`);
+    console.log(`   - Final amount: ₹${finalAmount}`);
+
     // Create booking with proper customer_id as ObjectId
     // Get Indian Standard Time for timestamps
     const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
@@ -546,9 +559,9 @@ router.post("/", async (req, res) => {
       coordinates:
         (addressObject && addressObject.coordinates) || coordinates || {},
       additional_details,
-      total_price,
-      discount_amount: discount_amount || 0,
-      final_amount: final_amount || total_price - (discount_amount || 0),
+      total_price: finalTotalPrice,
+      discount_amount: finalDiscount,
+      final_amount: finalAmount,
       coupon_code: coupon_code || null,
       special_instructions,
       charges_breakdown,
