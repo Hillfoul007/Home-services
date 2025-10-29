@@ -273,7 +273,10 @@ const AdminVendorManagement: React.FC = () => {
 
       if (response.data?.credentials) {
         setGeneratedCredentials(response.data.credentials);
-        toast.success('New credentials generated!');
+        const message = response.data.message
+          ? 'Existing credentials retrieved'
+          : 'New credentials generated!';
+        toast.success(message);
       } else {
         toast.error(response.error || 'Failed to generate credentials');
       }
