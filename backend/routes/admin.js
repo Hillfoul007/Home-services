@@ -1923,6 +1923,41 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
   }
 });
 
+// Generate new credentials for existing vendor
+router.post("/laundry-vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    console.log(`🔑 Generating new credentials for vendor: ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Generate new temporary password
+    const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Update vendor with new password
+    await vendor.setPassword(temp_password);
+
+    console.log(`✅ New credentials generated for vendor: ${vendor.name}`);
+    res.json({
+      success: true,
+      credentials: {
+        vendor_id: vendor.vendor_id,
+        temp_password,
+        name: vendor.name,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error generating credentials:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Assign order to vendor
 router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async (req, res) => {
   try {
