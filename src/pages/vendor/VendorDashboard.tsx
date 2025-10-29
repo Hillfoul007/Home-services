@@ -26,6 +26,7 @@ const VendorDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
