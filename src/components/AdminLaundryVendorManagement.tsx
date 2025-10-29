@@ -27,6 +27,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<LaundryVendor | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -69,6 +70,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       password: '',
       services: '',
     });
+    setShowPassword(false);
   };
 
   const handleAddVendor = async () => {
@@ -311,13 +313,22 @@ const AdminLaundryVendorManagement: React.FC = () => {
                             </div>
                             <div>
                               <Label htmlFor="edit-password">Password</Label>
-                              <Input
-                                id="edit-password"
-                                type="password"
-                                value={formData.password}
-                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                placeholder="Leave blank to keep current password"
-                              />
+                              <div className="relative">
+                                <Input
+                                  id="edit-password"
+                                  type={showPassword ? "text" : "password"}
+                                  value={formData.password}
+                                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                  placeholder="Leave blank to keep current password"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 text-sm"
+                                >
+                                  {showPassword ? "Hide" : "Show"}
+                                </button>
+                              </div>
                               <p className="text-xs text-gray-500 mt-1">Set new password or leave blank</p>
                             </div>
                             <div>
