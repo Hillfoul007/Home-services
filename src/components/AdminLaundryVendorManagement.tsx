@@ -471,8 +471,8 @@ const AdminLaundryVendorManagement: React.FC = () => {
       <Dialog open={!!generatedCredentials} onOpenChange={(open) => !open && setGeneratedCredentials(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>✅ Vendor Created Successfully</DialogTitle>
-            <DialogDescription>Save these credentials to share with the vendor</DialogDescription>
+            <DialogTitle>🔑 {generatedCredentials?.name || 'Vendor'} Credentials</DialogTitle>
+            <DialogDescription>Share these credentials with the vendor for portal access</DialogDescription>
           </DialogHeader>
           {generatedCredentials && (
             <div className="space-y-4">
