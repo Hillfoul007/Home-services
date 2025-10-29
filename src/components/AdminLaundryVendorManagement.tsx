@@ -164,6 +164,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       password: '',
       services: vendor.services?.join(', ') || '',
     });
+    setShowPassword(false);
     setIsEditDialogOpen(true);
   };
 
