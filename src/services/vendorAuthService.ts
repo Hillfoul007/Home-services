@@ -103,7 +103,7 @@ class VendorAuthService {
 
       console.log('📋 Fetching assigned orders');
 
-      const response = await fetch(`${this.baseUrl}-orders/assigned-orders`, {
+      const response = await fetch(`${this.baseUrl}/orders/assigned-orders`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
