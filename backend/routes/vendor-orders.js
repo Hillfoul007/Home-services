@@ -22,6 +22,7 @@ const verifyVendorToken = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.vendor_id = decoded.vendor_id;
     req.vendor_id_str = decoded.vendor_id_str;
+    req.vendor_name = decoded.name;
     next();
   } catch (error) {
     console.error("❌ Token verification error:", error);
