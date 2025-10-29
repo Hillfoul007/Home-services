@@ -29,14 +29,13 @@ import AdminBookingManagement from "./AdminBookingManagement";
 import AdminUserBooking from "./AdminUserBooking";
 import AdminServiceLocations from "./AdminServiceLocations";
 import AdminVendorManagement from "./AdminVendorManagement";
-import AdminLaundryVendorManagement from "./AdminLaundryVendorManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "laundry-vendors" | "analytics";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
