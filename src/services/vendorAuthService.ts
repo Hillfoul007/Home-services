@@ -171,7 +171,7 @@ class VendorAuthService {
 
       console.log('📝 Updating order status:', { orderId, status });
 
-      const response = await fetch(`${this.baseUrl}-orders/orders/${orderId}/status`, {
+      const response = await fetch(`${this.baseUrl}/orders/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
