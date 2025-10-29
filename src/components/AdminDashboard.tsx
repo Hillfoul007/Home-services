@@ -309,11 +309,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             </TabsTrigger>
             <TabsTrigger value="vendors" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
-              Services
+              Service Providers
             </TabsTrigger>
             <TabsTrigger value="laundry-vendors" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
-              Vendors
+              Laundry Vendors
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -338,10 +338,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </TabsContent>
 
           <TabsContent value="vendors">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-amber-900 text-sm"><strong>📍 Service Providers:</strong> For restaurant/food vendors. Requires location coordinates (lat/lng).</p>
+            </div>
             <AdminVendorManagement />
           </TabsContent>
 
           <TabsContent value="laundry-vendors">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Laundry Vendors:</strong> Create laundry vendor accounts with auto-generated login ID and password. Vendors can immediately login to their portal.</p>
+            </div>
             <AdminLaundryVendorManagement />
           </TabsContent>
 
