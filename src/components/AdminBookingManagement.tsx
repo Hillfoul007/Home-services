@@ -885,10 +885,10 @@ const AdminBookingManagement: React.FC = () => {
                           <Phone className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.phone}</span>
                         </div>
-                        {booking.vendor && (
+                        {booking.assignedVendor && (
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
                       </div>
@@ -982,10 +982,10 @@ const AdminBookingManagement: React.FC = () => {
                           <User className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.name}</span>
                         </div>
-                        {booking.vendor && (
+                        {booking.assignedVendor && (
                           <div className="flex items-center gap-2 mt-1">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
                       </div>
