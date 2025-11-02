@@ -1140,8 +1140,16 @@ const AdminBookingManagement: React.FC = () => {
 
         {/* Bucket B: Ready for Delivery */}
         <div className={viewMode === 'pickup' ? 'hidden' : ''}>
-          <h3 className="text-lg font-semibold">Ready for Delivery</h3>
-          <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Ready for Delivery</h3>
+              <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+            </div>
+            <div className="text-right bg-green-50 p-3 rounded-lg border border-green-200">
+              <div className="text-xs text-gray-600 font-medium">Total to Collect</div>
+              <div className="text-2xl font-bold text-green-700">₹{calculateTotalPrice(filteredReadyOrders).toLocaleString('en-IN')}</div>
+            </div>
+          </div>
 
           <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
             <div className="flex-1">
