@@ -68,8 +68,8 @@ const VendorDashboard: React.FC = () => {
         return;
       }
 
-      // After upload, move directly to in_progress (processing)
-      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "in_progress");
+      // After upload, mark pickup as complete (auto-transitions to in_progress)
+      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "pickup_completed");
       if (!statusRes || !statusRes.success) {
         toast.error(statusRes.error || "Failed to update status");
         setUploadingFor(null);
