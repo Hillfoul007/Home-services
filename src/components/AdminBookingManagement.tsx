@@ -1128,13 +1128,40 @@ const AdminBookingManagement: React.FC = () => {
         <div className={viewMode === 'pickup' ? 'hidden' : ''}>
           <h3 className="text-lg font-semibold">Ready for Delivery</h3>
           <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+
+          <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
+            <div className="flex-1">
+              <Label htmlFor="ready-search">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+                <Input
+                  id="ready-search"
+                  placeholder="Search by order ID, name, phone, or service..."
+                  value={readySearchTerm}
+                  onChange={(e) => setReadySearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="md:w-56">
+              <Label htmlFor="ready-status-filter">Filter by Status</Label>
+              <Select value={readyStatusFilter} onValueChange={setReadyStatusFilter}>
+                <SelectTrigger id="ready-status-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pickup_completed">Pickup Completed</SelectItem>
+                  <SelectItem value="ready_for_delivery">Ready for Delivery</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length > 0 ? (
-              [...filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status)))].sort((a, b) => {
-                const dateA = getDeliveryDateTime(a);
-                const dateB = getDeliveryDateTime(b);
-                return dateA.getTime() - dateB.getTime();
-              }).map(booking => (
+            {filteredReadyOrders.length > 0 ? (
+              filteredReadyOrders.map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
