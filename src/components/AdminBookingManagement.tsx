@@ -425,6 +425,30 @@ const AdminBookingManagement: React.FC = () => {
     setFilteredCompletedOrders(filtered);
   };
 
+  const fetchBookings = async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(`/admin/bookings?limit=100`);
+      if (res.data) {
+        const allBookings = [...(res.data.bucketA || []), ...(res.data.bucketB || [])];
+        const processed = allBookings.map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+        setBookings(processed);
+        const a = processed.filter(b => !["ready_for_delivery", "delivered", "completed", "cancelled"].includes(normalizeStatus(b.status)));
+        const b = processed.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+        setBucketA(a);
+        setBucketB(b);
+      }
+      setLoading(false);
+    } catch (e) {
+      console.warn('Failed to fetch bookings', e);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchVendors();
