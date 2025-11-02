@@ -1028,8 +1028,8 @@ const AdminBookingManagement: React.FC = () => {
           </div>
 
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredPickupOrders.length > 0 ? (
+              filteredPickupOrders.map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
@@ -1159,7 +1159,7 @@ const AdminBookingManagement: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-medium text-gray-900">{booking.service}</div>
                           {(booking as any).is_quick_pickup && (
-                            <Badge className="bg-blue-100 text-blue-800 text-xs">��� Quick Pickup</Badge>
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
