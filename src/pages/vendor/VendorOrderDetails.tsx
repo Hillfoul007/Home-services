@@ -181,16 +181,6 @@ const VendorOrderDetails: React.FC = () => {
                                     Mark Pickup Complete
                                 </Button>
                             )}
-                            {order.status === 'pickup_completed' && (
-                                <Button
-                                    variant="default"
-                                    onClick={() => handleStatusUpdate('in_progress')}
-                                    disabled={updating}
-                                    className="capitalize"
-                                >
-                                    Mark In Progress
-                                </Button>
-                            )}
                             {order.status === 'in_progress' && (
                                 <Button
                                     variant="default"
