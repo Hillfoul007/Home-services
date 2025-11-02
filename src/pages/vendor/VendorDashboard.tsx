@@ -68,8 +68,8 @@ const VendorDashboard: React.FC = () => {
         return;
       }
 
-      // After upload, mark pickup_completed
-      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "pickup_completed");
+      // After upload, move directly to in_progress (processing)
+      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "in_progress");
       if (!statusRes || !statusRes.success) {
         toast.error(statusRes.error || "Failed to update status");
         setUploadingFor(null);
@@ -105,9 +105,9 @@ const VendorDashboard: React.FC = () => {
     navigate("/vendor/login");
   };
 
-  const bucketA = orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed');
+  const bucketA = orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled');
   const bucketB = orders.filter(o => o.status === 'ready_for_delivery');
-  const completed = orders.filter(o => o.status === 'completed' || o.status === 'delivered');
+  const completed = orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled');
 
   if (loading && orders.length === 0) {
     return (
@@ -207,12 +207,6 @@ const VendorDashboard: React.FC = () => {
                         </Button>
                       </div>
                     </>
-                  )}
-
-                  {order.status === 'pickup_completed' && (
-                    <Button onClick={() => changeStatus(order._id, 'in_progress')} className="w-full text-xs md:text-sm" size="sm">
-                      Mark as Processing
-                    </Button>
                   )}
 
                   {order.status === 'in_progress' && (
@@ -319,7 +313,10 @@ const VendorDashboard: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-gray-700 truncate">#{order.custom_order_id || order._id}</div>
                   </div>
-                  <div className="text-sm font-semibold text-gray-700 whitespace-nowrap">₹{order.final_amount ?? order.total_price}</div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">Ready</span>
+                    <div className="text-sm font-semibold text-gray-700 whitespace-nowrap">₹{order.final_amount ?? order.total_price}</div>
+                  </div>
                 </div>
               </Card>
             ))}
