@@ -156,6 +156,20 @@ const VendorDashboard: React.FC = () => {
     navigate("/vendor/login");
   };
 
+  const handleCallCustomer = (phone: string) => {
+    if (phone) {
+      window.location.href = `tel:${phone}`;
+    }
+  };
+
+  const handleNavigateToAddress = (address: string) => {
+    if (address) {
+      const encodedAddress = encodeURIComponent(address);
+      const googleMapsUrl = `https://www.google.com/maps/search/${encodedAddress}`;
+      window.open(googleMapsUrl, '_blank');
+    }
+  };
+
   const sortOrdersByTime = (ordersToSort: Order[]): Order[] => {
     return [...ordersToSort].sort((a, b) => {
       const dateA = getScheduledDateTime(a);
