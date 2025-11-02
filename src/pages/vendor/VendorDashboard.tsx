@@ -18,6 +18,9 @@ interface Order {
   items_images?: any[];
   delivery_date?: string;
   delivery_time?: string;
+  address?: string;
+  final_amount?: number;
+  total_price?: number;
 }
 
 const VendorDashboard: React.FC = () => {
@@ -65,8 +68,8 @@ const VendorDashboard: React.FC = () => {
         return;
       }
 
-      // After upload, mark pickup_completed
-      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "pickup_completed");
+      // After upload, move directly to in_progress (processing)
+      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "in_progress");
       if (!statusRes || !statusRes.success) {
         toast.error(statusRes.error || "Failed to update status");
         setUploadingFor(null);
@@ -102,9 +105,9 @@ const VendorDashboard: React.FC = () => {
     navigate("/vendor/login");
   };
 
-  const bucketA = orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed');
+  const bucketA = orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled');
   const bucketB = orders.filter(o => o.status === 'ready_for_delivery');
-  const completed = orders.filter(o => o.status === 'completed' || o.status === 'delivered');
+  const completed = orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled');
 
   if (loading && orders.length === 0) {
     return (
@@ -118,9 +121,9 @@ const VendorDashboard: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 md:p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Vendor Dashboard</h1>
+        <h1 className="text-xl md:text-2xl font-semibold">Vendor Dashboard</h1>
         <Button variant="outline" onClick={handleLogout}>Logout</Button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -132,27 +135,30 @@ const VendorDashboard: React.FC = () => {
           <div className="space-y-3">
             {bucketA.map(order => (
               <Card key={order._id} className="p-4 border-l-4 border-l-blue-500">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-gray-700">#{order.custom_order_id || order._id}</div>
-                    <div className="font-medium text-base">{order.name}</div>
-                    <div className="text-sm text-gray-600">{order.phone}</div>
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-gray-700 truncate">#{order.custom_order_id || order._id}</div>
+                    <div className="font-medium text-sm md:text-base truncate">{order.name}</div>
+                    <div className="text-sm text-gray-600 truncate">{order.phone}</div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatDateOnlyIST(order.scheduled_date)}</div>
+                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatDateOnlyIST(order.scheduled_date)} {order.scheduled_time ? `at ${order.scheduled_time}` : ''}</div>
                     {order.delivery_date && (
-                      <div className="text-xs text-gray-500">Delivery: {formatDateOnlyIST(order.delivery_date)}</div>
+                      <div className="text-xs text-gray-500">Delivery: {formatDateOnlyIST(order.delivery_date)} {order.delivery_time ? `at ${order.delivery_time}` : ''}</div>
+                    )}
+                    {order.address && (
+                      <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">📍 {order.address}</div>
                     )}
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">{order.status}</span>
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded whitespace-nowrap">{order.status}</span>
                     {order.items_images && order.items_images.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
-                        className="text-xs"
+                        className="text-xs whitespace-nowrap"
                       >
-                        {expandedOrderId === order._id ? 'Hide Photos' : `View Photos (${order.items_images.length})`}
+                        {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
                       </Button>
                     )}
                   </div>
@@ -184,32 +190,27 @@ const VendorDashboard: React.FC = () => {
                   {order.status === 'vendor_assigned' && (
                     <>
                       <div className="text-xs text-gray-600 font-semibold">📸 Upload items list image</div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col md:flex-row gap-2">
                         <input
                           type="file"
                           accept="image/*"
                           onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                          className="text-xs flex-1"
+                          className="text-xs flex-1 min-w-0"
                         />
                         <Button
                           onClick={() => handleUploadAndMark(order._id)}
                           disabled={uploadingFor === order._id}
-                          className="whitespace-nowrap"
+                          className="whitespace-nowrap text-xs md:text-sm"
+                          size="sm"
                         >
-                          {uploadingFor === order._id ? 'Uploading...' : 'Upload & Pickup Complete'}
+                          {uploadingFor === order._id ? 'Uploading...' : 'Upload & Complete'}
                         </Button>
                       </div>
                     </>
                   )}
 
-                  {order.status === 'pickup_completed' && (
-                    <Button onClick={() => changeStatus(order._id, 'in_progress')} className="w-full">
-                      Mark as Processing
-                    </Button>
-                  )}
-
                   {order.status === 'in_progress' && (
-                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery')} className="w-full bg-green-600 hover:bg-green-700">
+                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery')} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
                       Ready to Dispatch
                     </Button>
                   )}
@@ -232,28 +233,32 @@ const VendorDashboard: React.FC = () => {
           <div className="space-y-3">
             {bucketB.map(order => (
               <Card key={order._id} className="p-4 border-l-4 border-l-orange-500">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-gray-700">#{order.custom_order_id || order._id}</div>
-                    <div className="font-medium text-base">{order.name}</div>
-                    <div className="text-sm text-gray-600">{order.phone}</div>
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-gray-700 truncate">#{order.custom_order_id || order._id}</div>
+                    <div className="font-medium text-sm md:text-base truncate">{order.name}</div>
+                    <div className="text-sm text-gray-600 truncate">{order.phone}</div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
+                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatDateOnlyIST(order.scheduled_date)} {order.scheduled_time ? `at ${order.scheduled_time}` : ''}</div>
                     {order.delivery_date && (
                       <div className="text-xs text-orange-600 mt-1 font-semibold">
-                        📅 {formatDateOnlyIST(order.delivery_date)} at {order.delivery_time}
+                        Delivery: {formatDateOnlyIST(order.delivery_date)} {order.delivery_time ? `at ${order.delivery_time}` : ''}
                       </div>
                     )}
+                    {order.address && (
+                      <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">📍 {order.address}</div>
+                    )}
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">Ready for Delivery</span>
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded whitespace-nowrap">Ready</span>
                     {order.items_images && order.items_images.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
-                        className="text-xs"
+                        className="text-xs whitespace-nowrap"
                       >
-                        {expandedOrderId === order._id ? 'Hide Photos' : `View Photos (${order.items_images.length})`}
+                        {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
                       </Button>
                     )}
                   </div>
@@ -282,7 +287,7 @@ const VendorDashboard: React.FC = () => {
                 )}
 
                 <div className="mt-3">
-                  <Button onClick={() => changeStatus(order._id, 'delivered')} className="w-full bg-green-600 hover:bg-green-700">
+                  <Button onClick={() => changeStatus(order._id, 'delivered')} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
                     Mark as Delivered
                   </Button>
                 </div>
@@ -304,49 +309,15 @@ const VendorDashboard: React.FC = () => {
           <div className="space-y-3">
             {completed.map(order => (
               <Card key={order._id} className="p-4 border-l-4 border-l-green-500 bg-green-50">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-gray-700">#{order.custom_order_id || order._id}</div>
-                    <div className="font-medium text-base">{order.name}</div>
-                    <div className="text-sm text-gray-600">{order.phone}</div>
-                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
+                <div className="flex justify-between items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-gray-700 truncate">#{order.custom_order_id || order._id}</div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">✓ Completed</span>
-                    {order.items_images && order.items_images.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
-                        className="text-xs"
-                      >
-                        {expandedOrderId === order._id ? 'Hide Photos' : `View Photos (${order.items_images.length})`}
-                      </Button>
-                    )}
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">Ready</span>
+                    <div className="text-sm font-semibold text-gray-700 whitespace-nowrap">₹{order.final_amount ?? order.total_price}</div>
                   </div>
                 </div>
-
-                {expandedOrderId === order._id && order.items_images && order.items_images.length > 0 && (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="grid grid-cols-2 gap-3">
-                      {order.items_images.map((image: any, idx: number) => (
-                        <div key={idx} className="relative bg-gray-100 rounded overflow-hidden aspect-square">
-                          <img
-                            src={`/api/vendor/orders/orders/${order._id}/items-image/${image.file_id}`}
-                            alt={`Items ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23e5e7eb" width="100" height="100"/%3E%3Ctext x="50" y="50" dominant-baseline="middle" text-anchor="middle" font-size="12" fill="%239ca3af"%3EFailed to load%3C/text%3E%3C/svg%3E';
-                            }}
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1">
-                            {new Date(image.uploaded_at).toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </Card>
             ))}
             {completed.length === 0 && (
