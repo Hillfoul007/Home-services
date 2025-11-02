@@ -225,7 +225,6 @@ const LaundryIndex = () => {
     initializeApp();
     checkAuthState();
     getUserLocation();
-    checkFirst30Notification();
     checkReferralCodeInUrl();
 
     // Listen for auth events from other tabs or auth persistence
@@ -310,9 +309,6 @@ const LaundryIndex = () => {
     }
   };
 
-  const checkFirst30Notification = () => {
-
-  };
 
   const checkReferralCodeInUrl = () => {
     const urlParams = new URLSearchParams(window.location.search);
