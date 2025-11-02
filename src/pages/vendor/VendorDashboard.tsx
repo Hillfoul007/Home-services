@@ -23,6 +23,56 @@ interface Order {
   total_price?: number;
 }
 
+const getScheduledDateTime = (order: Order): Date => {
+  try {
+    const dateStr = order.scheduled_date || '';
+    const timeStr = order.scheduled_time || '00:00';
+
+    if (!dateStr) return new Date(0);
+
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const dateObj = new Date(dateStr);
+    dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+    return dateObj;
+  } catch (e) {
+    return new Date(0);
+  }
+};
+
+const formatScheduledDateTime = (order: Order): string => {
+  try {
+    const dateStr = order.scheduled_date || '';
+    const timeStr = order.scheduled_time || '00:00';
+
+    if (!dateStr) return 'N/A';
+
+    const dateObj = new Date(dateStr);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    const dayMonth = dateObj.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+    });
+
+    if (!timeStr || timeStr === '00:00') {
+      return dayMonth;
+    }
+
+    const timeFormatted = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hours, minutes)
+      .toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+    return `${dayMonth} at ${timeFormatted}`;
+  } catch (e) {
+    return formatDateOnlyIST(order.scheduled_date);
+  }
+};
+
 const VendorDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -105,9 +155,17 @@ const VendorDashboard: React.FC = () => {
     navigate("/vendor/login");
   };
 
-  const bucketA = orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled');
-  const bucketB = orders.filter(o => o.status === 'ready_for_delivery');
-  const completed = orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled');
+  const sortOrdersByTime = (ordersToSort: Order[]): Order[] => {
+    return [...ordersToSort].sort((a, b) => {
+      const dateA = getScheduledDateTime(a);
+      const dateB = getScheduledDateTime(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+  };
+
+  const bucketA = sortOrdersByTime(orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
+  const bucketB = sortOrdersByTime(orders.filter(o => o.status === 'ready_for_delivery'));
+  const completed = sortOrdersByTime(orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
 
   if (loading && orders.length === 0) {
     return (
