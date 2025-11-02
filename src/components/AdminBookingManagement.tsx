@@ -300,18 +300,15 @@ const formatScheduledDateTime = (booking: Booking): string => {
     const dateObj = new Date(dateStr);
     const [hours, minutes] = timeStr.split(':').map(Number);
 
-    const formatted = dateObj.toLocaleString('en-IN', {
+    const dayMonth = dateObj.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       day: 'numeric',
       month: 'short',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
+      year: 'numeric'
     });
 
     if (!timeStr || timeStr === '00:00') {
-      return formatted.split(' at ')[0] || formatted;
+      return dayMonth;
     }
 
     const timeFormatted = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hours, minutes)
@@ -322,9 +319,9 @@ const formatScheduledDateTime = (booking: Booking): string => {
         hour12: true
       });
 
-    return `${formatted.split(' at ')[0]}, ${timeFormatted}`;
+    return `${dayMonth}, ${timeFormatted}`;
   } catch (e) {
-    return formatDateTimeIST(booking.scheduled_date);
+    return formatDateOnlyIST(booking.scheduled_date);
   }
 };
 
@@ -514,7 +511,7 @@ const AdminBookingManagement: React.FC = () => {
       es.addEventListener('booking_change', (event: MessageEvent) => {
         try {
           const payload = JSON.parse(event.data);
-          console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
+          console.log('��� Received booking_change SSE payload:', payload?._id || payload);
           if (payload && payload._id && !showEditDialog) {
             applyBookingUpdate(payload._id, payload);
 
