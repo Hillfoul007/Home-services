@@ -1009,8 +1009,16 @@ const AdminBookingManagement: React.FC = () => {
       <div className={viewMode === 'both' ? 'grid grid-cols-1 gap-6 lg:grid-cols-2' : 'grid grid-cols-1 gap-6'}>
         {/* Bucket A: Pickup & Vendor Flow */}
         <div className={viewMode === 'ready' ? 'hidden' : ''}>
-          <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
-          <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
+              <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
+            </div>
+            <div className="text-right bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div className="text-xs text-gray-600 font-medium">Total Value</div>
+              <div className="text-2xl font-bold text-blue-700">₹{calculateTotalPrice(filteredPickupOrders).toLocaleString('en-IN')}</div>
+            </div>
+          </div>
 
           <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
             <div className="flex-1">
