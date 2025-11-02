@@ -669,6 +669,14 @@ const AdminBookingManagement: React.FC = () => {
     filterCompletedOrders();
   }, [completedSearchTerm, completedStatusFilter, completedOrders]);
 
+  useEffect(() => {
+    filterPickupOrders();
+  }, [pickupSearchTerm, pickupStatusFilter, bucketA]);
+
+  useEffect(() => {
+    filterReadyOrders();
+  }, [readySearchTerm, readyStatusFilter, bucketB]);
+
   const filterBookings = () => {
     let filtered = bookings;
 
