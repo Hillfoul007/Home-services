@@ -502,6 +502,46 @@ const AdminBookingManagement: React.FC = () => {
     setFilteredCompletedOrders(filtered);
   };
 
+  const filterPickupOrders = (orders?: Booking[]) => {
+    const ordersToFilter = orders || bucketA;
+    let filtered = ordersToFilter;
+
+    if (pickupSearchTerm) {
+      filtered = filtered.filter((booking) =>
+        booking.custom_order_id?.toLowerCase().includes(pickupSearchTerm.toLowerCase()) ||
+        booking.name?.toLowerCase().includes(pickupSearchTerm.toLowerCase()) ||
+        booking.phone?.includes(pickupSearchTerm) ||
+        booking.service?.toLowerCase().includes(pickupSearchTerm.toLowerCase()),
+      );
+    }
+
+    if (pickupStatusFilter !== "all") {
+      filtered = filtered.filter((booking) => normalizeStatus(booking.status) === pickupStatusFilter);
+    }
+
+    setFilteredPickupOrders(filtered);
+  };
+
+  const filterReadyOrders = (orders?: Booking[]) => {
+    const ordersToFilter = orders || bucketB;
+    let filtered = ordersToFilter;
+
+    if (readySearchTerm) {
+      filtered = filtered.filter((booking) =>
+        booking.custom_order_id?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
+        booking.name?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
+        booking.phone?.includes(readySearchTerm) ||
+        booking.service?.toLowerCase().includes(readySearchTerm.toLowerCase()),
+      );
+    }
+
+    if (readyStatusFilter !== "all") {
+      filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
+    }
+
+    setFilteredReadyOrders(filtered);
+  };
+
   const fetchBookings = async () => {
     try {
       setLoading(true);
@@ -1541,7 +1581,7 @@ const AdminBookingManagement: React.FC = () => {
                                       className="h-8 text-right text-xs"
                                     />
                                   </td>
-                                  <td className="py-3 px-3 text-right font-medium">₹{(Number(displayTotal) || 0).toFixed(2)}</td>
+                                  <td className="py-3 px-3 text-right font-medium">���{(Number(displayTotal) || 0).toFixed(2)}</td>
                                   <td className="py-3 px-3 text-center">
                                     <Button size="sm" variant="ghost" onClick={() => removeItemFromEditing(index)} className="h-8 text-xs">
                                       Remove
