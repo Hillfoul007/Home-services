@@ -554,7 +554,7 @@ const AdminBookingManagement: React.FC = () => {
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
         setBookings(processed);
-        const a = processed.filter(b => !["ready_for_delivery", "delivered", "completed", "cancelled"].includes(normalizeStatus(b.status)));
+        const a = processed.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
         const b = processed.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
         setBucketA(a);
         setBucketB(b);
