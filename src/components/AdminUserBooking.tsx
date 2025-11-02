@@ -55,9 +55,6 @@ const AdminUserBooking: React.FC = () => {
     delivery_time: "",
     address: "",
     special_instructions: "",
-    // discount_percent is the admin input; discount_amount is computed automatically
-    discount_percent: 0,
-    discount_amount: 0,
     is_quick_pickup: false,
   });
 
@@ -164,14 +161,7 @@ const AdminUserBooking: React.FC = () => {
   };
 
   const calculateFinalAmount = () => {
-    const total = calculateTotal();
-    const percent = Number(bookingData.discount_percent) || 0;
-    const discountAmount = Math.round((total * percent) / 100 * 100) / 100;
-    // keep discount_amount in state in sync
-    if (bookingData.discount_amount !== discountAmount) {
-      setBookingData((prev) => ({ ...prev, discount_amount: discountAmount }));
-    }
-    return Math.max(0, total - discountAmount);
+    return calculateTotal();
   };
 
 
@@ -252,8 +242,6 @@ const AdminUserBooking: React.FC = () => {
         address: bookingData.address,
         additional_details: bookingData.special_instructions,
         total_price: calculateTotal(),
-        discount_percent: bookingData.discount_percent || 0,
-        discount_amount: bookingData.discount_amount,
         final_amount: calculateFinalAmount(),
         special_instructions: bookingData.special_instructions,
         created_by_admin: true,
@@ -285,8 +273,6 @@ const AdminUserBooking: React.FC = () => {
           delivery_time: "",
           address: "",
           special_instructions: "",
-          discount_percent: 0,
-          discount_amount: 0,
           is_quick_pickup: false,
         });
       } else {
@@ -552,24 +538,6 @@ const AdminUserBooking: React.FC = () => {
                 </Select>
               </div>
 
-              <div className="md:col-span-2">
-                <Label htmlFor="discount">Discount Percent (%)</Label>
-                <Input
-                  id="discount"
-                  type="number"
-                  min={0}
-                  max={100}
-                  placeholder="0"
-                  value={bookingData.discount_percent || ""}
-                  onChange={(e) =>
-                    setBookingData({
-                      ...bookingData,
-                      discount_percent: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
-                <p className="text-xs text-gray-500 mt-1">This percentage will be applied to the cart total automatically.</p>
-              </div>
 
               <div className="md:col-span-2 flex items-center gap-2">
                 <input
