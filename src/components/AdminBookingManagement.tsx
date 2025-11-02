@@ -290,6 +290,22 @@ const getScheduledDateTime = (booking: Booking): Date => {
   }
 };
 
+const getDeliveryDateTime = (booking: Booking): Date => {
+  try {
+    const dateStr = booking.delivery_date || '';
+    const timeStr = booking.delivery_time || '00:00';
+
+    if (!dateStr) return new Date(0);
+
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const dateObj = new Date(dateStr);
+    dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+    return dateObj;
+  } catch (e) {
+    return new Date(0);
+  }
+};
+
 const formatScheduledDateTime = (booking: Booking): string => {
   try {
     const dateStr = booking.scheduled_date || '';
