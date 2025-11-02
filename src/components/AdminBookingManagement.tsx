@@ -274,6 +274,57 @@ const formatDate = (dateString?: string | Date) => {
   return formatDateTimeIST(dateString as any);
 };
 
+const getScheduledDateTime = (booking: Booking): Date => {
+  try {
+    const dateStr = booking.scheduled_date || '';
+    const timeStr = booking.scheduled_time || '00:00';
+
+    if (!dateStr) return new Date(0);
+
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const dateObj = new Date(dateStr);
+    dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+    return dateObj;
+  } catch (e) {
+    return new Date(0);
+  }
+};
+
+const formatScheduledDateTime = (booking: Booking): string => {
+  try {
+    const dateStr = booking.scheduled_date || '';
+    const timeStr = booking.scheduled_time || '00:00';
+
+    if (!dateStr) return 'N/A';
+
+    const dateObj = new Date(dateStr);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    const dayMonth = dateObj.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    if (!timeStr || timeStr === '00:00') {
+      return dayMonth;
+    }
+
+    const timeFormatted = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hours, minutes)
+      .toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+    return `${dayMonth}, ${timeFormatted}`;
+  } catch (e) {
+    return formatDateOnlyIST(booking.scheduled_date);
+  }
+};
+
 const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string }> = ({
   currentStatus,
   className,
@@ -460,7 +511,7 @@ const AdminBookingManagement: React.FC = () => {
       es.addEventListener('booking_change', (event: MessageEvent) => {
         try {
           const payload = JSON.parse(event.data);
-          console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
+          console.log('��� Received booking_change SSE payload:', payload?._id || payload);
           if (payload && payload._id && !showEditDialog) {
             applyBookingUpdate(payload._id, payload);
 
@@ -472,7 +523,7 @@ const AdminBookingManagement: React.FC = () => {
       });
 
       es.onerror = (err) => {
-        console.warn('⚠️ SSE connection error:', err);
+        console.warn('⚠�� SSE connection error:', err);
         try { es && es.close(); } catch (e) { }
       };
     } catch (e) {
@@ -567,6 +618,12 @@ const AdminBookingManagement: React.FC = () => {
     if (statusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === statusFilter);
     }
+
+    filtered.sort((a, b) => {
+      const dateA = getScheduledDateTime(a);
+      const dateB = getScheduledDateTime(b);
+      return dateA.getTime() - dateB.getTime();
+    });
 
     setFilteredBookings(filtered);
   };
@@ -885,10 +942,10 @@ const AdminBookingManagement: React.FC = () => {
                           <Phone className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.phone}</span>
                         </div>
-                        {booking.vendor && (
+                        {booking.assignedVendor && (
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
                       </div>
@@ -902,7 +959,7 @@ const AdminBookingManagement: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(booking.scheduled_date)}
+                          {formatScheduledDateTime(booking)}
                         </div>
                       </div>
 
@@ -982,10 +1039,10 @@ const AdminBookingManagement: React.FC = () => {
                           <User className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.name}</span>
                         </div>
-                        {booking.vendor && (
+                        {booking.assignedVendor && (
                           <div className="flex items-center gap-2 mt-1">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
                       </div>
@@ -999,7 +1056,7 @@ const AdminBookingManagement: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(booking.delivery_date || booking.scheduled_date)}
+                          {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
                         </div>
                       </div>
 

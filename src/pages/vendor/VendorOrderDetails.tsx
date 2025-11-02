@@ -171,17 +171,36 @@ const VendorOrderDetails: React.FC = () => {
                     <div className="border-t pt-6">
                         <h3 className="text-sm font-semibold text-gray-600 mb-4">Update Status</h3>
                         <div className="flex flex-wrap gap-3">
-                            {['pending', 'in_progress', 'completed', 'cancelled'].map((status) => (
+                            {order.status === 'vendor_assigned' && (
                                 <Button
-                                    key={status}
-                                    variant={order.status === status ? 'default' : 'outline'}
-                                    onClick={() => handleStatusUpdate(status)}
+                                    variant="default"
+                                    onClick={() => handleStatusUpdate('pickup_completed')}
                                     disabled={updating}
                                     className="capitalize"
                                 >
-                                    {status.replace('_', ' ')}
+                                    Mark Pickup Complete
                                 </Button>
-                            ))}
+                            )}
+                            {order.status === 'in_progress' && (
+                                <Button
+                                    variant="default"
+                                    onClick={() => handleStatusUpdate('ready_for_delivery')}
+                                    disabled={updating}
+                                    className="capitalize"
+                                >
+                                    Mark Ready for Delivery
+                                </Button>
+                            )}
+                            {order.status === 'ready_for_delivery' && (
+                                <Button
+                                    variant="default"
+                                    onClick={() => handleStatusUpdate('delivered')}
+                                    disabled={updating}
+                                    className="capitalize"
+                                >
+                                    Mark Delivered
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </Card>

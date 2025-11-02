@@ -23,6 +23,57 @@ interface Order {
   total_price?: number;
 }
 
+const getScheduledDateTime = (order: Order): Date => {
+  try {
+    const dateStr = order.scheduled_date || '';
+    const timeStr = order.scheduled_time || '00:00';
+
+    if (!dateStr) return new Date(0);
+
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const dateObj = new Date(dateStr);
+    dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+    return dateObj;
+  } catch (e) {
+    return new Date(0);
+  }
+};
+
+const formatScheduledDateTime = (order: Order): string => {
+  try {
+    const dateStr = order.scheduled_date || '';
+    const timeStr = order.scheduled_time || '00:00';
+
+    if (!dateStr) return 'N/A';
+
+    const dateObj = new Date(dateStr);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    const dayMonth = dateObj.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    if (!timeStr || timeStr === '00:00') {
+      return dayMonth;
+    }
+
+    const timeFormatted = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hours, minutes)
+      .toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+    return `${dayMonth}, ${timeFormatted}`;
+  } catch (e) {
+    return formatDateOnlyIST(order.scheduled_date);
+  }
+};
+
 const VendorDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -68,8 +119,8 @@ const VendorDashboard: React.FC = () => {
         return;
       }
 
-      // After upload, move directly to in_progress (processing)
-      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "in_progress");
+      // After upload, mark pickup as complete (auto-transitions to in_progress)
+      const statusRes = await vendorAuthService.updateOrderStatus(orderId, "pickup_completed");
       if (!statusRes || !statusRes.success) {
         toast.error(statusRes.error || "Failed to update status");
         setUploadingFor(null);
@@ -105,9 +156,17 @@ const VendorDashboard: React.FC = () => {
     navigate("/vendor/login");
   };
 
-  const bucketA = orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled');
-  const bucketB = orders.filter(o => o.status === 'ready_for_delivery');
-  const completed = orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled');
+  const sortOrdersByTime = (ordersToSort: Order[]): Order[] => {
+    return [...ordersToSort].sort((a, b) => {
+      const dateA = getScheduledDateTime(a);
+      const dateB = getScheduledDateTime(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+  };
+
+  const bucketA = sortOrdersByTime(orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
+  const bucketB = sortOrdersByTime(orders.filter(o => o.status === 'ready_for_delivery'));
+  const completed = sortOrdersByTime(orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
 
   if (loading && orders.length === 0) {
     return (
@@ -141,9 +200,9 @@ const VendorDashboard: React.FC = () => {
                     <div className="font-medium text-sm md:text-base truncate">{order.name}</div>
                     <div className="text-sm text-gray-600 truncate">{order.phone}</div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatDateOnlyIST(order.scheduled_date)} {order.scheduled_time ? `at ${order.scheduled_time}` : ''}</div>
+                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     {order.delivery_date && (
-                      <div className="text-xs text-gray-500">Delivery: {formatDateOnlyIST(order.delivery_date)} {order.delivery_time ? `at ${order.delivery_time}` : ''}</div>
+                      <div className="text-xs text-gray-500">Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}</div>
                     )}
                     {order.address && (
                       <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">📍 {order.address}</div>
@@ -239,10 +298,10 @@ const VendorDashboard: React.FC = () => {
                     <div className="font-medium text-sm md:text-base truncate">{order.name}</div>
                     <div className="text-sm text-gray-600 truncate">{order.phone}</div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatDateOnlyIST(order.scheduled_date)} {order.scheduled_time ? `at ${order.scheduled_time}` : ''}</div>
+                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     {order.delivery_date && (
                       <div className="text-xs text-orange-600 mt-1 font-semibold">
-                        Delivery: {formatDateOnlyIST(order.delivery_date)} {order.delivery_time ? `at ${order.delivery_time}` : ''}
+                        Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}
                       </div>
                     )}
                     {order.address && (

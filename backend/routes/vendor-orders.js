@@ -288,6 +288,17 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
       vendor_id: req.vendor_id,
     });
 
+    // Auto-transition to in_progress after pickup_completed
+    if (status === "pickup_completed") {
+      order.status = "in_progress";
+      order.status_history.push({
+        status: "in_progress",
+        changed_at: order.updated_at,
+        changed_by: "system",
+        vendor_id: req.vendor_id,
+      });
+    }
+
     await order.save();
 
     console.log(`✅ Order status updated: ${orderId} -> ${status}`);
