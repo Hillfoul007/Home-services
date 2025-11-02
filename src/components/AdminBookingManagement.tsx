@@ -432,6 +432,16 @@ const AdminBookingManagement: React.FC = () => {
   const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
   const [filteredCompletedOrders, setFilteredCompletedOrders] = useState<Booking[]>([]);
 
+  // Pickup bucket (A) filters
+  const [pickupSearchTerm, setPickupSearchTerm] = useState("");
+  const [pickupStatusFilter, setPickupStatusFilter] = useState("all");
+  const [filteredPickupOrders, setFilteredPickupOrders] = useState<Booking[]>([]);
+
+  // Ready for Delivery bucket (B) filters
+  const [readySearchTerm, setReadySearchTerm] = useState("");
+  const [readyStatusFilter, setReadyStatusFilter] = useState("all");
+  const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
+
   const fetchVendors = async () => {
     try {
       const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
