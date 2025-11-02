@@ -199,9 +199,9 @@ const VendorDashboard: React.FC = () => {
                     <div className="font-medium text-sm md:text-base truncate">{order.name}</div>
                     <div className="text-sm text-gray-600 truncate">{order.phone}</div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatDateOnlyIST(order.scheduled_date)} {order.scheduled_time ? `at ${order.scheduled_time}` : ''}</div>
+                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     {order.delivery_date && (
-                      <div className="text-xs text-gray-500">Delivery: {formatDateOnlyIST(order.delivery_date)} {order.delivery_time ? `at ${order.delivery_time}` : ''}</div>
+                      <div className="text-xs text-gray-500">Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}</div>
                     )}
                     {order.address && (
                       <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">📍 {order.address}</div>
