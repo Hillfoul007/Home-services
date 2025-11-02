@@ -997,6 +997,36 @@ const AdminBookingManagement: React.FC = () => {
         <div className={viewMode === 'ready' ? 'hidden' : ''}>
           <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
           <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
+
+          <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
+            <div className="flex-1">
+              <Label htmlFor="pickup-search">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+                <Input
+                  id="pickup-search"
+                  placeholder="Search by order ID, name, phone, or service..."
+                  value={pickupSearchTerm}
+                  onChange={(e) => setPickupSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="md:w-56">
+              <Label htmlFor="pickup-status-filter">Filter by Status</Label>
+              <Select value={pickupStatusFilter} onValueChange={setPickupStatusFilter}>
+                <SelectTrigger id="pickup-status-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="created">Order Created</SelectItem>
+                  <SelectItem value="vendor_assigned">Vendor Assigned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="mt-3 space-y-4">
             {filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).length > 0 ? (
               filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).map(booking => (
@@ -1129,7 +1159,7 @@ const AdminBookingManagement: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-medium text-gray-900">{booking.service}</div>
                           {(booking as any).is_quick_pickup && (
-                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">��� Quick Pickup</Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
