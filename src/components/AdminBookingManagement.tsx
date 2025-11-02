@@ -684,6 +684,12 @@ const AdminBookingManagement: React.FC = () => {
     setBucketB(b);
   };
 
+  const calculateTotalPrice = (orders: Booking[]) => {
+    return orders.reduce((total, order) => {
+      return total + (order.total_price || 0);
+    }, 0);
+  };
+
   const filterBookings = () => {
     let filtered = bookings;
 
