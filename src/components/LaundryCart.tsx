@@ -1215,8 +1215,8 @@ Confirm this booking?`;
 
                   {/* Available coupons info */}
                   <div className="text-xs text-gray-500 space-y-1">
-                    <div>FIRST30 - 30% off for first order only (up to ₹200)</div>
                     <div>NEW20 - 20% off on all orders (up to ₹200)</div>
+                    <div>FIRST10 - 10% off for first order only (up to ₹200)</div>
                   </div>
 
                   {/* Coupon Error Message */}
