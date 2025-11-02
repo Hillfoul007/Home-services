@@ -53,6 +53,7 @@ const formatScheduledDateTime = (order: Order): string => {
       timeZone: 'Asia/Kolkata',
       day: 'numeric',
       month: 'short',
+      year: 'numeric'
     });
 
     if (!timeStr || timeStr === '00:00') {
@@ -67,7 +68,7 @@ const formatScheduledDateTime = (order: Order): string => {
         hour12: true
       });
 
-    return `${dayMonth} at ${timeFormatted}`;
+    return `${dayMonth}, ${timeFormatted}`;
   } catch (e) {
     return formatDateOnlyIST(order.scheduled_date);
   }
