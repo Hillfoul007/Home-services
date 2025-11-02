@@ -163,7 +163,26 @@ const VendorDashboard: React.FC = () => {
   };
 
   const handleNavigateToAddress = (address: string) => {
-    if (address) {
+    if (!address) return;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const encodedAddress = encodeURIComponent(address);
+          const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${encodedAddress}`;
+          window.open(googleMapsUrl, '_blank');
+        },
+        (error) => {
+          // If geolocation fails, just open with the address
+          console.log('Geolocation error:', error);
+          const encodedAddress = encodeURIComponent(address);
+          const googleMapsUrl = `https://www.google.com/maps/search/${encodedAddress}`;
+          window.open(googleMapsUrl, '_blank');
+        }
+      );
+    } else {
+      // Fallback if geolocation is not supported
       const encodedAddress = encodeURIComponent(address);
       const googleMapsUrl = `https://www.google.com/maps/search/${encodedAddress}`;
       window.open(googleMapsUrl, '_blank');
