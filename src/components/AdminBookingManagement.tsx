@@ -531,13 +531,22 @@ const AdminBookingManagement: React.FC = () => {
         booking.custom_order_id?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
         booking.name?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
         booking.phone?.includes(readySearchTerm) ||
-        booking.service?.toLowerCase().includes(readySearchTerm.toLowerCase()),
+        (booking.service || (booking.services && booking.services.length ? (typeof booking.services[0] === 'string' ? booking.services[0] : booking.services[0].name || booking.services[0].service) : '') )
+          .toLowerCase()
+          .includes(readySearchTerm.toLowerCase()),
       );
     }
 
     if (readyStatusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
     }
+
+    // Sort ready orders by delivery datetime (fallback to scheduled datetime)
+    filtered.sort((a, b) => {
+      const dateA = (getDeliveryDateTime(a).getTime() || getScheduledDateTime(a).getTime()) || 0;
+      const dateB = (getDeliveryDateTime(b).getTime() || getScheduledDateTime(b).getTime()) || 0;
+      return dateA - dateB; // earliest first
+    });
 
     setFilteredReadyOrders(filtered);
   };
@@ -1089,7 +1098,7 @@ const AdminBookingManagement: React.FC = () => {
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          <div className="text-sm font-medium text-gray-900">{(booking.service && booking.service !== 'Misc Service') ? booking.service : (booking.services && booking.services.length ? (typeof booking.services[0] === 'string' ? booking.services[0] : booking.services[0].name || booking.services[0].service || 'Service') : 'Service')}</div>
                           {(booking as any).is_quick_pickup && (
                             <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
                           )}
@@ -1226,7 +1235,7 @@ const AdminBookingManagement: React.FC = () => {
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          <div className="text-sm font-medium text-gray-900">{(booking.service && booking.service !== 'Misc Service') ? booking.service : (booking.services && booking.services.length ? (typeof booking.services[0] === 'string' ? booking.services[0] : booking.services[0].name || booking.services[0].service || 'Service') : 'Service')}</div>
                           {(booking as any).is_quick_pickup && (
                             <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
                           )}
