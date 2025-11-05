@@ -471,6 +471,7 @@ const VendorDashboard: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded whitespace-nowrap">Ready</span>
+                    <div className="text-sm font-semibold text-gray-700 whitespace-nowrap">₹{order.final_amount ?? order.total_price}</div>
                     {order.items_images && order.items_images.length > 0 && (
                       <Button
                         variant="outline"
