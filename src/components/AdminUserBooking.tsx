@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { vendorService } from "@/services/vendorService";
 
 interface User {
   _id: string;
