@@ -623,30 +623,72 @@ const AdminBookingManagement: React.FC = () => {
       try {
         const services = editingBooking.services?.map((s: any) => (typeof s === 'string' ? s : s.name || s.service)) || [];
         const recs = await vendorService.getVendorRecommendations(editingBooking.address, services);
-        // Fetch authoritative vendor list from admin API and merge distances
-        let apiVendorsResp = await apiClient.adminRequest<{ vendors: any[] }>("/admin/vendors");
-        let apiVendorList: VendorOption[] = [];
-        if (apiVendorsResp.data?.vendors) {
-          apiVendorList = apiVendorsResp.data.vendors.map((vendor: any) => ({
-            id: vendor.id || vendor._id,
-            name: vendor.name,
-          }));
-        }
 
+        // Get pickup coordinates to compute distances if needed
+        const pickupCoords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+
+        // Fetch authoritative vendor list from admin API
+        const apiVendorsResp = await apiClient.adminRequest<{ vendors: any[] }>("/admin/vendors");
+        const apiVendorsRaw = apiVendorsResp.data?.vendors || [];
+
+        // Helper: compute haversine distance (km)
+        const computeDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+          const R = 6371;
+          const toRad = (d: number) => (d * Math.PI) / 180;
+          const dLat = toRad(lat2 - lat1);
+          const dLng = toRad(lng2 - lng1);
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return Math.round(R * c * 100) / 100;
+        };
+
+        const apiVendorList: VendorOption[] = apiVendorsRaw.map((vendor: any) => ({
+          id: vendor.id || vendor._id || vendor.vendor_id || String(vendor._id || vendor.id || vendor.vendor_id),
+          name: vendor.name || vendor.vendor_id || 'Unnamed Vendor',
+          // preserve coordinates if provided by admin API
+          ...(vendor.coordinates && vendor.coordinates.lat !== undefined ? { distance: undefined, estimatedTime: undefined } : {}),
+        }));
+
+        // Merge distances: prefer exact id/name matches from recs; else compute from api vendor coordinates if available
         const merged: VendorOption[] = apiVendorList.map((v) => {
-          const match = recs.find((r) => r.id === v.id || r.name === v.name);
+          // fuzzy match: by id, vendor_id, or name (case-insensitive)
+          const match = recs.find((r) => {
+            if (!r) return false;
+            const rId = (r as any).id || (r as any).vendor_id || '';
+            if (rId && (rId === v.id || rId === String(v.id))) return true;
+            if (r.name && v.name && r.name.toLowerCase() === v.name.toLowerCase()) return true;
+            return false;
+          });
+
+          let distance = match?.distance;
+          let estimatedTime = match?.estimatedTime;
+
+          // If no match but admin vendor has coordinates, compute distance using pickupCoords
+          const rawVendor = apiVendorsRaw.find((av: any) => (av.id === v.id || av._id === v.id || av.vendor_id === v.id || av.name === v.name));
+          if ((!distance || distance === undefined) && rawVendor && rawVendor.coordinates && pickupCoords) {
+            const vLat = rawVendor.coordinates.lat || rawVendor.coordinates.latitude || rawVendor.lat || rawVendor.location?.lat;
+            const vLng = rawVendor.coordinates.lng || rawVendor.coordinates.longitude || rawVendor.lng || rawVendor.location?.lng;
+            if (vLat !== undefined && vLng !== undefined) {
+              try {
+                distance = computeDistanceKm(pickupCoords.lat, pickupCoords.lng, Number(vLat), Number(vLng));
+                estimatedTime = Math.round((distance / 20) * 60 + 30); // mirror vendorService estimate
+              } catch (e) {
+                console.warn('Failed computing distance for vendor', v, e);
+              }
+            }
+          }
+
           return {
             ...v,
-            distance: match?.distance,
-            estimatedTime: match?.estimatedTime,
+            distance,
+            estimatedTime,
           };
         });
 
-        // Also include any recommended vendors not present in admin API (fallback)
+        // Add any recommended vendors not in admin list
         recs.forEach((r) => {
-          if (!merged.find((m) => m.id === r.id)) {
-            merged.push({ id: r.id, name: r.name, distance: r.distance, estimatedTime: r.estimatedTime });
-          }
+          const exists = merged.find((m) => (r.id && m.id && String(r.id) === String(m.id)) || (r.name && m.name && r.name.toLowerCase() === m.name.toLowerCase()));
+          if (!exists) merged.push({ id: r.id || r.name, name: r.name, distance: r.distance, estimatedTime: r.estimatedTime });
         });
 
         setVendors(merged);
