@@ -59,6 +59,9 @@ const AdminUserBooking: React.FC = () => {
     is_quick_pickup: false,
   });
 
+  const [vendors, setVendors] = useState<Array<{id:string; name:string; distance?:number; estimatedTime?:number}>>([]);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+
 
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
