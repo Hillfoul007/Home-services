@@ -321,6 +321,31 @@ const AdminUserBooking: React.FC = () => {
       if (response.data) {
         toast.success(`Booking created successfully! Order ID: ${response.data.booking?.custom_order_id}`);
 
+        // If admin selected a vendor, assign it to the newly created order
+        try {
+          if (selectedVendorId) {
+            const vendorInfo = vendors.find(v => String(v.id) === String(selectedVendorId));
+            const assignPayload = {
+              orderId: response.data.booking._id || response.data.booking.id || response.data.booking._doc?._id,
+              vendorData: {
+                vendorId: vendorInfo?.id || selectedVendorId,
+                distance: vendorInfo?.distance || 0,
+                estimatedTime: vendorInfo?.estimatedTime || 0
+              },
+              orderType: 'Booking'
+            };
+
+            const assignRes = await apiClient.adminRequest('/admin/orders/assign-vendor', { method: 'POST', body: assignPayload });
+            if (assignRes && assignRes.status === 200) {
+              toast.success('Vendor assigned to booking');
+            } else {
+              console.warn('Assign vendor response:', assignRes);
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to assign vendor after booking creation', err);
+        }
+
         // Reset form
         setSelectedUser(null);
         setNewUserName("");
@@ -336,6 +361,8 @@ const AdminUserBooking: React.FC = () => {
           special_instructions: "",
           is_quick_pickup: false,
         });
+        setVendors([]);
+        setSelectedVendorId(null);
       } else {
         toast.error(`Failed to create booking: ${response.error || "Unknown error"}`);
       }
