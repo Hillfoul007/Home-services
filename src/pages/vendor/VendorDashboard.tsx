@@ -234,15 +234,28 @@ const VendorDashboard: React.FC = () => {
                     <div className="flex items-center gap-2 mt-1">
                       <div className="text-sm text-gray-600 truncate flex-1">{order.phone}</div>
                       {order.phone && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallCustomer(order.phone!)}
-                          className="flex-shrink-0 px-2 py-1 h-auto"
-                          title="Call customer"
-                        >
-                          ☎️
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallCustomer(order.phone!)}
+                            className="flex-shrink-0 px-2 py-1 h-auto"
+                            title="Call customer"
+                          >
+                            ☎️
+                          </Button>
+                          {order.address && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleNavigateToAddress(order.address!)}
+                              className="flex-shrink-0 px-2 py-1 h-auto"
+                              title="Navigate to address"
+                            >
+                              🧭
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
@@ -351,15 +364,28 @@ const VendorDashboard: React.FC = () => {
                     <div className="flex items-center gap-2 mt-1">
                       <div className="text-sm text-gray-600 truncate flex-1">{order.phone}</div>
                       {order.phone && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallCustomer(order.phone!)}
-                          className="flex-shrink-0 px-2 py-1 h-auto"
-                          title="Call customer"
-                        >
-                          ☎️
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallCustomer(order.phone!)}
+                            className="flex-shrink-0 px-2 py-1 h-auto"
+                            title="Call customer"
+                          >
+                            ☎️
+                          </Button>
+                          {order.address && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleNavigateToAddress(order.address!)}
+                              className="flex-shrink-0 px-2 py-1 h-auto"
+                              title="Navigate to address"
+                            >
+                              🧭
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
