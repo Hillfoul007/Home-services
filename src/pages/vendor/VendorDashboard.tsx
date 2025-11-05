@@ -82,12 +82,68 @@ const VendorDashboard: React.FC = () => {
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
+  // Notification sound state & refs
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const initialLoadRef = useRef<boolean>(true);
+  const prevOrderIdsRef = useRef<Set<string>>(new Set());
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('vendorOrdersSound') !== 'off';
+    } catch (e) {
+      return true;
+    }
+  });
+
+  const playBeep = () => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+      const ctx = audioCtxRef.current;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 1000;
+      g.gain.value = 0.02;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+      o.stop(ctx.currentTime + 0.6);
+    } catch (err) {
+      console.warn('Beep failed to play', err);
+    }
+  };
+
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('vendorOrdersSound', next ? 'on' : 'off');
+      } catch (e) {}
+      return next;
+    });
+  };
+
   const load = async () => {
     setLoading(true);
     try {
       const res = await vendorAuthService.fetchAssignedOrders();
       if (res && res.success && res.orders) {
-        setOrders(res.orders);
+        const fetched = res.orders;
+        // detect newly added orders
+        const prevIds = prevOrderIdsRef.current;
+        const newlyAdded = fetched.filter((o: any) => !prevIds.has(o._id));
+
+        // only play beep when not initial load
+        if (!initialLoadRef.current && newlyAdded.length > 0 && soundEnabled) {
+          try { playBeep(); } catch (e) { console.warn('playBeep error', e); }
+        }
+
+        // update prev ids and orders
+        prevOrderIdsRef.current = new Set(fetched.map((o: any) => o._id));
+        setOrders(fetched);
+        initialLoadRef.current = false;
       } else {
         toast.error(res.error || "Failed to fetch orders");
       }
