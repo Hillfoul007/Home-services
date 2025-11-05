@@ -409,6 +409,8 @@ const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string 
 interface VendorOption {
   id: string;
   name: string;
+  distance?: number; // in km
+  estimatedTime?: number; // in minutes
 }
 
 const AdminBookingManagement: React.FC = () => {
