@@ -690,6 +690,17 @@ const AdminBookingManagement: React.FC = () => {
     }, 0);
   };
 
+  const groupOrdersByVendor = (orders: Booking[]): Record<string, Booking[]> => {
+    return orders.reduce((acc, order) => {
+      const vendorName = order.assignedVendor || "Unassigned";
+      if (!acc[vendorName]) {
+        acc[vendorName] = [];
+      }
+      acc[vendorName].push(order);
+      return acc;
+    }, {} as Record<string, Booking[]>);
+  };
+
   const filterBookings = () => {
     let filtered = bookings;
 
