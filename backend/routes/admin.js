@@ -180,7 +180,7 @@ router.post("/users", verifyAdminAccess, async (req, res) => {
         await savedAddress.save();
         console.log("✅ Address saved for user:", user._id);
       } catch (addrErr) {
-        console.warn("⚠️ Failed to save address for user:", addrErr && addrErr.message);
+        console.warn("⚠��� Failed to save address for user:", addrErr && addrErr.message);
       }
     }
 
@@ -1661,18 +1661,20 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
       return res.status(400).json({ error: "Name, address, and coordinates (lat, lng) are required" });
     }
 
+    // Generate vendor ID and temporary password (required for schema validation)
+    const vendor_id = Vendor.generateVendorId();
+    const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
     const vendor = new Vendor({
+      vendor_id,
+      password_hash: temp_password, // Will be hashed before save by pre-save hook
       name,
       address,
       coordinates,
       services: services || [],
       contactPhone: contactPhone || phone || "",
-      rating: 4.0,
-      description: "",
-      operatingHours: { open: "09:00", close: "22:00" },
-      minimumOrderValue: 0,
-      deliveryTime: 30,
-      isActive: true,
+      phone: phone || "",
+      is_active: true,
     });
 
     await vendor.save();
