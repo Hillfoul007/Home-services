@@ -1628,7 +1628,10 @@ router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
     const { vendorId } = req.params;
     console.log(`🔍 Fetching vendor: ${vendorId}`);
 
-    const vendor = await Vendor.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const query = isObjId ? { _id: vendorId } : { vendor_id: vendorId };
+
+    const vendor = await Vendor.findOne(query);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1695,13 +1698,15 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 
     console.log(`📝 Updating vendor: ${vendorId}`);
 
-    // Validate vendorId
     if (!vendorId || vendorId === 'undefined') {
       return res.status(400).json({ error: "Vendor ID is required and must be valid" });
     }
 
-    const vendor = await Vendor.findByIdAndUpdate(
-      vendorId,
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const query = isObjId ? { _id: vendorId } : { vendor_id: vendorId };
+
+    const vendor = await Vendor.findOneAndUpdate(
+      query,
       {
         name,
         address,
@@ -1735,9 +1740,12 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
 
-    console.log(`��️ Deleting vendor: ${vendorId}`);
+    console.log(`🗑️ Deleting vendor: ${vendorId}`);
 
-    const vendor = await Vendor.findByIdAndDelete(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const query = isObjId ? { _id: vendorId } : { vendor_id: vendorId };
+
+    const vendor = await Vendor.findOneAndDelete(query);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1824,7 +1832,8 @@ router.get("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     console.log(`🔍 Fetching laundry vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId).select("-password_hash");
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId }).select("-password_hash");
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1859,7 +1868,8 @@ router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req,
     console.log(`🔐 Updating password for vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId });
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1887,7 +1897,8 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     console.log(`📝 Updating laundry vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId });
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1939,7 +1950,8 @@ router.post("/vendors/:vendorId/generate-credentials", verifyAdminAccess, async 
     const { vendorId } = req.params;
 
     const Vendor = require("../models/Vendor");
-    const vendor = await Vendor.findById(vendorId).select("+temp_password");
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await Vendor.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId }).select("+temp_password");
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -2017,7 +2029,8 @@ router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async 
     console.log(`📦 Assigning order ${orderId} to vendor ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId });
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
