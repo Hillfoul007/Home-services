@@ -1614,11 +1614,19 @@ const AdminBookingManagement: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="__unassigned__">Unassigned</SelectItem>
                     {vendors.length > 0 ? (
-                      vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.name}>
-                          {vendor.name}
-                        </SelectItem>
-                      ))
+                      vendors
+                        .slice()
+                        .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+                        .map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{vendor.name}</span>
+                              {vendor.distance !== undefined && (
+                                <span className="text-xs text-gray-500">{vendorService.formatDistance(vendor.distance)} • {vendor.estimatedTime ? vendorService.formatEstimatedTime(vendor.estimatedTime) : ''}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
                     ) : (
                       <SelectItem value="no-vendors" disabled>
                         No vendors available
