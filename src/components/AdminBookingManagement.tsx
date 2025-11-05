@@ -623,8 +623,33 @@ const AdminBookingManagement: React.FC = () => {
       try {
         const services = editingBooking.services?.map((s: any) => (typeof s === 'string' ? s : s.name || s.service)) || [];
         const recs = await vendorService.getVendorRecommendations(editingBooking.address, services);
-        const opts: VendorOption[] = recs.map(r => ({ id: r.id, name: r.name, distance: r.distance, estimatedTime: r.estimatedTime }));
-        setVendors(opts);
+        // Fetch authoritative vendor list from admin API and merge distances
+        let apiVendorsResp = await apiClient.adminRequest<{ vendors: any[] }>("/admin/vendors");
+        let apiVendorList: VendorOption[] = [];
+        if (apiVendorsResp.data?.vendors) {
+          apiVendorList = apiVendorsResp.data.vendors.map((vendor: any) => ({
+            id: vendor.id || vendor._id,
+            name: vendor.name,
+          }));
+        }
+
+        const merged: VendorOption[] = apiVendorList.map((v) => {
+          const match = recs.find((r) => r.id === v.id || r.name === v.name);
+          return {
+            ...v,
+            distance: match?.distance,
+            estimatedTime: match?.estimatedTime,
+          };
+        });
+
+        // Also include any recommended vendors not present in admin API (fallback)
+        recs.forEach((r) => {
+          if (!merged.find((m) => m.id === r.id)) {
+            merged.push({ id: r.id, name: r.name, distance: r.distance, estimatedTime: r.estimatedTime });
+          }
+        });
+
+        setVendors(merged);
       } catch (err) {
         console.warn('Failed to get vendor recommendations for address change:', err);
       }
