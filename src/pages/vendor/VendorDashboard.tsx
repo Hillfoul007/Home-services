@@ -272,7 +272,15 @@ const VendorDashboard: React.FC = () => {
     <div className="p-3 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl md:text-2xl font-semibold">Vendor Dashboard</h1>
-        <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={toggleSound} title={soundEnabled ? 'Disable new order sound' : 'Enable new order sound'}>
+            {soundEnabled ? '🔔 Sound On' : '🔕 Sound Off'}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => { if (soundEnabled) playBeep(); }} title="Test sound">
+            Test
+          </Button>
+          <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
