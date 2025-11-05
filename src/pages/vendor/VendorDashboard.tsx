@@ -156,6 +156,39 @@ const VendorDashboard: React.FC = () => {
     navigate("/vendor/login");
   };
 
+  const handleCallCustomer = (phone: string) => {
+    if (phone) {
+      window.location.href = `tel:${phone}`;
+    }
+  };
+
+  const handleNavigateToAddress = (address: string) => {
+    if (!address) return;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const encodedAddress = encodeURIComponent(address);
+          const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${encodedAddress}`;
+          window.open(googleMapsUrl, '_blank');
+        },
+        (error) => {
+          // If geolocation fails, just open with the address
+          console.log('Geolocation error:', error);
+          const encodedAddress = encodeURIComponent(address);
+          const googleMapsUrl = `https://www.google.com/maps/search/${encodedAddress}`;
+          window.open(googleMapsUrl, '_blank');
+        }
+      );
+    } else {
+      // Fallback if geolocation is not supported
+      const encodedAddress = encodeURIComponent(address);
+      const googleMapsUrl = `https://www.google.com/maps/search/${encodedAddress}`;
+      window.open(googleMapsUrl, '_blank');
+    }
+  };
+
   const sortOrdersByTime = (ordersToSort: Order[]): Order[] => {
     return [...ordersToSort].sort((a, b) => {
       const dateA = getScheduledDateTime(a);
@@ -198,14 +231,33 @@ const VendorDashboard: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-gray-700 truncate">#{order.custom_order_id || order._id}</div>
                     <div className="font-medium text-sm md:text-base truncate">{order.name}</div>
-                    <div className="text-sm text-gray-600 truncate">{order.phone}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="text-sm text-gray-600 truncate flex-1">{order.phone}</div>
+                      {order.phone && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCallCustomer(order.phone!)}
+                          className="flex-shrink-0 px-2 py-1 h-auto"
+                          title="Call customer"
+                        >
+                          ☎️
+                        </Button>
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
                     <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     {order.delivery_date && (
                       <div className="text-xs text-gray-500">Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}</div>
                     )}
                     {order.address && (
-                      <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">📍 {order.address}</div>
+                      <button
+                        onClick={() => handleNavigateToAddress(order.address!)}
+                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
+                        title="Open in Google Maps"
+                      >
+                        📍 {order.address}
+                      </button>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -296,7 +348,20 @@ const VendorDashboard: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-gray-700 truncate">#{order.custom_order_id || order._id}</div>
                     <div className="font-medium text-sm md:text-base truncate">{order.name}</div>
-                    <div className="text-sm text-gray-600 truncate">{order.phone}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="text-sm text-gray-600 truncate flex-1">{order.phone}</div>
+                      {order.phone && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCallCustomer(order.phone!)}
+                          className="flex-shrink-0 px-2 py-1 h-auto"
+                          title="Call customer"
+                        >
+                          ☎️
+                        </Button>
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
                     <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     {order.delivery_date && (
@@ -305,7 +370,13 @@ const VendorDashboard: React.FC = () => {
                       </div>
                     )}
                     {order.address && (
-                      <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">📍 {order.address}</div>
+                      <button
+                        onClick={() => handleNavigateToAddress(order.address!)}
+                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
+                        title="Open in Google Maps"
+                      >
+                        📍 {order.address}
+                      </button>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
