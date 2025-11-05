@@ -616,6 +616,23 @@ const AdminBookingManagement: React.FC = () => {
     };
   }, []);
 
+  // Fetch vendor recommendations when editingBooking address changes
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (!editingBooking || !editingBooking.address) return;
+      try {
+        const services = editingBooking.services?.map((s: any) => (typeof s === 'string' ? s : s.name || s.service)) || [];
+        const recs = await vendorService.getVendorRecommendations(editingBooking.address, services);
+        const opts: VendorOption[] = recs.map(r => ({ id: r.id, name: r.name, distance: r.distance, estimatedTime: r.estimatedTime }));
+        setVendors(opts);
+      } catch (err) {
+        console.warn('Failed to get vendor recommendations for address change:', err);
+      }
+    };
+
+    fetchRecommendations();
+  }, [editingBooking?.address, editingBooking?.services]);
+
   const getISTTimestamp = (): string => {
     const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
     return new Date(indianTime).toISOString();
