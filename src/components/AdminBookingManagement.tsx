@@ -1868,7 +1868,7 @@ const AdminBookingManagement: React.FC = () => {
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
-                        payload.item_prices = editingBooking.item_prices
+                        const cleanedItems = editingBooking.item_prices
                           .filter((it) => it.service_name && it.service_name.trim() !== "")
                           .map((it) => ({
                             service_name: it.service_name || it.name,
@@ -1876,6 +1876,15 @@ const AdminBookingManagement: React.FC = () => {
                             unit_price: it.unit_price ?? it.price ?? 0,
                             total_price: it.total_price || (it.quantity ?? 1) * (it.unit_price ?? it.price ?? 0),
                           }));
+
+                        payload.item_prices = cleanedItems;
+
+                        // Ensure services and service fields are updated so backend stores itemized services
+                        const servicesArray = cleanedItems.map((it) => `${it.service_name} x${it.quantity} (₹${it.unit_price})`);
+                        if (servicesArray.length > 0) {
+                          payload.services = servicesArray;
+                          payload.service = servicesArray[0];
+                        }
                       }
 
                       const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${editingBooking._id}`, {
