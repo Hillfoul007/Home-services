@@ -262,6 +262,8 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       discount_amount: (booking as any).discount_amount || 0,
       discount_percent: (booking as any).discount_percent || 0,
+      // New cashback field (admin-entered absolute rupees)
+      cashback_amount: (booking as any).cashback_amount || (booking as any).cashback || 0,
     } as Booking;
 
     return normalizedBooking;
@@ -1003,7 +1005,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const computeEditingTotals = (bookingData: Booking | null) => {
-    if (!bookingData) return { total: 0, final: 0 };
+    if (!bookingData) return { total: 0, afterCashback: 0, discountAmount: 0, final: 0, cashbackAmount: 0 };
     const items = bookingData.item_prices || [];
     const subtotal = items.reduce((s, it) => {
       const qty = Number(it.quantity ?? 0) || 0;
@@ -1011,10 +1013,21 @@ const AdminBookingManagement: React.FC = () => {
       const itemTotal = Number(it.total_price) || (qty * unitPrice);
       return s + itemTotal;
     }, 0);
+
+    const cashbackAmount = Number((bookingData as any).cashback_amount ?? 0) || 0;
+    const afterCashback = Math.max(0, subtotal - cashbackAmount);
+
     const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
-    const discountAmount = (subtotal * discountPercent) / 100;
-    const finalAmount = subtotal - discountAmount;
-    return { total: +(subtotal).toFixed(2), final: +(finalAmount).toFixed(2) };
+    const discountAmount = +(afterCashback * (discountPercent / 100));
+
+    const finalAmount = afterCashback - discountAmount;
+    return {
+      total: +subtotal.toFixed(2),
+      cashbackAmount: +cashbackAmount.toFixed(2),
+      afterCashback: +afterCashback.toFixed(2),
+      discountAmount: +discountAmount.toFixed(2),
+      final: +finalAmount.toFixed(2),
+    };
   };
 
   if (loading) {
@@ -1864,7 +1877,8 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
                         discount_percent: editingBooking.discount_percent || 0,
-                        discount_amount: (totals.total * (editingBooking.discount_percent || 0) / 100) || 0,
+                        discount_amount: totals.discountAmount || 0,
+                        cashback_amount: totals.cashbackAmount || 0,
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
