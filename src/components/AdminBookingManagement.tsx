@@ -1191,7 +1191,7 @@ const AdminBookingManagement: React.FC = () => {
                         {booking.assignedVendor && (
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendorDetails?.name || booking.assigned_vendor_details?.name || (vendors.find(v => String(v.id) === String(booking.assignedVendor))?.name) || (vendors.find(v => String(v.id) === String(booking.assigned_vendor))?.name) || booking.assignedVendor || booking.assigned_vendor}</span>
                           </div>
                         )}
                       </div>
