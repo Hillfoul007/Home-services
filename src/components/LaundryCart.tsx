@@ -1002,7 +1002,7 @@ Confirm this booking?`;
               <div className="flex items-center gap-2">
                 <Home className="h-4 w-4 text-gray-600" />
                 <span className="font-medium">
-                  Delivery at{" "}
+                  Delivery at{"\u00A0"}
                   {selectedSavedAddress?.type === "home"
                     ? "Home"
                     : selectedSavedAddress?.type === "office"
