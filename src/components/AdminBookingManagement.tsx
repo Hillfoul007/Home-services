@@ -1836,17 +1836,55 @@ const AdminBookingManagement: React.FC = () => {
                   <DollarSign className="h-4 w-4" />
                   Pricing Summary
                 </h4>
-                <div className="space-y-2 rounded-lg bg-gray-50 p-4">
+                <div className="space-y-3 rounded-lg bg-gray-50 p-4">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                   </div>
-                  {(editingBooking.discount_percent || 0) > 0 && (
-                    <div className="flex justify-between text-blue-600">
-                      <span>Discount {editingBooking.discount_percent}%:</span>
-                      <span>-₹{(computeEditingTotals(editingBooking).total * (editingBooking.discount_percent || 0) / 100).toFixed(2)}</span>
-                    </div>
-                  )}
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-700 w-32">Cashback (₹)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={String((editingBooking as any)?.cashback_amount ?? 0)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value || "0") || 0;
+                        setEditingBooking((prev) => prev ? ({ ...prev, cashback_amount: val } as Booking) : prev);
+                      }}
+                      className="w-40"
+                    />
+                    <span className="text-sm text-gray-500">(Subtract before discount)</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-700 w-32">Discount (%)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      value={String(editingBooking?.discount_percent ?? 0)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value || "0") || 0;
+                        setEditingBooking((prev) => prev ? ({ ...prev, discount_percent: val } as Booking) : prev);
+                      }}
+                      className="w-40"
+                    />
+                    <span className="text-sm text-gray-500">(Applied after cashback)</span>
+                  </div>
+
+                  <div className="flex justify-between text-blue-600">
+                    <span>After Cashback:</span>
+                    <span>- ₹{computeEditingTotals(editingBooking).afterCashback.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-blue-600">
+                    <span>Discount Amount:</span>
+                    <span>- ₹{computeEditingTotals(editingBooking).discountAmount.toFixed(2)}</span>
+                  </div>
+
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
                     <span>Final Amount:</span>
                     <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
