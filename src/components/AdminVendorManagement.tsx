@@ -88,29 +88,8 @@ const AdminVendorManagement: React.FC = () => {
         }));
         setVendors(normalizedVendors);
       } else {
-        // Fallback: use local vendor data if API doesn't return anything
-        setVendors([
-          {
-            id: 'vendor1',
-            name: 'Priya Dry Cleaners',
-            address: 'Shop n.155, Spaze corporate park, 1sf, Sector 69, Gurugram, Haryana 122101',
-            coordinates: { lat: 28.3984, lng: 77.0648 },
-            services: ['Dry Cleaning', 'Laundry', 'Ironing', 'Stain Removal'],
-            contactPhone: '+91 9876543210',
-            rating: 4.5,
-            isActive: true,
-          },
-          {
-            id: 'vendor2',
-            name: 'White Tiger Dry Cleaning',
-            address: 'Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101',
-            coordinates: { lat: 28.3982, lng: 77.0650 },
-            services: ['Dry Cleaning', 'Premium Care', 'Express Service', 'Alterations'],
-            contactPhone: '+91 9876543211',
-            rating: 4.3,
-            isActive: true,
-          },
-        ]);
+        // Fallback: no vendors returned from API — start with empty list so admin can add vendors
+        setVendors([]);
       }
     } catch (error) {
       console.error('Error fetching vendors:', error);
