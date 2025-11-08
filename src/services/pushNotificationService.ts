@@ -17,6 +17,20 @@ export class PushNotificationService {
   async initializePWA(): Promise<boolean> {
     try {
       if ("serviceWorker" in navigator) {
+        try {
+          const existing = await navigator.serviceWorker.getRegistration('/sw.js');
+          if (existing) {
+            console.log('Service Worker already registered:', existing);
+            // Attach update listener if missing
+            try {
+              existing.addEventListener && existing.addEventListener('updatefound', () => console.log('New service worker available'));
+            } catch (e) {}
+            return true;
+          }
+        } catch (e) {
+          // ignore
+        }
+
         const registration = await navigator.serviceWorker.register("/sw.js");
         console.log("Service Worker registered:", registration);
 
