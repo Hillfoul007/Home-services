@@ -335,7 +335,7 @@ const AdminUserBooking: React.FC = () => {
               orderType: 'Booking'
             };
 
-            const assignRes = await apiClient.adminRequest('/admin/orders/assign-vendor', { method: 'POST', body: assignPayload });
+            const assignRes = await apiClient.adminRequest('/orders/assign-vendor', { method: 'POST', body: assignPayload });
             if (assignRes && assignRes.status === 200) {
               toast.success('Vendor assigned to booking');
             } else {
