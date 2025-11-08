@@ -381,6 +381,20 @@ const VendorDashboard: React.FC = () => {
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
         </div>
       </div>
+
+      {/* iOS PWA install instructions modal */}
+      {showIosInstallInstructions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white p-6 rounded-md max-w-lg w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2">Install as PWA (iOS)</h3>
+            <p className="text-sm text-gray-700 mb-4">To install this web app on iOS: open this page in Safari → tap Share → "Add to Home Screen".</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowIosInstallInstructions(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
           <div className="mb-4">
