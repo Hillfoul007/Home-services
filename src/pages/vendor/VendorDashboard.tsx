@@ -358,9 +358,26 @@ const VendorDashboard: React.FC = () => {
           <Button size="sm" variant="ghost" onClick={toggleSound} title={soundEnabled ? 'Disable new order sound' : 'Enable new order sound'}>
             {soundEnabled ? '🔔 Sound On' : '🔕 Sound Off'}
           </Button>
-          <Button size="sm" variant="outline" onClick={() => { if (soundEnabled) playBeep(); }} title="Test sound">
+          <Button size="sm" variant="outline" onClick={() => { if (soundEnabled) playBeep('default'); }} title="Test sound">
             Test
           </Button>
+          {/* PWA Install button */}
+          <Button size="sm" variant="secondary" onClick={async () => {
+            // Try native install prompt first
+            try {
+              if (installPromptRef.current && typeof installPromptRef.current.prompt === 'function') {
+                installPromptRef.current.prompt();
+                const choice = await installPromptRef.current.userChoice;
+                console.log('PWA install choice', choice);
+              } else {
+                // iOS fallback: show instructions
+                setShowIosInstallInstructions(true);
+              }
+            } catch (e) {
+              console.warn('PWA install failed or not available', e);
+              setShowIosInstallInstructions(true);
+            }
+          }}>Install PWA</Button>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
         </div>
       </div>
