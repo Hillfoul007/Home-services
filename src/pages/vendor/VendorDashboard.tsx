@@ -86,13 +86,7 @@ const VendorDashboard: React.FC = () => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const initialLoadRef = useRef<boolean>(true);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('vendorOrdersSound') !== 'off';
-    } catch (e) {
-      return true;
-    }
-  });
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
   // Enhanced notification sound player: longer (2s), louder, different tones per type
   const playBeep = (type: 'new' | 'pickup' | 'delivery' | 'default' = 'default') => {
