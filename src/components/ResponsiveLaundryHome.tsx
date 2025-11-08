@@ -165,8 +165,20 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
         }
       }
 
-      // If location is available or detection failed, reload as before
-      window.location.reload();
+      // If location is available or detection failed, reload once to apply location
+      try {
+        const key = 'locationReloaded';
+        const already = localStorage.getItem(key);
+        if (!already) {
+          localStorage.setItem(key, Date.now().toString());
+          window.location.reload();
+        } else {
+          console.log('Skipping reload: already reloaded after location detection');
+        }
+      } catch (e) {
+        // Fallback: attempt a reload but avoid throwing
+        try { window.location.reload(); } catch (e) {}
+      }
     } catch (error) {
       console.error("Location request failed:", error);
       // Show a more helpful message to the user
