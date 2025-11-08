@@ -420,12 +420,6 @@ const VendorDashboard: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl md:text-2xl font-semibold">Vendor Dashboard</h1>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={toggleSound} title={soundEnabled ? 'Disable new order sound' : 'Enable new order sound'}>
-            {soundEnabled ? '🔔 Sound On' : '🔕 Sound Off'}
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => { if (soundEnabled) playBeep('default'); }} title="Test sound">
-            Test
-          </Button>
           {/* PWA Install button */}
           <Button size="sm" variant="secondary" onClick={async () => {
             // Try native install prompt first
