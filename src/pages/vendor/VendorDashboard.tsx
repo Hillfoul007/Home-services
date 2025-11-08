@@ -252,9 +252,59 @@ const VendorDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let running = false;
+    let backoff = 15000; // start 15s
+    let timeoutId: number | null = null;
+
+    const scheduleNext = (delay: number) => {
+      if (cancelled) return;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(runCycle, delay);
+    };
+
+    const runCycle = async () => {
+      if (cancelled || running) return;
+      running = true;
+      try {
+        // Only poll when page is visible to avoid aggressive background polling on iOS
+        if (typeof document !== 'undefined' && document.hidden) {
+          // schedule less frequent when hidden
+          scheduleNext(60000);
+          running = false;
+          return;
+        }
+
+        await load();
+        // successful fetch -> reset backoff
+        backoff = 15000;
+        scheduleNext(15000);
+      } catch (e) {
+        console.warn('Vendor dashboard poll failed, backing off', e);
+        backoff = Math.min(120000, backoff * 2);
+        scheduleNext(backoff);
+      } finally {
+        running = false;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        // when becoming visible, do an immediate refresh
+        runCycle();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // start
+    runCycle();
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
   }, []);
 
   const handleUploadAndMark = async (orderId: string) => {
