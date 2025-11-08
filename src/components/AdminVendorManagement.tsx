@@ -313,7 +313,7 @@ const AdminVendorManagement: React.FC = () => {
                     <Label htmlFor="vendor-name">Vendor Name *</Label>
                     <Input
                       id="vendor-name"
-                      placeholder="e.g., Priya Dry Cleaners"
+                      placeholder="e.g., Local Dry Cleaners"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
@@ -511,7 +511,7 @@ const AdminVendorManagement: React.FC = () => {
                 <Label htmlFor="edit-vendor-name">Vendor Name *</Label>
                 <Input
                   id="edit-vendor-name"
-                  placeholder="e.g., Priya Dry Cleaners"
+                  placeholder="e.g., Local Dry Cleaners"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
