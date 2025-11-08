@@ -44,11 +44,17 @@ export const setupServiceWorkerChangeDetection = (): void => {
  * Initialize PWA update handling
  */
 export const initializePWAUpdates = (): void => {
-  // Clean up any old service workers on app start
-  cleanupOldServiceWorkers();
+  // Avoid aggressive SW cleanup on iOS Safari which can trigger reload loops
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isiOS = /iP(ad|hone|od)/.test(userAgent) && /WebKit/.test(userAgent) && !/CriOS/.test(userAgent);
 
-  // Set up service worker change detection (without auto-reload)
-  setupServiceWorkerChangeDetection();
-
-  console.log("PWA updates initialized");
+  if (!isiOS) {
+    // Clean up any old service workers on app start
+    cleanupOldServiceWorkers();
+    // Set up service worker change detection (without auto-reload)
+    setupServiceWorkerChangeDetection();
+    console.log("PWA updates initialized (cleanup run)");
+  } else {
+    console.log("Skipping SW cleanup on iOS Safari to prevent reload loops");
+  }
 };
