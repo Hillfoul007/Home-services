@@ -42,6 +42,18 @@ function handleURLCorruption() {
   if (typeof window === 'undefined') return false;
 
   const currentURL = window.location.href;
+
+  // Avoid running cleanup repeatedly for the same URL - prevents reload loops
+  try {
+    const lastCleanup = localStorage.getItem('lastUrlCleanup');
+    if (lastCleanup === currentURL) {
+      // Already attempted cleanup for this URL
+      return false;
+    }
+  } catch (e) {
+    // ignore localStorage errors
+  }
+
   const hasCorruptedURL = /[a-f0-9]{32}-[a-f0-9]{20}\.fly\.dev[a-zA-Z0-9]+/.test(currentURL);
 
   if (hasCorruptedURL) {
@@ -62,9 +74,17 @@ function handleURLCorruption() {
     const cleanURL = currentURL.replace(/[a-zA-Z0-9]+$/, '');
     if (cleanURL !== currentURL) {
       console.log('🔧 Redirecting to clean URL:', cleanURL);
+      try {
+        localStorage.setItem('lastUrlCleanup', currentURL);
+      } catch (e) {
+        // ignore
+      }
       window.location.href = cleanURL;
       return true; // Indicate we're redirecting
     }
+
+    // Mark attempted cleanup to avoid loops even if we couldn't compute a different URL
+    try { localStorage.setItem('lastUrlCleanup', currentURL); } catch (e) {}
   }
 
   return false; // No corruption detected or redirect needed
