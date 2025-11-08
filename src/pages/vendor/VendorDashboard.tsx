@@ -212,18 +212,33 @@ const VendorDashboard: React.FC = () => {
     try {
       const res = await vendorAuthService.fetchAssignedOrders();
       if (res && res.success && res.orders) {
-        const fetched = res.orders;
+          const fetched = res.orders;
+
         // detect newly added orders
         const prevIds = prevOrderIdsRef.current;
         const newlyAdded = fetched.filter((o: any) => !prevIds.has(o._id));
 
+        // detect changed scheduled/delivery times
+        const prevMap = prevOrdersMapRef.current;
+        const changedOrders = fetched.filter((o: any) => {
+          const prev = prevMap.get(o._id);
+          if (!prev) return false;
+          return (prev.scheduled_time !== o.scheduled_time) || (prev.delivery_time !== o.delivery_time);
+        });
+
         // only play beep when not initial load
         if (!initialLoadRef.current && newlyAdded.length > 0 && soundEnabled) {
-          try { playBeep(); } catch (e) { console.warn('playBeep error', e); }
+          try { playBeep('new'); } catch (e) { console.warn('playBeep error', e); }
         }
 
-        // update prev ids and orders
+        // play on delivery/time updates
+        if (!initialLoadRef.current && changedOrders.length > 0 && soundEnabled) {
+          try { playBeep('delivery'); } catch (e) { console.warn('playBeep error', e); }
+        }
+
+        // update prev ids and orders map
         prevOrderIdsRef.current = new Set(fetched.map((o: any) => o._id));
+        prevOrdersMapRef.current = new Map(fetched.map((o: any) => [o._id, o]));
         setOrders(fetched);
         initialLoadRef.current = false;
       } else {
