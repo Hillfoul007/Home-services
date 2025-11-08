@@ -1982,10 +1982,7 @@ export default function RiderOrders() {
                         {order.assignedVendorDetails?.name || order.assigned_vendor_details?.name || order.assignedVendor || order.assigned_vendor}
                       </div>
                       <div className="text-sm text-green-700 mt-1">
-                        {order.assignedVendorDetails?.address || order.assigned_vendor_details?.address ||
-                         (order.assignedVendor === 'vendor1' ? 'Shop n.155, Spaze corporate park, 1sf, Sector 69, Gurugram, Haryana 122101' :
-                          order.assignedVendor === 'vendor2' ? 'Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101' :
-                          'Sector 69, Gurugram, Haryana')}
+                        {order.assignedVendorDetails?.address || order.assigned_vendor_details?.address || order.assignedVendorAddress || ''}
                       </div>
                       <div className="flex items-center gap-2 mt-2">
                         {order.assignedVendorDetails?.distance && (
