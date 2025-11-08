@@ -94,22 +94,53 @@ const VendorDashboard: React.FC = () => {
     }
   });
 
-  const playBeep = () => {
+  // Enhanced notification sound player: longer (2s), louder, different tones per type
+  const playBeep = (type: 'new' | 'pickup' | 'delivery' | 'default' = 'default') => {
+    if (!soundEnabled) return;
     try {
       const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
       const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+        // Resume on user gesture if needed
+        ctx.resume().catch(() => {});
+      }
+
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = 'sine';
-      o.frequency.value = 1000;
-      g.gain.value = 0.02;
+
+      // Choose a different base frequency for each notification type
+      let baseFreq = 900;
+      if (type === 'new') baseFreq = 1400;
+      if (type === 'pickup') baseFreq = 700;
+      if (type === 'delivery') baseFreq = 1000;
+
+      o.frequency.value = baseFreq;
+      // Louder volume for vendor alert (user requested loud)
+      g.gain.value = 0.2;
+
       o.connect(g);
       g.connect(ctx.destination);
-      o.start();
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
-      o.stop(ctx.currentTime + 0.6);
+
+      const now = ctx.currentTime;
+      o.start(now);
+
+      // Frequency sweep for a more noticeable sound
+      try {
+        o.frequency.setValueAtTime(baseFreq, now);
+        o.frequency.exponentialRampToValueAtTime(baseFreq * 0.6, now + 2);
+      } catch (e) {
+        // Some browsers may not support exponential ramps for frequencies; ignore
+      }
+
+      // Ramp down gain gracefully over 2 seconds
+      g.gain.setValueAtTime(0.2, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 2);
+
+      // Stop slightly after 2s
+      o.stop(now + 2.05);
     } catch (err) {
       console.warn('Beep failed to play', err);
     }
@@ -124,6 +155,57 @@ const VendorDashboard: React.FC = () => {
       return next;
     });
   };
+
+  // Keep a map of previous orders to detect updates
+  const prevOrdersMapRef = useRef<Map<string, any>>(new Map());
+  // Track which orders we've already sent a '30-min before pickup' notification for
+  const pickupNotifiedRef = useRef<Set<string>>(new Set());
+  // Install prompt event for PWA
+  const installPromptRef = useRef<any>(null);
+  const [showIosInstallInstructions, setShowIosInstallInstructions] = useState(false);
+
+  // Listen for beforeinstallprompt for PWA install flow
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      installPromptRef.current = e;
+      console.log('📥 beforeinstallprompt captured');
+    };
+    window.addEventListener('beforeinstallprompt', handler as EventListener);
+    return () => window.removeEventListener('beforeinstallprompt', handler as EventListener);
+  }, []);
+
+  // Periodically check orders to play pickup reminders 30 minutes before
+  useEffect(() => {
+    const checkPickupReminders = () => {
+      if (!soundEnabled) return;
+      const now = Date.now();
+      orders.forEach((o: any) => {
+        try {
+          const dateStr = o.scheduled_date || '';
+          const timeStr = o.scheduled_time || '00:00';
+          if (!dateStr) return;
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          const dt = new Date(dateStr);
+          dt.setHours(hours || 0, minutes || 0, 0, 0);
+          const diff = dt.getTime() - now;
+          const id = o._id;
+          // Trigger if between 29 and 30 minutes remaining (run every minute)
+          if (diff > 29 * 60 * 1000 && diff <= 30 * 60 * 1000 && !pickupNotifiedRef.current.has(id)) {
+            playBeep('pickup');
+            pickupNotifiedRef.current.add(id);
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+      });
+    };
+
+    // Run immediately and then every minute
+    checkPickupReminders();
+    const intId = window.setInterval(checkPickupReminders, 60 * 1000);
+    return () => clearInterval(intId);
+  }, [orders, soundEnabled]);
 
   const load = async () => {
     setLoading(true);
