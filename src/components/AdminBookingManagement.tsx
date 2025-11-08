@@ -1789,8 +1789,8 @@ const AdminBookingManagement: React.FC = () => {
                                   </td>
                                   <td className="py-3 px-3">
                                     <Input
-                                      type="number"
-                                      step="0.1"
+                                      type="text"
+                                      inputMode="decimal"
                                       value={String(item.quantity ?? 0)}
                                       onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
                                       className="h-8 text-center text-xs"
