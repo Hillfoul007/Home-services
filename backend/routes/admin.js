@@ -2040,7 +2040,12 @@ router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async 
     const booking = await Booking.findByIdAndUpdate(
       orderId,
       {
-        assignedVendor: vendor._id,
+        assignedVendor: vendor.name,
+        assignedVendorDetails: {
+          name: vendor.name,
+          address: vendor.address || vendor.location || '',
+          phone: vendor.phone || vendor.contactPhone || ''
+        },
         status: "vendor_assigned",
         updated_at: new Date(),
       },
