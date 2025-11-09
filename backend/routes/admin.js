@@ -1344,7 +1344,29 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
       }
     };
 
-    const selectedVendor = vendors[vendorData.vendorId];
+    let selectedVendor = vendors[vendorData.vendorId];
+
+    // If not found in demo mapping, try to fetch from database by _id or vendor_id
+    if (!selectedVendor) {
+      try {
+        const isObjId = mongoose.Types.ObjectId.isValid(vendorData.vendorId);
+        const dbVendor = await Vendor.findOne(isObjId ? { _id: vendorData.vendorId } : { vendor_id: vendorData.vendorId });
+        if (dbVendor) {
+          selectedVendor = {
+            id: dbVendor._id.toString(),
+            name: dbVendor.name || dbVendor.vendor_id || 'Unnamed Vendor',
+            address: dbVendor.address || dbVendor.location || '',
+            phone: dbVendor.phone || dbVendor.contactPhone || '',
+            coordinates: dbVendor.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: dbVendor.services || [],
+            rating: dbVendor.rating || 0
+          };
+        }
+      } catch (err) {
+        console.warn('⚠️ Error fetching vendor from DB in assign-vendor route:', err);
+      }
+    }
+
     if (!selectedVendor) {
       return res.status(400).json({ message: 'Invalid vendor selection' });
     }
