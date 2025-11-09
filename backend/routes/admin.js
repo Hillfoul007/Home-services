@@ -224,6 +224,31 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       delete updateData.assigned_vendor;
     }
 
+    // If assignedVendor looks like a vendor id (ObjectId or vendor_id), resolve to vendor name and details
+    if (updateData.assignedVendor) {
+      try {
+        const av = updateData.assignedVendor;
+        const looksLikeObjectId = (typeof av === 'string' && /^[0-9a-fA-F]{24}$/.test(av));
+        let dbVendor = null;
+        if (looksLikeObjectId) {
+          dbVendor = await Vendor.findOne({ $or: [{ _id: av }, { vendor_id: av }] });
+        } else {
+          dbVendor = await Vendor.findOne({ $or: [{ vendor_id: av }, { name: av }] });
+        }
+
+        if (dbVendor) {
+          updateData.assignedVendor = dbVendor.name || dbVendor.vendor_id || '';
+          updateData.assignedVendorDetails = {
+            name: dbVendor.name || dbVendor.vendor_id || '',
+            address: dbVendor.address || dbVendor.location || '',
+            phone: dbVendor.phone || dbVendor.contactPhone || ''
+          };
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not resolve assignedVendor to vendor name during admin update:', err);
+      }
+    }
+
     // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
     const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
     if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
