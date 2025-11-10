@@ -463,9 +463,12 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
-  const fetchCompletedOrders = async () => {
+  const [completedLimit, setCompletedLimit] = useState(200);
+
+  const fetchCompletedOrders = async (opts: { offset?: number, append?: boolean } = {}) => {
     try {
-      const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=50`);
+      const offset = opts.offset || 0;
+      const res = await apiClient.adminRequest<{ bookings?: Booking[]; pagination?: any }>(`/admin/bookings?status=completed&limit=${completedLimit}&offset=${offset}`);
       if (res.data) {
         const anyData: any = res.data as any;
         const list = anyData.bookings || [...(anyData.bucketA || []), ...(anyData.bucketB || [])];
@@ -474,13 +477,31 @@ const AdminBookingManagement: React.FC = () => {
           status: normalizeStatus(b.status),
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
+        // Server already sorts completed by completed_at desc; still ensure client-side ordering
         processed.sort((a, b) => {
           const dateA = new Date(a.completed_at || a.updated_at || 0).getTime();
           const dateB = new Date(b.completed_at || b.updated_at || 0).getTime();
           return dateB - dateA;
         });
-        setCompletedOrders(processed);
-        filterCompletedOrders(processed);
+
+        if (opts.append) {
+          setCompletedOrders((prev) => {
+            // Merge unique by _id
+            const map = new Map(prev.map(p => [p._id, p]));
+            for (const p of processed) map.set(p._id, p);
+            const merged = Array.from(map.values()).sort((a, b) => (new Date(b.completed_at || b.updated_at || 0).getTime()) - (new Date(a.completed_at || a.updated_at || 0).getTime()));
+            filterCompletedOrders(merged);
+            return merged;
+          });
+        } else {
+          setCompletedOrders(processed);
+          filterCompletedOrders(processed);
+        }
+
+        // store pagination info if provided
+        if (anyData.pagination) {
+          setCompletedPagination(anyData.pagination);
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch completed orders', e);
@@ -1547,7 +1568,7 @@ const AdminBookingManagement: React.FC = () => {
                 <div className="space-y-2 rounded-lg bg-gray-50 p-4">
                   <div className="flex justify-between">
                     <span>Total Price:</span>
-                    <span className="font-medium">₹{viewingBooking.total_price}</span>
+                    <span className="font-medium">��{viewingBooking.total_price}</span>
                   </div>
                   {((viewingBooking as any).discount_percent || 0) > 0 && (
                     <div className="flex justify-between text-blue-600">
