@@ -1520,6 +1520,16 @@ const AdminBookingManagement: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Load more for completed orders if pagination indicates more pages */}
+              {completedPagination && (completedOrders.length < (completedPagination.total || 0)) && (
+                <div className="mt-3 flex justify-center">
+                  <Button size="sm" onClick={() => fetchCompletedOrders({ offset: completedOrders.length, append: true })}>
+                    Load more completed orders
+                  </Button>
+                </div>
+              )}
+
             </CardContent>
           </Card>
         </div>
