@@ -588,11 +588,17 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       }
     }
 
+    // Decide sorting: completed bookings should be sorted by completed_at/updated_at desc
+    let sortObj = { scheduled_date: 1, scheduled_time: 1, created_at: -1 };
+    if (status === 'completed') {
+      sortObj = { completed_at: -1, updated_at: -1, created_at: -1 };
+    }
+
     // Fetch relevant bookings
     const bookings = await Booking.find(query)
       .populate("customer_id", "full_name phone email")
       .populate("rider_id", "full_name phone")
-      .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
+      .sort(sortObj)
       .limit(parseInt(limit))
       .skip(parseInt(offset))
       .select("+item_prices +charges_breakdown");
