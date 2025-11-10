@@ -1845,10 +1845,26 @@ const AdminBookingManagement: React.FC = () => {
                                       type="text"
                                       inputMode="decimal"
                                       pattern="[0-9]*[.,]?[0-9]*"
-                                      value={String(item.quantity ?? 0)}
+                                      value={ (item as any)._raw_quantity !== undefined ? String((item as any)._raw_quantity) : String(item.quantity ?? '') }
                                       onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
+                                      onBlur={() => {
+                                        // finalize raw quantity to numeric on blur
+                                        setEditingBooking((prev) => {
+                                          if (!prev) return prev;
+                                          const nextItems = Array.isArray(prev.item_prices) ? [...prev.item_prices] : [];
+                                          const currentItem = nextItems[index] || {};
+                                          const parsed = parseFloat(String((currentItem as any)._raw_quantity ?? currentItem.quantity ?? 0).toString().replace(/,/g, '.'));
+                                          if (Number.isFinite(parsed)) {
+                                            currentItem.quantity = parsed;
+                                          } else {
+                                            currentItem.quantity = 0;
+                                          }
+                                          delete (currentItem as any)._raw_quantity;
+                                          nextItems[index] = currentItem;
+                                          return { ...prev, item_prices: nextItems } as Booking;
+                                        });
+                                      }}
                                       onKeyDown={(e) => {
-                                        // allow: numbers, one dot, one comma, backspace, delete, arrows, tab
                                         const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'];
                                         if (allowed.includes(e.key)) return;
                                         const isNum = /[0-9]/.test(e.key);
@@ -1856,8 +1872,7 @@ const AdminBookingManagement: React.FC = () => {
                                         if (!isNum && !isCommaOrDot) {
                                           e.preventDefault();
                                         }
-                                        // prevent multiple dots/commas
-                                        const current = String(item.quantity ?? '');
+                                        const current = String((item as any)._raw_quantity !== undefined ? (item as any)._raw_quantity : item.quantity ?? '');
                                         if ((e.key === '.' || e.key === ',') && (current.includes('.') || current.includes(','))) {
                                           e.preventDefault();
                                         }
