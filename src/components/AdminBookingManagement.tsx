@@ -995,8 +995,13 @@ const AdminBookingManagement: React.FC = () => {
         const parsedQuantity = parseFloat(rawValue);
         // Preserve incomplete decimal inputs (".", "", "-") so the user can type comfortably
         if (rawValue.trim() === "" || rawValue === "." || rawValue === "-") {
-          nextItem.quantity = rawValue;
+          // keep a raw string for rendering so caret doesn't jump
+          (nextItem as any)._raw_quantity = rawValue;
+          // keep numeric quantity as-is for calculations (fallback to 0)
+          nextItem.quantity = typeof nextItem.quantity === 'number' ? nextItem.quantity : 0;
         } else {
+          // valid numeric input
+          delete (nextItem as any)._raw_quantity;
           nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 0;
         }
       } else if (field === "unit_price") {
