@@ -956,6 +956,9 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleItemPriceChange = (index: number, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
+    // Normalize comma to dot for locales that type comma as decimal separator
+    rawValue = String(rawValue).replace(/,/g, '.')
+
     setEditingBooking((prev) => {
       if (!prev) return prev;
 
