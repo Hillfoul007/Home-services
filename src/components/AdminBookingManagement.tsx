@@ -504,6 +504,13 @@ const AdminBookingManagement: React.FC = () => {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === completedStatusFilter);
     }
 
+    // Ensure filtered completed orders are sorted by most recent completed/updated time (newest first)
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.completed_at || a.updated_at || 0).getTime();
+      const dateB = new Date(b.completed_at || b.updated_at || 0).getTime();
+      return dateB - dateA;
+    });
+
     setFilteredCompletedOrders(filtered);
   };
 
@@ -961,13 +968,19 @@ const AdminBookingManagement: React.FC = () => {
         nextItem.service_name = rawValue;
       } else if (field === "quantity") {
         const parsedQuantity = parseFloat(rawValue);
-        nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 1;
+        // Preserve incomplete decimal inputs (".", "", "-") so the user can type comfortably
+        if (rawValue.trim() === "" || rawValue === "." || rawValue === "-") {
+          nextItem.quantity = rawValue;
+        } else {
+          nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 0;
+        }
       } else if (field === "unit_price") {
         const parsedPrice = parseFloat(rawValue);
         nextItem.unit_price = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
       }
 
-      const quantity = Number(nextItem.quantity ?? 1) || 1;
+      // Compute totals using numeric coercion but tolerate user-typed intermediate strings
+      const quantity = typeof nextItem.quantity === 'number' ? nextItem.quantity : (parseFloat(String(nextItem.quantity)) || 0);
       const unitPrice = Number(nextItem.unit_price ?? nextItem.price ?? 0) || 0;
 
       nextItem.total_price = +(quantity * unitPrice).toFixed(2);
