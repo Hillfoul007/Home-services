@@ -1807,8 +1807,24 @@ const AdminBookingManagement: React.FC = () => {
                                     <Input
                                       type="text"
                                       inputMode="decimal"
+                                      pattern="[0-9]*[.,]?[0-9]*"
                                       value={String(item.quantity ?? 0)}
                                       onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
+                                      onKeyDown={(e) => {
+                                        // allow: numbers, one dot, one comma, backspace, delete, arrows, tab
+                                        const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'];
+                                        if (allowed.includes(e.key)) return;
+                                        const isNum = /[0-9]/.test(e.key);
+                                        const isCommaOrDot = e.key === '.' || e.key === ',';
+                                        if (!isNum && !isCommaOrDot) {
+                                          e.preventDefault();
+                                        }
+                                        // prevent multiple dots/commas
+                                        const current = String(item.quantity ?? '');
+                                        if ((e.key === '.' || e.key === ',') && (current.includes('.') || current.includes(','))) {
+                                          e.preventDefault();
+                                        }
+                                      }}
                                       className="h-8 text-center text-xs"
                                     />
                                   </td>
