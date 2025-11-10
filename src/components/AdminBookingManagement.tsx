@@ -436,6 +436,7 @@ const AdminBookingManagement: React.FC = () => {
   const [completedSearchTerm, setCompletedSearchTerm] = useState("");
   const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
   const [filteredCompletedOrders, setFilteredCompletedOrders] = useState<Booking[]>([]);
+  const [completedPagination, setCompletedPagination] = useState<{ total: number; limit: number; offset: number; pages: number } | null>(null);
 
   // Pickup bucket (A) filters
   const [pickupSearchTerm, setPickupSearchTerm] = useState("");
