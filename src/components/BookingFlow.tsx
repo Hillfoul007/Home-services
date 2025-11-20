@@ -104,8 +104,8 @@ const BookingFlow: React.FC<BookingFlowProps> = ({
 
 
 
-  const handleBookService = async () => {
-    console.log("🚀 Starting booking process...");
+  const handleBookService = async (walletAmountToApply: number = 0) => {
+    console.log("🚀 Starting booking process with wallet amount:", walletAmountToApply);
     bookingTestHelper.runDiagnostic();
 
     if (!currentUser) {
