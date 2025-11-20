@@ -219,12 +219,106 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
               )}
               <Separator className="my-2" />
               <div className="flex justify-between font-bold">
-                <span>Total Amount</span>
+                <span>Subtotal</span>
                 <span>${pricing.finalAmount.toFixed(2)}</span>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Wallet Balance Card */}
+        {walletBalance > 0 && (
+          <Card className="mb-6 border-blue-200 bg-blue-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center text-sm">
+                <Wallet className="w-4 h-4 mr-2 text-blue-600" />
+                Use Wallet Balance
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-2 bg-blue-100 rounded">
+                  <span className="text-sm font-medium text-blue-900">
+                    Available Balance
+                  </span>
+                  <span className="text-lg font-bold text-blue-700">
+                    ${walletBalance.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-700">
+                    Apply Wallet Amount (₹)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={Math.min(walletBalance, pricing.finalAmount)}
+                    step="0.01"
+                    value={walletAmountToApply}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      const maxAmount = Math.min(walletBalance, pricing.finalAmount);
+                      setWalletAmountToApply(Math.min(value, maxAmount));
+                    }}
+                    placeholder="0.00"
+                    className="w-full"
+                  />
+                </div>
+
+                {walletAmountToApply > 0 && (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setWalletAmountToApply(
+                          Math.min(walletBalance, pricing.finalAmount),
+                        )
+                      }
+                      className="flex-1 text-xs"
+                    >
+                      Use Max
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setWalletAmountToApply(0)}
+                      className="flex-1 text-xs"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Final Amount Card */}
+        {walletAmountToApply > 0 && (
+          <Card className="mb-6 border-green-200 bg-green-50">
+            <CardContent className="pt-4">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>${pricing.finalAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-green-600">
+                  <span>Wallet Discount</span>
+                  <span>-${walletAmountToApply.toFixed(2)}</span>
+                </div>
+                <Separator className="my-2" />
+                <div className="flex justify-between font-bold text-lg text-green-700">
+                  <span>Final Amount</span>
+                  <span>${finalAmountAfterWallet.toFixed(2)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Action Buttons */}
         <div className="space-y-3">
