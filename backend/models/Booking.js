@@ -237,6 +237,15 @@ const bookingSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    wallet_applied_amount: {
+      type: Number,
+      default: 0,
+      min: [0, "Wallet applied amount must be non-negative"],
+    },
+    wallet_payment_processed: {
+      type: Boolean,
+      default: false,
+    },
     charges_breakdown: {
       base_price: {
         type: Number,
