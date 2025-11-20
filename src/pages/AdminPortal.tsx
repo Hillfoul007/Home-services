@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { AdminAuth } from "@/config/adminConfig";
 import AdminLogin from "@/components/AdminLogin";
 import AdminDashboard from "@/components/AdminDashboard";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const AdminPortal: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
