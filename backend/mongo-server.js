@@ -88,9 +88,28 @@ try {
   console.error("Error details:", error);
 }
 
-// Fallback 404
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found', path: req.path });
+// Serve static frontend files in production (BEFORE catch-all route)
+const path = require('path');
+const fs = require('fs');
+
+// In production, serve the frontend dist folder
+const frontendPath = path.join(__dirname, '../dist');
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath, {
+    maxAge: '1d',
+    etag: false
+  }));
+  console.log(`✅ Frontend static files served from: ${frontendPath}`);
+}
+
+// Catch-all route: serve index.html for all non-API routes (SPA support)
+app.get('*', (req, res) => {
+  const indexPath = path.join(frontendPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ error: 'Route not found and frontend build not available', path: req.path });
+  }
 });
 
 // Start server
