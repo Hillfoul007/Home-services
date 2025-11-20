@@ -12,13 +12,19 @@ const verifyUserToken = (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token) {
+      console.warn("❌ No token provided in Authorization header");
       return res.status(401).json({ error: "No token provided" });
     }
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user_id = decoded.user_id || decoded._id;
+    // Handle different token formats: userId, user_id, _id
+    req.user_id = decoded.userId || decoded.user_id || decoded._id;
+    if (!req.user_id) {
+      console.warn("❌ No user ID found in token payload:", Object.keys(decoded));
+      return res.status(401).json({ error: "Invalid token payload" });
+    }
     next();
   } catch (error) {
-    console.error("❌ Token verification error:", error);
+    console.error("❌ Token verification error:", error.message);
     res.status(401).json({ error: "Invalid or expired token" });
   }
 };
