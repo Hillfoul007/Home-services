@@ -602,6 +602,70 @@ router.post("/", async (req, res) => {
     );
     console.log("🆔 Generated custom order ID:", booking.custom_order_id);
 
+    // Handle wallet balance deduction if user applied wallet amount
+    if (wallet_applied_amount && wallet_applied_amount > 0) {
+      try {
+        console.log(`💳 Processing wallet deduction: ₹${wallet_applied_amount}`);
+
+        // Refresh customer to get latest wallet data
+        const updatedCustomer = await User.findById(customer._id);
+
+        if (!updatedCustomer) {
+          console.error("❌ Customer not found for wallet deduction");
+        } else if (!updatedCustomer.wallet) {
+          console.error("❌ Customer wallet not initialized");
+        } else {
+          const currentBalance = updatedCustomer.wallet.balance || 0;
+
+          if (currentBalance < wallet_applied_amount) {
+            console.warn(`⚠️ Insufficient wallet balance. Available: ₹${currentBalance}, Requested: ₹${wallet_applied_amount}`);
+          } else {
+            // Deduct from wallet balance
+            updatedCustomer.wallet.balance = Math.max(0, currentBalance - wallet_applied_amount);
+            updatedCustomer.wallet.total_used = (updatedCustomer.wallet.total_used || 0) + wallet_applied_amount;
+            updatedCustomer.wallet.last_transaction_at = new Date();
+
+            // Add transaction record
+            if (!updatedCustomer.wallet_transactions) {
+              updatedCustomer.wallet_transactions = [];
+            }
+
+            const transaction = {
+              _id: new mongoose.Types.ObjectId(),
+              type: "debit",
+              amount: wallet_applied_amount,
+              source: "order_use",
+              booking_id: booking._id,
+              description: `Wallet payment for order ${booking.custom_order_id || booking._id}`,
+              balance_after: updatedCustomer.wallet.balance,
+              created_at: new Date(),
+            };
+
+            updatedCustomer.wallet_transactions.push(transaction);
+
+            // Save updated customer with wallet changes
+            await updatedCustomer.save();
+
+            console.log(`✅ Wallet deducted successfully. New balance: ₹${updatedCustomer.wallet.balance}`);
+            console.log(`📊 Transaction record created:`, {
+              amount: wallet_applied_amount,
+              booking_id: booking._id,
+              new_balance: updatedCustomer.wallet.balance,
+            });
+
+            // Update booking with wallet amount used
+            booking.wallet_applied_amount = wallet_applied_amount;
+            booking.wallet_payment_processed = true;
+            await booking.save();
+          }
+        }
+      } catch (walletError) {
+        console.error("❌ Error processing wallet deduction:", walletError);
+        // Log the error but don't fail the booking creation
+        // The booking is already created and confirmed
+      }
+    }
+
     // Check if this customer is using a referral discount
     try {
       console.log("🔍 Checking for referral discounts...");
@@ -1857,7 +1921,7 @@ router.put("/:bookingId/cancel", async (req, res) => {
       // More permissive fallback - if no userId provided, allow cancellation
       // This handles cases where the frontend doesn't send the user ID correctly
       if (!userId) {
-        console.log("⚠️ No user ID provided - allowing cancellation");
+        console.log("⚠��� No user ID provided - allowing cancellation");
         canCancel = true;
       } else {
         return res.status(403).json({
