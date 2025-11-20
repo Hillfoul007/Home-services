@@ -10,11 +10,13 @@ const VendorLogin: React.FC = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
       const res = await vendorAuthService.login(vendorId.trim(), password);
@@ -28,9 +30,12 @@ const VendorLogin: React.FC = () => {
       }
 
       const err = res?.error || "Login failed";
+      setError(err as string);
       toast.error(err as string);
     } catch (error: any) {
-      toast.error(error?.message || "Login error");
+      const errorMessage = error?.message || "Login error";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
