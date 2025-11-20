@@ -304,6 +304,52 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     console.log("✅ Booking updated by admin:", booking._id);
     console.log("✅ Updated timestamp:", booking.updated_at);
     console.log(`✅ Final booking state: total_price=${booking.total_price}, final_amount=${booking.final_amount}, item_prices count=${booking.item_prices?.length || 0}`);
+
+    // Auto-credit cashback to user wallet when order is completed
+    if (updateData.status === "completed" && booking.customer_id && booking.cashback_amount > 0) {
+      try {
+        const customer = await User.findById(booking.customer_id);
+        if (customer && !booking.cashback_credited) {
+          if (!customer.wallet) {
+            customer.wallet = { balance: 0, total_earned: 0, total_used: 0 };
+          }
+          if (!customer.wallet_transactions) {
+            customer.wallet_transactions = [];
+          }
+
+          const currentBalance = customer.wallet.balance || 0;
+          const newBalance = currentBalance + booking.cashback_amount;
+
+          const transaction = {
+            _id: new mongoose.Types.ObjectId(),
+            type: "credit",
+            amount: booking.cashback_amount,
+            source: "cashback",
+            booking_id: booking._id,
+            description: `Cashback for order ${booking.custom_order_id || booking._id}`,
+            balance_after: newBalance,
+            created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+          };
+
+          customer.wallet.balance = newBalance;
+          customer.wallet.total_earned = (customer.wallet.total_earned || 0) + booking.cashback_amount;
+          customer.wallet.last_transaction_at = transaction.created_at;
+          customer.wallet_transactions.push(transaction);
+
+          booking.cashback_credited = true;
+          booking.cashback_credited_at = transaction.created_at;
+
+          await customer.save();
+          await booking.save();
+
+          console.log(`✅ Cashback auto-credited: ₹${booking.cashback_amount} to user ${booking.customer_id}`);
+        }
+      } catch (cashbackError) {
+        console.error("⚠️ Failed to auto-credit cashback:", cashbackError);
+        // Don't fail the entire request if cashback crediting fails
+      }
+    }
+
     res.json({ message: "Booking updated successfully", booking });
   } catch (error) {
     console.error("❌ Error updating booking:", error);
@@ -1338,7 +1384,7 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
       };
     }
 
-    console.log(`✅ Order assigned to ${rider.name} (${orderType}) - Notification sent: ${notificationSent}`);
+    console.log(`�� Order assigned to ${rider.name} (${orderType}) - Notification sent: ${notificationSent}`);
     res.json(assignmentResult);
   } catch (error) {
     console.error('Order assignment error:', error);
