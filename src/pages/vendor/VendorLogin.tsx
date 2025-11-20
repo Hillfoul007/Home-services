@@ -47,6 +47,12 @@ const VendorLogin: React.FC = () => {
         <h2 className="text-2xl font-bold mb-2 text-center">Vendor Login</h2>
         <p className="text-sm text-gray-500 text-center mb-6">Use your vendor credentials provided by admin</p>
 
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+
         <form onSubmit={submit} className="space-y-5">
           <div>
             <label className="block mb-2 text-sm font-semibold text-gray-700">
