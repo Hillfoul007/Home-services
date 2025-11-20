@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { vendorAuthService } from "@/services/vendorAuthService";
 import { toast } from "sonner";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const VendorLogin: React.FC = () => {
   const [vendorId, setVendorId] = useState("");
