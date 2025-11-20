@@ -620,7 +620,7 @@ const AdminBookingManagement: React.FC = () => {
       es.addEventListener('booking_change', (event: MessageEvent) => {
         try {
           const payload = JSON.parse(event.data);
-          console.log('�� Received booking_change SSE payload:', payload?._id || payload);
+          console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
           if (payload && payload._id && !showEditDialog) {
             applyBookingUpdate(payload._id, payload);
 
@@ -2102,7 +2102,8 @@ const AdminBookingManagement: React.FC = () => {
                         vendor: editingBooking.vendor,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.discountAmount || 0,
-                        cashback_amount: totals.cashbackAmount || 0,
+                        cashback_amount: (editingBooking as any).cashback_amount || 0,
+                        wallet_discount_amount: (editingBooking as any).wallet_discount_amount || 0,
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
