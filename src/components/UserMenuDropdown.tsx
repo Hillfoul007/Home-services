@@ -19,7 +19,9 @@ import {
   ChevronDown,
   MessageCircle,
   Gift,
+  Wallet,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import ProfileSettingsModal from "./ProfileSettingsModal";
 import SavedAddressesModal from "./SavedAddressesModal";
 import PreferencesModal from "./PreferencesModal";
@@ -38,6 +40,7 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
   onViewBookings,
   onUpdateProfile,
 }) => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAddressesModal, setShowAddressesModal] = useState(false);
@@ -86,6 +89,15 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
       setIsOpen(false);
       setShowReferralModal(true);
       // Reset clicked state after dropdown closes
+      setTimeout(() => setClickedItem(null), 300);
+    }, 100);
+  };
+
+  const handleWalletClick = () => {
+    setClickedItem("wallet");
+    setTimeout(() => {
+      setIsOpen(false);
+      navigate("/wallet");
       setTimeout(() => setClickedItem(null), 300);
     }, 100);
   };
@@ -273,6 +285,32 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
                     50% OFF
                   </span>
                 </div>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={handleWalletClick}
+              className={`cursor-pointer rounded-xl p-3 hover:bg-green-50 hover:text-green-700 transition-all duration-200 group transform hover:scale-[1.02] ${
+                clickedItem === "wallet"
+                  ? "scale-110 bg-green-100 shadow-lg ring-2 ring-green-300 ring-opacity-50"
+                  : ""
+              }`}
+            >
+              <div className="flex items-center w-full">
+                <div
+                  className={`w-8 h-8 bg-green-100 group-hover:bg-green-200 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+                    clickedItem === "wallet"
+                      ? "animate-pulse bg-green-200 scale-110"
+                      : ""
+                  }`}
+                >
+                  <Wallet
+                    className={`h-4 w-4 text-green-600 transition-all duration-200 ${
+                      clickedItem === "wallet" ? "scale-125" : ""
+                    }`}
+                  />
+                </div>
+                <span className="font-medium">My Wallet</span>
               </div>
             </DropdownMenuItem>
           </div>

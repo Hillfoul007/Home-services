@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { vendorAuthService } from "@/services/vendorAuthService";
 import { Card } from "@/components/ui/card";
@@ -82,12 +82,159 @@ const VendorDashboard: React.FC = () => {
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
+  // Notification sound state & refs
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const initialLoadRef = useRef<boolean>(true);
+  const prevOrderIdsRef = useRef<Set<string>>(new Set());
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+
+  // Enhanced notification sound player: longer (2s), louder, different tones per type
+  const playBeep = (type: 'new' | 'pickup' | 'delivery' | 'default' = 'default') => {
+    if (!soundEnabled) return;
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+        // Resume on user gesture if needed
+        ctx.resume().catch(() => {});
+      }
+
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+
+      // Choose a different base frequency for each notification type
+      let baseFreq = 900;
+      if (type === 'new') baseFreq = 1400;
+      if (type === 'pickup') baseFreq = 700;
+      if (type === 'delivery') baseFreq = 1000;
+
+      o.frequency.value = baseFreq;
+      // Louder volume for vendor alert (user requested loud)
+      g.gain.value = 0.2;
+
+      o.connect(g);
+      g.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      o.start(now);
+
+      // Frequency sweep for a more noticeable sound
+      try {
+        o.frequency.setValueAtTime(baseFreq, now);
+        o.frequency.exponentialRampToValueAtTime(baseFreq * 0.6, now + 2);
+      } catch (e) {
+        // Some browsers may not support exponential ramps for frequencies; ignore
+      }
+
+      // Ramp down gain gracefully over 2 seconds
+      g.gain.setValueAtTime(0.2, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 2);
+
+      // Stop slightly after 2s
+      o.stop(now + 2.05);
+    } catch (err) {
+      console.warn('Beep failed to play', err);
+    }
+  };
+
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('vendorOrdersSound', next ? 'on' : 'off');
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  // Keep a map of previous orders to detect updates
+  const prevOrdersMapRef = useRef<Map<string, any>>(new Map());
+  // Track which orders we've already sent a '30-min before pickup' notification for
+  const pickupNotifiedRef = useRef<Set<string>>(new Set());
+  // Install prompt event for PWA
+  const installPromptRef = useRef<any>(null);
+  const [showIosInstallInstructions, setShowIosInstallInstructions] = useState(false);
+
+  // Listen for beforeinstallprompt for PWA install flow
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      installPromptRef.current = e;
+      console.log('📥 beforeinstallprompt captured');
+    };
+    window.addEventListener('beforeinstallprompt', handler as EventListener);
+    return () => window.removeEventListener('beforeinstallprompt', handler as EventListener);
+  }, []);
+
+  // Periodically check orders to play pickup reminders 30 minutes before
+  useEffect(() => {
+    const checkPickupReminders = () => {
+      if (!soundEnabled) return;
+      const now = Date.now();
+      orders.forEach((o: any) => {
+        try {
+          const dateStr = o.scheduled_date || '';
+          const timeStr = o.scheduled_time || '00:00';
+          if (!dateStr) return;
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          const dt = new Date(dateStr);
+          dt.setHours(hours || 0, minutes || 0, 0, 0);
+          const diff = dt.getTime() - now;
+          const id = o._id;
+          // Trigger if between 29 and 30 minutes remaining (run every minute)
+          if (diff > 29 * 60 * 1000 && diff <= 30 * 60 * 1000 && !pickupNotifiedRef.current.has(id)) {
+            playBeep('pickup');
+            pickupNotifiedRef.current.add(id);
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+      });
+    };
+
+    // Run immediately and then every minute
+    checkPickupReminders();
+    const intId = window.setInterval(checkPickupReminders, 60 * 1000);
+    return () => clearInterval(intId);
+  }, [orders, soundEnabled]);
+
   const load = async () => {
     setLoading(true);
     try {
       const res = await vendorAuthService.fetchAssignedOrders();
       if (res && res.success && res.orders) {
-        setOrders(res.orders);
+          const fetched = res.orders;
+
+        // detect newly added orders
+        const prevIds = prevOrderIdsRef.current;
+        const newlyAdded = fetched.filter((o: any) => !prevIds.has(o._id));
+
+        // detect changed scheduled/delivery times
+        const prevMap = prevOrdersMapRef.current;
+        const changedOrders = fetched.filter((o: any) => {
+          const prev = prevMap.get(o._id);
+          if (!prev) return false;
+          return (prev.scheduled_time !== o.scheduled_time) || (prev.delivery_time !== o.delivery_time);
+        });
+
+        // only play beep when not initial load
+        if (!initialLoadRef.current && newlyAdded.length > 0 && soundEnabled) {
+          try { playBeep('new'); } catch (e) { console.warn('playBeep error', e); }
+        }
+
+        // play on delivery/time updates
+        if (!initialLoadRef.current && changedOrders.length > 0 && soundEnabled) {
+          try { playBeep('delivery'); } catch (e) { console.warn('playBeep error', e); }
+        }
+
+        // update prev ids and orders map
+        prevOrderIdsRef.current = new Set(fetched.map((o: any) => o._id));
+        prevOrdersMapRef.current = new Map(fetched.map((o: any) => [o._id, o]));
+        setOrders(fetched);
+        initialLoadRef.current = false;
       } else {
         toast.error(res.error || "Failed to fetch orders");
       }
@@ -99,9 +246,59 @@ const VendorDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let running = false;
+    let backoff = 15000; // start 15s
+    let timeoutId: number | null = null;
+
+    const scheduleNext = (delay: number) => {
+      if (cancelled) return;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(runCycle, delay);
+    };
+
+    const runCycle = async () => {
+      if (cancelled || running) return;
+      running = true;
+      try {
+        // Only poll when page is visible to avoid aggressive background polling on iOS
+        if (typeof document !== 'undefined' && document.hidden) {
+          // schedule less frequent when hidden
+          scheduleNext(60000);
+          running = false;
+          return;
+        }
+
+        await load();
+        // successful fetch -> reset backoff
+        backoff = 15000;
+        scheduleNext(15000);
+      } catch (e) {
+        console.warn('Vendor dashboard poll failed, backing off', e);
+        backoff = Math.min(120000, backoff * 2);
+        scheduleNext(backoff);
+      } finally {
+        running = false;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        // when becoming visible, do an immediate refresh
+        runCycle();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // start
+    runCycle();
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
   }, []);
 
   const handleUploadAndMark = async (orderId: string) => {
@@ -216,8 +413,41 @@ const VendorDashboard: React.FC = () => {
     <div className="p-3 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl md:text-2xl font-semibold">Vendor Dashboard</h1>
-        <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        <div className="flex items-center gap-2">
+          {/* PWA Install button */}
+          <Button size="sm" variant="secondary" onClick={async () => {
+            // Try native install prompt first
+            try {
+              if (installPromptRef.current && typeof installPromptRef.current.prompt === 'function') {
+                installPromptRef.current.prompt();
+                const choice = await installPromptRef.current.userChoice;
+                console.log('PWA install choice', choice);
+              } else {
+                // iOS fallback: show instructions
+                setShowIosInstallInstructions(true);
+              }
+            } catch (e) {
+              console.warn('PWA install failed or not available', e);
+              setShowIosInstallInstructions(true);
+            }
+          }}>Install PWA</Button>
+          <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        </div>
       </div>
+
+      {/* iOS PWA install instructions modal */}
+      {showIosInstallInstructions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white p-6 rounded-md max-w-lg w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2">Install as PWA (iOS)</h3>
+            <p className="text-sm text-gray-700 mb-4">To install this web app on iOS: open this page in Safari → tap Share → "Add to Home Screen".</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowIosInstallInstructions(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
           <div className="mb-4">
@@ -234,15 +464,28 @@ const VendorDashboard: React.FC = () => {
                     <div className="flex items-center gap-2 mt-1">
                       <div className="text-sm text-gray-600 truncate flex-1">{order.phone}</div>
                       {order.phone && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallCustomer(order.phone!)}
-                          className="flex-shrink-0 px-2 py-1 h-auto"
-                          title="Call customer"
-                        >
-                          ☎️
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallCustomer(order.phone!)}
+                            className="flex-shrink-0 px-2 py-1 h-auto"
+                            title="Call customer"
+                          >
+                            ☎️
+                          </Button>
+                          {order.address && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleNavigateToAddress(order.address!)}
+                              className="flex-shrink-0 px-2 py-1 h-auto"
+                              title="Navigate to address"
+                            >
+                              🧭
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
@@ -351,15 +594,28 @@ const VendorDashboard: React.FC = () => {
                     <div className="flex items-center gap-2 mt-1">
                       <div className="text-sm text-gray-600 truncate flex-1">{order.phone}</div>
                       {order.phone && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallCustomer(order.phone!)}
-                          className="flex-shrink-0 px-2 py-1 h-auto"
-                          title="Call customer"
-                        >
-                          ☎️
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallCustomer(order.phone!)}
+                            className="flex-shrink-0 px-2 py-1 h-auto"
+                            title="Call customer"
+                          >
+                            ☎️
+                          </Button>
+                          {order.address && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleNavigateToAddress(order.address!)}
+                              className="flex-shrink-0 px-2 py-1 h-auto"
+                              title="Navigate to address"
+                            >
+                              🧭
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">{order.service}</div>
@@ -381,6 +637,7 @@ const VendorDashboard: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded whitespace-nowrap">Ready</span>
+                    <div className="text-sm font-semibold text-gray-700 whitespace-nowrap">₹{order.final_amount ?? order.total_price}</div>
                     {order.items_images && order.items_images.length > 0 && (
                       <Button
                         variant="outline"

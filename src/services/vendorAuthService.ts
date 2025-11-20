@@ -104,21 +104,31 @@ class VendorAuthService {
       console.log('📋 Fetching assigned orders');
 
       const response = await fetch(`${this.baseUrl}/orders/assigned-orders`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        console.error('❌ Failed to fetch orders:', data);
-        return { success: false, error: data.error || 'Failed to fetch orders' };
-      }
+    if (response.status === 401) {
+      console.error('❌ Unauthorized while fetching orders:', data);
+      // Clear local auth and redirect to login to avoid reload loops
+      this.logout();
+      try {
+        window.location.href = '/vendor/login';
+      } catch (e) {}
+      return { success: false, error: data.error || 'Authentication required' };
+    }
 
-      console.log('✅ Fetched assigned orders:', data.orders?.length);
-      return { success: true, orders: data.orders };
+    if (!response.ok) {
+      console.error('❌ Failed to fetch orders:', data);
+      return { success: false, error: data.error || 'Failed to fetch orders' };
+    }
+
+    console.log('✅ Fetched assigned orders:', data.orders?.length);
+    return { success: true, orders: data.orders };
     } catch (error: any) {
       console.error('❌ Error fetching assigned orders:', error);
       return { success: false, error: error.message || 'Failed to fetch orders' };
@@ -139,22 +149,29 @@ class VendorAuthService {
       formData.append('items_image', file);
 
       const response = await fetch(`${this.baseUrl}/orders/orders/${orderId}/upload-items-image`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        console.error('❌ Failed to upload image:', data);
-        return { success: false, error: data.error || 'Upload failed' };
-      }
+    if (response.status === 401) {
+      console.error('❌ Unauthorized while uploading image:', data);
+      this.logout();
+      try { window.location.href = '/vendor/login'; } catch (e) {}
+      return { success: false, error: data.error || 'Authentication required' };
+    }
 
-      console.log('✅ Image uploaded successfully');
-      return { success: true, file_id: data.file_id, filename: data.filename, message: data.message };
+    if (!response.ok) {
+      console.error('❌ Failed to upload image:', data);
+      return { success: false, error: data.error || 'Upload failed' };
+    }
+
+    console.log('✅ Image uploaded successfully');
+    return { success: true, file_id: data.file_id, filename: data.filename, message: data.message };
     } catch (error: any) {
       console.error('❌ Error uploading image:', error);
       return { success: false, error: error.message || 'Upload error' };
@@ -172,23 +189,30 @@ class VendorAuthService {
       console.log('📝 Updating order status:', { orderId, status });
 
       const response = await fetch(`${this.baseUrl}/orders/orders/${orderId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
-      });
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        console.error('❌ Failed to update status:', data);
-        return { success: false, error: data.error || 'Failed to update status' };
-      }
+    if (response.status === 401) {
+      console.error('❌ Unauthorized while updating status:', data);
+      this.logout();
+      try { window.location.href = '/vendor/login'; } catch (e) {}
+      return { success: false, error: data.error || 'Authentication required' };
+    }
 
-      console.log('✅ Order status updated successfully');
-      return { success: true, message: data.message, order: data.order };
+    if (!response.ok) {
+      console.error('❌ Failed to update status:', data);
+      return { success: false, error: data.error || 'Failed to update status' };
+    }
+
+    console.log('✅ Order status updated successfully');
+    return { success: true, message: data.message, order: data.order };
     } catch (error: any) {
       console.error('❌ Error updating order status:', error);
       return { success: false, error: error.message || 'Status update error' };

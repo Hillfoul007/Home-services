@@ -30,6 +30,7 @@ import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
+import { vendorService } from "@/services/vendorService";
 
 interface ItemPrice {
   service_name?: string;
@@ -261,6 +262,8 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       discount_amount: (booking as any).discount_amount || 0,
       discount_percent: (booking as any).discount_percent || 0,
+      // New cashback field (admin-entered absolute rupees)
+      cashback_amount: (booking as any).cashback_amount || (booking as any).cashback || 0,
     } as Booking;
 
     return normalizedBooking;
@@ -408,6 +411,8 @@ const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string 
 interface VendorOption {
   id: string;
   name: string;
+  distance?: number; // in km
+  estimatedTime?: number; // in minutes
 }
 
 const AdminBookingManagement: React.FC = () => {
@@ -431,6 +436,7 @@ const AdminBookingManagement: React.FC = () => {
   const [completedSearchTerm, setCompletedSearchTerm] = useState("");
   const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
   const [filteredCompletedOrders, setFilteredCompletedOrders] = useState<Booking[]>([]);
+  const [completedPagination, setCompletedPagination] = useState<{ total: number; limit: number; offset: number; pages: number } | null>(null);
 
   // Pickup bucket (A) filters
   const [pickupSearchTerm, setPickupSearchTerm] = useState("");
@@ -458,9 +464,12 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
-  const fetchCompletedOrders = async () => {
+  const [completedLimit, setCompletedLimit] = useState(200);
+
+  const fetchCompletedOrders = async (opts: { offset?: number, append?: boolean } = {}) => {
     try {
-      const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=50`);
+      const offset = opts.offset || 0;
+      const res = await apiClient.adminRequest<{ bookings?: Booking[]; pagination?: any }>(`/admin/bookings?status=completed&limit=${completedLimit}&offset=${offset}`);
       if (res.data) {
         const anyData: any = res.data as any;
         const list = anyData.bookings || [...(anyData.bucketA || []), ...(anyData.bucketB || [])];
@@ -469,13 +478,31 @@ const AdminBookingManagement: React.FC = () => {
           status: normalizeStatus(b.status),
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
+        // Server already sorts completed by completed_at desc; still ensure client-side ordering
         processed.sort((a, b) => {
           const dateA = new Date(a.completed_at || a.updated_at || 0).getTime();
           const dateB = new Date(b.completed_at || b.updated_at || 0).getTime();
           return dateB - dateA;
         });
-        setCompletedOrders(processed);
-        filterCompletedOrders(processed);
+
+        if (opts.append) {
+          setCompletedOrders((prev) => {
+            // Merge unique by _id
+            const map = new Map(prev.map(p => [p._id, p]));
+            for (const p of processed) map.set(p._id, p);
+            const merged = Array.from(map.values()).sort((a, b) => (new Date(b.completed_at || b.updated_at || 0).getTime()) - (new Date(a.completed_at || a.updated_at || 0).getTime()));
+            filterCompletedOrders(merged);
+            return merged;
+          });
+        } else {
+          setCompletedOrders(processed);
+          filterCompletedOrders(processed);
+        }
+
+        // store pagination info if provided
+        if (anyData.pagination) {
+          setCompletedPagination(anyData.pagination);
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch completed orders', e);
@@ -498,6 +525,13 @@ const AdminBookingManagement: React.FC = () => {
     if (completedStatusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === completedStatusFilter);
     }
+
+    // Ensure filtered completed orders are sorted by most recent completed/updated time (newest first)
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.completed_at || a.updated_at || 0).getTime();
+      const dateB = new Date(b.completed_at || b.updated_at || 0).getTime();
+      return dateB - dateA;
+    });
 
     setFilteredCompletedOrders(filtered);
   };
@@ -531,13 +565,22 @@ const AdminBookingManagement: React.FC = () => {
         booking.custom_order_id?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
         booking.name?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
         booking.phone?.includes(readySearchTerm) ||
-        booking.service?.toLowerCase().includes(readySearchTerm.toLowerCase()),
+        (booking.service || (booking.services && booking.services.length ? (typeof booking.services[0] === 'string' ? booking.services[0] : booking.services[0].name || booking.services[0].service) : '') )
+          .toLowerCase()
+          .includes(readySearchTerm.toLowerCase()),
       );
     }
 
     if (readyStatusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
     }
+
+    // Sort ready orders by delivery datetime (fallback to scheduled datetime)
+    filtered.sort((a, b) => {
+      const dateA = (getDeliveryDateTime(a).getTime() || getScheduledDateTime(a).getTime()) || 0;
+      const dateB = (getDeliveryDateTime(b).getTime() || getScheduledDateTime(b).getTime()) || 0;
+      return dateA - dateB; // earliest first
+    });
 
     setFilteredReadyOrders(filtered);
   };
@@ -603,6 +646,90 @@ const AdminBookingManagement: React.FC = () => {
       }
     };
   }, []);
+
+  // Fetch vendor recommendations when editingBooking address changes
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (!editingBooking || !editingBooking.address) return;
+      try {
+        const services = editingBooking.services?.map((s: any) => (typeof s === 'string' ? s : s.name || s.service)) || [];
+        const recs = await vendorService.getVendorRecommendations(editingBooking.address, services);
+
+        // Get pickup coordinates to compute distances if needed
+        const pickupCoords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+
+        // Fetch authoritative vendor list from admin API
+        const apiVendorsResp = await apiClient.adminRequest<{ vendors: any[] }>("/admin/vendors");
+        const apiVendorsRaw = apiVendorsResp.data?.vendors || [];
+
+        // Helper: compute haversine distance (km)
+        const computeDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+          const R = 6371;
+          const toRad = (d: number) => (d * Math.PI) / 180;
+          const dLat = toRad(lat2 - lat1);
+          const dLng = toRad(lng2 - lng1);
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return Math.round(R * c * 100) / 100;
+        };
+
+        const apiVendorList: VendorOption[] = apiVendorsRaw.map((vendor: any) => ({
+          id: vendor.id || vendor._id || vendor.vendor_id || String(vendor._id || vendor.id || vendor.vendor_id),
+          name: vendor.name || vendor.vendor_id || 'Unnamed Vendor',
+          // preserve coordinates if provided by admin API
+          ...(vendor.coordinates && vendor.coordinates.lat !== undefined ? { distance: undefined, estimatedTime: undefined } : {}),
+        }));
+
+        // Merge distances: prefer exact id/name matches from recs; else compute from api vendor coordinates if available
+        const merged: VendorOption[] = apiVendorList.map((v) => {
+          // fuzzy match: by id, vendor_id, or name (case-insensitive)
+          const match = recs.find((r) => {
+            if (!r) return false;
+            const rId = (r as any).id || (r as any).vendor_id || '';
+            if (rId && (rId === v.id || rId === String(v.id))) return true;
+            if (r.name && v.name && r.name.toLowerCase() === v.name.toLowerCase()) return true;
+            return false;
+          });
+
+          let distance = match?.distance;
+          let estimatedTime = match?.estimatedTime;
+
+          // If no match but admin vendor has coordinates, compute distance using pickupCoords
+          const rawVendor = apiVendorsRaw.find((av: any) => (av.id === v.id || av._id === v.id || av.vendor_id === v.id || av.name === v.name));
+          if ((!distance || distance === undefined) && rawVendor && rawVendor.coordinates && pickupCoords) {
+            const vLat = rawVendor.coordinates.lat || rawVendor.coordinates.latitude || rawVendor.lat || rawVendor.location?.lat;
+            const vLng = rawVendor.coordinates.lng || rawVendor.coordinates.longitude || rawVendor.lng || rawVendor.location?.lng;
+            if (vLat !== undefined && vLng !== undefined) {
+              try {
+                distance = computeDistanceKm(pickupCoords.lat, pickupCoords.lng, Number(vLat), Number(vLng));
+                estimatedTime = Math.round((distance / 20) * 60 + 30); // mirror vendorService estimate
+              } catch (e) {
+                console.warn('Failed computing distance for vendor', v, e);
+              }
+            }
+          }
+
+          return {
+            ...v,
+            distance,
+            estimatedTime,
+          };
+        });
+
+        // Add any recommended vendors not in admin list
+        recs.forEach((r) => {
+          const exists = merged.find((m) => (r.id && m.id && String(r.id) === String(m.id)) || (r.name && m.name && r.name.toLowerCase() === m.name.toLowerCase()));
+          if (!exists) merged.push({ id: r.id || r.name, name: r.name, distance: r.distance, estimatedTime: r.estimatedTime });
+        });
+
+        setVendors(merged);
+      } catch (err) {
+        console.warn('Failed to get vendor recommendations for address change:', err);
+      }
+    };
+
+    fetchRecommendations();
+  }, [editingBooking?.address, editingBooking?.services]);
 
   const getISTTimestamp = (): string => {
     const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
@@ -851,6 +978,9 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleItemPriceChange = (index: number, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
+    // Normalize comma to dot for locales that type comma as decimal separator
+    rawValue = String(rawValue).replace(/,/g, '.')
+
     setEditingBooking((prev) => {
       if (!prev) return prev;
 
@@ -863,13 +993,24 @@ const AdminBookingManagement: React.FC = () => {
         nextItem.service_name = rawValue;
       } else if (field === "quantity") {
         const parsedQuantity = parseFloat(rawValue);
-        nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 1;
+        // Preserve incomplete decimal inputs (".", "", "-") so the user can type comfortably
+        if (rawValue.trim() === "" || rawValue === "." || rawValue === "-") {
+          // keep a raw string for rendering so caret doesn't jump
+          (nextItem as any)._raw_quantity = rawValue;
+          // keep numeric quantity as-is for calculations (fallback to 0)
+          nextItem.quantity = typeof nextItem.quantity === 'number' ? nextItem.quantity : 0;
+        } else {
+          // valid numeric input
+          delete (nextItem as any)._raw_quantity;
+          nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 0;
+        }
       } else if (field === "unit_price") {
         const parsedPrice = parseFloat(rawValue);
         nextItem.unit_price = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
       }
 
-      const quantity = Number(nextItem.quantity ?? 1) || 1;
+      // Compute totals using numeric coercion but tolerate user-typed intermediate strings
+      const quantity = typeof nextItem.quantity === 'number' ? nextItem.quantity : (parseFloat(String(nextItem.quantity)) || 0);
       const unitPrice = Number(nextItem.unit_price ?? nextItem.price ?? 0) || 0;
 
       nextItem.total_price = +(quantity * unitPrice).toFixed(2);
@@ -907,7 +1048,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const computeEditingTotals = (bookingData: Booking | null) => {
-    if (!bookingData) return { total: 0, final: 0 };
+    if (!bookingData) return { total: 0, afterCashback: 0, discountAmount: 0, final: 0, cashbackAmount: 0 };
     const items = bookingData.item_prices || [];
     const subtotal = items.reduce((s, it) => {
       const qty = Number(it.quantity ?? 0) || 0;
@@ -915,10 +1056,21 @@ const AdminBookingManagement: React.FC = () => {
       const itemTotal = Number(it.total_price) || (qty * unitPrice);
       return s + itemTotal;
     }, 0);
+
+    const cashbackAmount = Number((bookingData as any).cashback_amount ?? 0) || 0;
+    const afterCashback = Math.max(0, subtotal - cashbackAmount);
+
     const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
-    const discountAmount = (subtotal * discountPercent) / 100;
-    const finalAmount = subtotal - discountAmount;
-    return { total: +(subtotal).toFixed(2), final: +(finalAmount).toFixed(2) };
+    const discountAmount = +(afterCashback * (discountPercent / 100));
+
+    const finalAmount = afterCashback - discountAmount;
+    return {
+      total: +subtotal.toFixed(2),
+      cashbackAmount: +cashbackAmount.toFixed(2),
+      afterCashback: +afterCashback.toFixed(2),
+      discountAmount: +discountAmount.toFixed(2),
+      final: +finalAmount.toFixed(2),
+    };
   };
 
   if (loading) {
@@ -1082,14 +1234,14 @@ const AdminBookingManagement: React.FC = () => {
                         {booking.assignedVendor && (
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendorDetails?.name || booking.assigned_vendor_details?.name || (vendors.find(v => String(v.id) === String(booking.assignedVendor))?.name) || (vendors.find(v => String(v.id) === String(booking.assigned_vendor))?.name) || booking.assignedVendor || booking.assigned_vendor}</span>
                           </div>
                         )}
                       </div>
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          <div className="text-sm font-medium text-gray-900">{(booking.service && booking.service !== 'Misc Service') ? booking.service : (booking.services && booking.services.length ? (typeof booking.services[0] === 'string' ? booking.services[0] : booking.services[0].name || booking.services[0].service || 'Service') : 'Service')}</div>
                           {(booking as any).is_quick_pickup && (
                             <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
                           )}
@@ -1202,108 +1354,87 @@ const AdminBookingManagement: React.FC = () => {
 
           <div className="mt-3 space-y-6">
             {filteredReadyOrders.length > 0 ? (
-              Object.entries(groupOrdersByVendor(filteredReadyOrders)).map(([vendorName, vendorOrders]) => (
-                <div key={vendorName} className="border rounded-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 border-b border-green-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Store className="h-5 w-5 text-green-700" />
-                        <div>
-                          <h4 className="font-semibold text-green-900">{vendorName}</h4>
-                          <p className="text-xs text-green-700">{vendorOrders.length} order{vendorOrders.length !== 1 ? 's' : ''}</p>
+              // Flat list (no vendor grouping)
+              filteredReadyOrders.map((booking) => (
+                <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.name}</span>
+                        </div>
+                        {booking.assignedVendor && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Store className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-green-700">{booking.assignedVendorDetails?.name || booking.assigned_vendor_details?.name || (vendors.find(v => String(v.id) === String(booking.assignedVendor))?.name) || (vendors.find(v => String(v.id) === String(booking.assigned_vendor))?.name) || booking.assignedVendor || booking.assigned_vendor}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">{(booking.service && booking.service !== 'Misc Service') ? booking.service : (booking.services && booking.services.length ? (typeof booking.services[0] === 'string' ? booking.services[0] : booking.services[0].name || booking.services[0].service || 'Service') : 'Service')}</div>
+                          {(booking as any).is_quick_pickup && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
                         </div>
                       </div>
-                      <div className="text-right bg-white px-3 py-2 rounded border border-green-200">
-                        <div className="text-xs text-gray-600 font-medium">Vendor Total</div>
-                        <div className="text-xl font-bold text-green-700">₹{calculateTotalPrice(vendorOrders).toLocaleString('en-IN')}</div>
+
+                      <div className="space-y-2">
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                              Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'pickup_completed' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Mark Ready for Delivery
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'ready_for_delivery' && (
+                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                              Mark Delivered
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'delivered' && (
+                            <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
+                              Mark Complete
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="space-y-3 p-4">
-                    {vendorOrders.map(booking => (
-                      <Card key={booking._id} className="transition-shadow hover:shadow-md">
-                        <CardContent className="pt-6">
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4 text-blue-600" />
-                                <span className="font-medium">#{booking.custom_order_id}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm">{booking.name}</span>
-                              </div>
-                              {booking.assignedVendor && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Store className="h-4 w-4 text-gray-400" />
-                                  <span className="text-sm text-green-700">{booking.assignedVendor}</span>
-                                </div>
-                              )}
-                            </div>
 
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                                {(booking as any).is_quick_pickup && (
-                                  <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Calendar className="h-4 w-4" />
-                                {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                                {getStatusIcon(booking.status)}
-                                <span>{getStatusLabel(booking.status)}</span>
-                              </Badge>
-                              <div className="flex items-center gap-2 text-sm">
-                                <DollarSign className="h-4 w-4 text-green-600" />
-                                <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col gap-3">
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
-                                  <Edit3 className="h-4 w-4" />
-                                </Button>
-                                {normalizeStatus(booking.status) === 'vendor_assigned' && (
-                                  <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
-                                    Mark Pickup Complete
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'pickup_completed' && (
-                                  <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
-                                    Mark Ready for Delivery
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'ready_for_delivery' && (
-                                  <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
-                                    Mark Delivered
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'delivered' && (
-                                  <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
-                                    Mark Complete
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
+                    <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
+                  </CardContent>
+                </Card>
               ))
             ) : (
               <Card>
@@ -1394,6 +1525,16 @@ const AdminBookingManagement: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Load more for completed orders if pagination indicates more pages */}
+              {completedPagination && (completedOrders.length < (completedPagination.total || 0)) && (
+                <div className="mt-3 flex justify-center">
+                  <Button size="sm" onClick={() => fetchCompletedOrders({ offset: completedOrders.length, append: true })}>
+                    Load more completed orders
+                  </Button>
+                </div>
+              )}
+
             </CardContent>
           </Card>
         </div>
@@ -1443,7 +1584,7 @@ const AdminBookingManagement: React.FC = () => {
                 <div className="space-y-2 rounded-lg bg-gray-50 p-4">
                   <div className="flex justify-between">
                     <span>Total Price:</span>
-                    <span className="font-medium">₹{viewingBooking.total_price}</span>
+                    <span className="font-medium">��{viewingBooking.total_price}</span>
                   </div>
                   {((viewingBooking as any).discount_percent || 0) > 0 && (
                     <div className="flex justify-between text-blue-600">
@@ -1623,11 +1764,19 @@ const AdminBookingManagement: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="__unassigned__">Unassigned</SelectItem>
                     {vendors.length > 0 ? (
-                      vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.name}>
-                          {vendor.name}
-                        </SelectItem>
-                      ))
+                      vendors
+                        .slice()
+                        .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+                        .map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{vendor.name}</span>
+                              {vendor.distance !== undefined && (
+                                <span className="text-xs text-gray-500">{vendorService.formatDistance(vendor.distance)} • {vendor.estimatedTime ? vendorService.formatEstimatedTime(vendor.estimatedTime) : ''}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
                     ) : (
                       <SelectItem value="no-vendors" disabled>
                         No vendors available
@@ -1693,10 +1842,41 @@ const AdminBookingManagement: React.FC = () => {
                                   </td>
                                   <td className="py-3 px-3">
                                     <Input
-                                      type="number"
-                                      step="0.1"
-                                      value={String(item.quantity ?? 0)}
+                                      type="text"
+                                      inputMode="decimal"
+                                      pattern="[0-9]*[.,]?[0-9]*"
+                                      value={ (item as any)._raw_quantity !== undefined ? String((item as any)._raw_quantity) : String(item.quantity ?? '') }
                                       onChange={(event) => handleItemPriceChange(index, "quantity", event.target.value)}
+                                      onBlur={() => {
+                                        // finalize raw quantity to numeric on blur
+                                        setEditingBooking((prev) => {
+                                          if (!prev) return prev;
+                                          const nextItems = Array.isArray(prev.item_prices) ? [...prev.item_prices] : [];
+                                          const currentItem = nextItems[index] || {};
+                                          const parsed = parseFloat(String((currentItem as any)._raw_quantity ?? currentItem.quantity ?? 0).toString().replace(/,/g, '.'));
+                                          if (Number.isFinite(parsed)) {
+                                            currentItem.quantity = parsed;
+                                          } else {
+                                            currentItem.quantity = 0;
+                                          }
+                                          delete (currentItem as any)._raw_quantity;
+                                          nextItems[index] = currentItem;
+                                          return { ...prev, item_prices: nextItems } as Booking;
+                                        });
+                                      }}
+                                      onKeyDown={(e) => {
+                                        const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'];
+                                        if (allowed.includes(e.key)) return;
+                                        const isNum = /[0-9]/.test(e.key);
+                                        const isCommaOrDot = e.key === '.' || e.key === ',';
+                                        if (!isNum && !isCommaOrDot) {
+                                          e.preventDefault();
+                                        }
+                                        const current = String((item as any)._raw_quantity !== undefined ? (item as any)._raw_quantity : item.quantity ?? '');
+                                        if ((e.key === '.' || e.key === ',') && (current.includes('.') || current.includes(','))) {
+                                          e.preventDefault();
+                                        }
+                                      }}
                                       className="h-8 text-center text-xs"
                                     />
                                   </td>
@@ -1738,19 +1918,75 @@ const AdminBookingManagement: React.FC = () => {
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
-                  Pricing Summary
+                  Pricing & Rewards
                 </h4>
-                <div className="space-y-2 rounded-lg bg-gray-50 p-4">
+
+                {/* Cashback Box - Top Priority */}
+                <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        💰 Customer Cashback (₹)
+                      </label>
+                      <p className="text-xs text-gray-600 mb-2">
+                        Amount to credit to customer's wallet when order completes
+                      </p>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="Enter cashback amount"
+                        value={String((editingBooking as any)?.cashback_amount ?? 0)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value || "0") || 0;
+                          setEditingBooking((prev) => prev ? ({ ...prev, cashback_amount: val } as Booking) : prev);
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-green-600">
+                        ₹{((editingBooking as any)?.cashback_amount ?? 0).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-green-700 mt-1">Will be credited</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing Details */}
+                <div className="space-y-3 rounded-lg bg-gray-50 p-4">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                   </div>
-                  {(editingBooking.discount_percent || 0) > 0 && (
-                    <div className="flex justify-between text-blue-600">
-                      <span>Discount {editingBooking.discount_percent}%:</span>
-                      <span>-₹{(computeEditingTotals(editingBooking).total * (editingBooking.discount_percent || 0) / 100).toFixed(2)}</span>
-                    </div>
-                  )}
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-700 w-32">Discount (%)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      value={String(editingBooking?.discount_percent ?? 0)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value || "0") || 0;
+                        setEditingBooking((prev) => prev ? ({ ...prev, discount_percent: val } as Booking) : prev);
+                      }}
+                      className="w-40"
+                    />
+                    <span className="text-sm text-gray-500">(Applied after cashback)</span>
+                  </div>
+
+                  <div className="flex justify-between text-blue-600">
+                    <span>After Cashback:</span>
+                    <span>- ₹{computeEditingTotals(editingBooking).afterCashback.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-blue-600">
+                    <span>Discount Amount:</span>
+                    <span>- ₹{computeEditingTotals(editingBooking).discountAmount.toFixed(2)}</span>
+                  </div>
+
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
                     <span>Final Amount:</span>
                     <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
@@ -1781,11 +2017,12 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
                         discount_percent: editingBooking.discount_percent || 0,
-                        discount_amount: (totals.total * (editingBooking.discount_percent || 0) / 100) || 0,
+                        discount_amount: totals.discountAmount || 0,
+                        cashback_amount: totals.cashbackAmount || 0,
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
-                        payload.item_prices = editingBooking.item_prices
+                        const cleanedItems = editingBooking.item_prices
                           .filter((it) => it.service_name && it.service_name.trim() !== "")
                           .map((it) => ({
                             service_name: it.service_name || it.name,
@@ -1793,6 +2030,15 @@ const AdminBookingManagement: React.FC = () => {
                             unit_price: it.unit_price ?? it.price ?? 0,
                             total_price: it.total_price || (it.quantity ?? 1) * (it.unit_price ?? it.price ?? 0),
                           }));
+
+                        payload.item_prices = cleanedItems;
+
+                        // Ensure services and service fields are updated so backend stores itemized services
+                        const servicesArray = cleanedItems.map((it) => `${it.service_name} x${it.quantity} (₹${it.unit_price})`);
+                        if (servicesArray.length > 0) {
+                          payload.services = servicesArray;
+                          payload.service = servicesArray[0];
+                        }
                       }
 
                       const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${editingBooking._id}`, {

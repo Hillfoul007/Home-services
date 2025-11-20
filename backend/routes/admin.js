@@ -224,6 +224,31 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       delete updateData.assigned_vendor;
     }
 
+    // If assignedVendor looks like a vendor id (ObjectId or vendor_id), resolve to vendor name and details
+    if (updateData.assignedVendor) {
+      try {
+        const av = updateData.assignedVendor;
+        const looksLikeObjectId = (typeof av === 'string' && /^[0-9a-fA-F]{24}$/.test(av));
+        let dbVendor = null;
+        if (looksLikeObjectId) {
+          dbVendor = await Vendor.findOne({ $or: [{ _id: av }, { vendor_id: av }] });
+        } else {
+          dbVendor = await Vendor.findOne({ $or: [{ vendor_id: av }, { name: av }] });
+        }
+
+        if (dbVendor) {
+          updateData.assignedVendor = dbVendor.name || dbVendor.vendor_id || '';
+          updateData.assignedVendorDetails = {
+            name: dbVendor.name || dbVendor.vendor_id || '',
+            address: dbVendor.address || dbVendor.location || '',
+            phone: dbVendor.phone || dbVendor.contactPhone || ''
+          };
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not resolve assignedVendor to vendor name during admin update:', err);
+      }
+    }
+
     // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
     const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
     if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
@@ -279,6 +304,52 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     console.log("✅ Booking updated by admin:", booking._id);
     console.log("✅ Updated timestamp:", booking.updated_at);
     console.log(`✅ Final booking state: total_price=${booking.total_price}, final_amount=${booking.final_amount}, item_prices count=${booking.item_prices?.length || 0}`);
+
+    // Auto-credit cashback to user wallet when order is completed
+    if (updateData.status === "completed" && booking.customer_id && booking.cashback_amount > 0) {
+      try {
+        const customer = await User.findById(booking.customer_id);
+        if (customer && !booking.cashback_credited) {
+          if (!customer.wallet) {
+            customer.wallet = { balance: 0, total_earned: 0, total_used: 0 };
+          }
+          if (!customer.wallet_transactions) {
+            customer.wallet_transactions = [];
+          }
+
+          const currentBalance = customer.wallet.balance || 0;
+          const newBalance = currentBalance + booking.cashback_amount;
+
+          const transaction = {
+            _id: new mongoose.Types.ObjectId(),
+            type: "credit",
+            amount: booking.cashback_amount,
+            source: "cashback",
+            booking_id: booking._id,
+            description: `Cashback for order ${booking.custom_order_id || booking._id}`,
+            balance_after: newBalance,
+            created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+          };
+
+          customer.wallet.balance = newBalance;
+          customer.wallet.total_earned = (customer.wallet.total_earned || 0) + booking.cashback_amount;
+          customer.wallet.last_transaction_at = transaction.created_at;
+          customer.wallet_transactions.push(transaction);
+
+          booking.cashback_credited = true;
+          booking.cashback_credited_at = transaction.created_at;
+
+          await customer.save();
+          await booking.save();
+
+          console.log(`✅ Cashback auto-credited: ₹${booking.cashback_amount} to user ${booking.customer_id}`);
+        }
+      } catch (cashbackError) {
+        console.error("⚠️ Failed to auto-credit cashback:", cashbackError);
+        // Don't fail the entire request if cashback crediting fails
+      }
+    }
+
     res.json({ message: "Booking updated successfully", booking });
   } catch (error) {
     console.error("❌ Error updating booking:", error);
@@ -563,11 +634,17 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       }
     }
 
+    // Decide sorting: completed bookings should be sorted by completed_at/updated_at desc
+    let sortObj = { scheduled_date: 1, scheduled_time: 1, created_at: -1 };
+    if (status === 'completed') {
+      sortObj = { completed_at: -1, updated_at: -1, created_at: -1 };
+    }
+
     // Fetch relevant bookings
     const bookings = await Booking.find(query)
       .populate("customer_id", "full_name phone email")
       .populate("rider_id", "full_name phone")
-      .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
+      .sort(sortObj)
       .limit(parseInt(limit))
       .skip(parseInt(offset))
       .select("+item_prices +charges_breakdown");
@@ -1307,7 +1384,7 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
       };
     }
 
-    console.log(`✅ Order assigned to ${rider.name} (${orderType}) - Notification sent: ${notificationSent}`);
+    console.log(`�� Order assigned to ${rider.name} (${orderType}) - Notification sent: ${notificationSent}`);
     res.json(assignmentResult);
   } catch (error) {
     console.error('Order assignment error:', error);
@@ -1344,7 +1421,29 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
       }
     };
 
-    const selectedVendor = vendors[vendorData.vendorId];
+    let selectedVendor = vendors[vendorData.vendorId];
+
+    // If not found in demo mapping, try to fetch from database by _id or vendor_id
+    if (!selectedVendor) {
+      try {
+        const isObjId = mongoose.Types.ObjectId.isValid(vendorData.vendorId);
+        const dbVendor = await Vendor.findOne(isObjId ? { _id: vendorData.vendorId } : { vendor_id: vendorData.vendorId });
+        if (dbVendor) {
+          selectedVendor = {
+            id: dbVendor._id.toString(),
+            name: dbVendor.name || dbVendor.vendor_id || 'Unnamed Vendor',
+            address: dbVendor.address || dbVendor.location || '',
+            phone: dbVendor.phone || dbVendor.contactPhone || '',
+            coordinates: dbVendor.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: dbVendor.services || [],
+            rating: dbVendor.rating || 0
+          };
+        }
+      } catch (err) {
+        console.warn('⚠️ Error fetching vendor from DB in assign-vendor route:', err);
+      }
+    }
+
     if (!selectedVendor) {
       return res.status(400).json({ message: 'Invalid vendor selection' });
     }
@@ -1628,7 +1727,10 @@ router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
     const { vendorId } = req.params;
     console.log(`🔍 Fetching vendor: ${vendorId}`);
 
-    const vendor = await Vendor.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const query = isObjId ? { _id: vendorId } : { vendor_id: vendorId };
+
+    const vendor = await Vendor.findOne(query);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1695,13 +1797,15 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 
     console.log(`📝 Updating vendor: ${vendorId}`);
 
-    // Validate vendorId
     if (!vendorId || vendorId === 'undefined') {
       return res.status(400).json({ error: "Vendor ID is required and must be valid" });
     }
 
-    const vendor = await Vendor.findByIdAndUpdate(
-      vendorId,
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const query = isObjId ? { _id: vendorId } : { vendor_id: vendorId };
+
+    const vendor = await Vendor.findOneAndUpdate(
+      query,
       {
         name,
         address,
@@ -1735,9 +1839,12 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
 
-    console.log(`��️ Deleting vendor: ${vendorId}`);
+    console.log(`🗑️ Deleting vendor: ${vendorId}`);
 
-    const vendor = await Vendor.findByIdAndDelete(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const query = isObjId ? { _id: vendorId } : { vendor_id: vendorId };
+
+    const vendor = await Vendor.findOneAndDelete(query);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1824,7 +1931,8 @@ router.get("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     console.log(`🔍 Fetching laundry vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId).select("-password_hash");
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId }).select("-password_hash");
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1859,7 +1967,8 @@ router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req,
     console.log(`🔐 Updating password for vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId });
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1887,7 +1996,8 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     console.log(`📝 Updating laundry vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId });
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -1939,7 +2049,8 @@ router.post("/vendors/:vendorId/generate-credentials", verifyAdminAccess, async 
     const { vendorId } = req.params;
 
     const Vendor = require("../models/Vendor");
-    const vendor = await Vendor.findById(vendorId).select("+temp_password");
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await Vendor.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId }).select("+temp_password");
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -2017,7 +2128,8 @@ router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async 
     console.log(`📦 Assigning order ${orderId} to vendor ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
-    const vendor = await VendorAuth.findById(vendorId);
+    const isObjId = mongoose.Types.ObjectId.isValid(vendorId);
+    const vendor = await VendorAuth.findOne(isObjId ? { _id: vendorId } : { vendor_id: vendorId });
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
@@ -2027,7 +2139,12 @@ router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async 
     const booking = await Booking.findByIdAndUpdate(
       orderId,
       {
-        assignedVendor: vendor._id,
+        assignedVendor: vendor.name,
+        assignedVendorDetails: {
+          name: vendor.name,
+          address: vendor.address || vendor.location || '',
+          phone: vendor.phone || vendor.contactPhone || ''
+        },
         status: "vendor_assigned",
         updated_at: new Date(),
       },

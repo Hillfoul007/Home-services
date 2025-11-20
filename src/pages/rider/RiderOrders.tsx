@@ -1979,16 +1979,10 @@ export default function RiderOrders() {
                   <div className="space-y-2">
                     <div className="bg-green-50 p-3 rounded-lg border border-green-200">
                       <div className="font-medium text-green-900">
-                        {order.assignedVendorDetails?.name || order.assigned_vendor_details?.name ||
-                         (order.assignedVendor === 'vendor1' ? 'Priya Dry Cleaners' :
-                          order.assignedVendor === 'vendor2' ? 'White Tiger Dry Cleaning' :
-                          order.assignedVendor || order.assigned_vendor)}
+                        {order.assignedVendorDetails?.name || order.assigned_vendor_details?.name || order.assignedVendor || order.assigned_vendor}
                       </div>
                       <div className="text-sm text-green-700 mt-1">
-                        {order.assignedVendorDetails?.address || order.assigned_vendor_details?.address ||
-                         (order.assignedVendor === 'vendor1' ? 'Shop n.155, Spaze corporate park, 1sf, Sector 69, Gurugram, Haryana 122101' :
-                          order.assignedVendor === 'vendor2' ? 'Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101' :
-                          'Sector 69, Gurugram, Haryana')}
+                        {order.assignedVendorDetails?.address || order.assigned_vendor_details?.address || order.assignedVendorAddress || ''}
                       </div>
                       <div className="flex items-center gap-2 mt-2">
                         {order.assignedVendorDetails?.distance && (

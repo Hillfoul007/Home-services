@@ -16,7 +16,27 @@ export class PushNotificationService {
   // Register service worker and set up push notifications
   async initializePWA(): Promise<boolean> {
     try {
+      // Avoid registering service worker on iOS Safari to prevent reload/cache issues
+      if (this.isIOSSafari()) {
+        console.log('Skipping service worker registration on iOS Safari to avoid reload loops');
+        return false;
+      }
+
       if ("serviceWorker" in navigator) {
+        try {
+          const existing = await navigator.serviceWorker.getRegistration('/sw.js');
+          if (existing) {
+            console.log('Service Worker already registered:', existing);
+            // Attach update listener if missing
+            try {
+              existing.addEventListener && existing.addEventListener('updatefound', () => console.log('New service worker available'));
+            } catch (e) {}
+            return true;
+          }
+        } catch (e) {
+          // ignore
+        }
+
         const registration = await navigator.serviceWorker.register("/sw.js");
         console.log("Service Worker registered:", registration);
 

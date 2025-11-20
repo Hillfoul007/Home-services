@@ -182,6 +182,69 @@ const userSchema = new mongoose.Schema(
         default: null,
       },
     }],
+
+    // Wallet and cashback system
+    wallet: {
+      balance: {
+        type: Number,
+        default: 0,
+        min: [0, "Wallet balance cannot be negative"],
+      },
+      total_earned: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      total_used: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      last_transaction_at: {
+        type: Date,
+        default: null,
+      },
+    },
+
+    // Transaction history for wallet
+    wallet_transactions: [{
+      _id: {
+        type: mongoose.Schema.Types.ObjectId,
+        auto: true,
+      },
+      type: {
+        type: String,
+        enum: ["credit", "debit"],
+        required: true,
+      },
+      amount: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+      source: {
+        type: String,
+        enum: ["cashback", "refund", "bonus", "reward", "manual", "order_use"],
+        required: true,
+      },
+      booking_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Booking",
+        default: null,
+      },
+      description: {
+        type: String,
+        default: "",
+      },
+      balance_after: {
+        type: Number,
+        required: true,
+      },
+      created_at: {
+        type: Date,
+        default: () => new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
+      },
+    }],
   },
   {
     timestamps: true,

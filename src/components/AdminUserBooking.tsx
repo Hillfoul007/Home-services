@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { vendorService } from "@/services/vendorService";
 
 interface User {
   _id: string;
@@ -58,6 +59,9 @@ const AdminUserBooking: React.FC = () => {
     is_quick_pickup: false,
   });
 
+  const [vendors, setVendors] = useState<Array<{id:string; name:string; distance?:number; estimatedTime?:number}>>([]);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+
 
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
@@ -72,6 +76,63 @@ const AdminUserBooking: React.FC = () => {
       setUsers([]);
     }
   }, [searchTerm]);
+
+  // Fetch vendor recommendations when address changes (autofill or manual)
+  useEffect(() => {
+    const fetchVendorRecs = async () => {
+      if (!bookingData.address || bookingData.address.trim() === "") {
+        setVendors([]);
+        setSelectedVendorId(null);
+        return;
+      }
+
+      try {
+        const services = bookingData.services?.map((s: any) => (typeof s === 'string' ? s : s.name || s.service)) || [];
+        const recs = await vendorService.getVendorRecommendations(bookingData.address, services);
+
+        // Fetch admin vendors to merge
+        const apiVendorsResp = await apiClient.adminRequest<{vendors:any[]}>('/admin/vendors');
+        const apiVendorRaw = apiVendorsResp.data?.vendors || [];
+
+        const pickupCoords = await vendorService.getCoordinatesFromAddress(bookingData.address);
+
+        const computeDistanceKm = (lat1:number,lng1:number,lat2:number,lng2:number)=>{
+          const R = 6371; const toRad = (d:number)=>(d*Math.PI)/180; const dLat = toRad(lat2-lat1); const dLng = toRad(lng2-lng1); const a = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)*Math.sin(dLng/2); const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return Math.round(R*c*100)/100;
+        };
+
+        const apiVendorList = apiVendorRaw.map((v:any)=>({ id: v.id||v._id||v.vendor_id||String(v._id||v.id||v.vendor_id), name: v.name||v.vendor_id||'Unnamed Vendor', raw:v }));
+
+        const merged = apiVendorList.map((v:any)=>{
+          const match = recs.find((r:any)=> (r.id && v.id && String(r.id)===String(v.id)) || (r.name && v.name && r.name.toLowerCase()===v.name.toLowerCase()));
+          let distance = match?.distance;
+          let estimatedTime = match?.estimatedTime;
+          const raw = v.raw;
+          if ((distance === undefined || distance === null) && raw && raw.coordinates && pickupCoords) {
+            const vLat = raw.coordinates.lat || raw.coordinates.latitude || raw.lat || raw.location?.lat;
+            const vLng = raw.coordinates.lng || raw.coordinates.longitude || raw.lng || raw.location?.lng;
+            if (vLat !== undefined && vLng !== undefined) {
+              distance = computeDistanceKm(pickupCoords.lat, pickupCoords.lng, Number(vLat), Number(vLng));
+              estimatedTime = Math.round((distance/20)*60+30);
+            }
+          }
+          return { id: v.id, name: v.name, distance, estimatedTime };
+        });
+
+        // include recs not in admin vendors
+        recs.forEach((r:any)=>{
+          if (!merged.find((m:any)=> (r.id && m.id && String(r.id)===String(m.id)) || (r.name && m.name && r.name.toLowerCase()===m.name.toLowerCase()))) {
+            merged.push({ id: r.id||r.name, name: r.name, distance: r.distance, estimatedTime: r.estimatedTime });
+          }
+        });
+
+        setVendors(merged);
+      } catch (err) {
+        console.warn('Failed to fetch vendor recommendations for booking address:', err);
+      }
+    };
+
+    fetchVendorRecs();
+  }, [bookingData.address, bookingData.services]);
 
   const searchUsers = async () => {
     try {
@@ -260,6 +321,31 @@ const AdminUserBooking: React.FC = () => {
       if (response.data) {
         toast.success(`Booking created successfully! Order ID: ${response.data.booking?.custom_order_id}`);
 
+        // If admin selected a vendor, assign it to the newly created order
+        try {
+          if (selectedVendorId) {
+            const vendorInfo = vendors.find(v => String(v.id) === String(selectedVendorId));
+            const assignPayload = {
+              orderId: response.data.booking._id || response.data.booking.id || response.data.booking._doc?._id,
+              vendorData: {
+                vendorId: vendorInfo?.id || selectedVendorId,
+                distance: vendorInfo?.distance || 0,
+                estimatedTime: vendorInfo?.estimatedTime || 0
+              },
+              orderType: 'Booking'
+            };
+
+            const assignRes = await apiClient.adminRequest('/orders/assign-vendor', { method: 'POST', body: assignPayload });
+            if (assignRes && assignRes.status === 200) {
+              toast.success('Vendor assigned to booking');
+            } else {
+              console.warn('Assign vendor response:', assignRes);
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to assign vendor after booking creation', err);
+        }
+
         // Reset form
         setSelectedUser(null);
         setNewUserName("");
@@ -275,6 +361,8 @@ const AdminUserBooking: React.FC = () => {
           special_instructions: "",
           is_quick_pickup: false,
         });
+        setVendors([]);
+        setSelectedVendorId(null);
       } else {
         toast.error(`Failed to create booking: ${response.error || "Unknown error"}`);
       }
@@ -570,6 +658,43 @@ const AdminUserBooking: React.FC = () => {
                 rows={3}
               />
             </div>
+
+            {/* Assign Vendor (appears when address is filled) */}
+            {bookingData.address && (
+              <div>
+                <Label>Assign Vendor</Label>
+                <Select
+                  value={selectedVendorId ?? "__unassigned__"}
+                  onValueChange={(value) => setSelectedVendorId(value === "__unassigned__" ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                    {vendors.length > 0 ? (
+                      vendors
+                        .slice()
+                        .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+                        .map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{vendor.name}</span>
+                              {vendor.distance !== undefined && (
+                                <span className="text-xs text-gray-500">{vendorService.formatDistance(vendor.distance)} • {vendor.estimatedTime ? vendorService.formatEstimatedTime(vendor.estimatedTime) : ''}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                    ) : (
+                      <SelectItem value="no-vendors" disabled>
+                        No vendors available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="instructions">Special Instructions (Optional)</Label>

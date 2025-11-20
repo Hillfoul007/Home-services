@@ -81,7 +81,7 @@ const ServiceEditor: React.FC<ServiceEditorProps> = ({
       const match = serviceStr.match(/^(.+?)(?:\s*\(x(\d+)\))?$/);
       if (match) {
         const name = match[1].trim();
-        const quantity = parseInt(match[2] || "1");
+        const quantity = parseFloat(match[2] || "1");
         const availableService = availableServices.find((s) => s.name === name);
         return {
           name,

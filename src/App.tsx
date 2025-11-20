@@ -26,6 +26,7 @@ import "@/utils/testEnvironment"; // Auto-run environment tests in development
 import VendorLogin from "@/pages/vendor/VendorLogin";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
+import WalletPage from "@/pages/WalletPage";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -101,6 +102,7 @@ function App() {
               <Route path="/vendor/login" element={<VendorLogin />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
+              <Route path="/wallet" element={<WalletPage />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />

@@ -25,35 +25,8 @@ export interface VendorWithDistance extends VendorDetails {
 export class VendorService {
   private static instance: VendorService;
   
-  // Static vendor data - in production this would come from a database
-  private vendors: VendorDetails[] = [
-    {
-      id: "vendor1",
-      name: "Priya Dry Cleaners",
-      address: "Shop n.155, Spaze corporate park, 1sf, Sector 69, Gurugram, Haryana 122101",
-      coordinates: {
-        lat: 28.3984,
-        lng: 77.0648
-      },
-      services: ["Dry Cleaning", "Laundry", "Ironing", "Stain Removal"],
-      contactPhone: "+91 9876543210",
-      rating: 4.5,
-      isActive: true
-    },
-    {
-      id: "vendor2", 
-      name: "White Tiger Dry Cleaning",
-      address: "Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101",
-      coordinates: {
-        lat: 28.3982,
-        lng: 77.0650
-      },
-      services: ["Dry Cleaning", "Premium Care", "Express Service", "Alterations"],
-      contactPhone: "+91 9876543211",
-      rating: 4.3,
-      isActive: true
-    }
-  ];
+  // Vendor data - fetch from backend or populate via admin UI. Start with empty list to avoid hardcoded demo values.
+  private vendors: VendorDetails[] = [];
 
   public static getInstance(): VendorService {
     if (!VendorService.instance) {
@@ -158,7 +131,32 @@ export class VendorService {
         return { lat: 28.4595, lng: 77.0266 }; // Default Gurugram coordinates
       }
 
-      // For demo purposes, return coordinates for common Gurugram areas
+      // Try Google Geocoding API if API key is configured
+      const googleApiKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY;
+      if (googleApiKey && googleApiKey.trim() !== '') {
+        try {
+          const encoded = encodeURIComponent(address);
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encoded}&key=${googleApiKey}`;
+          console.log('🗺️ Calling Google Geocoding API:', url);
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.status === 'OK' && data.results && data.results.length > 0) {
+              const loc = data.results[0].geometry.location;
+              console.log('✅ Google Geocoding result:', loc);
+              return { lat: loc.lat, lng: loc.lng };
+            } else {
+              console.warn('⚠️ Google Geocoding returned no results:', data.status, data.error_message);
+            }
+          } else {
+            console.warn('⚠️ Google Geocoding HTTP error:', resp.status, resp.statusText);
+          }
+        } catch (err) {
+          console.warn('⚠️ Google Geocoding call failed, falling back to heuristic:', err);
+        }
+      }
+
+      // Fallback heuristic mapping (local sectors)
       const addressLower = address.toLowerCase();
 
       // Common Gurugram sector coordinates (approximate)
@@ -200,8 +198,6 @@ export class VendorService {
         const sectorNum = parseInt(sectorMatch[1]);
         console.log(`📍 Extracting coordinates for Sector ${sectorNum}`);
 
-        // Generate approximate coordinates based on sector number
-        // Gurugram sectors are roughly arranged in a grid pattern
         const baseLat = 28.4595;
         const baseLng = 77.0266;
         const latOffset = (sectorNum % 10) * 0.008; // Approximate 800m per sector
@@ -219,7 +215,7 @@ export class VendorService {
       // Default coordinates for Gurugram city center
       console.log('📍 Using default Gurugram coordinates for address:', address);
       return { lat: 28.4595, lng: 77.0266 };
-      
+
     } catch (error) {
       console.error('Error getting coordinates from address:', error);
       // Always return default coordinates instead of null to prevent distance calculation failures
