@@ -1,0 +1,34 @@
+# fly.toml app configuration generated for CleanCare Pro
+app = "cleancare-pro"
+primary_region = "iad"
+
+[build]
+  builder = "heroku"
+  
+[build.args]
+  NODE_ENV = "production"
+
+[env]
+  NODE_ENV = "production"
+
+[[services]]
+  internal_port = 3001
+  processes = ["app"]
+  protocol = "tcp"
+  
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+  
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+[deploy]
+  release_command = "cd backend && npm install --production"
+  strategy = "rolling"
+
+[[env]]
+  PORT = "3001"
+  NODE_ENV = "production"
