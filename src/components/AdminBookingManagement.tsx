@@ -620,7 +620,7 @@ const AdminBookingManagement: React.FC = () => {
       es.addEventListener('booking_change', (event: MessageEvent) => {
         try {
           const payload = JSON.parse(event.data);
-          console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
+          console.log('�� Received booking_change SSE payload:', payload?._id || payload);
           if (payload && payload._id && !showEditDialog) {
             applyBookingUpdate(payload._id, payload);
 
@@ -2056,13 +2056,18 @@ const AdminBookingManagement: React.FC = () => {
                     <span className="text-sm text-gray-500">(Applied after cashback)</span>
                   </div>
 
-                  <div className="flex justify-between text-blue-600">
-                    <span>After Cashback:</span>
-                    <span>- ₹{computeEditingTotals(editingBooking).afterCashback.toFixed(2)}</span>
+                  <div className="flex justify-between text-green-600">
+                    <span>After Order Cashback (Type 1):</span>
+                    <span>₹{computeEditingTotals(editingBooking).afterCashback.toFixed(2)}</span>
                   </div>
 
                   <div className="flex justify-between text-blue-600">
-                    <span>Discount Amount:</span>
+                    <span>After Wallet Deduction (Type 2):</span>
+                    <span>₹{computeEditingTotals(editingBooking).afterWalletDiscount.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-orange-600">
+                    <span>Discount Amount (%):</span>
                     <span>- ₹{computeEditingTotals(editingBooking).discountAmount.toFixed(2)}</span>
                   </div>
 
