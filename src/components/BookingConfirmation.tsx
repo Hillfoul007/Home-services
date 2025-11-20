@@ -56,9 +56,9 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
     const fetchWalletBalance = async () => {
       setLoadingWallet(true);
       try {
-        const token = localStorage.getItem("cleancare_token");
+        const token = localStorage.getItem("auth_token");
         if (!token) {
-          console.warn("No auth token found");
+          console.warn("No auth token found in localStorage");
           setLoadingWallet(false);
           return;
         }
@@ -75,6 +75,8 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           }
         } else if (response.status === 401) {
           console.warn("Wallet fetch - Unauthorized. Token may be expired.");
+        } else {
+          console.warn(`Wallet fetch error: ${response.status}`);
         }
       } catch (error) {
         console.error("Failed to fetch wallet balance:", error);
