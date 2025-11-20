@@ -323,7 +323,7 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
         {/* Action Buttons */}
         <div className="space-y-3">
           <Button
-            onClick={onConfirmBooking}
+            onClick={() => onConfirmBooking(walletAmountToApply)}
             disabled={isProcessing}
             className="w-full bg-green-600 hover:bg-green-700 py-3 text-white font-semibold"
           >
@@ -333,7 +333,7 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                 Confirming...
               </div>
             ) : (
-              `Confirm Booking - $${pricing.finalAmount.toFixed(2)}`
+              `Confirm Booking - ₹${finalAmountAfterWallet.toFixed(2)}`
             )}
           </Button>
 
