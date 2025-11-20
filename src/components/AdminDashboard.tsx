@@ -253,9 +253,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Test: Simple rendering check */}
-      <div style={{position: 'fixed', bottom: 0, right: 0, background: '#90EE90', padding: '4px 8px', fontSize: '10px', zIndex: 9999}}>Dashboard Render OK</div>
-
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
