@@ -19,7 +19,9 @@ import {
   ChevronDown,
   MessageCircle,
   Gift,
+  Wallet,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import ProfileSettingsModal from "./ProfileSettingsModal";
 import SavedAddressesModal from "./SavedAddressesModal";
 import PreferencesModal from "./PreferencesModal";
