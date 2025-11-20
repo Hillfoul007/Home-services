@@ -367,6 +367,15 @@ try {
   console.error("❌ Failed to load Referral routes:", error.message);
 }
 
+// Wallet routes
+try {
+  const walletRoutes = require("./routes/wallet");
+  app.use("/api/wallet", walletRoutes);
+  console.log("🔗 Wallet routes registered at /api/wallet");
+} catch (error) {
+  console.error("❌ Failed to load Wallet routes:", error.message);
+}
+
 // Admin routes
 try {
   const adminRoutes = require("./routes/admin");
@@ -703,7 +712,7 @@ const server = app.listen(PORT, () => {
   console.log(`��� Health check: http://localhost:${PORT}/api/health`);
   console.log(`🔒 Security: Helmet enabled`);
   console.log(`⚡ Compression: Enabled`);
-  console.log(`🛡��  Rate limiting: Enabled`);
+  console.log(`�����  Rate limiting: Enabled`);
 
   if (productionConfig.FEATURES.SMS_VERIFICATION) {
     console.log(`📱 SMS Service: DVHosting`);
