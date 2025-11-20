@@ -7,7 +7,7 @@ console.log('🚀 Starting development servers with MongoDB backend...');
 
 // Start backend first
 console.log('📡 Starting MongoDB backend server on port 3001...');
-const backendProcess = spawn('node', ['backend/server-laundry.js'], {
+const backendProcess = spawn('node', ['backend/mongo-server.js'], {
   stdio: ['pipe', 'pipe', 'pipe'],
   cwd: __dirname,
   env: {
