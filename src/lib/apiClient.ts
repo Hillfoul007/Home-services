@@ -132,8 +132,14 @@ class EnhancedApiClient {
       ...((requestOptions.headers as Record<string, string>) || {}),
     };
 
+    // Refresh token before each request (in case it was updated after client initialization)
+    this.token = localStorage.getItem("auth_token");
+
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
+      console.log(`✅ Auth token attached to request:`, { endpoint, tokenLength: this.token.length });
+    } else {
+      console.warn(`⚠️ No auth token available for request:`, { endpoint });
     }
 
     const requestPromise = this.executeRequestWithRetry<T>(
