@@ -1918,28 +1918,46 @@ const AdminBookingManagement: React.FC = () => {
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
-                  Pricing Summary
+                  Pricing & Rewards
                 </h4>
+
+                {/* Cashback Box - Top Priority */}
+                <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        💰 Customer Cashback (₹)
+                      </label>
+                      <p className="text-xs text-gray-600 mb-2">
+                        Amount to credit to customer's wallet when order completes
+                      </p>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="Enter cashback amount"
+                        value={String((editingBooking as any)?.cashback_amount ?? 0)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value || "0") || 0;
+                          setEditingBooking((prev) => prev ? ({ ...prev, cashback_amount: val } as Booking) : prev);
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-green-600">
+                        ₹{((editingBooking as any)?.cashback_amount ?? 0).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-green-700 mt-1">Will be credited</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing Details */}
                 <div className="space-y-3 rounded-lg bg-gray-50 p-4">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-700 w-32">Cashback (₹)</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={String((editingBooking as any)?.cashback_amount ?? 0)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value || "0") || 0;
-                        setEditingBooking((prev) => prev ? ({ ...prev, cashback_amount: val } as Booking) : prev);
-                      }}
-                      className="w-40"
-                    />
-                    <span className="text-sm text-gray-500">(Subtract before discount)</span>
                   </div>
 
                   <div className="flex items-center gap-2">
