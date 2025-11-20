@@ -19,7 +19,7 @@ services:
   - type: web
     name: cleancare-pro-frontend
     env: static
-    buildCommand: npm install && npm run build
+    buildCommand: NODE_OPTIONS=--max-old-space-size=1024 npm install && NODE_OPTIONS=--max-old-space-size=1024 npm run build:minimal
     staticPublishPath: dist
     envVars:
       - fromGroup: cleancare-secrets
