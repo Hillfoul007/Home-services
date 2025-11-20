@@ -40,6 +40,7 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
   onViewBookings,
   onUpdateProfile,
 }) => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAddressesModal, setShowAddressesModal] = useState(false);
