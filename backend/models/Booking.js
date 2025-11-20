@@ -224,6 +224,19 @@ const bookingSchema = new mongoose.Schema(
         },
       },
     ],
+    cashback_amount: {
+      type: Number,
+      default: 0,
+      min: [0, "Cashback amount must be non-negative"],
+    },
+    cashback_credited: {
+      type: Boolean,
+      default: false,
+    },
+    cashback_credited_at: {
+      type: Date,
+      default: null,
+    },
     charges_breakdown: {
       base_price: {
         type: Number,
