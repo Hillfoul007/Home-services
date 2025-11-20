@@ -305,7 +305,59 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     console.log("✅ Updated timestamp:", booking.updated_at);
     console.log(`✅ Final booking state: total_price=${booking.total_price}, final_amount=${booking.final_amount}, item_prices count=${booking.item_prices?.length || 0}`);
 
-    // Auto-credit cashback to user wallet when order is completed
+    // Handle Wallet Discount Type 2: Deduct from wallet when admin applies wallet_discount_amount
+    if (updateData.wallet_discount_amount && updateData.wallet_discount_amount > 0 && booking.customer_id) {
+      try {
+        const customer = await User.findById(booking.customer_id);
+        if (customer && !booking.wallet_discount_processed) {
+          if (!customer.wallet) {
+            customer.wallet = { balance: 0, total_earned: 0, total_used: 0 };
+          }
+          if (!customer.wallet_transactions) {
+            customer.wallet_transactions = [];
+          }
+
+          const currentBalance = customer.wallet.balance || 0;
+          const walletDeductAmount = Math.min(updateData.wallet_discount_amount, currentBalance);
+
+          if (walletDeductAmount > 0) {
+            const newBalance = currentBalance - walletDeductAmount;
+
+            const transaction = {
+              _id: new mongoose.Types.ObjectId(),
+              type: "debit",
+              amount: walletDeductAmount,
+              source: "order_use",
+              booking_id: booking._id,
+              description: `Wallet payment for order ${booking.custom_order_id || booking._id}`,
+              balance_after: newBalance,
+              created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+            };
+
+            customer.wallet.balance = newBalance;
+            customer.wallet.total_used = (customer.wallet.total_used || 0) + walletDeductAmount;
+            customer.wallet.last_transaction_at = transaction.created_at;
+            customer.wallet_transactions.push(transaction);
+
+            booking.wallet_discount_amount = walletDeductAmount;
+            booking.wallet_discount_processed = true;
+
+            await customer.save();
+            await booking.save();
+
+            console.log(`✅ Wallet deducted: ₹${walletDeductAmount} from user ${booking.customer_id}`);
+            console.log(`📊 Customer new wallet balance: ₹${newBalance}`);
+          } else {
+            console.warn(`⚠️ Insufficient wallet balance for deduction. Available: ₹${currentBalance}`);
+          }
+        }
+      } catch (walletError) {
+        console.error("⚠️ Failed to deduct wallet:", walletError);
+        // Don't fail the entire request if wallet deduction fails
+      }
+    }
+
+    // Auto-credit cashback to user wallet when order is completed (Type 1: Order Reward)
     if (updateData.status === "completed" && booking.customer_id && booking.cashback_amount > 0) {
       try {
         const customer = await User.findById(booking.customer_id);
