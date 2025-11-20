@@ -64,6 +64,7 @@ router.post("/", async (req, res) => {
       special_instructions,
       charges_breakdown,
       item_prices: requestItemPrices,
+      wallet_applied_amount,
     } = req.body;
 
     // Validation
