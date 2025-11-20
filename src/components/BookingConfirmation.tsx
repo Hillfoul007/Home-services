@@ -56,16 +56,25 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
     const fetchWalletBalance = async () => {
       setLoadingWallet(true);
       try {
+        const token = localStorage.getItem("cleancare_token");
+        if (!token) {
+          console.warn("No auth token found");
+          setLoadingWallet(false);
+          return;
+        }
+
         const response = await fetch("/api/wallet/balance", {
           headers: {
-            "Authorization": `Bearer ${localStorage.getItem("userToken")}`,
+            "Authorization": `Bearer ${token}`,
           },
         });
         if (response.ok) {
           const data = await response.json();
-          if (data.success && data.data?.wallet) {
-            setWalletBalance(data.data.wallet.balance || 0);
+          if (data.success && data.wallet) {
+            setWalletBalance(data.wallet.balance || 0);
           }
+        } else if (response.status === 401) {
+          console.warn("Wallet fetch - Unauthorized. Token may be expired.");
         }
       } catch (error) {
         console.error("Failed to fetch wallet balance:", error);
@@ -248,7 +257,7 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
 
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-gray-700">
-                    Apply Wallet Amount (₹)
+                    Apply Wallet Credit (₹)
                   </label>
                   <Input
                     type="number"
