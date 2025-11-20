@@ -73,7 +73,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           totalBookings: 0,
           pendingBookings: 0,
           activeUsers: 0,
-          totalRevenue: "₹0",
+          totalRevenue: "���0",
           loading: false,
         });
       } else {
@@ -112,9 +112,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       }
     };
 
-    updateSessionInfo();
-    fetchStats(); // Fetch stats on component mount
-    const interval = setInterval(updateSessionInfo, 60000); // Update every minute
+    try {
+      updateSessionInfo();
+      // Fetch stats on component mount - but don't crash if it fails
+      fetchStats().catch((err) => {
+        console.error("Stats fetch failed:", err);
+      });
+    } catch (err) {
+      console.error("Initial setup error:", err);
+    }
+
+    const interval = setInterval(() => {
+      try {
+        updateSessionInfo();
+      } catch (err) {
+        console.error("Periodic update error:", err);
+      }
+    }, 60000); // Update every minute
 
     return () => clearInterval(interval);
   }, []);
