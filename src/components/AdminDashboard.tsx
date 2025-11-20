@@ -342,22 +342,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </TabsContent>
 
           <TabsContent value="bookings">
-            <AdminBookingManagement />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load booking management</div>}>
+              <AdminBookingManagement />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="user-booking">
-            <AdminUserBooking />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load user booking</div>}>
+              <AdminUserBooking />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="locations">
-            <AdminServiceLocations />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load locations</div>}>
+              <AdminServiceLocations />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="vendors">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
-            </div>
-            <AdminVendorManagement />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load vendor management</div>}>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
+              </div>
+              <AdminVendorManagement />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="analytics">
