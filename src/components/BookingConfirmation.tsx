@@ -48,6 +48,37 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
     currentUser,
   } = bookingData;
 
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletAmountToApply, setWalletAmountToApply] = useState(0);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      setLoadingWallet(true);
+      try {
+        const response = await fetch("/api/wallet/balance", {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("userToken")}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data?.wallet) {
+            setWalletBalance(data.data.wallet.balance || 0);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch wallet balance:", error);
+      } finally {
+        setLoadingWallet(false);
+      }
+    };
+
+    if (currentUser) {
+      fetchWalletBalance();
+    }
+  }, [currentUser]);
+
   const calculatePricing = () => {
     let basePrice = 0;
 
@@ -77,6 +108,7 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   };
 
   const pricing = calculatePricing();
+  const finalAmountAfterWallet = Math.max(0, pricing.finalAmount - walletAmountToApply);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
