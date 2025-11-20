@@ -66,8 +66,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           totalRevenue: `₹${statsData.revenue?.total || 0}`,
           loading: false,
         });
+      } else if (response.error) {
+        // API returned an error response but it's handled
+        console.warn("API returned error:", response.error);
+        setStats({
+          totalBookings: 0,
+          pendingBookings: 0,
+          activeUsers: 0,
+          totalRevenue: "₹0",
+          loading: false,
+        });
       } else {
-        // No fallback data - keep zeros if API returns no data
+        // No data returned - keep zeros if API returns no data
         setStats({
           totalBookings: 0,
           pendingBookings: 0,
@@ -78,14 +88,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       }
     } catch (error) {
       console.error("Error fetching stats:", error);
-      // Keep loading state or show error - no fake data
-      setStats({
-        totalBookings: 0,
-        pendingBookings: 0,
-        activeUsers: 0,
-        totalRevenue: "₹0",
+      // Gracefully degrade - show empty stats instead of crashing
+      setStats((prevStats) => ({
+        ...prevStats,
         loading: false,
-      });
+      }));
     }
   };
 
