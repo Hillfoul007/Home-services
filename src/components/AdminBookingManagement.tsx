@@ -1048,7 +1048,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const computeEditingTotals = (bookingData: Booking | null) => {
-    if (!bookingData) return { total: 0, afterCashback: 0, discountAmount: 0, final: 0, cashbackAmount: 0 };
+    if (!bookingData) return { total: 0, afterCashback: 0, afterWalletDiscount: 0, discountAmount: 0, final: 0, cashbackAmount: 0, walletDiscountAmount: 0 };
     const items = bookingData.item_prices || [];
     const subtotal = items.reduce((s, it) => {
       const qty = Number(it.quantity ?? 0) || 0;
@@ -1057,17 +1057,25 @@ const AdminBookingManagement: React.FC = () => {
       return s + itemTotal;
     }, 0);
 
+    // Cashback Type 1: Order cashback (credited when order completes)
     const cashbackAmount = Number((bookingData as any).cashback_amount ?? 0) || 0;
     const afterCashback = Math.max(0, subtotal - cashbackAmount);
 
-    const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
-    const discountAmount = +(afterCashback * (discountPercent / 100));
+    // Cashback Type 2: Wallet discount (deducted from wallet immediately)
+    const walletDiscountAmount = Number((bookingData as any).wallet_discount_amount ?? 0) || 0;
+    const afterWalletDiscount = Math.max(0, afterCashback - walletDiscountAmount);
 
-    const finalAmount = afterCashback - discountAmount;
+    // Percentage discount
+    const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
+    const discountAmount = +(afterWalletDiscount * (discountPercent / 100));
+
+    const finalAmount = afterWalletDiscount - discountAmount;
     return {
       total: +subtotal.toFixed(2),
       cashbackAmount: +cashbackAmount.toFixed(2),
       afterCashback: +afterCashback.toFixed(2),
+      walletDiscountAmount: +walletDiscountAmount.toFixed(2),
+      afterWalletDiscount: +afterWalletDiscount.toFixed(2),
       discountAmount: +discountAmount.toFixed(2),
       final: +finalAmount.toFixed(2),
     };
