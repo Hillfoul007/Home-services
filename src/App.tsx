@@ -102,6 +102,7 @@ function App() {
               <Route path="/vendor/login" element={<VendorLogin />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
+              <Route path="/wallet" element={<WalletPage />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
