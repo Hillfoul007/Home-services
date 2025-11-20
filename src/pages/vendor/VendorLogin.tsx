@@ -43,18 +43,19 @@ const VendorLogin: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-2 text-center">Vendor Login</h2>
-        <p className="text-sm text-gray-500 text-center mb-6">Use your vendor credentials provided by admin</p>
+    <ErrorBoundary>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold mb-2 text-center">Vendor Login</h2>
+          <p className="text-sm text-gray-500 text-center mb-6">Use your vendor credentials provided by admin</p>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
 
-        <form onSubmit={submit} className="space-y-5">
+          <form onSubmit={submit} className="space-y-5">
           <div>
             <label className="block mb-2 text-sm font-semibold text-gray-700">
               Vendor ID <span className="text-red-500">*</span>
@@ -98,15 +99,16 @@ const VendorLogin: React.FC = () => {
           >
             {loading ? 'Signing in...' : 'Sign in'}
           </Button>
-        </form>
+          </form>
 
-        {loading && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-            Validating your credentials...
-          </div>
-        )}
+          {loading && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+              Validating your credentials...
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 
