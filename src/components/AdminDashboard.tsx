@@ -50,7 +50,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     pendingBookings: 0,
     activeUsers: 0,
     totalRevenue: "₹0",
-    loading: true,
+    loading: false,
   });
 
   // Fetch real statistics from API
