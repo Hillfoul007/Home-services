@@ -45,9 +45,6 @@ const VendorLogin: React.FC = () => {
   return (
     <ErrorBoundary>
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        {/* Test: Simple rendering check */}
-        <div style={{position: 'fixed', bottom: 0, right: 0, background: '#90EE90', padding: '4px 8px', fontSize: '10px', zIndex: 9999}}>VendorLogin Render OK</div>
-
         <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
           <h2 className="text-2xl font-bold mb-2 text-center">Vendor Login</h2>
           <p className="text-sm text-gray-500 text-center mb-6">Use your vendor credentials provided by admin</p>
