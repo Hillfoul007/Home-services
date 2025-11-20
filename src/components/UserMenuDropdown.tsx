@@ -93,6 +93,15 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
     }, 100);
   };
 
+  const handleWalletClick = () => {
+    setClickedItem("wallet");
+    setTimeout(() => {
+      setIsOpen(false);
+      navigate("/wallet");
+      setTimeout(() => setClickedItem(null), 300);
+    }, 100);
+  };
+
   return (
     <>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
