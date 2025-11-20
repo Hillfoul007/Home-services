@@ -104,8 +104,8 @@ const BookingFlow: React.FC<BookingFlowProps> = ({
 
 
 
-  const handleBookService = async () => {
-    console.log("🚀 Starting booking process...");
+  const handleBookService = async (walletAmountToApply: number = 0) => {
+    console.log("🚀 Starting booking process with wallet amount:", walletAmountToApply);
     bookingTestHelper.runDiagnostic();
 
     if (!currentUser) {
@@ -181,6 +181,9 @@ const BookingFlow: React.FC<BookingFlowProps> = ({
             },
           ];
 
+      const baseAmount = calculateFinalAmount();
+      const finalAmountAfterWallet = Math.max(0, baseAmount - walletAmountToApply);
+
       const bookingData = {
         customer_id: customerId,
         service: isMultipleServices
@@ -214,7 +217,8 @@ const BookingFlow: React.FC<BookingFlowProps> = ({
           .filter(Boolean)
           .join("\n"),
         total_price: calculateTotalPrice(),
-        final_amount: calculateFinalAmount(),
+        final_amount: finalAmountAfterWallet,
+        wallet_applied_amount: walletAmountToApply,
 
         special_instructions: [
           additionalDetails,
@@ -239,7 +243,7 @@ const BookingFlow: React.FC<BookingFlowProps> = ({
         // For backward compatibility with different booking systems
         pickupDate: selectedDate.toISOString().split("T")[0],
         pickupTime: selectedTime,
-        totalAmount: calculateFinalAmount(),
+        totalAmount: finalAmountAfterWallet,
         userId: customerId,
         paymentStatus: "pending",
         status: "pending",
@@ -330,7 +334,7 @@ const BookingFlow: React.FC<BookingFlowProps> = ({
           provider,
           currentUser,
         }}
-        onConfirmBooking={handleBookService}
+        onConfirmBooking={(walletAmount) => handleBookService(walletAmount || 0)}
         onBack={() => setShowConfirmation(false)}
         isProcessing={isProcessing}
       />

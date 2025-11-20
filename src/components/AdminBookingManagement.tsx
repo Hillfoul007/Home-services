@@ -1048,7 +1048,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const computeEditingTotals = (bookingData: Booking | null) => {
-    if (!bookingData) return { total: 0, afterCashback: 0, discountAmount: 0, final: 0, cashbackAmount: 0 };
+    if (!bookingData) return { total: 0, afterCashback: 0, afterWalletDiscount: 0, discountAmount: 0, final: 0, cashbackAmount: 0, walletDiscountAmount: 0 };
     const items = bookingData.item_prices || [];
     const subtotal = items.reduce((s, it) => {
       const qty = Number(it.quantity ?? 0) || 0;
@@ -1057,17 +1057,25 @@ const AdminBookingManagement: React.FC = () => {
       return s + itemTotal;
     }, 0);
 
+    // Cashback Type 1: Order cashback (credited when order completes)
     const cashbackAmount = Number((bookingData as any).cashback_amount ?? 0) || 0;
     const afterCashback = Math.max(0, subtotal - cashbackAmount);
 
-    const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
-    const discountAmount = +(afterCashback * (discountPercent / 100));
+    // Cashback Type 2: Wallet discount (deducted from wallet immediately)
+    const walletDiscountAmount = Number((bookingData as any).wallet_discount_amount ?? 0) || 0;
+    const afterWalletDiscount = Math.max(0, afterCashback - walletDiscountAmount);
 
-    const finalAmount = afterCashback - discountAmount;
+    // Percentage discount
+    const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
+    const discountAmount = +(afterWalletDiscount * (discountPercent / 100));
+
+    const finalAmount = afterWalletDiscount - discountAmount;
     return {
       total: +subtotal.toFixed(2),
       cashbackAmount: +cashbackAmount.toFixed(2),
       afterCashback: +afterCashback.toFixed(2),
+      walletDiscountAmount: +walletDiscountAmount.toFixed(2),
+      afterWalletDiscount: +afterWalletDiscount.toFixed(2),
       discountAmount: +discountAmount.toFixed(2),
       final: +finalAmount.toFixed(2),
     };
@@ -1953,6 +1961,77 @@ const AdminBookingManagement: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Two-Tier Cashback System */}
+                <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 p-4">
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      💳 Type 1: Order Cashback (Auto-credited on completion)
+                    </label>
+                    <p className="text-xs text-gray-600 mb-2">
+                      Amount automatically credited to customer's wallet when order is marked complete
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="e.g., 50"
+                        value={String((editingBooking as any)?.cashback_amount ?? 0)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value || "0") || 0;
+                          setEditingBooking((prev) => prev ? ({ ...prev, cashback_amount: val } as Booking) : prev);
+                        }}
+                        className="flex-1"
+                      />
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-purple-600">
+                          ₹{((editingBooking as any)?.cashback_amount ?? 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator className="my-3" />
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      👛 Type 2: Wallet Deduction (Debit wallet to reduce order amount)
+                    </label>
+                    <p className="text-xs text-gray-600 mb-2">
+                      Deduct from customer's wallet balance to reduce order amount. Wallet is debited immediately.
+                    </p>
+                    {editingBooking?.customer_id && (
+                      <div className="bg-white rounded p-2 mb-3 border border-purple-200">
+                        <p className="text-xs text-gray-600">Available Wallet Balance:</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          ₹{((editingBooking as any)?.customer_wallet_balance ?? 0).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={(editingBooking as any)?.customer_wallet_balance ?? 0}
+                        step="0.01"
+                        placeholder="e.g., 30"
+                        value={String((editingBooking as any)?.wallet_discount_amount ?? 0)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value || "0") || 0;
+                          const maxWallet = (editingBooking as any)?.customer_wallet_balance ?? 0;
+                          setEditingBooking((prev) => prev ? ({ ...prev, wallet_discount_amount: Math.min(val, maxWallet) } as any) : prev);
+                        }}
+                        className="flex-1"
+                      />
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-blue-600">
+                          ₹{((editingBooking as any)?.wallet_discount_amount ?? 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Pricing Details */}
                 <div className="space-y-3 rounded-lg bg-gray-50 p-4">
                   <div className="flex justify-between">
@@ -1977,13 +2056,18 @@ const AdminBookingManagement: React.FC = () => {
                     <span className="text-sm text-gray-500">(Applied after cashback)</span>
                   </div>
 
-                  <div className="flex justify-between text-blue-600">
-                    <span>After Cashback:</span>
-                    <span>- ₹{computeEditingTotals(editingBooking).afterCashback.toFixed(2)}</span>
+                  <div className="flex justify-between text-green-600">
+                    <span>After Order Cashback (Type 1):</span>
+                    <span>₹{computeEditingTotals(editingBooking).afterCashback.toFixed(2)}</span>
                   </div>
 
                   <div className="flex justify-between text-blue-600">
-                    <span>Discount Amount:</span>
+                    <span>After Wallet Deduction (Type 2):</span>
+                    <span>₹{computeEditingTotals(editingBooking).afterWalletDiscount.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-orange-600">
+                    <span>Discount Amount (%):</span>
                     <span>- ₹{computeEditingTotals(editingBooking).discountAmount.toFixed(2)}</span>
                   </div>
 
@@ -2018,7 +2102,8 @@ const AdminBookingManagement: React.FC = () => {
                         vendor: editingBooking.vendor,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.discountAmount || 0,
-                        cashback_amount: totals.cashbackAmount || 0,
+                        cashback_amount: (editingBooking as any).cashback_amount || 0,
+                        wallet_discount_amount: (editingBooking as any).wallet_discount_amount || 0,
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
