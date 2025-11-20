@@ -334,7 +334,7 @@ const BookingFlow: React.FC<BookingFlowProps> = ({
           provider,
           currentUser,
         }}
-        onConfirmBooking={handleBookService}
+        onConfirmBooking={(walletAmount) => handleBookService(walletAmount || 0)}
         onBack={() => setShowConfirmation(false)}
         isProcessing={isProcessing}
       />
