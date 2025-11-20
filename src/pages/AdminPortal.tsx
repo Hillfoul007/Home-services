@@ -82,10 +82,18 @@ const AdminPortal: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return <AdminLogin onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <ErrorBoundary>
+        <AdminLogin onLoginSuccess={handleLoginSuccess} />
+      </ErrorBoundary>
+    );
   }
 
-  return <AdminDashboard onLogout={handleLogout} />;
+  return (
+    <ErrorBoundary>
+      <AdminDashboard onLogout={handleLogout} />
+    </ErrorBoundary>
+  );
 };
 
 export default AdminPortal;
