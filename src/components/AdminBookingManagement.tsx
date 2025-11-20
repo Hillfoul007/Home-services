@@ -1953,6 +1953,49 @@ const AdminBookingManagement: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Customer Wallet Balance */}
+                {editingBooking?.customer_id && (
+                  <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">
+                          👛 Customer Wallet Balance
+                        </label>
+                        <p className="text-xs text-gray-600 mb-3">
+                          View and manage customer's available wallet credits
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="bg-white rounded p-2">
+                            <p className="text-xs text-gray-600">Current Balance</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              ₹{((editingBooking as any)?.customer_wallet_balance ?? 0).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="bg-white rounded p-2">
+                            <p className="text-xs text-gray-600">Total Earned</p>
+                            <p className="text-lg font-bold text-green-600">
+                              ₹{((editingBooking as any)?.customer_total_earned ?? 0).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-xs"
+                          onClick={() => {
+                            const customerId = (editingBooking as any)?.customer_id?._id || (editingBooking as any)?.customer_id;
+                            if (customerId) {
+                              window.open(`/wallet?customer=${customerId}`, '_blank');
+                            }
+                          }}
+                        >
+                          View Full Wallet History
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Pricing Details */}
                 <div className="space-y-3 rounded-lg bg-gray-50 p-4">
                   <div className="flex justify-between">
