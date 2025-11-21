@@ -1,58 +1,73 @@
 #!/usr/bin/env node
 
-// Ultra-minimal build script for memory-constrained environments (512MB)
 const { spawn } = require('child_process');
+const path = require('path');
 
-// Set very conservative memory allocation
-process.env.NODE_OPTIONS = '--max-old-space-size=300';
+// Increase memory significantly for build process
+const MEMORY_LIMIT = '768'; // 768MB for build process
+process.env.NODE_OPTIONS = `--max-old-space-size=${MEMORY_LIMIT} --experimental-modules`;
 
-// Function to run command with minimal memory settings
-function runCommand(command, args = []) {
+function runCommand(command, args = [], env = {}) {
   return new Promise((resolve, reject) => {
-    console.log(`Running: ${command} ${args.join(' ')}`);
+    console.log(`\n📦 Running: ${command} ${args.join(' ')}`);
     
     const child = spawn(command, args, {
       stdio: 'inherit',
       shell: true,
       env: {
         ...process.env,
-        NODE_OPTIONS: '--max-old-space-size=300',
-        // Disable V8 optimization to save memory
-        NODE_ENV: 'production'
-      }
+        NODE_OPTIONS: `--max-old-space-size=${MEMORY_LIMIT} --experimental-modules`,
+        NODE_ENV: 'production',
+        // Reduce V8 memory overhead
+        NODE_DISABLE_COLORS: '1',
+        ...env,
+      },
     });
     
     child.on('close', (code) => {
       if (code === 0) {
+        console.log(`✅ Command succeeded`);
         resolve();
       } else {
+        console.error(`❌ Command failed with exit code ${code}`);
         reject(new Error(`Command failed with exit code ${code}`));
       }
     });
     
-    child.on('error', reject);
+    child.on('error', (error) => {
+      console.error(`❌ Command error:`, error);
+      reject(error);
+    });
   });
 }
 
 async function main() {
   try {
-    console.log('Starting minimal build process for 512MB environment...');
+    console.log(`\n🚀 Starting build for memory-constrained environment (${MEMORY_LIMIT}MB heap)`);
+    console.log('⚙️  Vite will use aggressive chunking strategy...\n');
     
-    // Skip PWA build script to save memory
-    console.log('Skipping PWA build script to conserve memory...');
+    // Run vite build with render-specific config
+    await runCommand('npx', [
+      'vite',
+      'build',
+      '--config',
+      'vite.render.config.ts',
+      '--mode',
+      'production',
+      '--outDir',
+      'dist',
+      '--emptyOutDir',
+    ]);
     
-        // Run vite build with minimal settings and render-specific config
-    console.log('Starting minimal Vite build...');
-    await runCommand('npx', ['vite', 'build', '--config', 'vite.render.config.ts', '--mode', 'production']);
-    
-    // Skip optimization script to save memory
-    console.log('Skipping build optimization to conserve memory...');
-    
-    console.log('Minimal build completed successfully!');
+    console.log('\n✨ Build completed successfully!');
+    process.exit(0);
   } catch (error) {
-    console.error('Build failed:', error.message);
+    console.error('\n💥 Build failed:', error.message);
     process.exit(1);
   }
 }
 
-main();
+main().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});

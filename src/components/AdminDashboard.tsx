@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +50,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     pendingBookings: 0,
     activeUsers: 0,
     totalRevenue: "₹0",
-    loading: true,
+    loading: false,
   });
 
   // Fetch real statistics from API
@@ -66,8 +67,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           totalRevenue: `₹${statsData.revenue?.total || 0}`,
           loading: false,
         });
+      } else if (response.error) {
+        // API returned an error response but it's handled
+        console.warn("API returned error:", response.error);
+        setStats({
+          totalBookings: 0,
+          pendingBookings: 0,
+          activeUsers: 0,
+          totalRevenue: "���0",
+          loading: false,
+        });
       } else {
-        // No fallback data - keep zeros if API returns no data
+        // No data returned - keep zeros if API returns no data
         setStats({
           totalBookings: 0,
           pendingBookings: 0,
@@ -78,14 +89,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       }
     } catch (error) {
       console.error("Error fetching stats:", error);
-      // Keep loading state or show error - no fake data
-      setStats({
-        totalBookings: 0,
-        pendingBookings: 0,
-        activeUsers: 0,
-        totalRevenue: "₹0",
+      // Gracefully degrade - show empty stats instead of crashing
+      setStats((prevStats) => ({
+        ...prevStats,
         loading: false,
-      });
+      }));
     }
   };
 
@@ -105,9 +113,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       }
     };
 
-    updateSessionInfo();
-    fetchStats(); // Fetch stats on component mount
-    const interval = setInterval(updateSessionInfo, 60000); // Update every minute
+    try {
+      updateSessionInfo();
+      // Fetch stats on component mount - but don't crash if it fails
+      fetchStats().catch((err) => {
+        console.error("Stats fetch failed:", err);
+      });
+    } catch (err) {
+      console.error("Initial setup error:", err);
+    }
+
+    const interval = setInterval(() => {
+      try {
+        updateSessionInfo();
+      } catch (err) {
+        console.error("Periodic update error:", err);
+      }
+    }, 60000); // Update every minute
 
     return () => clearInterval(interval);
   }, []);
@@ -321,22 +343,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </TabsContent>
 
           <TabsContent value="bookings">
-            <AdminBookingManagement />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load booking management</div>}>
+              <AdminBookingManagement />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="user-booking">
-            <AdminUserBooking />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load user booking</div>}>
+              <AdminUserBooking />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="locations">
-            <AdminServiceLocations />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load locations</div>}>
+              <AdminServiceLocations />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="vendors">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
-            </div>
-            <AdminVendorManagement />
+            <ErrorBoundary fallback={<div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">Failed to load vendor management</div>}>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
+              </div>
+              <AdminVendorManagement />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="analytics">
