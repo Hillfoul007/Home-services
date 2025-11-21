@@ -464,25 +464,6 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
-  const fetchVendorRecommendations = async (address: string) => {
-    if (!address || address.trim() === "" || address === lastRecommendationAddress) {
-      return;
-    }
-
-    setLoadingRecommendations(true);
-    try {
-      console.log('📍 Fetching vendor recommendations for address:', address);
-      const recommendations = await vendorService.getVendorRecommendations(address);
-      setVendorRecommendations(recommendations);
-      setLastRecommendationAddress(address);
-      console.log('✅ Received vendor recommendations:', recommendations);
-    } catch (error) {
-      console.warn('Failed to fetch vendor recommendations:', error);
-      setVendorRecommendations([]);
-    } finally {
-      setLoadingRecommendations(false);
-    }
-  };
 
   const fetchCompletedOrders = async () => {
     try {
