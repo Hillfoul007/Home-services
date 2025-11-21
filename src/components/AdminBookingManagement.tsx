@@ -432,6 +432,8 @@ const AdminBookingManagement: React.FC = () => {
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
+  const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [completedOrders, setCompletedOrders] = useState<Booking[]>([]);
   const [completedSearchTerm, setCompletedSearchTerm] = useState("");
   const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
