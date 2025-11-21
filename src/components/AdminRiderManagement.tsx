@@ -539,6 +539,7 @@ export default function AdminRiderManagement() {
     setSelectedOrder(order);
     setVendorModalOpen(true);
     setSelectedVendor('');
+    setLoadingVendors(true);
     loadVendorRecommendations(order);
   };
 
