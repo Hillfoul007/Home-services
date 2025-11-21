@@ -83,6 +83,8 @@ const VendorDashboard: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [soundSettings, setSoundSettings] = useState<SoundNotificationSettings>(soundNotificationService.getSettings());
+  const [showSoundMenu, setShowSoundMenu] = useState(false);
 
   const load = async () => {
     setLoading(true);
