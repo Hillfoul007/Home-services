@@ -9,6 +9,31 @@ const riderNotificationService = require("../services/riderNotificationService")
 
 const router = express.Router();
 
+// ============= DISTANCE CALCULATION HELPER =============
+// Calculate distance between two coordinates using Haversine formula (in km)
+const calculateDistance = (coord1, coord2) => {
+  if (!coord1 || !coord2 || coord1.lat === undefined || coord1.lng === undefined || coord2.lat === undefined || coord2.lng === undefined) {
+    return null;
+  }
+
+  const R = 6371; // Earth's radius in kilometers
+  const lat1 = (coord1.lat * Math.PI) / 180;
+  const lat2 = (coord2.lat * Math.PI) / 180;
+  const dLat = ((coord2.lat - coord1.lat) * Math.PI) / 180;
+  const dLng = ((coord2.lng - coord1.lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+
+  return Math.round(distance * 100) / 100; // Round to 2 decimal places
+};
+
 // Middleware to verify admin access (simple for now)
 const verifyAdminAccess = (req, res, next) => {
   // In a production environment, you would implement proper admin authentication
