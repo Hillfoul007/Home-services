@@ -1853,6 +1853,8 @@ const AdminBookingManagement: React.FC = () => {
                         cashback_amount: editingBooking.cashback_amount || 0,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.details?.discount || 0,
+                        coordinates: editingBooking.coordinates,
+                        distance_to_vendor: editingBooking.distance_to_vendor,
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
