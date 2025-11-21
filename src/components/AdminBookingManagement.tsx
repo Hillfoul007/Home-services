@@ -729,7 +729,7 @@ const AdminBookingManagement: React.FC = () => {
     };
 
     fetchRecommendations();
-  }, [editingBooking?.address, editingBooking?.services]);
+  }, [editingBooking?._id, editingBooking?.address]); // Only re-fetch if ID or address changes, not services
 
   const getISTTimestamp = (): string => {
     const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
