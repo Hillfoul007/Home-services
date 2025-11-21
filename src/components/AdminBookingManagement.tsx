@@ -1788,10 +1788,26 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                   </div>
-                  {(editingBooking.discount_percent || 0) > 0 && (
-                    <div className="flex justify-between text-blue-600">
-                      <span>Discount {editingBooking.discount_percent}%:</span>
-                      <span>-₹{(computeEditingTotals(editingBooking).total * (editingBooking.discount_percent || 0) / 100).toFixed(2)}</span>
+                  {((editingBooking.cashback_amount ?? 0) > 0 || (editingBooking.discount_percent ?? 0) > 0) && (
+                    <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                      {(editingBooking.cashback_amount ?? 0) > 0 && (
+                        <div className="flex justify-between text-blue-700">
+                          <span>Cashback:</span>
+                          <span>-₹{(editingBooking.cashback_amount || 0).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {(editingBooking.discount_percent ?? 0) > 0 && (
+                        <>
+                          <div className="flex justify-between text-blue-700">
+                            <span>After Cashback:</span>
+                            <span>₹{(computeEditingTotals(editingBooking).details?.afterCashback || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-blue-700">
+                            <span>Discount {editingBooking.discount_percent}%:</span>
+                            <span>-₹{(computeEditingTotals(editingBooking).details?.discount || 0).toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
