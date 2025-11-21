@@ -488,16 +488,6 @@ export default function AdminRiderManagement() {
     setLoadingVendors(true);
 
     try {
-      // Always start with default vendors to ensure something shows
-      const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
-        ...vendor,
-        distance: 0,
-        estimatedTime: 60
-      }));
-
-      console.log('📋 Default vendors loaded:', defaultVendors);
-      setRecommendedVendors(defaultVendors);
-
       // Try to get address and calculate distances
       if (order?.address) {
         const address = typeof order.address === 'string' ? order.address :
@@ -507,15 +497,29 @@ export default function AdminRiderManagement() {
 
         const vendors = await vendorService.getVendorRecommendations(
           address,
-          order.services || []
+          order.service ? [order.service] : order.services || []
         );
 
         console.log('✅ Loaded vendor recommendations with distances:', vendors);
         if (vendors && vendors.length > 0) {
-          setRecommendedVendors(vendors);
+          setRecommendedVendors(vendors.sort((a, b) => a.distance - b.distance));
+        } else {
+          console.warn('⚠️ No vendors returned, using defaults');
+          const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
+            ...vendor,
+            distance: 0,
+            estimatedTime: 60
+          }));
+          setRecommendedVendors(defaultVendors);
         }
       } else {
         console.warn('⚠️ No address found for order, using default vendors');
+        const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
+          ...vendor,
+          distance: 0,
+          estimatedTime: 60
+        }));
+        setRecommendedVendors(defaultVendors);
       }
     } catch (error) {
       console.error('❌ Error loading vendor recommendations:', error);
