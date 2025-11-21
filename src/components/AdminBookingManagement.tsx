@@ -81,9 +81,12 @@ interface Booking {
   service_type?: string;
   discount_amount?: number;
   discount_percent?: number;
+  cashback_amount?: number;
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
+  coordinates?: { lat: number; lng: number };
+  distance_to_vendor?: number;
   items_images?: Array<{
     file_id: string;
     filename: string;
