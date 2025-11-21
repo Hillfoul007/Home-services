@@ -1868,37 +1868,52 @@ const AdminBookingManagement: React.FC = () => {
                   <DollarSign className="h-4 w-4" />
                   Pricing Summary
                 </h4>
-                <div className="space-y-2 rounded-lg bg-gray-50 p-4">
+                <div className="space-y-3 rounded-lg bg-gray-50 p-4">
+                  {/* Subtotal */}
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                    <span>Final Amount:</span>
-                    <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
+
+                  {/* Cashback Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Cashback Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Cashback:</span>
+                      <span className="text-blue-700 font-medium">-₹{(editingBooking.cashback_amount || 0).toFixed(2)}</span>
+                    </div>
                   </div>
-                  {((editingBooking.cashback_amount ?? 0) > 0 || (editingBooking.discount_percent ?? 0) > 0) && (
-                    <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200 mt-2">
-                      {(editingBooking.cashback_amount ?? 0) > 0 && (
-                        <div className="flex justify-between text-blue-700">
-                          <span>Cashback:</span>
-                          <span>-₹{(editingBooking.cashback_amount || 0).toFixed(2)}</span>
-                        </div>
-                      )}
-                      {(editingBooking.discount_percent ?? 0) > 0 && (
-                        <>
-                          <div className="flex justify-between text-blue-700">
-                            <span>After Cashback:</span>
-                            <span>₹{(computeEditingTotals(editingBooking).details?.afterCashback || 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-blue-700">
-                            <span>Discount {editingBooking.discount_percent}%:</span>
-                            <span>-₹{(computeEditingTotals(editingBooking).details?.discount || 0).toFixed(2)}</span>
-                          </div>
-                        </>
-                      )}
+
+                  {/* Discount Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Discount Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Discount {editingBooking.discount_percent || 0}%:</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.discount || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* After Cashback */}
+                  {(editingBooking.cashback_amount ?? 0) > 0 && (
+                    <div className="flex justify-between border-t pt-2">
+                      <span>After Cashback:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).details?.afterCashback || 0).toFixed(2)}</span>
                     </div>
                   )}
+
+                  {/* After Discount */}
+                  {(editingBooking.discount_percent ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span>After Discount:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).final || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* Total / Final Amount */}
+                  <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                    <span>Total:</span>
+                    <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
 
