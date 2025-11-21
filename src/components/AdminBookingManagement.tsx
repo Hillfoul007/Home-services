@@ -522,6 +522,22 @@ const AdminBookingManagement: React.FC = () => {
     setFilteredPickupOrders(filtered);
   };
 
+  const getDeliveryDateTimeForSort = (booking: Booking): Date => {
+    try {
+      const dateStr = booking.delivery_date || booking.scheduled_date || '';
+      const timeStr = booking.delivery_time || booking.scheduled_time || '00:00';
+
+      if (!dateStr) return new Date(0);
+
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const dateObj = new Date(dateStr);
+      dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+      return dateObj;
+    } catch (e) {
+      return new Date(0);
+    }
+  };
+
   const filterReadyOrders = (orders?: Booking[]) => {
     const ordersToFilter = orders || bucketB;
     let filtered = ordersToFilter;
@@ -538,6 +554,12 @@ const AdminBookingManagement: React.FC = () => {
     if (readyStatusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
     }
+
+    filtered.sort((a, b) => {
+      const dateA = getDeliveryDateTimeForSort(a);
+      const dateB = getDeliveryDateTimeForSort(b);
+      return dateA.getTime() - dateB.getTime();
+    });
 
     setFilteredReadyOrders(filtered);
   };
