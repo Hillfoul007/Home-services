@@ -519,6 +519,12 @@ const AdminBookingManagement: React.FC = () => {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === pickupStatusFilter);
     }
 
+    filtered.sort((a, b) => {
+      const dateA = getScheduledDateTime(a);
+      const dateB = getScheduledDateTime(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
     setFilteredPickupOrders(filtered);
   };
 
