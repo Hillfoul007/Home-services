@@ -458,11 +458,20 @@ const AdminBookingManagement: React.FC = () => {
           id: vendor.id || vendor._id,
           name: vendor.name,
         }));
+
+        // Store full vendor data for distance calculations
+        const fullDataMap: Record<string, any> = {};
+        response.data.vendors.forEach((vendor: any) => {
+          fullDataMap[vendor.name || vendor.id] = vendor;
+        });
+
         setVendors(vendorOptions);
+        setVendorFullData(fullDataMap);
       }
     } catch (error) {
       console.warn('Failed to fetch vendors:', error);
       setVendors([]);
+      setVendorFullData({});
     }
   };
 
