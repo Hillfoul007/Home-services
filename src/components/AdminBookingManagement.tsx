@@ -24,9 +24,8 @@ import {
   XCircle,
   AlertCircle,
   Store,
-  Zap,
 } from "lucide-react";
-import { vendorService, type VendorWithDistance } from "@/services/vendorService";
+import { vendorService } from "@/services/vendorService";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
