@@ -935,7 +935,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const computeEditingTotals = (bookingData: Booking | null) => {
-    if (!bookingData) return { total: 0, final: 0 };
+    if (!bookingData) return { total: 0, final: 0, details: { subtotal: 0, cashback: 0, afterCashback: 0, discount: 0 } };
     const items = bookingData.item_prices || [];
     const subtotal = items.reduce((s, it) => {
       const qty = Number(it.quantity ?? 0) || 0;
@@ -943,10 +943,26 @@ const AdminBookingManagement: React.FC = () => {
       const itemTotal = Number(it.total_price) || (qty * unitPrice);
       return s + itemTotal;
     }, 0);
+
+    // Apply cashback first
+    const cashbackAmount = Number(bookingData.cashback_amount ?? 0) || 0;
+    const afterCashback = subtotal - cashbackAmount;
+
+    // Then apply discount percentage
     const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
-    const discountAmount = (subtotal * discountPercent) / 100;
-    const finalAmount = subtotal - discountAmount;
-    return { total: +(subtotal).toFixed(2), final: +(finalAmount).toFixed(2) };
+    const discountAmount = (afterCashback * discountPercent) / 100;
+    const finalAmount = afterCashback - discountAmount;
+
+    return {
+      total: +(subtotal).toFixed(2),
+      final: +(finalAmount).toFixed(2),
+      details: {
+        subtotal: +(subtotal).toFixed(2),
+        cashback: +(cashbackAmount).toFixed(2),
+        afterCashback: +(afterCashback).toFixed(2),
+        discount: +(discountAmount).toFixed(2)
+      }
+    };
   };
 
   if (loading) {
@@ -1510,7 +1526,7 @@ const AdminBookingManagement: React.FC = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="edit-cashback">Cashback Amount (₹)</Label>
+                  <Label htmlFor="edit-cashback">Cashback Amount (��)</Label>
                   <Input
                     id="edit-cashback"
                     type="number"
