@@ -549,17 +549,9 @@ export default function AdminRiderManagement() {
     setCombinedAssignModalOpen(true);
     setSelectedRider(null);
     setSelectedVendor('');
+    setLoadingVendors(true);
 
-    // Always ensure we have vendors to display
-    const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
-      ...vendor,
-      distance: 0,
-      estimatedTime: 60
-    }));
-    console.log('🏪 Setting default vendors immediately:', defaultVendors);
-    setRecommendedVendors(defaultVendors);
-
-    // Then try to load with distance calculations
+    // Load with distance calculations
     loadVendorRecommendations(order);
   };
 
