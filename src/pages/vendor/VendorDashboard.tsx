@@ -91,7 +91,27 @@ const VendorDashboard: React.FC = () => {
     try {
       const res = await vendorAuthService.fetchAssignedOrders();
       if (res && res.success && res.orders) {
-        setOrders(res.orders);
+        const newOrders = res.orders;
+
+        // Detect new orders and play notification
+        setOrders(prevOrders => {
+          if (prevOrders.length > 0 && newOrders.length > prevOrders.length) {
+            // Find new orders
+            const prevOrderIds = new Set(prevOrders.map(o => o._id));
+            const newOrderIds = newOrders.filter(o => !prevOrderIds.has(o._id));
+
+            if (newOrderIds.length > 0) {
+              // Play notification for each new order
+              newOrderIds.forEach(async () => {
+                soundNotificationService.playNotification();
+              });
+
+              toast.success(`${newOrderIds.length} new order(s) received! 🎉`);
+            }
+          }
+
+          return newOrders;
+        });
       } else {
         toast.error(res.error || "Failed to fetch orders");
       }
