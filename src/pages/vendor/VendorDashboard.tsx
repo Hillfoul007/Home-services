@@ -262,16 +262,29 @@ const VendorDashboard: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded whitespace-nowrap">{order.status}</span>
-                    {order.items_images && order.items_images.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
-                        className="text-xs whitespace-nowrap"
-                      >
-                        {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
-                      </Button>
-                    )}
+                    <div className="flex gap-1">
+                      {order.address && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleNavigateToAddress(order.address!)}
+                          className="text-xs whitespace-nowrap px-2 py-1 h-auto"
+                          title="Navigate to address"
+                        >
+                          🗺️ Navigate
+                        </Button>
+                      )}
+                      {order.items_images && order.items_images.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
+                          className="text-xs whitespace-nowrap"
+                        >
+                          {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
