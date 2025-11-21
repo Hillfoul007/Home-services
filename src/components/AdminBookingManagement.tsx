@@ -1839,8 +1839,9 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_date: editingBooking.delivery_date || "",
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
+                        cashback_amount: editingBooking.cashback_amount || 0,
                         discount_percent: editingBooking.discount_percent || 0,
-                        discount_amount: (totals.total * (editingBooking.discount_percent || 0) / 100) || 0,
+                        discount_amount: totals.details?.discount || 0,
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
