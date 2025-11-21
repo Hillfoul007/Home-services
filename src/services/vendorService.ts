@@ -267,7 +267,8 @@ export class VendorService {
         )
       );
       console.log('🔍 Filtered vendors by service type:', serviceTypes, 'Result count:', filtered.length);
-      return filtered;
+      // Return filtered vendors if found, otherwise return all vendors with distance
+      return filtered.length > 0 ? filtered : vendorsWithDistance;
     }
 
     return vendorsWithDistance;
