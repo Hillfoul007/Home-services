@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import LaundryIndex from "@/pages/LaundryIndex";
+import VendorLogin from "@/pages/vendor/VendorLogin";
+import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import LocationConfigPage from "@/pages/LocationConfigPage";
 import AdminPortal from "@/pages/AdminPortal";
 import RiderAuth from "@/pages/rider/RiderAuth";
@@ -23,9 +25,6 @@ import {
 } from "@/utils/authPersistence";
 import { initializePWAUpdates } from "@/utils/swCleanup";
 import "@/utils/testEnvironment"; // Auto-run environment tests in development
-import VendorLogin from "@/pages/vendor/VendorLogin";
-import VendorDashboard from "@/pages/vendor/VendorDashboard";
-import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -100,7 +99,6 @@ function App() {
               <Route path="/rider/profile" element={<RiderDashboard />} />
               <Route path="/vendor/login" element={<VendorLogin />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
-              <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />

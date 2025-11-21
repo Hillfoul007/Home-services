@@ -24,7 +24,7 @@ export default defineConfig({
     // Use latest JS features to reduce bundle size
     target: 'esnext',
     // Reduce polyfills
-    polyfillModulePreload: false,
+    modulePreload: { polyfill: false },
   },
   // Minimal esbuild configuration
   esbuild: {
