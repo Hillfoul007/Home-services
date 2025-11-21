@@ -1648,39 +1648,47 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <Label>Assign Vendor</Label>
-                <Select
-                  value={editingBooking.vendor ?? "__unassigned__"}
-                  onValueChange={(value) =>
-                    setEditingBooking((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            vendor: value === "__unassigned__" ? null : value,
-                          }
-                        : prev,
-                    )
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                    {vendors.length > 0 ? (
-                      vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.name}>
-                          {vendor.name}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Assign Vendor</Label>
+                  <Select
+                    value={editingBooking.vendor ?? "__unassigned__"}
+                    onValueChange={(value) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              vendor: value === "__unassigned__" ? null : value,
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                      {vendors.length > 0 ? (
+                        vendors.map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.name}>
+                            {vendor.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-vendors" disabled>
+                          No vendors available
                         </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="no-vendors" disabled>
-                        No vendors available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editingBooking.distance_to_vendor ? (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <Label className="text-blue-900 text-sm">Distance to Vendor</Label>
+                    <div className="text-lg font-bold text-blue-700 mt-2">{editingBooking.distance_to_vendor.toFixed(2)} km</div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="border-t pt-4">
