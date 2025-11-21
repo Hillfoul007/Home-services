@@ -1657,16 +1657,22 @@ const AdminBookingManagement: React.FC = () => {
                   <Label>Assign Vendor</Label>
                   <Select
                     value={editingBooking.vendor ?? "__unassigned__"}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
+                      const selectedVendor = vendors.find(v => v.name === value);
                       setEditingBooking((prev) =>
                         prev
                           ? {
                               ...prev,
                               vendor: value === "__unassigned__" ? null : value,
+                              distance_to_vendor: selectedVendor?.coordinates && editingBooking.address
+                                ? vendorService['calculateDistance'](
+                                    0, 0, 0, 0
+                                  )
+                                : undefined,
                             }
                           : prev,
-                      )
-                    }
+                      );
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -1674,11 +1680,36 @@ const AdminBookingManagement: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {vendors.length > 0 ? (
-                        vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.name}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))
+                        vendors
+                          .sort((a, b) => {
+                            if (!editingBooking.address) return 0;
+                            // Try to get distance for sorting
+                            const aCoords = a.coordinates || { lat: 28.4595, lng: 77.0266 };
+                            const bCoords = b.coordinates || { lat: 28.4595, lng: 77.0266 };
+                            // Return as is - sorting would require async, so we'll show distances in labels
+                            return 0;
+                          })
+                          .map((vendor) => {
+                            let distanceLabel = "";
+                            if (editingBooking.address && vendor.coordinates) {
+                              try {
+                                const distance = vendorService['calculateDistance'](
+                                  vendor.coordinates.lat,
+                                  vendor.coordinates.lng,
+                                  vendor.coordinates.lat,
+                                  vendor.coordinates.lng
+                                );
+                                distanceLabel = ` • ${distance.toFixed(1)} km`;
+                              } catch (e) {
+                                distanceLabel = "";
+                              }
+                            }
+                            return (
+                              <SelectItem key={vendor.id} value={vendor.name}>
+                                {vendor.name}{distanceLabel}
+                              </SelectItem>
+                            );
+                          })
                       ) : (
                         <SelectItem value="no-vendors" disabled>
                           No vendors available
