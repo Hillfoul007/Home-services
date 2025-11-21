@@ -1510,6 +1510,27 @@ const AdminBookingManagement: React.FC = () => {
                   </Select>
                 </div>
                 <div>
+                  <Label htmlFor="edit-cashback">Cashback Amount (₹)</Label>
+                  <Input
+                    id="edit-cashback"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={editingBooking.cashback_amount || ""}
+                    onChange={(event) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              cashback_amount: parseFloat(event.target.value) || 0,
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Deducted from total before discount</p>
+                </div>
+                <div>
                   <Label htmlFor="edit-discount">Discount %</Label>
                   <Input
                     id="edit-discount"
@@ -1529,7 +1550,7 @@ const AdminBookingManagement: React.FC = () => {
                       )
                     }
                   />
-                  <p className="text-xs text-gray-500 mt-1">Automatically calculates discount amount</p>
+                  <p className="text-xs text-gray-500 mt-1">Applied after cashback</p>
                 </div>
                 <div>
                   <Label htmlFor="edit-date">Scheduled Date</Label>
