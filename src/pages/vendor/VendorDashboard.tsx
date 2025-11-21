@@ -277,7 +277,82 @@ const VendorDashboard: React.FC = () => {
     <div className="p-3 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl md:text-2xl font-semibold">Vendor Dashboard</h1>
-        <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSoundMenu(!showSoundMenu)}
+              className="flex items-center gap-2"
+              title={soundSettings.enabled ? "Sound notifications enabled" : "Sound notifications disabled"}
+            >
+              {soundSettings.enabled ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
+              <span className="text-xs">Sound</span>
+            </Button>
+
+            {showSoundMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">Notification Sound</label>
+                    <div className="space-y-2">
+                      {['beep', 'bell', 'chime'].map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => handleChangeSoundType(type as 'beep' | 'bell' | 'chime')}
+                          className={`w-full px-3 py-2 rounded text-sm text-left transition-colors ${
+                            soundSettings.soundType === type
+                              ? 'bg-blue-100 text-blue-900'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">Volume</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={soundSettings.volume}
+                      onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="text-xs text-gray-500 mt-1">{soundSettings.volume}%</div>
+                  </div>
+
+                  <button
+                    onClick={handleTestSound}
+                    className="w-full px-3 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    🔊 Test Sound
+                  </button>
+
+                  <button
+                    onClick={handleToggleSound}
+                    className={`w-full px-3 py-2 rounded text-sm font-medium transition-colors ${
+                      soundSettings.enabled
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    {soundSettings.enabled ? 'Disable Notifications' : 'Enable Notifications'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
