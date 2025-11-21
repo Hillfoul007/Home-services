@@ -712,17 +712,6 @@ const AdminBookingManagement: React.FC = () => {
     filterReadyOrders();
   }, [readySearchTerm, readyStatusFilter, bucketB]);
 
-  // Auto-fetch vendor recommendations when editing booking with a different address
-  useEffect(() => {
-    if (editingBooking && editingBooking.address && editingBooking.address !== lastRecommendationAddress && showEditDialog) {
-      // Debounce the fetch slightly to avoid too many requests
-      const timer = setTimeout(() => {
-        fetchVendorRecommendations(editingBooking.address);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [editingBooking?.address, showEditDialog]);
-
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
     const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
