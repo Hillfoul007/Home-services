@@ -1358,8 +1358,8 @@ export default function AdminRiderManagement() {
                                                   {vendor.address}
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-2">
-                                                  <Badge variant="secondary" className="text-xs">
-                                                    📍 {vendorService.formatDistance(vendor.distance)}
+                                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                                                    📍 {vendor.distance > 0 ? vendorService.formatDistance(vendor.distance) : 'Calculating...'} from pickup
                                                   </Badge>
                                                   <Badge variant="outline" className="text-xs">
                                                     ⏱️ {vendorService.formatEstimatedTime(vendor.estimatedTime)}
