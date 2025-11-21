@@ -511,7 +511,7 @@ const AdminBookingManagement: React.FC = () => {
 
   const filterCompletedOrders = (orders?: Booking[]) => {
     const ordersToFilter = orders || completedOrders;
-    let filtered = ordersToFilter;
+    let filtered = [...ordersToFilter]; // IMPORTANT: copy before mutating
 
     if (completedSearchTerm) {
       filtered = filtered.filter((booking) =>
@@ -538,7 +538,7 @@ const AdminBookingManagement: React.FC = () => {
 
   const filterPickupOrders = (orders?: Booking[]) => {
     const ordersToFilter = orders || bucketA;
-    let filtered = ordersToFilter;
+    let filtered = [...ordersToFilter]; // IMPORTANT: copy before mutating
 
     if (pickupSearchTerm) {
       filtered = filtered.filter((booking) =>
@@ -558,7 +558,7 @@ const AdminBookingManagement: React.FC = () => {
 
   const filterReadyOrders = (orders?: Booking[]) => {
     const ordersToFilter = orders || bucketB;
-    let filtered = ordersToFilter;
+    let filtered = [...ordersToFilter]; // IMPORTANT: copy before mutating
 
     if (readySearchTerm) {
       filtered = filtered.filter((booking) =>
@@ -738,9 +738,11 @@ const AdminBookingManagement: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
+    let lastPoll = Date.now();
+
     const poll = async () => {
       try {
-        const sinceParam = lastPollAt || getISTTimestamp();
+        const sinceParam = new Date(lastPoll).toISOString();
         console.log("🔄 Polling for booking updates since:", sinceParam);
         const response = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(
           `/admin/bookings?modified_since=${encodeURIComponent(sinceParam)}&limit=100`,
@@ -758,16 +760,7 @@ const AdminBookingManagement: React.FC = () => {
                 status: normalizeStatus(b.status),
               });
             });
-
-            const maxUpdated = updates
-              .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()))
-              .reduce((max, curr) => (curr > max ? curr : max));
-
-            const nextPollTime = getISTTimestamp();
-            setLastPollAt(nextPollTime);
-          } else {
-            const nextPollTime = getISTTimestamp();
-            setLastPollAt(nextPollTime);
+            lastPoll = Date.now();
           }
         }
       } catch (error) {
@@ -786,7 +779,7 @@ const AdminBookingManagement: React.FC = () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [showEditDialog, lastPollAt]);
+  }, [showEditDialog]);
 
   useEffect(() => {
     filterBookings();
@@ -829,7 +822,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const filterBookings = () => {
-    let filtered = bookings;
+    let filtered = [...bookings]; // IMPORTANT: copy before mutating
 
     if (searchTerm) {
       filtered = filtered.filter((booking) =>
