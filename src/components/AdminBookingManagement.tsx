@@ -460,12 +460,27 @@ const AdminBookingManagement: React.FC = () => {
 
         // Store full vendor data for distance calculations
         const fullDataMap: Record<string, any> = {};
+        const vendorDetails = [];
         response.data.vendors.forEach((vendor: any) => {
           fullDataMap[vendor.name || vendor.id] = vendor;
+          // Also provide to VendorService so other components can use them
+          vendorDetails.push({
+            id: vendor.id || vendor._id,
+            name: vendor.name,
+            address: vendor.address || '',
+            coordinates: vendor.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: vendor.services || [],
+            contactPhone: vendor.contactPhone,
+            rating: vendor.rating,
+            isActive: vendor.isActive !== false,
+          });
         });
 
         setVendors(vendorOptions);
         setVendorFullData(fullDataMap);
+
+        // Sync vendors to VendorService for use in other components
+        vendorService.setVendors(vendorDetails);
       }
     } catch (error) {
       console.warn('Failed to fetch vendors:', error);
