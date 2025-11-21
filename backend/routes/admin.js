@@ -1343,9 +1343,9 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
 // Assign vendor to order
 router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
   try {
-    const { orderId, vendorData, orderType } = req.body;
+    const { orderId, vendorData, orderType, bookingCoordinates } = req.body;
 
-    console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType });
+    console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType, bookingCoordinates });
 
     // Vendor options with enhanced data
     const vendors = {
@@ -1374,11 +1374,18 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
       return res.status(400).json({ message: 'Invalid vendor selection' });
     }
 
-    // Merge vendor data with distance/time information from frontend
+    // Calculate distance if coordinates are provided
+    let calculatedDistance = vendorData.distance || 0;
+    if (bookingCoordinates && bookingCoordinates.lat && bookingCoordinates.lng && selectedVendor.coordinates) {
+      calculatedDistance = calculateDistance(bookingCoordinates, selectedVendor.coordinates);
+      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor`);
+    }
+
+    // Merge vendor data with distance/time information
     const vendorWithDistanceData = {
       ...selectedVendor,
-      distance: vendorData.distance || 0,
-      estimatedTime: vendorData.estimatedTime || 60
+      distance: calculatedDistance || 0,
+      estimatedTime: vendorData.estimatedTime || Math.ceil((calculatedDistance || 1) * 2) // ~2 min per km as estimate
     };
 
     // For development/mock mode, just return success
@@ -1559,7 +1566,7 @@ router.post("/customer-verifications/:verificationId/respond", verifyAdminAccess
           riderNotified = true;
           console.log(`📧 Rider ${riderId} notified about verification response`);
         } else {
-          console.log('⚠️ No rider found for order:', orderId);
+          console.log('���️ No rider found for order:', orderId);
         }
       }
     } catch (notificationError) {
