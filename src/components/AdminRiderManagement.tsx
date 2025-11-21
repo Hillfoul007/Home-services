@@ -1343,7 +1343,7 @@ export default function AdminRiderManagement() {
                                       </div>
                                     ) : (
                                       <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
-                                        {recommendedVendors.map((vendor) => (
+                                        {recommendedVendors.sort((a, b) => a.distance - b.distance).map((vendor) => (
                                           <div
                                             key={vendor.id}
                                             className={`p-3 border rounded cursor-pointer transition-colors ${
@@ -1359,7 +1359,7 @@ export default function AdminRiderManagement() {
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-2">
                                                   <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                                                    📍 {vendor.distance > 0 ? vendorService.formatDistance(vendor.distance) : 'Calculating...'} from pickup
+                                                    📍 {vendor.distance && vendor.distance > 0 ? `${vendor.distance.toFixed(1)}km from pickup` : 'Calculating...'}
                                                   </Badge>
                                                   <Badge variant="outline" className="text-xs">
                                                     ⏱️ {vendorService.formatEstimatedTime(vendor.estimatedTime)}
