@@ -3,6 +3,8 @@
  * Handles vendor management and distance calculations
  */
 
+import { locationService } from './locationService';
+
 export interface VendorDetails {
   id: string;
   name: string;
