@@ -80,10 +80,17 @@ export class VendorService {
   }
 
   /**
+   * Set vendors from admin API
+   */
+  setVendors(vendors: VendorDetails[]): void {
+    this.vendors = vendors;
+  }
+
+  /**
    * Get all active vendors
    */
   getActiveVendors(): VendorDetails[] {
-    return this.vendors.filter(vendor => vendor.isActive);
+    return this.vendors.filter(vendor => vendor.isActive !== false);
   }
 
   /**
@@ -91,7 +98,7 @@ export class VendorService {
    */
   getVendorsWithDistance(pickupCoordinates: { lat: number; lng: number }): VendorWithDistance[] {
     const activeVendors = this.getActiveVendors();
-    
+
     return activeVendors
       .map(vendor => {
         const distance = this.calculateDistance(
@@ -100,9 +107,9 @@ export class VendorService {
           vendor.coordinates.lat,
           vendor.coordinates.lng
         );
-        
+
         const estimatedTime = this.estimateDeliveryTime(distance);
-        
+
         return {
           ...vendor,
           distance,
