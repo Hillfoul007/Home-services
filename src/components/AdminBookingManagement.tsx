@@ -1658,17 +1658,11 @@ const AdminBookingManagement: React.FC = () => {
                   <Select
                     value={editingBooking.vendor ?? "__unassigned__"}
                     onValueChange={(value) => {
-                      const selectedVendor = vendors.find(v => v.name === value);
                       setEditingBooking((prev) =>
                         prev
                           ? {
                               ...prev,
                               vendor: value === "__unassigned__" ? null : value,
-                              distance_to_vendor: selectedVendor?.coordinates && editingBooking.address
-                                ? vendorService['calculateDistance'](
-                                    0, 0, 0, 0
-                                  )
-                                : undefined,
                             }
                           : prev,
                       );
@@ -1680,36 +1674,37 @@ const AdminBookingManagement: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {vendors.length > 0 ? (
-                        vendors
-                          .sort((a, b) => {
-                            if (!editingBooking.address) return 0;
-                            // Try to get distance for sorting
-                            const aCoords = a.coordinates || { lat: 28.4595, lng: 77.0266 };
-                            const bCoords = b.coordinates || { lat: 28.4595, lng: 77.0266 };
-                            // Return as is - sorting would require async, so we'll show distances in labels
-                            return 0;
-                          })
-                          .map((vendor) => {
-                            let distanceLabel = "";
-                            if (editingBooking.address && vendor.coordinates) {
-                              try {
-                                const distance = vendorService['calculateDistance'](
-                                  vendor.coordinates.lat,
-                                  vendor.coordinates.lng,
-                                  vendor.coordinates.lat,
-                                  vendor.coordinates.lng
-                                );
+                        vendors.map((vendor) => {
+                          let distanceLabel = "";
+                          if (editingBooking.address && (vendor as any).coordinates) {
+                            try {
+                              const vendorCoords = (vendor as any).coordinates;
+                              const addressCoords = editingBooking.address
+                                ? { lat: 28.4595, lng: 77.0266 }
+                                : null;
+
+                              if (addressCoords && vendorCoords.lat && vendorCoords.lng) {
+                                const R = 6371;
+                                const dLat = (vendorCoords.lat - addressCoords.lat) * (Math.PI / 180);
+                                const dLng = (vendorCoords.lng - addressCoords.lng) * (Math.PI / 180);
+                                const a =
+                                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                  Math.cos(addressCoords.lat * (Math.PI / 180)) * Math.cos(vendorCoords.lat * (Math.PI / 180)) *
+                                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                const distance = R * c;
                                 distanceLabel = ` • ${distance.toFixed(1)} km`;
-                              } catch (e) {
-                                distanceLabel = "";
                               }
+                            } catch (e) {
+                              distanceLabel = "";
                             }
-                            return (
-                              <SelectItem key={vendor.id} value={vendor.name}>
-                                {vendor.name}{distanceLabel}
-                              </SelectItem>
-                            );
-                          })
+                          }
+                          return (
+                            <SelectItem key={vendor.id} value={vendor.name}>
+                              {vendor.name}{distanceLabel}
+                            </SelectItem>
+                          );
+                        })
                       ) : (
                         <SelectItem value="no-vendors" disabled>
                           No vendors available
