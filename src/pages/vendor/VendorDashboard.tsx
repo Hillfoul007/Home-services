@@ -193,6 +193,30 @@ const VendorDashboard: React.FC = () => {
     navigate("/vendor/login");
   };
 
+  const handleToggleSound = () => {
+    const newEnabled = !soundSettings.enabled;
+    soundNotificationService.toggleEnabled(newEnabled);
+    setSoundSettings(soundNotificationService.getSettings());
+    toast.success(newEnabled ? "Sound notifications enabled" : "Sound notifications disabled");
+  };
+
+  const handleTestSound = async () => {
+    soundNotificationService.resumeAudioContext();
+    await soundNotificationService.playNotification();
+    toast.success("Test sound played!");
+  };
+
+  const handleChangeSoundType = (type: 'beep' | 'bell' | 'chime') => {
+    soundNotificationService.setSoundType(type);
+    setSoundSettings(soundNotificationService.getSettings());
+    toast.success(`Sound type changed to ${type}`);
+  };
+
+  const handleVolumeChange = (volume: number) => {
+    soundNotificationService.setVolume(volume);
+    setSoundSettings(soundNotificationService.getSettings());
+  };
+
   const handleCallCustomer = (phone: string) => {
     if (phone) {
       window.location.href = `tel:${phone}`;
