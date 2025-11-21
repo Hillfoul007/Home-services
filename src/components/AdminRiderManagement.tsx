@@ -216,7 +216,7 @@ export default function AdminRiderManagement() {
 
   // Debug effect to monitor orders state changes
   useEffect(() => {
-    console.log('📊 Orders state updated:', {
+    console.log('�� Orders state updated:', {
       totalOrders: orders.length,
       orderTypes: orders.map(o => ({ id: o._id, type: o.type, assigned: !!(o.assignedRider || o.rider_id) })),
       unassignedCount: orders.filter(o => !o.assignedRider && !o.rider_id).length,
@@ -1270,7 +1270,10 @@ export default function AdminRiderManagement() {
                                           {recommendedVendors.find(v => v.id === selectedVendor)?.name}
                                         </p>
                                         <p className="text-xs text-blue-600">
-                                          📍 {vendorService.formatDistance(recommendedVendors.find(v => v.id === selectedVendor)?.distance || 0)} from pickup location
+                                          📍 {(() => {
+                                            const distance = recommendedVendors.find(v => v.id === selectedVendor)?.distance || 0;
+                                            return distance && distance > 0 ? `${distance.toFixed(1)}km from pickup` : 'Calculating...';
+                                          })()}
                                         </p>
                                       </div>
                                     </div>
