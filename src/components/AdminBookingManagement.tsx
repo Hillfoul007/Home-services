@@ -1702,37 +1702,39 @@ const AdminBookingManagement: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {vendors.length > 0 ? (
-                        vendors.map((vendor) => {
-                          let distanceLabel = "";
-                          if (editingBooking.address && (vendor as any).coordinates) {
-                            try {
-                              const vendorCoords = (vendor as any).coordinates;
-                              const addressCoords = editingBooking.address
-                                ? { lat: 28.4595, lng: 77.0266 }
-                                : null;
+                        vendors
+                          .map((vendor) => {
+                            let distance = Infinity;
+                            const vendorData = vendorFullData[vendor.name];
 
-                              if (addressCoords && vendorCoords.lat && vendorCoords.lng) {
+                            if (bookingAddressCoords && vendorData && vendorData.coordinates) {
+                              try {
+                                const vendorCoords = vendorData.coordinates;
                                 const R = 6371;
-                                const dLat = (vendorCoords.lat - addressCoords.lat) * (Math.PI / 180);
-                                const dLng = (vendorCoords.lng - addressCoords.lng) * (Math.PI / 180);
+                                const dLat = (vendorCoords.lat - bookingAddressCoords.lat) * (Math.PI / 180);
+                                const dLng = (vendorCoords.lng - bookingAddressCoords.lng) * (Math.PI / 180);
                                 const a =
                                   Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                                  Math.cos(addressCoords.lat * (Math.PI / 180)) * Math.cos(vendorCoords.lat * (Math.PI / 180)) *
+                                  Math.cos(bookingAddressCoords.lat * (Math.PI / 180)) * Math.cos(vendorCoords.lat * (Math.PI / 180)) *
                                   Math.sin(dLng / 2) * Math.sin(dLng / 2);
                                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                                const distance = R * c;
-                                distanceLabel = ` • ${distance.toFixed(1)} km`;
+                                distance = R * c;
+                              } catch (e) {
+                                distance = Infinity;
                               }
-                            } catch (e) {
-                              distanceLabel = "";
                             }
-                          }
-                          return (
-                            <SelectItem key={vendor.id} value={vendor.name}>
-                              {vendor.name}{distanceLabel}
-                            </SelectItem>
-                          );
-                        })
+
+                            return { vendor, distance };
+                          })
+                          .sort((a, b) => a.distance - b.distance)
+                          .map(({ vendor, distance }) => {
+                            const distanceLabel = distance !== Infinity ? ` • ${distance.toFixed(1)} km` : "";
+                            return (
+                              <SelectItem key={vendor.id} value={vendor.name}>
+                                {vendor.name}{distanceLabel}
+                              </SelectItem>
+                            );
+                          })
                       ) : (
                         <SelectItem value="no-vendors" disabled>
                           No vendors available
