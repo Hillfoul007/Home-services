@@ -1317,7 +1317,7 @@ const AdminBookingManagement: React.FC = () => {
                         </Badge>
                         <div className="flex items-center gap-2 text-sm">
                           <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                          <span className="font-medium">��{booking.final_amount ?? booking.total_price}</span>
                         </div>
                       </div>
 
@@ -1716,6 +1716,92 @@ const AdminBookingManagement: React.FC = () => {
                     <div className="text-lg font-bold text-blue-700 mt-2">{editingBooking.distance_to_vendor.toFixed(2)} km</div>
                   </div>
                 ) : null}
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Zap className="h-4 w-4" />
+                    Vendor Recommendations
+                  </h4>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (editingBooking.address) {
+                        fetchVendorRecommendations(editingBooking.address);
+                      }
+                    }}
+                    disabled={loadingRecommendations || !editingBooking.address}
+                  >
+                    {loadingRecommendations ? 'Loading...' : 'Fetch Recommendations'}
+                  </Button>
+                </div>
+
+                {editingBooking.address ? (
+                  <div className="bg-gray-50 p-3 rounded-lg text-sm text-gray-600 mb-3">
+                    📍 Address: <span className="font-medium">{editingBooking.address}</span>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-700 mb-3">
+                    ⚠️ No address available. Please add address to get vendor recommendations.
+                  </div>
+                )}
+
+                {vendorRecommendations.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2">
+                    {vendorRecommendations.map((rec) => (
+                      <div
+                        key={rec.id}
+                        onClick={() => {
+                          setEditingBooking((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  vendor: rec.name,
+                                  distance_to_vendor: rec.distance,
+                                }
+                              : prev,
+                          );
+                        }}
+                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                          editingBooking.vendor === rec.name
+                            ? 'bg-green-50 border-green-300'
+                            : 'bg-white border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{rec.name}</div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              <div>📍 {rec.address}</div>
+                              <div className="mt-1">⭐ Rating: {rec.rating || 'N/A'}</div>
+                            </div>
+                          </div>
+                          <div className="ml-4 text-right flex-shrink-0">
+                            <div className="text-sm font-bold text-blue-600">
+                              {vendorService.formatDistance(rec.distance)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              ~{vendorService.formatEstimatedTime(rec.estimatedTime)}
+                            </div>
+                            {editingBooking.vendor === rec.name && (
+                              <div className="text-xs font-semibold text-green-600 mt-1">✓ Selected</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : lastRecommendationAddress === editingBooking.address && !loadingRecommendations ? (
+                  <div className="p-4 text-center text-gray-500 bg-gray-50 rounded-lg">
+                    No vendors found for this address
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-gray-500 bg-gray-50 rounded-lg">
+                    Click "Fetch Recommendations" to see nearby vendors
+                  </div>
+                )}
               </div>
 
               <div className="border-t pt-4">
