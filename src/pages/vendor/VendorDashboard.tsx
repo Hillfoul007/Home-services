@@ -125,7 +125,20 @@ const VendorDashboard: React.FC = () => {
   useEffect(() => {
     load();
     const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+
+    // Resume audio context on user interaction (browser requirement)
+    const handleInteraction = () => {
+      soundNotificationService.resumeAudioContext();
+    };
+
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
   }, []);
 
   const handleUploadAndMark = async (orderId: string) => {
