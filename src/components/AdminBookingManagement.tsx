@@ -447,10 +447,6 @@ const AdminBookingManagement: React.FC = () => {
   const [readyStatusFilter, setReadyStatusFilter] = useState("all");
   const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
 
-  // Vendor recommendations
-  const [vendorRecommendations, setVendorRecommendations] = useState<VendorWithDistance[]>([]);
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
-  const [lastRecommendationAddress, setLastRecommendationAddress] = useState<string>("");
 
   const fetchVendors = async () => {
     try {
