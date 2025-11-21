@@ -1873,8 +1873,12 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                   </div>
+                  <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                    <span>Final Amount:</span>
+                    <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
+                  </div>
                   {((editingBooking.cashback_amount ?? 0) > 0 || (editingBooking.discount_percent ?? 0) > 0) && (
-                    <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200 mt-2">
                       {(editingBooking.cashback_amount ?? 0) > 0 && (
                         <div className="flex justify-between text-blue-700">
                           <span>Cashback:</span>
@@ -1895,10 +1899,6 @@ const AdminBookingManagement: React.FC = () => {
                       )}
                     </div>
                   )}
-                  <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                    <span>Final Amount:</span>
-                    <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
-                  </div>
                 </div>
               </div>
 
