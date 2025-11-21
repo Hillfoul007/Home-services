@@ -735,6 +735,17 @@ const AdminBookingManagement: React.FC = () => {
     filterReadyOrders();
   }, [readySearchTerm, readyStatusFilter, bucketB]);
 
+  // Auto-fetch vendor recommendations when editing booking with a different address
+  useEffect(() => {
+    if (editingBooking && editingBooking.address && editingBooking.address !== lastRecommendationAddress && showEditDialog) {
+      // Debounce the fetch slightly to avoid too many requests
+      const timer = setTimeout(() => {
+        fetchVendorRecommendations(editingBooking.address);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [editingBooking?.address, showEditDialog]);
+
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
     const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
@@ -1317,7 +1328,7 @@ const AdminBookingManagement: React.FC = () => {
                         </Badge>
                         <div className="flex items-center gap-2 text-sm">
                           <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="font-medium">��{booking.final_amount ?? booking.total_price}</span>
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
                         </div>
                       </div>
 
