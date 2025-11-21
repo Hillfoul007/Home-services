@@ -1200,110 +1200,88 @@ const AdminBookingManagement: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-3 space-y-6">
+          <div className="mt-3 space-y-4">
             {filteredReadyOrders.length > 0 ? (
-              Object.entries(groupOrdersByVendor(filteredReadyOrders)).map(([vendorName, vendorOrders]) => (
-                <div key={vendorName} className="border rounded-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 border-b border-green-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Store className="h-5 w-5 text-green-700" />
-                        <div>
-                          <h4 className="font-semibold text-green-900">{vendorName}</h4>
-                          <p className="text-xs text-green-700">{vendorOrders.length} order{vendorOrders.length !== 1 ? 's' : ''}</p>
+              filteredReadyOrders.map(booking => (
+                <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.name}</span>
+                        </div>
+                        {booking.assignedVendor && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Store className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          {(booking as any).is_quick_pickup && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
                         </div>
                       </div>
-                      <div className="text-right bg-white px-3 py-2 rounded border border-green-200">
-                        <div className="text-xs text-gray-600 font-medium">Vendor Total</div>
-                        <div className="text-xl font-bold text-green-700">₹{calculateTotalPrice(vendorOrders).toLocaleString('en-IN')}</div>
+
+                      <div className="space-y-2">
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                              Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'pickup_completed' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Mark Ready for Delivery
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'ready_for_delivery' && (
+                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                              Mark Delivered
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'delivered' && (
+                            <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
+                              Mark Complete
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="space-y-3 p-4">
-                    {vendorOrders.map(booking => (
-                      <Card key={booking._id} className="transition-shadow hover:shadow-md">
-                        <CardContent className="pt-6">
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4 text-blue-600" />
-                                <span className="font-medium">#{booking.custom_order_id}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm">{booking.name}</span>
-                              </div>
-                              {booking.assignedVendor && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Store className="h-4 w-4 text-gray-400" />
-                                  <span className="text-sm text-green-700">{booking.assignedVendor}</span>
-                                </div>
-                              )}
-                            </div>
 
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                                {(booking as any).is_quick_pickup && (
-                                  <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Calendar className="h-4 w-4" />
-                                {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                                {getStatusIcon(booking.status)}
-                                <span>{getStatusLabel(booking.status)}</span>
-                              </Badge>
-                              <div className="flex items-center gap-2 text-sm">
-                                <DollarSign className="h-4 w-4 text-green-600" />
-                                <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col gap-3">
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
-                                  <Edit3 className="h-4 w-4" />
-                                </Button>
-                                {normalizeStatus(booking.status) === 'vendor_assigned' && (
-                                  <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
-                                    Mark Pickup Complete
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'pickup_completed' && (
-                                  <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
-                                    Mark Ready for Delivery
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'ready_for_delivery' && (
-                                  <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
-                                    Mark Delivered
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'delivered' && (
-                                  <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
-                                    Mark Complete
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
+                    <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
+                  </CardContent>
+                </Card>
               ))
             ) : (
               <Card>
