@@ -199,7 +199,12 @@ const connectDB = async () => {
   try {
     // Use production MongoDB URI
     const mongoURI = productionConfig.MONGODB_URI;
-    ("mongodb+srv://sunflower110001:fV4LhLpWlKj5Vx87@cluster0.ic8p792.mongodb.net/cleancare_pro?retryWrites=true&w=majority");
+
+    if (!mongoURI) {
+      console.error("❌ MONGODB_URI environment variable is not set");
+      console.log("⚠️ Running in mock mode without database");
+      return;
+    }
 
     await mongoose.connect(mongoURI);
 
@@ -337,7 +342,7 @@ try {
     "🔗 Detected Locations routes registered at /api/detected-locations",
   );
 } catch (error) {
-  console.error("❌ Failed to load Detected Locations routes:", error.message);
+  console.error("��� Failed to load Detected Locations routes:", error.message);
 }
 
 // AiSensy Webhooks routes (WhatsApp chatbot integration)
