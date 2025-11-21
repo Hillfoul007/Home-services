@@ -723,6 +723,23 @@ const AdminBookingManagement: React.FC = () => {
     filterReadyOrders();
   }, [readySearchTerm, readyStatusFilter, bucketB]);
 
+  // Geocode booking address and calculate vendor distances
+  useEffect(() => {
+    if (editingBooking?.address && showEditDialog) {
+      const geocodeAndCalculate = async () => {
+        try {
+          const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+          if (coords) {
+            setBookingAddressCoords(coords);
+          }
+        } catch (error) {
+          console.warn('Failed to geocode address:', error);
+        }
+      };
+      geocodeAndCalculate();
+    }
+  }, [editingBooking?.address, showEditDialog]);
+
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
     const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
