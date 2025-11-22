@@ -434,6 +434,8 @@ const AdminBookingManagement: React.FC = () => {
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
   const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
+  const [loadingWallet, setLoadingWallet] = useState(false);
   const [completedOrders, setCompletedOrders] = useState<Booking[]>([]);
   const [completedSearchTerm, setCompletedSearchTerm] = useState("");
   const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
