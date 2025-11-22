@@ -260,6 +260,11 @@ const AdminUserBooking: React.FC = () => {
       return;
     }
 
+    if (!selectedVendor) {
+      toast.error("Please select a vendor for this booking");
+      return;
+    }
+
     try {
       setSubmitting(true);
 
