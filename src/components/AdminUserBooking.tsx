@@ -99,29 +99,37 @@ const AdminUserBooking: React.FC = () => {
       const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
 
       if (response.data && Array.isArray(response.data.vendors)) {
-        // Convert to VendorWithDistance format
+        // Filter active vendors
         const vendorsList = response.data.vendors.filter((v: any) => v.is_active !== false);
+
+        // Set vendors in the vendorService to use its distance calculation
+        vendorService.setVendors(
+          vendorsList.map((v: any) => ({
+            id: v._id || v.id,
+            name: v.name,
+            address: v.address,
+            coordinates: v.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: v.services || [],
+            contactPhone: v.phone || v.contactPhone,
+            isActive: v.is_active !== false,
+          }))
+        );
 
         // Get vendor recommendations with distance using vendorService
         const vendorsWithDistance = await vendorService.getVendorRecommendations(address);
 
-        // Merge vendor details with distance info
-        const enrichedVendors = vendorsList.map((vendor: any) => {
-          const withDistance = vendorsWithDistance.find(
-            v => v.id === vendor._id || v.id === vendor.id
-          );
-          return {
-            id: vendor._id || vendor.id,
-            _id: vendor._id,
-            name: vendor.name,
-            address: vendor.address,
-            phone: vendor.phone || vendor.contactPhone,
-            coordinates: vendor.coordinates || { lat: 0, lng: 0 },
-            distance: withDistance?.distance || 0,
-            estimatedTime: withDistance?.estimatedTime,
-            isActive: vendor.is_active !== false,
-          };
-        }).sort((a, b) => a.distance - b.distance);
+        // Convert to component format with all needed info
+        const enrichedVendors = vendorsWithDistance.map((vendor) => ({
+          id: vendor.id,
+          _id: vendor.id,
+          name: vendor.name,
+          address: vendor.address,
+          phone: vendor.contactPhone,
+          coordinates: vendor.coordinates,
+          distance: vendor.distance,
+          estimatedTime: vendor.estimatedTime,
+          isActive: vendor.isActive !== false,
+        })).sort((a, b) => a.distance - b.distance);
 
         setVendors(enrichedVendors);
 
@@ -132,10 +140,12 @@ const AdminUserBooking: React.FC = () => {
         }
       } else {
         toast.error('Failed to fetch vendors');
+        setVendors([]);
       }
     } catch (error) {
       console.error('Error fetching vendors:', error);
       toast.error('Error fetching vendors for address');
+      setVendors([]);
     } finally {
       setVendorsLoading(false);
     }
