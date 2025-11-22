@@ -1891,6 +1891,81 @@ const AdminBookingManagement: React.FC = () => {
 
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  💰 Wallet & Cashback
+                </h4>
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 mb-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* User Wallet Balance */}
+                    <div>
+                      <div className="text-sm text-purple-900 font-semibold mb-1">
+                        User's Wallet Balance
+                      </div>
+                      {loadingWallet ? (
+                        <div className="text-lg font-bold text-purple-700">Loading...</div>
+                      ) : (
+                        <div className="text-2xl font-bold text-green-600">
+                          ₹{userWalletBalance.toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cashback Input */}
+                    <div>
+                      <label className="text-sm text-purple-900 font-semibold mb-1 block">
+                        Cashback for This Order (debits wallet)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBooking.cashback || 0}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          if (value <= userWalletBalance) {
+                            setEditingBooking((prev) =>
+                              prev ? { ...prev, cashback: value } : prev
+                            );
+                          } else {
+                            toast.error("Cashback cannot exceed wallet balance");
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                      />
+                      <div className="text-xs text-purple-600 mt-1">
+                        Max: ₹{userWalletBalance.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet Cashback Input */}
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <label className="text-sm text-purple-900 font-semibold mb-2 block">
+                      Wallet Cashback (credited after order completes)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editingBooking.wallet_cashback || 0}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setEditingBooking((prev) =>
+                          prev ? { ...prev, wallet_cashback: value } : prev
+                        );
+                      }}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                    />
+                    <div className="text-xs text-purple-600 mt-1">
+                      This amount will be added to user's wallet after order completion
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
                   Pricing Summary
                 </h4>
