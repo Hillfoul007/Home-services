@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,9 +8,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogTabs,
+  DialogTabsContent,
+  DialogTabsList,
+  DialogTabsTrigger,
 } from "@/components/ui/dialog";
-import { User, Phone, Edit3, Save, X } from "lucide-react";
+import { User, Phone, Edit3, Save, X, Wallet, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
+import { walletService, type WalletTransaction } from "@/services/walletService";
+import { toast } from "sonner";
 
 interface UserProfileModalProps {
   isOpen: boolean;
