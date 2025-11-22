@@ -68,7 +68,6 @@ import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
 import "@/styles/mobile-sticky-search.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
-import UserWalletDisplay from "./UserWalletDisplay";
 
 interface ResponsiveLaundryHomeProps {
   currentUser?: any;
@@ -868,16 +867,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           )}
         </div>
 
-        {/* Mobile Wallet Display */}
-        {currentUser && (
-          <div className="px-4 pt-2 pb-4">
-            <UserWalletDisplay
-              userId={currentUser._id || currentUser.phone}
-              compact={true}
-              showTransactions={false}
-            />
-          </div>
-        )}
 
         {/* Non-sticky delivery/location section */}
         <div className="p-4">
@@ -1378,16 +1367,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
       {/* Desktop Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Wallet Display */}
-        {currentUser && (
-          <div className="mb-6">
-            <UserWalletDisplay
-              userId={currentUser._id || currentUser.phone}
-              compact={false}
-              showTransactions={true}
-            />
-          </div>
-        )}
 
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-laundrify-purple to-laundrify-pink rounded-2xl text-white p-8 mb-8">
