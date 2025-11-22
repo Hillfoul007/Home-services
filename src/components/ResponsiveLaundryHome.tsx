@@ -1377,11 +1377,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
         {/* Wallet Display */}
         {currentUser && (
           <div className="mb-6">
-            <UserWalletDisplay
-              userId={currentUser._id || currentUser.phone}
-              compact={false}
-              showTransactions={true}
-            />
+            <WalletBadge showRefresh={true} />
           </div>
         )}
 
