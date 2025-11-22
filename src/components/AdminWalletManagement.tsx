@@ -333,19 +333,57 @@ const AdminWalletManagement: React.FC = () => {
           <Card className="p-6">
             <div className="space-y-6">
               <div>
-                <Label className="text-lg font-semibold mb-2 block">
-                  User IDs (comma-separated)
+                <Label className="text-lg font-semibold mb-4 block">
+                  Bulk Add Mode
                 </Label>
-                <textarea
-                  placeholder="e.g., user_id_1, user_id_2, user_id_3"
-                  value={bulkUserIds}
-                  onChange={(e) => setBulkUserIds(e.target.value)}
-                  className="w-full p-3 border rounded-lg font-mono text-sm min-h-32"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Enter MongoDB ObjectIDs separated by commas
-                </p>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setBulkMode("specific")}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                      bulkMode === "specific"
+                        ? "bg-blue-50 border-blue-500 text-blue-900 font-semibold"
+                        : "bg-white border-gray-200 text-gray-700 hover:border-blue-300"
+                    }`}
+                  >
+                    Specific Users
+                  </button>
+                  <button
+                    onClick={() => setBulkMode("all")}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                      bulkMode === "all"
+                        ? "bg-blue-50 border-blue-500 text-blue-900 font-semibold"
+                        : "bg-white border-gray-200 text-gray-700 hover:border-blue-300"
+                    }`}
+                  >
+                    All Users
+                  </button>
+                </div>
               </div>
+
+              {bulkMode === "specific" && (
+                <div>
+                  <Label className="text-lg font-semibold mb-2 block">
+                    User IDs (comma-separated)
+                  </Label>
+                  <textarea
+                    placeholder="e.g., user_id_1, user_id_2, user_id_3"
+                    value={bulkUserIds}
+                    onChange={(e) => setBulkUserIds(e.target.value)}
+                    className="w-full p-3 border rounded-lg font-mono text-sm min-h-32"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Enter MongoDB ObjectIDs separated by commas
+                  </p>
+                </div>
+              )}
+
+              {bulkMode === "all" && (
+                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                  <p className="text-sm text-amber-900">
+                    <strong>⚠️ Warning:</strong> This will add cashback to <strong>ALL users</strong> in the system. Please ensure this is what you intend.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <Label>Amount to Add to Each User (₹)</Label>
@@ -374,7 +412,7 @@ const AdminWalletManagement: React.FC = () => {
                 className="w-full bg-green-600 hover:bg-green-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                {loadingBulk ? "Adding..." : "Add Cashback to All"}
+                {loadingBulk ? "Adding..." : `Add Cashback ${bulkMode === "all" ? "to All Users" : "to Selected Users"}`}
               </Button>
             </div>
           </Card>
