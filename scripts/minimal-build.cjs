@@ -11,14 +11,14 @@ process.env.NODE_OPTIONS = '--max-old-space-size=400';
 function runCommand(command, args = []) {
   return new Promise((resolve, reject) => {
     console.log(`Running: ${command} ${args.join(' ')}`);
-    
+
     const child = spawn(command, args, {
       stdio: 'inherit',
       shell: true,
       env: {
         ...process.env,
-        NODE_OPTIONS: '--max-old-space-size=300',
-        // Disable V8 optimization to save memory
+        NODE_OPTIONS: '--max-old-space-size=400',
+        // Enable aggressive garbage collection
         NODE_ENV: 'production'
       }
     });
