@@ -1560,6 +1560,12 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Final Amount:</span>
                     <span>₹{viewingBooking.final_amount}</span>
                   </div>
+                  {viewingBooking.wallet_cashback && viewingBooking.wallet_cashback > 0 && (
+                    <div className="flex justify-between border-t pt-2 text-purple-600">
+                      <span>Wallet Cashback:</span>
+                      <span className="font-medium">{viewingBooking.wallet_cashback}% = ₹{((viewingBooking.final_amount || 0) * viewingBooking.wallet_cashback / 100).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
