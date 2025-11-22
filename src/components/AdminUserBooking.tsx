@@ -70,8 +70,13 @@ const AdminUserBooking: React.FC = () => {
     address: "",
     special_instructions: "",
     is_quick_pickup: false,
+    assignedVendor: "",
   });
 
+  // Vendor management state
+  const [vendors, setVendors] = useState<VendorWithDistance[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState<VendorWithDistance | null>(null);
 
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
