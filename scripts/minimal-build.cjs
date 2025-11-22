@@ -3,8 +3,9 @@
 // Ultra-minimal build script for memory-constrained environments (512MB)
 const { spawn } = require('child_process');
 
-// Set very conservative memory allocation
-process.env.NODE_OPTIONS = '--max-old-space-size=300';
+// Set optimized memory allocation for 512MB environments
+// Using 400MB heap (leaving ~100MB for system, ~12MB for other Node processes)
+process.env.NODE_OPTIONS = '--max-old-space-size=400';
 
 // Function to run command with minimal memory settings
 function runCommand(command, args = []) {
