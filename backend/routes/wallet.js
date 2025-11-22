@@ -166,7 +166,7 @@ router.post("/admin/bulk-add-cashback", async (req, res) => {
 
     for (const userId of user_ids) {
       try {
-        const user = await User.findById(userId);
+        const user = await findUserById(userId);
         if (!user) {
           results.failed++;
           results.errors.push({ userId, error: "User not found" });
