@@ -291,6 +291,10 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     updateData.updated_at = new Date(indianTime);
     updateData.updated_by_admin = true;
 
+    // Get the old booking to check status change
+    const oldBooking = await Booking.findById(bookingId);
+    const oldStatus = oldBooking?.status;
+
     const booking = await Booking.findByIdAndUpdate(
       bookingId,
       updateData,
@@ -299,6 +303,47 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // Handle wallet transactions when booking status changes to completed
+    if (booking.customer_id && oldStatus !== "completed" && booking.status === "completed") {
+      try {
+        const User = require("../models/User");
+        const user = await User.findById(booking.customer_id);
+
+        if (user) {
+          // Debit wallet if cashback was used
+          if (booking.cashback && booking.cashback > 0) {
+            user.wallet_balance = Math.max(0, (user.wallet_balance || 0) - booking.cashback);
+            user.wallet_transactions.push({
+              type: "debit",
+              amount: booking.cashback,
+              description: "Cashback used in booking",
+              booking_id: booking._id,
+              created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+            });
+            console.log(`💰 Debited ₹${booking.cashback} from wallet for booking ${booking._id}`);
+          }
+
+          // Credit wallet_cashback
+          if (booking.wallet_cashback && booking.wallet_cashback > 0) {
+            user.wallet_balance = (user.wallet_balance || 0) + booking.wallet_cashback;
+            user.wallet_transactions.push({
+              type: "credit",
+              amount: booking.wallet_cashback,
+              description: "Wallet cashback from completed booking",
+              booking_id: booking._id,
+              created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+            });
+            console.log(`💰 Credited ₹${booking.wallet_cashback} to wallet for booking ${booking._id}`);
+          }
+
+          await user.save();
+        }
+      } catch (walletError) {
+        console.error("⚠️  Failed to update wallet for completed booking:", walletError);
+        // Don't fail the booking update if wallet update fails
+      }
     }
 
     console.log("✅ Booking updated by admin:", booking._id);

@@ -25,6 +25,8 @@ import {
   AlertCircle,
   Store,
 } from "lucide-react";
+import { vendorService } from "@/services/vendorService";
+import { walletService } from "@/services/walletService";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
@@ -82,6 +84,8 @@ interface Booking {
   discount_amount?: number;
   discount_percent?: number;
   cashback_amount?: number;
+  cashback?: number;
+  wallet_cashback?: number;
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
@@ -430,6 +434,10 @@ const AdminBookingManagement: React.FC = () => {
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
+  const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
+  const [loadingWallet, setLoadingWallet] = useState(false);
   const [completedOrders, setCompletedOrders] = useState<Booking[]>([]);
   const [completedSearchTerm, setCompletedSearchTerm] = useState("");
   const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
@@ -445,6 +453,7 @@ const AdminBookingManagement: React.FC = () => {
   const [readyStatusFilter, setReadyStatusFilter] = useState("all");
   const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
 
+
   const fetchVendors = async () => {
     try {
       const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
@@ -453,13 +462,38 @@ const AdminBookingManagement: React.FC = () => {
           id: vendor.id || vendor._id,
           name: vendor.name,
         }));
+
+        // Store full vendor data for distance calculations
+        const fullDataMap: Record<string, any> = {};
+        const vendorDetails = [];
+        response.data.vendors.forEach((vendor: any) => {
+          fullDataMap[vendor.name || vendor.id] = vendor;
+          // Also provide to VendorService so other components can use them
+          vendorDetails.push({
+            id: vendor.id || vendor._id,
+            name: vendor.name,
+            address: vendor.address || '',
+            coordinates: vendor.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: vendor.services || [],
+            contactPhone: vendor.contactPhone,
+            rating: vendor.rating,
+            isActive: vendor.isActive !== false,
+          });
+        });
+
         setVendors(vendorOptions);
+        setVendorFullData(fullDataMap);
+
+        // Sync vendors to VendorService for use in other components
+        vendorService.setVendors(vendorDetails);
       }
     } catch (error) {
       console.warn('Failed to fetch vendors:', error);
       setVendors([]);
+      setVendorFullData({});
     }
   };
+
 
   const fetchCompletedOrders = async () => {
     try {
@@ -708,6 +742,46 @@ const AdminBookingManagement: React.FC = () => {
     filterReadyOrders();
   }, [readySearchTerm, readyStatusFilter, bucketB]);
 
+  // Geocode booking address and calculate vendor distances
+  useEffect(() => {
+    if (editingBooking?.address && showEditDialog) {
+      const geocodeAndCalculate = async () => {
+        try {
+          const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+          if (coords) {
+            setBookingAddressCoords(coords);
+          }
+        } catch (error) {
+          console.warn('Failed to geocode address:', error);
+        }
+      };
+      geocodeAndCalculate();
+    }
+  }, [editingBooking?.address, showEditDialog]);
+
+  // Load user's wallet balance when editing booking
+  useEffect(() => {
+    if (editingBooking?.customer_id && showEditDialog) {
+      const loadWalletBalance = async () => {
+        setLoadingWallet(true);
+        try {
+          const result = await walletService.getWalletBalance(editingBooking.customer_id);
+          if (result.success) {
+            setUserWalletBalance(result.wallet_balance || 0);
+          } else {
+            setUserWalletBalance(0);
+          }
+        } catch (error) {
+          console.warn('Failed to load wallet balance:', error);
+          setUserWalletBalance(0);
+        } finally {
+          setLoadingWallet(false);
+        }
+      };
+      loadWalletBalance();
+    }
+  }, [editingBooking?.customer_id, showEditDialog]);
+
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
     const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
@@ -947,8 +1021,8 @@ const AdminBookingManagement: React.FC = () => {
       return s + itemTotal;
     }, 0);
 
-    // Apply cashback first
-    const cashbackAmount = Number(bookingData.cashback_amount ?? 0) || 0;
+    // Apply cashback first (use new 'cashback' field if available, otherwise fallback to 'cashback_amount')
+    const cashbackAmount = Number((bookingData as any).cashback ?? bookingData.cashback_amount ?? 0) || 0;
     const afterCashback = subtotal - cashbackAmount;
 
     // Then apply discount percentage
@@ -1653,7 +1727,7 @@ const AdminBookingManagement: React.FC = () => {
                   <Label>Assign Vendor</Label>
                   <Select
                     value={editingBooking.vendor ?? "__unassigned__"}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
                       setEditingBooking((prev) =>
                         prev
                           ? {
@@ -1661,8 +1735,8 @@ const AdminBookingManagement: React.FC = () => {
                               vendor: value === "__unassigned__" ? null : value,
                             }
                           : prev,
-                      )
-                    }
+                      );
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -1670,11 +1744,39 @@ const AdminBookingManagement: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="__unassigned__">Unassigned</SelectItem>
                       {vendors.length > 0 ? (
-                        vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.name}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))
+                        vendors
+                          .map((vendor) => {
+                            let distance = Infinity;
+                            const vendorData = vendorFullData[vendor.name];
+
+                            if (bookingAddressCoords && vendorData && vendorData.coordinates) {
+                              try {
+                                const vendorCoords = vendorData.coordinates;
+                                const R = 6371;
+                                const dLat = (vendorCoords.lat - bookingAddressCoords.lat) * (Math.PI / 180);
+                                const dLng = (vendorCoords.lng - bookingAddressCoords.lng) * (Math.PI / 180);
+                                const a =
+                                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                  Math.cos(bookingAddressCoords.lat * (Math.PI / 180)) * Math.cos(vendorCoords.lat * (Math.PI / 180)) *
+                                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                distance = R * c;
+                              } catch (e) {
+                                distance = Infinity;
+                              }
+                            }
+
+                            return { vendor, distance };
+                          })
+                          .sort((a, b) => a.distance - b.distance)
+                          .map(({ vendor, distance }) => {
+                            const distanceLabel = distance !== Infinity ? ` • ${distance.toFixed(1)} km` : "";
+                            return (
+                              <SelectItem key={vendor.id} value={vendor.name}>
+                                {vendor.name}{distanceLabel}
+                              </SelectItem>
+                            );
+                          })
                       ) : (
                         <SelectItem value="no-vendors" disabled>
                           No vendors available
@@ -1791,38 +1893,128 @@ const AdminBookingManagement: React.FC = () => {
 
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  💰 Wallet & Cashback
+                </h4>
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 mb-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* User Wallet Balance */}
+                    <div>
+                      <div className="text-sm text-purple-900 font-semibold mb-1">
+                        User's Wallet Balance
+                      </div>
+                      {loadingWallet ? (
+                        <div className="text-lg font-bold text-purple-700">Loading...</div>
+                      ) : (
+                        <div className="text-2xl font-bold text-green-600">
+                          ₹{userWalletBalance.toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cashback Input */}
+                    <div>
+                      <label className="text-sm text-purple-900 font-semibold mb-1 block">
+                        Cashback for This Order (debits wallet)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBooking.cashback || 0}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          if (value <= userWalletBalance) {
+                            setEditingBooking((prev) =>
+                              prev ? { ...prev, cashback: value } : prev
+                            );
+                          } else {
+                            toast.error("Cashback cannot exceed wallet balance");
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                      />
+                      <div className="text-xs text-purple-600 mt-1">
+                        Max: ₹{userWalletBalance.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet Cashback Input */}
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <label className="text-sm text-purple-900 font-semibold mb-2 block">
+                      Wallet Cashback (credited after order completes)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editingBooking.wallet_cashback || 0}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setEditingBooking((prev) =>
+                          prev ? { ...prev, wallet_cashback: value } : prev
+                        );
+                      }}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                    />
+                    <div className="text-xs text-purple-600 mt-1">
+                      This amount will be added to user's wallet after order completion
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
                   Pricing Summary
                 </h4>
-                <div className="space-y-2 rounded-lg bg-gray-50 p-4">
+                <div className="space-y-3 rounded-lg bg-gray-50 p-4">
+                  {/* Subtotal */}
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                   </div>
-                  {((editingBooking.cashback_amount ?? 0) > 0 || (editingBooking.discount_percent ?? 0) > 0) && (
-                    <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
-                      {(editingBooking.cashback_amount ?? 0) > 0 && (
-                        <div className="flex justify-between text-blue-700">
-                          <span>Cashback:</span>
-                          <span>-₹{(editingBooking.cashback_amount || 0).toFixed(2)}</span>
-                        </div>
-                      )}
-                      {(editingBooking.discount_percent ?? 0) > 0 && (
-                        <>
-                          <div className="flex justify-between text-blue-700">
-                            <span>After Cashback:</span>
-                            <span>₹{(computeEditingTotals(editingBooking).details?.afterCashback || 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-blue-700">
-                            <span>Discount {editingBooking.discount_percent}%:</span>
-                            <span>-₹{(computeEditingTotals(editingBooking).details?.discount || 0).toFixed(2)}</span>
-                          </div>
-                        </>
-                      )}
+
+                  {/* Cashback Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Cashback Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Cashback:</span>
+                      <span className="text-blue-700 font-medium">-₹{(editingBooking.cashback_amount || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Discount Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Discount Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Discount {editingBooking.discount_percent || 0}%:</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.discount || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* After Cashback */}
+                  {(editingBooking.cashback_amount ?? 0) > 0 && (
+                    <div className="flex justify-between border-t pt-2">
+                      <span>After Cashback:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).details?.afterCashback || 0).toFixed(2)}</span>
                     </div>
                   )}
+
+                  {/* After Discount */}
+                  {(editingBooking.discount_percent ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span>After Discount:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).final || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* Total / Final Amount */}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                    <span>Final Amount:</span>
+                    <span>Total:</span>
                     <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
                   </div>
                 </div>
@@ -1851,6 +2043,8 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
                         cashback_amount: editingBooking.cashback_amount || 0,
+                        cashback: editingBooking.cashback || 0,
+                        wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.details?.discount || 0,
                         coordinates: editingBooking.coordinates,
