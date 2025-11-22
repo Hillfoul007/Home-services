@@ -757,6 +757,29 @@ const AdminBookingManagement: React.FC = () => {
     }
   }, [editingBooking?.address, showEditDialog]);
 
+  // Load user's wallet balance when editing booking
+  useEffect(() => {
+    if (editingBooking?.customer_id && showEditDialog) {
+      const loadWalletBalance = async () => {
+        setLoadingWallet(true);
+        try {
+          const result = await walletService.getWalletBalance(editingBooking.customer_id);
+          if (result.success) {
+            setUserWalletBalance(result.wallet_balance || 0);
+          } else {
+            setUserWalletBalance(0);
+          }
+        } catch (error) {
+          console.warn('Failed to load wallet balance:', error);
+          setUserWalletBalance(0);
+        } finally {
+          setLoadingWallet(false);
+        }
+      };
+      loadWalletBalance();
+    }
+  }, [editingBooking?.customer_id, showEditDialog]);
+
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
     const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
