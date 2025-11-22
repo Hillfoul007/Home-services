@@ -694,7 +694,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 404 handler
+  // Try to serve static files or SPA fall back
+  if (serveStaticOrSPA(pathname, res)) {
+    return;
+  }
+
+  // 404 handler - only if not a static file/SPA route
   console.log('⚠️ 404 - Route not found:', path);
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({
