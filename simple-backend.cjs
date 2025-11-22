@@ -578,6 +578,56 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Wallet balance endpoint
+  const walletBalanceMatch = path.match(/^\/api\/wallet\/balance\/(.+)$/);
+  if (walletBalanceMatch && method === 'GET') {
+    const userId = decodeURIComponent(walletBalanceMatch[1]);
+    console.log(`💰 Wallet balance requested for userId: ${userId}`);
+
+    // Mock wallet data for the demo users
+    let walletBalance = 100; // Default balance
+    if (userId === '9717619183' || userId === 'chaman' || userId === 'CHAMAN KATARIA') {
+      walletBalance = 100;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      wallet_balance: walletBalance
+    }));
+    return;
+  }
+
+  // Wallet transactions endpoint
+  const walletTransactionsMatch = path.match(/^\/api\/wallet\/transactions\/(.+)$/);
+  if (walletTransactionsMatch && method === 'GET') {
+    const userId = decodeURIComponent(walletTransactionsMatch[1]);
+    console.log(`📝 Wallet transactions requested for userId: ${userId}`);
+
+    // Mock transactions
+    const transactions = [
+      {
+        type: 'credit',
+        amount: 50,
+        description: 'Cashback from completed order',
+        created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        type: 'credit',
+        amount: 50,
+        description: 'Referral bonus',
+        created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      transactions: transactions
+    }));
+    return;
+  }
+
   // 404 handler
   console.log('⚠️ 404 - Route not found:', path);
   res.writeHead(404, { 'Content-Type': 'application/json' });
