@@ -68,6 +68,7 @@ import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
 import "@/styles/mobile-sticky-search.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
+import UserWalletDisplay from "./UserWalletDisplay";
 
 interface ResponsiveLaundryHomeProps {
   currentUser?: any;
