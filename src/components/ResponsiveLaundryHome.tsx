@@ -867,12 +867,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           )}
         </div>
 
-        {/* Mobile Wallet Display */}
-        {currentUser && (
-          <div className="px-4 pt-2 pb-4">
-            <WalletBadge showRefresh={true} />
-          </div>
-        )}
 
         {/* Non-sticky delivery/location section */}
         <div className="p-4">
