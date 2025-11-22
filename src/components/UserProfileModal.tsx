@@ -31,10 +31,52 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("profile");
   const [formData, setFormData] = useState({
     name: currentUser?.name || currentUser?.full_name || "",
     phone: currentUser?.phone || "",
   });
+
+  // Load wallet data when modal opens
+  useEffect(() => {
+    if (isOpen && currentUser) {
+      loadWalletData();
+    }
+  }, [isOpen, currentUser?._id, currentUser?.phone]);
+
+  const loadWalletData = async () => {
+    if (!currentUser) return;
+
+    try {
+      setWalletLoading(true);
+      const userId = currentUser._id || currentUser.phone;
+
+      // Fetch wallet balance
+      const balanceResult = await walletService.getWalletBalance(userId);
+      if (balanceResult.success && balanceResult.wallet_balance !== undefined) {
+        setWalletBalance(balanceResult.wallet_balance);
+      }
+
+      // Fetch transactions
+      const transResult = await walletService.getWalletTransactions(userId);
+      if (transResult.success && transResult.transactions) {
+        setWalletTransactions(transResult.transactions);
+      }
+    } catch (error) {
+      console.error("Error loading wallet data:", error);
+      toast.error("Failed to load wallet data");
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
+  const handleRefreshWallet = async () => {
+    await loadWalletData();
+    toast.success("Wallet updated");
+  };
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
