@@ -2,6 +2,26 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const Booking = require("../models/Booking");
+const mongoose = require("mongoose");
+
+/**
+ * Helper function to find user by ID (ObjectId or phone)
+ */
+const findUserById = async (userId) => {
+  if (!userId) return null;
+
+  // Try to find by ObjectId first
+  if (mongoose.Types.ObjectId.isValid(userId)) {
+    const user = await User.findById(userId);
+    if (user) return user;
+  }
+
+  // Try to find by phone number
+  const userByPhone = await User.findOne({ phone: userId });
+  if (userByPhone) return userByPhone;
+
+  return null;
+};
 
 /**
  * Get user's wallet balance
@@ -9,7 +29,7 @@ const Booking = require("../models/Booking");
  */
 router.get("/balance/:userId", async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select("wallet_balance");
+    const user = await findUserById(req.params.userId);
 
     if (!user) {
       // Return 0 balance instead of 404 for non-existent users
