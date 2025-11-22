@@ -220,6 +220,12 @@ const LaundryIndex = () => {
   const pushService = PushNotificationService.getInstance();
   const locationTracker = LocationTrackingService.getInstance();
 
+  // Set up wallet polling to detect balance changes and notify user
+  useWalletPolling({
+    userId: currentUser?._id || currentUser?.phone,
+    enabled: isLoggedIn,
+    pollInterval: 30000, // Poll every 30 seconds
+  });
 
   // Initialize PWA and check auth state
   useEffect(() => {
