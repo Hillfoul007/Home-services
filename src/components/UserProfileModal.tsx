@@ -8,12 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTabs,
-  DialogTabsContent,
-  DialogTabsList,
-  DialogTabsTrigger,
 } from "@/components/ui/dialog";
-import { User, Phone, Edit3, Save, X, Wallet, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
+import { User, Phone, Edit3, Save, X, Wallet, RefreshCw, TrendingUp, TrendingDown, Loader } from "lucide-react";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { walletService, type WalletTransaction } from "@/services/walletService";
 import { toast } from "sonner";
