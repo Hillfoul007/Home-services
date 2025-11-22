@@ -325,17 +325,25 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
             console.log(`💰 Debited ₹${booking.cashback} from wallet for booking ${booking._id}`);
           }
 
-          // Credit wallet_cashback
+          // Credit wallet_cashback (wallet_cashback is now a percentage, calculate actual amount)
           if (booking.wallet_cashback && booking.wallet_cashback > 0) {
-            user.wallet_balance = (user.wallet_balance || 0) + booking.wallet_cashback;
-            user.wallet_transactions.push({
-              type: "credit",
-              amount: booking.wallet_cashback,
-              description: "Wallet cashback from completed booking",
-              booking_id: booking._id,
-              created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
-            });
-            console.log(`💰 Credited ₹${booking.wallet_cashback} to wallet for booking ${booking._id}`);
+            // wallet_cashback is stored as percentage (0-100)
+            // Calculate actual cashback amount based on final_amount
+            const cashbackPercentage = parseFloat(booking.wallet_cashback) || 0;
+            const finalAmount = parseFloat(booking.final_amount) || 0;
+            const cashbackAmount = (finalAmount * cashbackPercentage) / 100;
+
+            if (cashbackAmount > 0) {
+              user.wallet_balance = (user.wallet_balance || 0) + cashbackAmount;
+              user.wallet_transactions.push({
+                type: "credit",
+                amount: cashbackAmount,
+                description: `Wallet cashback ${cashbackPercentage}% from completed booking`,
+                booking_id: booking._id,
+                created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+              });
+              console.log(`💰 Credited ₹${cashbackAmount.toFixed(2)} (${cashbackPercentage}% of ₹${finalAmount}) to wallet for booking ${booking._id}`);
+            }
           }
 
           await user.save();
@@ -1691,7 +1699,7 @@ router.get("/vendors", verifyAdminAccess, async (req, res) => {
 
     const vendors = await Vendor.find().sort({ created_at: -1 });
 
-    console.log(`��� Found ${vendors.length} vendors`);
+    console.log(`���� Found ${vendors.length} vendors`);
     res.json({ success: true, vendors });
   } catch (error) {
     console.error("❌ Error fetching vendors:", error);
