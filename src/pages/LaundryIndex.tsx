@@ -17,6 +17,7 @@ import {
   createSuccessNotification,
   createErrorNotification,
 } from "@/utils/notificationUtils";
+import useWalletPolling from "@/hooks/useWalletPolling";
 
 // Helper function for coordinate-based location detection (fallback)
 const getCoordinateBasedLocation = (
