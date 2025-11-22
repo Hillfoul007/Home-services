@@ -1,10 +1,16 @@
 const http = require('http');
 const url = require('url');
+const fs = require('fs');
+const path = require('path');
 
 const PORT = 3001;
 
 // In-memory storage for updated orders
 const orderUpdates = new Map();
+
+// Path to frontend dist folder
+const DIST_PATH = path.join(__dirname, 'dist');
+const PUBLIC_PATH = path.join(__dirname, 'public');
 
 // Simple JSON parser for POST requests
 function parseJSON(req, callback) {
