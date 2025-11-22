@@ -106,7 +106,7 @@ router.post("/admin/add-cashback", async (req, res) => {
       });
     }
 
-    const user = await User.findById(user_id);
+    const user = await findUserById(user_id);
     if (!user) {
       return res.status(404).json({
         success: false,
