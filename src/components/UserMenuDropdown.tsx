@@ -25,6 +25,7 @@ import ProfileSettingsModal from "./ProfileSettingsModal";
 import SavedAddressesModal from "./SavedAddressesModal";
 import PreferencesModal from "./PreferencesModal";
 import ReferralModal from "./ReferralModal";
+import WalletModal from "./WalletModal";
 
 interface UserMenuDropdownProps {
   currentUser: any;
