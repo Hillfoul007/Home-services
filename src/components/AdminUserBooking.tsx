@@ -326,6 +326,14 @@ const AdminUserBooking: React.FC = () => {
         created_by_admin: true,
         is_quick_pickup: bookingData.is_quick_pickup || false,
         quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
+        assignedVendor: selectedVendor?.id || "",
+        assignedVendorDetails: selectedVendor ? {
+          name: selectedVendor.name,
+          address: selectedVendor.address,
+          phone: selectedVendor.phone,
+          distance: selectedVendor.distance,
+          estimatedTime: selectedVendor.estimatedTime,
+        } : undefined,
       };
 
       console.log("Submitting booking:", bookingPayload);
