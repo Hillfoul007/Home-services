@@ -110,7 +110,8 @@ function serveStaticOrSPA(pathname, res) {
 // Create server
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url, true);
-  const path = parsedUrl.pathname;
+  const pathname = parsedUrl.pathname;
+  const path = pathname;
   const method = req.method;
 
   // Set CORS headers
