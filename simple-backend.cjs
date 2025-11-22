@@ -47,6 +47,66 @@ function verifyToken(req) {
   return { riderId: 'demo_rider_123', phone: '9876543210' };
 }
 
+// Serve static files or fall back to index.html for SPA
+function serveStaticOrSPA(pathname, res) {
+  // Try to serve from dist folder first
+  let filePath = path.join(DIST_PATH, pathname);
+
+  // Security: prevent directory traversal
+  if (!filePath.startsWith(DIST_PATH)) {
+    filePath = path.join(DIST_PATH, 'index.html');
+  }
+
+  // Check if file exists
+  try {
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath);
+
+      // If it's a directory, try index.html
+      if (stat.isDirectory()) {
+        filePath = path.join(filePath, 'index.html');
+      }
+
+      // Serve the file
+      if (fs.existsSync(filePath)) {
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        const ext = path.extname(filePath);
+
+        let contentType = 'text/html';
+        if (ext === '.js') contentType = 'application/javascript';
+        else if (ext === '.css') contentType = 'text/css';
+        else if (ext === '.json') contentType = 'application/json';
+        else if (ext === '.svg') contentType = 'image/svg+xml';
+        else if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+        else if (ext === '.gif') contentType = 'image/gif';
+        else if (ext === '.ico') contentType = 'image/x-icon';
+
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(fileContent);
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error(`Error serving file ${filePath}:`, error.message);
+  }
+
+  // Fall back to index.html for SPA routing
+  try {
+    const indexPath = path.join(DIST_PATH, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      const indexContent = fs.readFileSync(indexPath, 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(indexContent);
+      return true;
+    }
+  } catch (error) {
+    console.error(`Error serving index.html:`, error.message);
+  }
+
+  return false;
+}
+
 // Create server
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url, true);
