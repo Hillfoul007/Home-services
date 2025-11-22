@@ -91,52 +91,79 @@ const AdminWalletManagement: React.FC = () => {
 
   // Add cashback to multiple users
   const handleAddBulkCashback = async () => {
-    if (!bulkUserIds.trim() || !bulkAmount) {
-      toast.error("Please enter user IDs and amount");
-      return;
-    }
-
     const amount = parseFloat(bulkAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
 
-    const userIds = bulkUserIds
-      .split(",")
-      .map(id => id.trim())
-      .filter(id => id.length > 0);
-
-    if (userIds.length === 0) {
-      toast.error("Please enter at least one user ID");
-      return;
-    }
-
-    setLoadingBulk(true);
-    try {
-      const result = await walletService.adminBulkAddCashback(
-        userIds,
-        amount,
-        bulkDescription || `Bulk wallet cashback of ₹${amount}`
-      );
-
-      if (result.success) {
-        toast.success(
-          `Successfully added cashback to ${result.results.success} users`
-        );
-        if (result.results.failed > 0) {
-          toast.warning(`Failed for ${result.results.failed} users`);
-        }
-        setBulkUserIds("");
-        setBulkAmount("");
-        setBulkDescription("");
-      } else {
-        toast.error(result.error || "Failed to add bulk cashback");
+    if (bulkMode === "specific") {
+      if (!bulkUserIds.trim()) {
+        toast.error("Please enter user IDs");
+        return;
       }
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to add bulk cashback");
-    } finally {
-      setLoadingBulk(false);
+
+      const userIds = bulkUserIds
+        .split(",")
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
+      if (userIds.length === 0) {
+        toast.error("Please enter at least one user ID");
+        return;
+      }
+
+      setLoadingBulk(true);
+      try {
+        const result = await walletService.adminBulkAddCashback(
+          userIds,
+          amount,
+          bulkDescription || `Bulk wallet cashback of ₹${amount}`
+        );
+
+        if (result.success) {
+          toast.success(
+            `Successfully added cashback to ${result.results.success} users`
+          );
+          if (result.results.failed > 0) {
+            toast.warning(`Failed for ${result.results.failed} users`);
+          }
+          setBulkUserIds("");
+          setBulkAmount("");
+          setBulkDescription("");
+        } else {
+          toast.error(result.error || "Failed to add bulk cashback");
+        }
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to add bulk cashback");
+      } finally {
+        setLoadingBulk(false);
+      }
+    } else {
+      setLoadingBulk(true);
+      try {
+        const result = await walletService.adminBulkAddCashbackToAllUsers(
+          amount,
+          bulkDescription || `Bulk wallet cashback of ₹${amount}`
+        );
+
+        if (result.success) {
+          toast.success(
+            `Successfully added cashback to ${result.results.success} users`
+          );
+          if (result.results.failed > 0) {
+            toast.warning(`Failed for ${result.results.failed} users`);
+          }
+          setBulkAmount("");
+          setBulkDescription("");
+        } else {
+          toast.error(result.error || "Failed to add bulk cashback");
+        }
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to add bulk cashback");
+      } finally {
+        setLoadingBulk(false);
+      }
     }
   };
 
