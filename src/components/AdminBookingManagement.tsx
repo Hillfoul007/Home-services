@@ -1019,8 +1019,8 @@ const AdminBookingManagement: React.FC = () => {
       return s + itemTotal;
     }, 0);
 
-    // Apply cashback first
-    const cashbackAmount = Number(bookingData.cashback_amount ?? 0) || 0;
+    // Apply cashback first (use new 'cashback' field if available, otherwise fallback to 'cashback_amount')
+    const cashbackAmount = Number((bookingData as any).cashback ?? bookingData.cashback_amount ?? 0) || 0;
     const afterCashback = subtotal - cashbackAmount;
 
     // Then apply discount percentage
