@@ -1367,12 +1367,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
       {/* Desktop Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Wallet Display */}
-        {currentUser && (
-          <div className="mb-6">
-            <WalletBadge showRefresh={true} />
-          </div>
-        )}
 
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-laundrify-purple to-laundrify-pink rounded-2xl text-white p-8 mb-8">
