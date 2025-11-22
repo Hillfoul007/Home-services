@@ -6,19 +6,76 @@ const mongoose = require("mongoose");
 
 /**
  * Helper function to find user by ID (ObjectId or phone)
+ * Checks User collection first, then syncs from CleanCareUser or WhatsAppUser if needed
  */
 const findUserById = async (userId) => {
   if (!userId) return null;
 
-  // Try to find by ObjectId first
+  // Try to find by ObjectId first in User collection
   if (mongoose.Types.ObjectId.isValid(userId)) {
     const user = await User.findById(userId);
     if (user) return user;
   }
 
-  // Try to find by phone number
+  // Try to find by phone number in User collection
   const userByPhone = await User.findOne({ phone: userId });
   if (userByPhone) return userByPhone;
+
+  // If not found in User collection, try CleanCareUser
+  try {
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      const CleanCareUser = mongoose.model("CleanCareUser");
+      const cleanCareUser = await CleanCareUser.findById(userId);
+      if (cleanCareUser) {
+        // Sync to User collection
+        let syncedUser = await User.findOne({ phone: cleanCareUser.phone });
+        if (!syncedUser) {
+          syncedUser = new User({
+            phone: cleanCareUser.phone,
+            name: cleanCareUser.name || "",
+            full_name: cleanCareUser.name || "",
+            is_verified: cleanCareUser.isVerified || false,
+            user_type: "customer",
+            wallet_balance: 0,
+            wallet_transactions: []
+          });
+          await syncedUser.save();
+          console.log(`✅ Synced CleanCareUser ${userId} to User collection`);
+        }
+        return syncedUser;
+      }
+    }
+  } catch (err) {
+    console.log(`ℹ️  CleanCareUser lookup failed (may not exist):`, err.message);
+  }
+
+  // If not found in User collection, try WhatsAppUser
+  try {
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      const WhatsAppUser = mongoose.model("WhatsAppUser");
+      const whatsappUser = await WhatsAppUser.findById(userId);
+      if (whatsappUser) {
+        // Sync to User collection
+        let syncedUser = await User.findOne({ phone: whatsappUser.phone });
+        if (!syncedUser) {
+          syncedUser = new User({
+            phone: whatsappUser.phone,
+            name: whatsappUser.name || "",
+            full_name: whatsappUser.name || "",
+            is_verified: whatsappUser.isVerified || false,
+            user_type: "customer",
+            wallet_balance: 0,
+            wallet_transactions: []
+          });
+          await syncedUser.save();
+          console.log(`✅ Synced WhatsAppUser ${userId} to User collection`);
+        }
+        return syncedUser;
+      }
+    }
+  } catch (err) {
+    console.log(`ℹ️  WhatsAppUser lookup failed (may not exist):`, err.message);
+  }
 
   return null;
 };
