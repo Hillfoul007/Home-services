@@ -112,7 +112,7 @@ router.post("/admin/add-cashback", async (req, res) => {
 });
 
 /**
- * Admin: Add wallet cashback to multiple users
+ * Admin: Add wallet cashback to multiple users (specific user IDs)
  * POST /api/wallet/admin/bulk-add-cashback
  * Body: { user_ids: [], amount, description }
  */
@@ -165,6 +165,62 @@ router.post("/admin/bulk-add-cashback", async (req, res) => {
     });
   } catch (error) {
     console.error("Error bulk adding wallet cashback:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Admin: Add wallet cashback to ALL users
+ * POST /api/wallet/admin/bulk-add-to-all-users
+ * Body: { amount, description }
+ */
+router.post("/admin/bulk-add-to-all-users", async (req, res) => {
+  try {
+    const { amount, description } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid amount"
+      });
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    const allUsers = await User.find({});
+
+    for (const user of allUsers) {
+      try {
+        user.wallet_balance = (user.wallet_balance || 0) + amount;
+        user.wallet_transactions.push({
+          type: "credit",
+          amount,
+          description: description || "Admin added bulk cashback to all users",
+          created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
+        });
+
+        await user.save();
+        results.success++;
+      } catch (err) {
+        results.failed++;
+        results.errors.push({ userId: user._id, error: err.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Added cashback to ${results.success} users`,
+      results
+    });
+  } catch (error) {
+    console.error("Error bulk adding wallet cashback to all users:", error);
     res.status(500).json({
       success: false,
       error: error.message
