@@ -33,7 +33,8 @@
     "cap:copy": "npx cap copy",
     "cap:sync": "npx cap sync",
     "cap:open:android": "npx cap open android",
-    "build:android": "npm run build && npx cap copy android && npx cap sync android"
+    "build:android": "npm run build && npx cap copy android && npx cap sync android",
+    "migrate:wallet": "node backend/scripts/init-wallet-balance.js"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.10",
