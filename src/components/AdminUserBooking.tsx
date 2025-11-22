@@ -211,14 +211,17 @@ const AdminUserBooking: React.FC = () => {
 
         // Autofill latest/default address into booking form
         const defaultAddress = resp.data.defaultAddress || (Array.isArray(resp.data.addresses) && resp.data.addresses[0]);
-        if (defaultAddress && defaultAddress.full_address) {
-          console.log("✅ Autofilling address from saved addresses:", defaultAddress.full_address);
-          setBookingData((prev) => ({ ...prev, address: defaultAddress.full_address }));
-        } else if (fetchedUser.address) {
-          console.log("✅ Autofilling address from user object:", fetchedUser.address);
-          setBookingData((prev) => ({ ...prev, address: fetchedUser.address }));
+        const finalAddress = (defaultAddress && defaultAddress.full_address) || fetchedUser.address;
+
+        if (finalAddress) {
+          console.log("✅ Autofilling address:", finalAddress);
+          setBookingData((prev) => ({ ...prev, address: finalAddress }));
+          // Fetch vendors for this address
+          await fetchVendorsForAddress(finalAddress);
         } else {
           console.warn("⚠️ No address found for user. Please enter address manually.");
+          setVendors([]);
+          setSelectedVendor(null);
         }
 
         return;
