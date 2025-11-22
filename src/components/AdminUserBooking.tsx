@@ -513,29 +513,67 @@ const AdminUserBooking: React.FC = () => {
                   <AlertDescription>Customer selected successfully!</AlertDescription>
                 </Alert>
                 
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">
-                        {selectedUser.name || selectedUser.full_name || "Unnamed User"}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        📞 {selectedUser.phone}
-                      </div>
-                      {selectedUser.email && (
-                        <div className="text-sm text-gray-600">
-                          ✉️ {selectedUser.email}
+                <div className="space-y-3">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">
+                          {selectedUser.name || selectedUser.full_name || "Unnamed User"}
                         </div>
-                      )}
+                        <div className="text-sm text-gray-600">
+                          📞 {selectedUser.phone}
+                        </div>
+                        {selectedUser.email && (
+                          <div className="text-sm text-gray-600">
+                            ✉️ {selectedUser.email}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedUser(null);
+                          setVendors([]);
+                          setSelectedVendor(null);
+                          setBookingData(prev => ({ ...prev, address: "", assignedVendor: "" }));
+                        }}
+                      >
+                        Change User
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedUser(null)}
-                    >
-                      Change User
-                    </Button>
                   </div>
+
+                  {selectedVendor && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="font-medium text-green-900 mb-3">Assigned Vendor</div>
+                      <div className="space-y-2">
+                        <div className="text-sm">
+                          <span className="font-medium">{selectedVendor.name}</span>
+                        </div>
+                        <div className="text-xs text-gray-700">
+                          📍 {selectedVendor.address}
+                        </div>
+                        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-green-200">
+                          <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                            <Navigation className="h-3 w-3" />
+                            {selectedVendor.distance.toFixed(2)}km away
+                          </Badge>
+                          {selectedVendor.estimatedTime && (
+                            <Badge variant="outline" className="text-xs flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              ~{selectedVendor.estimatedTime}m
+                            </Badge>
+                          )}
+                          {selectedVendor.phone && (
+                            <span className="text-xs text-gray-600">
+                              📞 {selectedVendor.phone}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
