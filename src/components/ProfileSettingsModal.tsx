@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,6 +9,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
 import {
   Edit,
   Save,
@@ -17,11 +19,17 @@ import {
   Gift,
   Copy,
   MapPin,
+  Wallet,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  Loader,
 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import UserService from "@/services/userService";
 import SavedAddressesModal from "./SavedAddressesModal";
+import { walletService, type WalletTransaction } from "@/services/walletService";
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
