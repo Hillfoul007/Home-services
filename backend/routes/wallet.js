@@ -63,7 +63,7 @@ router.get("/balance/:userId", async (req, res) => {
  */
 router.get("/transactions/:userId", async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select("wallet_transactions");
+    const user = await findUserById(req.params.userId);
 
     if (!user) {
       // Return empty transactions instead of 404 for non-existent users
