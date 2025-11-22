@@ -95,13 +95,15 @@ router.get("/balance/:userId", async (req, res) => {
       return res.json({
         success: true,
         wallet_balance: 0,
+        wallet_transactions: [],
         note: "User not found, returning default balance"
       });
     }
 
     res.json({
       success: true,
-      wallet_balance: user.wallet_balance || 0
+      wallet_balance: user.wallet_balance || 0,
+      wallet_transactions: user.wallet_transactions || []
     });
   } catch (error) {
     console.error("Error fetching wallet balance:", error);
@@ -109,6 +111,7 @@ router.get("/balance/:userId", async (req, res) => {
     res.json({
       success: true,
       wallet_balance: 0,
+      wallet_transactions: [],
       error: "Error fetching balance, returning default"
     });
   }
