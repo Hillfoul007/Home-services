@@ -351,6 +351,8 @@ const AdminUserBooking: React.FC = () => {
         setSelectedUser(null);
         setNewUserName("");
         setNewUserAddress("");
+        setVendors([]);
+        setSelectedVendor(null);
         setBookingData({
           service: "",
           services: [],
@@ -361,6 +363,7 @@ const AdminUserBooking: React.FC = () => {
           address: "",
           special_instructions: "",
           is_quick_pickup: false,
+          assignedVendor: "",
         });
       } else {
         toast.error(`Failed to create booking: ${response.error || "Unknown error"}`);
