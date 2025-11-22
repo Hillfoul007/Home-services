@@ -1976,7 +1976,7 @@ const AdminBookingManagement: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {!editingBooking.wallet_cashback || editingBooking.wallet_cashback === 0 && (
+                    {(!editingBooking.wallet_cashback || editingBooking.wallet_cashback === 0) && (
                       <div className="text-xs text-purple-600 mt-1">
                         Enter a percentage (0-100) to give cashback to user's wallet after order completion
                       </div>
