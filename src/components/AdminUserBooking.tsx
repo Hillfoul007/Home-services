@@ -84,6 +84,63 @@ const AdminUserBooking: React.FC = () => {
 
   const isValidObjectId = (v: string | undefined | null) => !!v && /^[a-fA-F0-9]{24}$/.test(v);
 
+  // Fetch vendors based on address
+  const fetchVendorsForAddress = async (address: string) => {
+    if (!address.trim()) {
+      setVendors([]);
+      setSelectedVendor(null);
+      return;
+    }
+
+    try {
+      setVendorsLoading(true);
+
+      // Fetch all vendors from API
+      const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
+
+      if (response.data && Array.isArray(response.data.vendors)) {
+        // Convert to VendorWithDistance format
+        const vendorsList = response.data.vendors.filter((v: any) => v.is_active !== false);
+
+        // Get vendor recommendations with distance using vendorService
+        const vendorsWithDistance = await vendorService.getVendorRecommendations(address);
+
+        // Merge vendor details with distance info
+        const enrichedVendors = vendorsList.map((vendor: any) => {
+          const withDistance = vendorsWithDistance.find(
+            v => v.id === vendor._id || v.id === vendor.id
+          );
+          return {
+            id: vendor._id || vendor.id,
+            _id: vendor._id,
+            name: vendor.name,
+            address: vendor.address,
+            phone: vendor.phone || vendor.contactPhone,
+            coordinates: vendor.coordinates || { lat: 0, lng: 0 },
+            distance: withDistance?.distance || 0,
+            estimatedTime: withDistance?.estimatedTime,
+            isActive: vendor.is_active !== false,
+          };
+        }).sort((a, b) => a.distance - b.distance);
+
+        setVendors(enrichedVendors);
+
+        // Auto-select nearest vendor
+        if (enrichedVendors.length > 0) {
+          setSelectedVendor(enrichedVendors[0]);
+          setBookingData(prev => ({ ...prev, assignedVendor: enrichedVendors[0].id }));
+        }
+      } else {
+        toast.error('Failed to fetch vendors');
+      }
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      toast.error('Error fetching vendors for address');
+    } finally {
+      setVendorsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (searchTerm.length >= 3) {
       searchUsers();
