@@ -24,6 +24,7 @@ const AdminWalletManagement: React.FC = () => {
   const [bulkAmount, setBulkAmount] = useState("");
   const [bulkDescription, setBulkDescription] = useState("");
   const [loadingBulk, setLoadingBulk] = useState(false);
+  const [bulkMode, setBulkMode] = useState<"specific" | "all">("specific");
 
   // Search users
   const handleSearch = async () => {
