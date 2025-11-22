@@ -36,7 +36,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics" | "wallet";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
