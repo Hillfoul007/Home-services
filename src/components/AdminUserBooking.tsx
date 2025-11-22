@@ -651,11 +651,95 @@ const AdminUserBooking: React.FC = () => {
                 id="address"
                 placeholder="Enter complete pickup address..."
                 value={bookingData.address}
-                onChange={(e) =>
-                  setBookingData({ ...bookingData, address: e.target.value })
-                }
+                onChange={(e) => {
+                  const newAddress = e.target.value;
+                  setBookingData({ ...bookingData, address: newAddress });
+                  // Fetch vendors when address changes
+                  if (newAddress.trim().length > 5) {
+                    fetchVendorsForAddress(newAddress);
+                  }
+                }}
                 rows={3}
               />
+            </div>
+
+            {/* Vendor Selection */}
+            <div>
+              <Label htmlFor="vendor-select">Assign Vendor (Allotment)</Label>
+              {vendorsLoading && (
+                <div className="text-sm text-gray-500 py-3 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    Loading vendors...
+                  </div>
+                </div>
+              )}
+
+              {!vendorsLoading && vendors.length > 0 ? (
+                <div className="space-y-3 mt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {vendors.map((vendor) => (
+                      <div
+                        key={vendor.id}
+                        onClick={() => {
+                          setSelectedVendor(vendor);
+                          setBookingData(prev => ({ ...prev, assignedVendor: vendor.id }));
+                        }}
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          selectedVendor?.id === vendor.id
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300 bg-white"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900">{vendor.name}</div>
+                              <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                📍 {vendor.address}
+                              </div>
+                            </div>
+                            {selectedVendor?.id === vendor.id && (
+                              <div className="ml-2">
+                                <CheckCircle className="h-5 w-5 text-blue-600" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap pt-2 border-t">
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Navigation className="h-3 w-3" />
+                              {vendor.distance.toFixed(2)}km
+                            </Badge>
+                            {vendor.estimatedTime && (
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {vendor.estimatedTime}m
+                              </Badge>
+                            )}
+                            {vendor.phone && (
+                              <Badge variant="outline" className="text-xs">
+                                📞 {vendor.phone}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : !vendorsLoading && bookingData.address.trim().length > 0 ? (
+                <Alert className="mt-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    No vendors found for this location. Please enter a different address or check vendor availability.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="text-sm text-gray-500 py-3 text-center">
+                  Enter a pickup address to see available vendors
+                </div>
+              )}
             </div>
 
             <div>
