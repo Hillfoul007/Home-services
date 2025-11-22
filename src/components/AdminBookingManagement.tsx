@@ -2041,6 +2041,8 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
                         cashback_amount: editingBooking.cashback_amount || 0,
+                        cashback: editingBooking.cashback || 0,
+                        wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.details?.discount || 0,
                         coordinates: editingBooking.coordinates,
