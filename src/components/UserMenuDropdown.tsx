@@ -342,6 +342,12 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
         onClose={() => setShowReferralModal(false)}
         currentUser={currentUser}
       />
+
+      <WalletModal
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+        currentUser={currentUser}
+      />
     </>
   );
 };
