@@ -2,6 +2,26 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const Booking = require("../models/Booking");
+const mongoose = require("mongoose");
+
+/**
+ * Helper function to find user by ID (ObjectId or phone)
+ */
+const findUserById = async (userId) => {
+  if (!userId) return null;
+
+  // Try to find by ObjectId first
+  if (mongoose.Types.ObjectId.isValid(userId)) {
+    const user = await User.findById(userId);
+    if (user) return user;
+  }
+
+  // Try to find by phone number
+  const userByPhone = await User.findOne({ phone: userId });
+  if (userByPhone) return userByPhone;
+
+  return null;
+};
 
 /**
  * Get user's wallet balance
@@ -9,7 +29,7 @@ const Booking = require("../models/Booking");
  */
 router.get("/balance/:userId", async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select("wallet_balance");
+    const user = await findUserById(req.params.userId);
 
     if (!user) {
       // Return 0 balance instead of 404 for non-existent users
@@ -43,7 +63,7 @@ router.get("/balance/:userId", async (req, res) => {
  */
 router.get("/transactions/:userId", async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select("wallet_transactions");
+    const user = await findUserById(req.params.userId);
 
     if (!user) {
       // Return empty transactions instead of 404 for non-existent users
@@ -86,7 +106,7 @@ router.post("/admin/add-cashback", async (req, res) => {
       });
     }
 
-    const user = await User.findById(user_id);
+    const user = await findUserById(user_id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -146,7 +166,7 @@ router.post("/admin/bulk-add-cashback", async (req, res) => {
 
     for (const userId of user_ids) {
       try {
-        const user = await User.findById(userId);
+        const user = await findUserById(userId);
         if (!user) {
           results.failed++;
           results.errors.push({ userId, error: "User not found" });
@@ -292,7 +312,7 @@ router.post("/debit-for-booking", async (req, res) => {
       });
     }
 
-    const user = await User.findById(user_id);
+    const user = await findUserById(user_id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -347,7 +367,7 @@ router.post("/credit-after-booking", async (req, res) => {
       });
     }
 
-    const user = await User.findById(user_id);
+    const user = await findUserById(user_id);
     if (!user) {
       return res.status(404).json({
         success: false,
