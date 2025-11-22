@@ -1364,7 +1364,7 @@ const AdminBookingManagement: React.FC = () => {
                         </Badge>
                         <div className="flex items-center gap-2 text-sm">
                           <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                          <span className="font-medium">���{booking.final_amount ?? booking.total_price}</span>
                         </div>
                       </div>
 
@@ -1560,6 +1560,12 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Final Amount:</span>
                     <span>₹{viewingBooking.final_amount}</span>
                   </div>
+                  {viewingBooking.wallet_cashback && viewingBooking.wallet_cashback > 0 && (
+                    <div className="flex justify-between border-t pt-2 text-purple-600">
+                      <span>Wallet Cashback:</span>
+                      <span className="font-medium">{viewingBooking.wallet_cashback}% = ₹{((viewingBooking.final_amount || 0) * viewingBooking.wallet_cashback / 100).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1940,28 +1946,41 @@ const AdminBookingManagement: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Wallet Cashback Input */}
+                  {/* Wallet Cashback Percentage Input */}
                   <div className="mt-4 pt-4 border-t border-purple-200">
                     <label className="text-sm text-purple-900 font-semibold mb-2 block">
-                      Wallet Cashback (credited after order completes)
+                      Wallet Cashback Percentage (%)
                     </label>
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      max="100"
+                      step="0.1"
                       value={editingBooking.wallet_cashback || 0}
                       onChange={(e) => {
                         const value = parseFloat(e.target.value) || 0;
                         setEditingBooking((prev) =>
-                          prev ? { ...prev, wallet_cashback: value } : prev
+                          prev ? { ...prev, wallet_cashback: Math.min(value, 100) } : prev
                         );
                       }}
-                      placeholder="0.00"
+                      placeholder="0.0"
                       className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
                     />
-                    <div className="text-xs text-purple-600 mt-1">
-                      This amount will be added to user's wallet after order completion
-                    </div>
+                    {editingBooking.wallet_cashback && editingBooking.wallet_cashback > 0 && (
+                      <div className="mt-2 p-2 bg-purple-100 rounded border border-purple-300">
+                        <div className="text-sm text-purple-900 font-semibold">
+                          Cashback Amount: ₹{((computeEditingTotals(editingBooking).final * editingBooking.wallet_cashback) / 100).toFixed(2)}
+                        </div>
+                        <div className="text-xs text-purple-600 mt-1">
+                          {editingBooking.wallet_cashback}% of ₹{computeEditingTotals(editingBooking).final.toFixed(2)} = credited to wallet after order completion
+                        </div>
+                      </div>
+                    )}
+                    {(!editingBooking.wallet_cashback || editingBooking.wallet_cashback === 0) && (
+                      <div className="text-xs text-purple-600 mt-1">
+                        Enter a percentage (0-100) to give cashback to user's wallet after order completion
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
