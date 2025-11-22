@@ -71,7 +71,7 @@ export class WalletService {
   }
 
   /**
-   * Admin: Add wallet cashback to multiple users
+   * Admin: Add wallet cashback to multiple users (specific user IDs)
    */
   async adminBulkAddCashback(userIds: string[], amount: number, description: string = ''): Promise<any> {
     try {
@@ -84,6 +84,23 @@ export class WalletService {
     } catch (error) {
       console.error('Error adding bulk cashback:', error);
       return { success: false, error: 'Failed to add bulk cashback' };
+    }
+  }
+
+  /**
+   * Admin: Add wallet cashback to ALL users
+   */
+  async adminBulkAddCashbackToAllUsers(amount: number, description: string = ''): Promise<any> {
+    try {
+      const response = await fetch('/api/wallet/admin/bulk-add-to-all-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, description })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error adding bulk cashback to all users:', error);
+      return { success: false, error: 'Failed to add bulk cashback to all users' };
     }
   }
 
