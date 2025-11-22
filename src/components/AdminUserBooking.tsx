@@ -41,6 +41,18 @@ interface ServiceItem {
   category: string;
 }
 
+interface VendorWithDistance {
+  id: string;
+  _id: string;
+  name: string;
+  address: string;
+  phone?: string;
+  coordinates: { lat: number; lng: number };
+  distance: number;
+  estimatedTime?: number;
+  isActive?: boolean;
+}
+
 const AdminUserBooking: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
