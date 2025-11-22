@@ -26,6 +26,7 @@ import {
   Store,
 } from "lucide-react";
 import { vendorService } from "@/services/vendorService";
+import { walletService } from "@/services/walletService";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
