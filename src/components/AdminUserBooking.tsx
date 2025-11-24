@@ -439,7 +439,12 @@ const AdminUserBooking: React.FC = () => {
         } : undefined,
       };
 
-      console.log("Submitting booking:", bookingPayload);
+      console.log("🔍 Submitting booking with services:", {
+        services: bookingPayload.services,
+        item_prices: bookingPayload.item_prices,
+        total_price: bookingPayload.total_price,
+        final_amount: bookingPayload.final_amount,
+      });
 
       // Use real API client with admin authentication
       const response = await apiClient.adminRequest<{booking: any}>("/admin/bookings", {
