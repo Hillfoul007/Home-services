@@ -13,6 +13,7 @@ import { Loader } from "lucide-react";
 import { walletService, WalletTransaction } from "@/services/walletService";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
+import { formatDateTimeIST } from "@/utils/timeUtils";
 
 interface WalletModalProps {
   isOpen: boolean;
