@@ -1001,7 +1001,7 @@ const AdminUserBooking: React.FC = () => {
             <div className="flex justify-end">
               <Button
                 onClick={submitBooking}
-                disabled={submitting}
+                disabled={submitting || bookingData.services.length === 0}
                 className="min-w-32"
               >
                 {submitting ? (
