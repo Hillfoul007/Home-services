@@ -396,11 +396,18 @@ const AdminUserBooking: React.FC = () => {
         }
       }
 
+      // Validate services are added
+      if (bookingData.services.length === 0) {
+        toast.error("Please add at least one service to the booking");
+        setSubmitting(false);
+        return;
+      }
+
       const bookingPayload = {
         customer_id: finalCustomerId,
         name: finalUserName,
         phone: finalUserPhone,
-        service: bookingData.service || bookingData.services[0]?.name || "",
+        service: bookingData.services[0]?.name || "Laundry Service",
         service_type: "laundry",
         services: bookingData.services.map(service => `${service.name} x${service.quantity} (₹${service.price}/${service.unit})`),
         scheduled_date: bookingData.scheduled_date,
@@ -418,8 +425,8 @@ const AdminUserBooking: React.FC = () => {
         quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
         assignedVendor: selectedVendor?.id || "",
         assignedVendorDetails: selectedVendor ? {
-          name: selectedVendor.name,
-          address: selectedVendor.address,
+          name: decodeHtmlEntities(selectedVendor.name),
+          address: decodeHtmlEntities(selectedVendor.address),
           phone: selectedVendor.phone,
           distance: selectedVendor.distance,
           estimatedTime: selectedVendor.estimatedTime,
