@@ -15,6 +15,7 @@ import { User, Phone, Edit3, Save, X, Wallet, RefreshCw, TrendingUp, TrendingDow
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { walletService, type WalletTransaction } from "@/services/walletService";
 import { toast } from "sonner";
+import { formatDateTimeIST } from "@/utils/timeUtils";
 
 interface UserProfileModalProps {
   isOpen: boolean;
