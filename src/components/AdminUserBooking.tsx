@@ -880,6 +880,91 @@ const AdminUserBooking: React.FC = () => {
               )}
             </div>
 
+            {/* Services Selection */}
+            <div className="border-t pt-4">
+              <Label className="text-base font-semibold mb-4 block">Select Services</Label>
+
+              <div className="space-y-4">
+                {/* Add Service Section */}
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="service-select">Select Service</Label>
+                      <Select
+                        value={selectedServiceId}
+                        onValueChange={setSelectedServiceId}
+                      >
+                        <SelectTrigger id="service-select">
+                          <SelectValue placeholder="Choose a service..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableServices.map((service) => (
+                            <SelectItem key={service.id} value={service.id}>
+                              {service.name} (₹{service.price}/{service.unit})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="quantity">Quantity</Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        min="1"
+                        value={selectedServiceQuantity}
+                        onChange={(e) => setSelectedServiceQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <Button
+                        onClick={addServiceToBooking}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        Add to Booking
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Added Services List */}
+                {bookingData.services.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Added Services ({bookingData.services.length})</Label>
+                    <div className="space-y-2">
+                      {bookingData.services.map((service) => (
+                        <div
+                          key={service.id}
+                          className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200"
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">
+                              {service.name}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Qty: {service.quantity} × ₹{service.price}/{service.unit} = ₹{(service.quantity * service.price).toFixed(2)}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeServiceFromBooking(service.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="instructions">Special Instructions (Optional)</Label>
               <Textarea
