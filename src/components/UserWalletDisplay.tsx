@@ -172,17 +172,7 @@ const UserWalletDisplay: React.FC<UserWalletDisplayProps> = ({
                       {transaction.description}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {new Date(transaction.created_at).toLocaleString(
-                        "en-IN",
-                        {
-                          timeZone: "Asia/Kolkata",
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }
-                      )}
+                      {formatDateTimeIST(transaction.created_at)}
                     </p>
                   </div>
                 </div>
