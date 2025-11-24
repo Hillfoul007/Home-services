@@ -364,7 +364,8 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                                   {transaction.description}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  {new Date(transaction.created_at).toLocaleDateString('en-IN', {
+                                  {new Date(transaction.created_at).toLocaleString('en-IN', {
+                                    timeZone: 'Asia/Kolkata',
                                     day: 'numeric',
                                     month: 'short',
                                     year: 'numeric',
