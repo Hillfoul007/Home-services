@@ -976,6 +976,15 @@ const AdminUserBooking: React.FC = () => {
               </div>
             </div>
 
+            {bookingData.services.length === 0 && (
+              <Alert className="border-red-200 bg-red-50">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  ⚠️ At least one service must be added to create a booking. Please select services above.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div>
               <Label htmlFor="instructions">Special Instructions (Optional)</Label>
               <Textarea
