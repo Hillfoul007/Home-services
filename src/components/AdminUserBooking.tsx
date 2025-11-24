@@ -197,8 +197,8 @@ const AdminUserBooking: React.FC = () => {
         const enrichedVendors = vendorsWithDistance.map((vendor) => ({
           id: vendor.id,
           _id: vendor.id,
-          name: vendor.name,
-          address: vendor.address,
+          name: decodeHtmlEntities(vendor.name),
+          address: decodeHtmlEntities(vendor.address),
           phone: vendor.contactPhone,
           coordinates: vendor.coordinates,
           distance: vendor.distance,
