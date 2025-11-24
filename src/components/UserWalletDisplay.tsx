@@ -5,6 +5,7 @@ import { ChevronDown, Wallet, RefreshCw, TrendingUp, TrendingDown } from "lucide
 import { walletService, type WalletTransaction } from "@/services/walletService";
 import { getUserId } from "@/utils/authUtils";
 import { toast } from "sonner";
+import { formatDateTimeIST } from "@/utils/timeUtils";
 
 interface UserWalletDisplayProps {
   userId?: string;
