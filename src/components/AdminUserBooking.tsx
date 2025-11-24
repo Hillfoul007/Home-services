@@ -83,7 +83,81 @@ const AdminUserBooking: React.FC = () => {
   const [newUserName, setNewUserName] = useState("");
   const [newUserAddress, setNewUserAddress] = useState("");
 
+  // Service selection state
+  const [availableServices] = useState<ServiceItem[]>([
+    { id: "1", name: "Regular Iron", category: "Ironing", quantity: 1, price: 20, unit: "PC" },
+    { id: "2", name: "Men's Suit", category: "Premium", quantity: 1, price: 150, unit: "SET" },
+    { id: "3", name: "Lehenga", category: "Premium", quantity: 1, price: 200, unit: "SET" },
+    { id: "4", name: "Heavy Dresses", category: "Premium", quantity: 1, price: 150, unit: "SET" },
+    { id: "5", name: "Shirt", category: "Regular", quantity: 1, price: 40, unit: "PC" },
+    { id: "6", name: "T-Shirt", category: "Regular", quantity: 1, price: 30, unit: "PC" },
+    { id: "7", name: "Pants", category: "Regular", quantity: 1, price: 50, unit: "PC" },
+    { id: "8", name: "Saree", category: "Premium", quantity: 1, price: 100, unit: "PC" },
+    { id: "9", name: "Bedsheet", category: "Household", quantity: 1, price: 60, unit: "PC" },
+    { id: "10", name: "Curtains", category: "Household", quantity: 1, price: 80, unit: "SET" },
+  ]);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [selectedServiceQuantity, setSelectedServiceQuantity] = useState(1);
+
   const isValidObjectId = (v: string | undefined | null) => !!v && /^[a-fA-F0-9]{24}$/.test(v);
+
+  // Helper function to decode HTML entities
+  const decodeHtmlEntities = (text: string): string => {
+    if (!text) return text;
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  };
+
+  // Add service to booking
+  const addServiceToBooking = () => {
+    if (!selectedServiceId) {
+      toast.error("Please select a service");
+      return;
+    }
+
+    const service = availableServices.find(s => s.id === selectedServiceId);
+    if (!service) {
+      toast.error("Service not found");
+      return;
+    }
+
+    // Check if service already exists
+    const existingService = bookingData.services.find(s => s.id === service.id);
+    if (existingService) {
+      // Update quantity
+      setBookingData(prev => ({
+        ...prev,
+        services: prev.services.map(s =>
+          s.id === service.id
+            ? { ...s, quantity: s.quantity + selectedServiceQuantity }
+            : s
+        ),
+      }));
+    } else {
+      // Add new service
+      setBookingData(prev => ({
+        ...prev,
+        services: [
+          ...prev.services,
+          { ...service, quantity: selectedServiceQuantity },
+        ],
+      }));
+    }
+
+    // Reset selection
+    setSelectedServiceId("");
+    setSelectedServiceQuantity(1);
+    toast.success("Service added to booking");
+  };
+
+  // Remove service from booking
+  const removeServiceFromBooking = (serviceId: string) => {
+    setBookingData(prev => ({
+      ...prev,
+      services: prev.services.filter(s => s.id !== serviceId),
+    }));
+  };
 
   // Fetch vendors based on address
   const fetchVendorsForAddress = async (address: string) => {
