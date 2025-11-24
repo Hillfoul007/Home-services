@@ -410,6 +410,12 @@ const AdminUserBooking: React.FC = () => {
         service: bookingData.services[0]?.name || "Laundry Service",
         service_type: "laundry",
         services: bookingData.services.map(service => `${service.name} x${service.quantity} (₹${service.price}/${service.unit})`),
+        item_prices: bookingData.services.map((service) => ({
+          service_name: service.name,
+          quantity: service.quantity,
+          unit_price: service.price,
+          total_price: service.quantity * service.price,
+        })),
         scheduled_date: bookingData.scheduled_date,
         scheduled_time: bookingData.scheduled_time,
         delivery_date: bookingData.delivery_date || bookingData.scheduled_date,
