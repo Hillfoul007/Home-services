@@ -349,12 +349,60 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   };
 
   const getTotal = () => {
-    return (
+    return Math.max(
+      0,
       getSubtotal() +
       getDeliveryCharge() +
       getHandlingFee() -
-      getCouponDiscount()
+      getCouponDiscount() -
+      walletApplied
     );
+  };
+
+  const applyWallet = () => {
+    if (!walletAmount.trim()) {
+      addNotification(
+        createErrorNotification("Wallet", "Please enter an amount")
+      );
+      return;
+    }
+
+    const amount = parseFloat(walletAmount);
+    const totalBeforeWallet = getSubtotal() + getDeliveryCharge() + getHandlingFee() - getCouponDiscount();
+
+    if (amount <= 0) {
+      addNotification(
+        createErrorNotification("Wallet", "Amount must be greater than 0")
+      );
+      return;
+    }
+
+    if (amount > walletBalance) {
+      addNotification(
+        createErrorNotification("Wallet", `Insufficient balance. Available: ₹${walletBalance}`)
+      );
+      return;
+    }
+
+    if (amount > totalBeforeWallet) {
+      addNotification(
+        createErrorNotification("Wallet", `Amount cannot exceed total (₹${totalBeforeWallet.toFixed(2)})`)
+      );
+      return;
+    }
+
+    setWalletApplied(amount);
+    setShowWalletInput(false);
+    setWalletAmount("");
+    addNotification(
+      createSuccessNotification("Wallet", `Applied ₹${amount.toFixed(2)} from wallet`)
+    );
+  };
+
+  const removeWallet = () => {
+    setWalletApplied(0);
+    setWalletAmount("");
+    setShowWalletInput(false);
   };
 
   const applyCoupon = async () => {
