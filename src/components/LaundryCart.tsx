@@ -738,8 +738,9 @@ ${services.map((s) => `• ${s.name} x${s.quantity} - ₹${s.price * s.quantity}
 Pickup: ${selectedDate.toLocaleDateString()} at ${selectedTime}
 Delivery: ${finalDeliveryDate.toLocaleDateString()} at ${finalDeliveryTime}
 
-${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})` : ""}
+${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})\n` : ""}${walletApplied > 0 ? `Wallet Applied: (-₹${walletApplied.toFixed(2)})\n` : ""}
 Total Amount: ₹${finalTotal}
+${walletApplied > 0 ? `Final Amount (after wallet): ₹${finalAmountAfterWallet.toFixed(2)}` : ""}
 
 Confirm this booking?`;
 
