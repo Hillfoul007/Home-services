@@ -265,6 +265,16 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
         total_price: Math.max(0, Number(item.total_price) || (Math.max(1, Number(item.quantity) || 1) * (Number(item.unit_price || item.price) || 0)))
       }));
 
+      // Populate services array from item_prices
+      updateData.services = updateData.item_prices.map(item =>
+        `${item.service_name} x${item.quantity} (₹${item.unit_price}/${item.quantity > 1 ? 'SET' : 'PC'})`
+      );
+
+      // Set the main service field to the first service
+      if (updateData.services.length > 0) {
+        updateData.service = updateData.item_prices[0].service_name || 'Service';
+      }
+
       const computedTotal = updateData.item_prices.reduce((sum, item) => {
         const qty = Math.max(1, Number(item.quantity) || 1);
         const unitPrice = Math.max(0, Number(item.unit_price) || 0);
@@ -283,6 +293,7 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
 
       console.log(`📊 Computed totals from ${updateData.item_prices.length} items: total_price=${updateData.total_price}, final_amount=${updateData.final_amount}`);
       console.log(`📝 Normalized item_prices:`, updateData.item_prices.map(it => ({ service_name: it.service_name, qty: it.quantity, price: it.unit_price, total: it.total_price })));
+      console.log(`📝 Updated services array:`, updateData.services);
     }
 
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
@@ -322,7 +333,7 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
               booking_id: booking._id,
               created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
             });
-            console.log(`💰 Debited ₹${booking.cashback} from wallet for booking ${booking._id}`);
+            console.log(`💰 Debited ���${booking.cashback} from wallet for booking ${booking._id}`);
           }
 
           // Credit wallet_cashback (wallet_cashback is now a percentage, calculate actual amount)
@@ -1210,7 +1221,7 @@ router.post("/quick-pickups/assign", verifyAdminAccess, async (req, res) => {
   try {
     const { orderId, riderId } = req.body;
 
-    console.log('��� Assigning quick pickup:', { orderId, riderId });
+    console.log('���� Assigning quick pickup:', { orderId, riderId });
 
     if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(riderId)) {
       return res.json({
@@ -1695,7 +1706,7 @@ router.post("/customer-verifications", verifyAdminAccess, async (req, res) => {
 // Get all vendors
 router.get("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    console.log("📋 Fetching all vendors");
+    console.log("���� Fetching all vendors");
 
     const vendors = await Vendor.find().sort({ created_at: -1 });
 
