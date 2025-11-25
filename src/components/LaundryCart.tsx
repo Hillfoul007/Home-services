@@ -53,6 +53,8 @@ import ZomatoAddAddressPage from "./ZomatoAddAddressPage";
 import { AddressService } from "@/services/addressService";
 import { SessionManager } from "@/utils/sessionManager";
 import { CouponService } from "@/services/couponService";
+import { walletService } from "@/services/walletService";
+import { Wallet } from "lucide-react";
 
 
 interface LaundryCartProps {
