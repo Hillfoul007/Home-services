@@ -101,6 +101,27 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   const authService = OTPAuthService.getInstance();
   const couponService = CouponService.getInstance();
 
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      try {
+        const userId = currentUser?.id || currentUser?._id;
+        if (!userId) return;
+
+        setWalletLoading(true);
+        const result = await walletService.getWalletBalance(userId);
+        if (result.success) {
+          setWalletBalance(result.balance || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching wallet balance:", error);
+      } finally {
+        setWalletLoading(false);
+      }
+    };
+
+    fetchWalletBalance();
+  }, [currentUser]);
 
   // Load saved form data on component mount (excluding date autofill)
   useEffect(() => {
