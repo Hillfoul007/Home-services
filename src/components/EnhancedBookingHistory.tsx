@@ -1161,6 +1161,32 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                 </div>
                               )}
 
+                            {booking.cashback &&
+                              booking.cashback > 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-blue-600">
+                                    Cashback Used
+                                  </span>
+                                  <span className="font-medium text-blue-600">
+                                    -₹{booking.cashback}
+                                  </span>
+                                </div>
+                              )}
+
+                            {booking.wallet_cashback &&
+                              booking.wallet_cashback > 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-purple-600">
+                                    Cashback Given by Admin
+                                  </span>
+                                  <span className="font-medium text-purple-600">
+                                    +₹{(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
+                                      ? ((booking.final_amount || booking.total_price || 0) * booking.wallet_cashback / 100).toFixed(2)
+                                      : booking.wallet_cashback).toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+
                             <Separator className="my-1" />
 
                             <div className="flex justify-between items-center">
