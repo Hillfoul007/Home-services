@@ -111,7 +111,7 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         setWalletLoading(true);
         const result = await walletService.getWalletBalance(userId);
         if (result.success) {
-          setWalletBalance(result.balance || 0);
+          setWalletBalance(result.wallet_balance || 0);
         }
       } catch (error) {
         console.error("Error fetching wallet balance:", error);
@@ -441,7 +441,7 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         console.log("✅ Coupon applied successfully:", coupon.code);
       } else {
         setCouponError(validation.error || "Invalid coupon code");
-        console.log("❌ Invalid coupon:", validation.error);
+        console.log("��� Invalid coupon:", validation.error);
       }
     } catch (error) {
       console.error("Error in applyCoupon:", error);
