@@ -1333,6 +1333,82 @@ Confirm this booking?`;
               </div>
             )}
 
+            {/* Wallet Section */}
+            <div className="space-y-2 pt-2 border-t">
+              {walletApplied === 0 ? (
+                !showWalletInput ? (
+                  <Button
+                    onClick={() => setShowWalletInput(true)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs h-8 flex items-center justify-center gap-2"
+                    disabled={walletBalance === 0 || walletLoading}
+                  >
+                    <Wallet className="h-3 w-3" />
+                    Use Wallet ({walletLoading ? "Loading..." : `₹${walletBalance.toFixed(2)}`})
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Amount (₹)"
+                        value={walletAmount}
+                        onChange={(e) => setWalletAmount(e.target.value)}
+                        min="0"
+                        max={walletBalance}
+                        step="1"
+                        className="flex-1 h-8 text-sm"
+                      />
+                      <Button
+                        onClick={applyWallet}
+                        variant="default"
+                        size="sm"
+                        className="h-8 px-3 text-sm bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue"
+                      >
+                        Apply
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowWalletInput(false);
+                          setWalletAmount("");
+                        }}
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-gray-500"
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Available: ₹{walletBalance.toFixed(2)}
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="flex justify-between items-center text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600 font-medium text-xs">
+                      ✓ Wallet Applied
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600 font-medium">
+                      -₹{walletApplied.toFixed(2)}
+                    </span>
+                    <Button
+                      onClick={removeWallet}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-red-500 hover:bg-red-50"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <hr className="my-2" />
 
             <div className="flex justify-between font-semibold">
