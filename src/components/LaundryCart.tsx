@@ -697,9 +697,12 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         finalTotal,
       });
 
+      const finalAmountAfterWallet = Math.max(0, finalTotal - walletApplied);
+
       const orderData = {
         services,
         totalAmount: finalTotal,
+        final_amount: finalAmountAfterWallet,
         pickupDate: selectedDate.toISOString().split("T")[0],
         deliveryDate: finalDeliveryDate.toISOString().split("T")[0],
         pickupTime: selectedTime,
@@ -710,12 +713,16 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         // Explicit coupon information
         coupon_code: appliedCoupon?.code || null,
         discount_amount: couponDiscount,
+        // Wallet information
+        wallet_applied: walletApplied,
+        cashback: walletApplied,
         original_total: serviceTotal + deliveryCharge + handlingFee,
         charges_breakdown: {
           base_price: serviceTotal,
           delivery_fee: deliveryCharge,
           handling_fee: handlingFee,
           discount: couponDiscount,
+          wallet_applied: walletApplied,
         },
       };
 
