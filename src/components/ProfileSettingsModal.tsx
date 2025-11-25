@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import UserService from "@/services/userService";
 import SavedAddressesModal from "./SavedAddressesModal";
 import { walletService, type WalletTransaction } from "@/services/walletService";
+import { formatDateTimeIST } from "@/utils/timeUtils";
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
