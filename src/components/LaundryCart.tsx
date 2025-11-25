@@ -87,6 +87,12 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   } | null>(null);
   const [couponError, setCouponError] = useState("");
 
+  // Wallet state
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletApplied, setWalletApplied] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [showWalletInput, setShowWalletInput] = useState(false);
+  const [walletAmount, setWalletAmount] = useState("");
 
   // Location availability modal state
   const [showLocationUnavailable, setShowLocationUnavailable] = useState(false);
