@@ -765,11 +765,20 @@ const AdminBookingManagement: React.FC = () => {
       const loadWalletBalance = async () => {
         setLoadingWallet(true);
         try {
+          // Extract string ID from customer_id (could be an object or string)
+          let customerId = editingBooking.customer_id;
+          if (customerId && typeof customerId === 'object') {
+            // If it's an object, try to get the _id or id property
+            customerId = customerId._id || customerId.id || customerId.toString();
+          }
+
           // Use customer_id if available, otherwise fall back to phone number
-          const userId = editingBooking.customer_id || editingBooking.phone;
+          const userId = customerId || editingBooking.phone;
 
           console.log('🔍 Attempting wallet lookup with:', {
             customer_id: editingBooking.customer_id,
+            customer_id_type: typeof editingBooking.customer_id,
+            extracted_id: customerId,
             phone: editingBooking.phone,
             userId: userId,
             booking_id: editingBooking._id,
