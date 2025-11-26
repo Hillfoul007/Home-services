@@ -761,14 +761,24 @@ const AdminBookingManagement: React.FC = () => {
 
   // Load user's wallet balance when editing booking
   useEffect(() => {
-    if (editingBooking?.customer_id && showEditDialog) {
+    if (editingBooking && showEditDialog) {
       const loadWalletBalance = async () => {
         setLoadingWallet(true);
         try {
-          const result = await walletService.getWalletBalance(editingBooking.customer_id);
+          // Use customer_id if available, otherwise fall back to phone number
+          const userId = editingBooking.customer_id || editingBooking.phone;
+
+          if (!userId) {
+            console.warn('No customer_id or phone available for wallet lookup');
+            setUserWalletBalance(0);
+            return;
+          }
+
+          const result = await walletService.getWalletBalance(userId);
           if (result.success) {
             setUserWalletBalance(result.wallet_balance || 0);
           } else {
+            console.warn('Wallet fetch returned success: false', result);
             setUserWalletBalance(0);
           }
         } catch (error) {
@@ -780,7 +790,7 @@ const AdminBookingManagement: React.FC = () => {
       };
       loadWalletBalance();
     }
-  }, [editingBooking?.customer_id, showEditDialog]);
+  }, [editingBooking?._id, showEditDialog]);
 
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
