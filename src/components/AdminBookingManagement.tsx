@@ -768,21 +768,35 @@ const AdminBookingManagement: React.FC = () => {
           // Use customer_id if available, otherwise fall back to phone number
           const userId = editingBooking.customer_id || editingBooking.phone;
 
+          console.log('🔍 Attempting wallet lookup with:', {
+            customer_id: editingBooking.customer_id,
+            phone: editingBooking.phone,
+            userId: userId,
+            booking_id: editingBooking._id,
+            booking_name: editingBooking.name
+          });
+
           if (!userId) {
-            console.warn('No customer_id or phone available for wallet lookup');
+            console.warn('❌ No customer_id or phone available for wallet lookup');
             setUserWalletBalance(0);
             return;
           }
 
           const result = await walletService.getWalletBalance(userId);
+          console.log('💰 Wallet balance response:', {
+            userId,
+            response: result,
+            wallet_balance: result.wallet_balance
+          });
+
           if (result.success) {
             setUserWalletBalance(result.wallet_balance || 0);
           } else {
-            console.warn('Wallet fetch returned success: false', result);
+            console.warn('⚠️  Wallet fetch returned success: false', result);
             setUserWalletBalance(0);
           }
         } catch (error) {
-          console.warn('Failed to load wallet balance:', error);
+          console.warn('❌ Failed to load wallet balance:', error);
           setUserWalletBalance(0);
         } finally {
           setLoadingWallet(false);
