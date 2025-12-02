@@ -1615,6 +1615,17 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-sm font-medium">₹{booking.final_amount ?? booking.total_price}</div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                          onClick={() => {
+                            const message = generateWhatsAppMessage(booking);
+                            sendWhatsAppMessage(booking.phone, message);
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                           <Eye className="h-4 w-4" />
                         </Button>
