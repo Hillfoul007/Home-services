@@ -1899,6 +1899,7 @@ const AdminBookingManagement: React.FC = () => {
                             return { vendor, distance };
                           })
                           .sort((a, b) => a.distance - b.distance)
+                          .slice(0, 5)
                           .map(({ vendor, distance }) => {
                             const distanceLabel = distance !== Infinity ? ` • ${distance.toFixed(1)} km` : "";
                             return (
