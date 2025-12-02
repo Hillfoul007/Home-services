@@ -204,7 +204,7 @@ const AdminUserBooking: React.FC = () => {
           distance: vendor.distance,
           estimatedTime: vendor.estimatedTime,
           isActive: vendor.isActive !== false,
-        })).sort((a, b) => a.distance - b.distance);
+        })).sort((a, b) => a.distance - b.distance).slice(0, 5);
 
         setVendors(enrichedVendors);
 
