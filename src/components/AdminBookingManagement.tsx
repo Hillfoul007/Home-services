@@ -1491,12 +1491,24 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => {
+                              const message = generateWhatsAppMessage(booking);
+                              sendWhatsAppMessage(booking.phone, message);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
