@@ -334,12 +334,17 @@ const generateDeliveryReminder = (booking: Booking): string => {
     }
   };
 
+  const address = booking.address || "N/A";
+  const mapsLink = address && address !== "N/A"
+    ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+    : "";
+
   const message = `Order Delivery 🚚
 
 Order ID: ${booking.custom_order_id}
 Name: ${booking.name}
 Contact: ${booking.phone}
-Address: ${booking.address || "N/A"}
+Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
 Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
 Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
 
