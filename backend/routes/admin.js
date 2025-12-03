@@ -1980,7 +1980,7 @@ router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req,
 router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, email, phone, address, services, is_active, vendor_id, password } = req.body;
+    const { name, email, phone, address, services, is_active, vendor_id, password, whatsapp_group_invite_link } = req.body;
 
     console.log(`📝 Updating laundry vendor: ${vendorId}`);
 
@@ -1999,6 +1999,7 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     if (services !== undefined) vendor.services = services;
     if (is_active !== undefined) vendor.is_active = is_active;
     if (vendor_id !== undefined) vendor.vendor_id = vendor_id;
+    if (whatsapp_group_invite_link !== undefined) vendor.whatsapp_group_invite_link = whatsapp_group_invite_link;
 
     // Update password if provided
     if (password) {
@@ -2022,6 +2023,7 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
         phone: vendor.phone,
         address: vendor.address,
         services: vendor.services,
+        whatsapp_group_invite_link: vendor.whatsapp_group_invite_link,
         is_active: vendor.is_active,
       },
     });
