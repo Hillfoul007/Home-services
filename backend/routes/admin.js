@@ -1852,7 +1852,7 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 // Create laundry vendor with auto-generated credentials
 router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, email, phone, address, services } = req.body;
+    const { name, email, phone, address, services, whatsapp_group_invite_link } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({ error: "Name and phone are required" });
@@ -1873,6 +1873,7 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
       phone,
       address,
       services: services || [],
+      whatsapp_group_invite_link: whatsapp_group_invite_link || "",
       is_active: true,
       created_by: req.admin_id,
     });
@@ -1888,6 +1889,7 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
         name,
         email,
         phone,
+        whatsapp_group_invite_link,
         temp_password, // Share only once!
       },
     });
