@@ -40,6 +40,7 @@ interface FormData {
   lng: string;
   services: string;
   rating: string;
+  whatsapp_group_invite_link: string;
 }
 
 const AVAILABLE_SERVICES = [
