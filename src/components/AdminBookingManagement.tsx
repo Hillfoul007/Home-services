@@ -33,6 +33,7 @@ import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
+import ReminderModal from "@/components/ReminderModal";
 
 interface ItemPrice {
   service_name?: string;
@@ -634,6 +635,12 @@ const AdminBookingManagement: React.FC = () => {
   const [readySearchTerm, setReadySearchTerm] = useState("");
   const [readyStatusFilter, setReadyStatusFilter] = useState("all");
   const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
+
+  // Reminder modal state
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderType, setReminderType] = useState<'pickup' | 'delivery'>('pickup');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderVendorGroupLink, setReminderVendorGroupLink] = useState<string | undefined>();
 
 
   const fetchVendors = async () => {
@@ -1473,7 +1480,10 @@ const AdminBookingManagement: React.FC = () => {
                             onClick={() => {
                               const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
                               const message = generatePickupReminder(booking);
-                              sendVendorReminder(vendorGroupLink, message);
+                              setReminderMessage(message);
+                              setReminderType('pickup');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
                             }}
                           >
                             📤 Pickup Reminder
@@ -1632,7 +1642,10 @@ const AdminBookingManagement: React.FC = () => {
                             onClick={() => {
                               const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
                               const message = generateDeliveryReminder(booking);
-                              sendVendorReminder(vendorGroupLink, message);
+                              setReminderMessage(message);
+                              setReminderType('delivery');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
                             }}
                           >
                             🚚 Delivery Reminder
