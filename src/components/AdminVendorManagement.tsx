@@ -640,6 +640,15 @@ const AdminVendorManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                 />
               </div>
+              <div>
+                <Label htmlFor="edit-vendor-whatsapp">WhatsApp Group Invite Link</Label>
+                <Input
+                  id="edit-vendor-whatsapp"
+                  placeholder="https://chat.whatsapp.com/..."
+                  value={formData.whatsapp_group_invite_link}
+                  onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
+                />
+              </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancel
