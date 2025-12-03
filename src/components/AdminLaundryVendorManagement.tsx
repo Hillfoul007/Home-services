@@ -477,6 +477,19 @@ const AdminLaundryVendorManagement: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    {vendor.whatsapp_group_invite_link && (
+                      <div className="col-span-2">
+                        <span className="text-gray-600">WhatsApp Group</span>
+                        <a
+                          href={vendor.whatsapp_group_invite_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm mt-1 block truncate"
+                        >
+                          📱 Join WhatsApp Group
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
