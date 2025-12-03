@@ -2278,7 +2278,7 @@ const AdminBookingManagement: React.FC = () => {
                     <label className="text-sm font-semibold text-blue-900">Cashback Amount</label>
                     <div className="flex justify-between items-center">
                       <span className="text-blue-700">Cashback:</span>
-                      <span className="text-blue-700 font-medium">-₹{(editingBooking.cashback_amount || 0).toFixed(2)}</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.cashback || 0).toFixed(2)}</span>
                     </div>
                   </div>
 
