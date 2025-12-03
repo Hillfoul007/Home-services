@@ -167,6 +167,7 @@ const AdminVendorManagement: React.FC = () => {
           .map((s) => s.trim())
           .filter((s) => s),
         rating: parseFloat(formData.rating),
+        whatsapp_group_invite_link: formData.whatsapp_group_invite_link,
         isActive: true,
       };
 
