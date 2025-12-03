@@ -515,6 +515,20 @@ const AdminVendorManagement: React.FC = () => {
                     </div>
                   </div>
 
+                  {vendor.whatsapp_group_invite_link && (
+                    <div className="space-y-2 md:col-span-1 lg:col-span-1">
+                      <div className="text-sm font-medium text-gray-700">WhatsApp Group</div>
+                      <a
+                        href={vendor.whatsapp_group_invite_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-600 hover:underline text-sm font-medium"
+                      >
+                        📱 Join Group
+                      </a>
+                    </div>
+                  )}
+
                   <div className="col-span-1 md:col-span-2 lg:col-span-4 flex justify-end gap-2">
                     <Button
                       size="sm"
