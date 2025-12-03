@@ -71,6 +71,7 @@ const AdminVendorManagement: React.FC = () => {
     lng: '',
     services: '',
     rating: '4.5',
+    whatsapp_group_invite_link: '',
   });
 
   useEffect(() => {
