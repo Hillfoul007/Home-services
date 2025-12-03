@@ -337,7 +337,8 @@ Contact: ${booking.phone}
 Address: ${booking.address || "N/A"}
 Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
 Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
-[QR Code to be shared]`;
+
+Payment: UPI - 9999820179@ptyes`;
 
   return message;
 };
