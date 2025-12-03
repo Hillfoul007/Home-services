@@ -1742,7 +1742,7 @@ router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 // Kept for backward compatibility but redirects to laundry vendor creation
 router.post("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, address, phone, email, services, coordinates, contactPhone } = req.body;
+    const { name, address, phone, email, services, coordinates, contactPhone, whatsapp_group_invite_link } = req.body;
 
     console.log("🆕 Creating vendor (redirected to laundry vendor):", { name, address, phone });
 
@@ -1770,6 +1770,7 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
       services: services || [],
       contactPhone: contactPhone || phone || "",
       phone: phone || "",
+      whatsapp_group_invite_link: whatsapp_group_invite_link || "",
       is_active: true,
     });
 
