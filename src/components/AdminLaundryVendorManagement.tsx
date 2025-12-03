@@ -93,6 +93,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
           email: formData.email || undefined,
           address: formData.address || undefined,
           services: formData.services.split(',').map(s => s.trim()).filter(s => s),
+          whatsapp_group_invite_link: formData.whatsapp_group_invite_link || undefined,
         },
       });
 
