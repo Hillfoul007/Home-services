@@ -1467,6 +1467,17 @@ const AdminBookingManagement: React.FC = () => {
                             <MessageCircle className="h-4 w-4 mr-1" />
                             WhatsApp
                           </Button>
+                          <Button
+                            size="sm"
+                            className="bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100"
+                            onClick={() => {
+                              const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
+                              const message = generatePickupReminder(booking);
+                              sendVendorReminder(vendorGroupLink, message);
+                            }}
+                          >
+                            📤 Pickup Reminder
+                          </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
                               Mark Pickup Complete
@@ -1614,6 +1625,17 @@ const AdminBookingManagement: React.FC = () => {
                           >
                             <MessageCircle className="h-4 w-4 mr-1" />
                             WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100"
+                            onClick={() => {
+                              const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
+                              const message = generateDeliveryReminder(booking);
+                              sendVendorReminder(vendorGroupLink, message);
+                            }}
+                          >
+                            🚚 Delivery Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
