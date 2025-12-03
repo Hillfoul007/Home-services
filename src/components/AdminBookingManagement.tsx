@@ -247,6 +247,111 @@ const sendWhatsAppMessage = (phoneNumber: string, message: string) => {
   window.open(whatsappUrl, '_blank');
 };
 
+const generatePickupReminder = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const message = `Order Pickup 🧺
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${booking.address || "N/A"}
+Pickup Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}`;
+
+  return message;
+};
+
+const generateDeliveryReminder = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const message = `Order Delivery 🚚
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${booking.address || "N/A"}
+Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
+Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
+[QR Code to be shared]`;
+
+  return message;
+};
+
+const sendVendorReminder = (vendorGroupLink: string, message: string) => {
+  if (!vendorGroupLink) {
+    toast.error("Vendor WhatsApp group link not available");
+    return;
+  }
+
+  const encodedMessage = encodeURIComponent(message);
+  const groupUrl = `${vendorGroupLink}?text=${encodedMessage}`;
+  window.open(groupUrl, '_blank');
+};
+
 const normalizeStatus = (status: string) => {
   if (!status) {
     return "created";
