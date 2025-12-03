@@ -2371,6 +2371,15 @@ const AdminBookingManagement: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <ReminderModal
+        isOpen={showReminderModal}
+        onClose={() => setShowReminderModal(false)}
+        title={reminderType === 'pickup' ? 'Pickup Reminder' : 'Delivery Reminder'}
+        message={reminderMessage}
+        vendorGroupLink={reminderVendorGroupLink}
+        reminderType={reminderType}
+      />
     </div>
   );
 };
