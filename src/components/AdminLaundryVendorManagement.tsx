@@ -17,6 +17,7 @@ interface LaundryVendor {
   email?: string;
   address?: string;
   services?: string[];
+  whatsapp_group_invite_link?: string;
   is_active: boolean;
 }
 
