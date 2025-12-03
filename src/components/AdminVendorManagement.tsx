@@ -23,6 +23,7 @@ interface VendorDetails {
   services: string[];
   contactPhone?: string;
   rating?: number;
+  whatsapp_group_invite_link?: string;
   isActive: boolean;
 }
 
