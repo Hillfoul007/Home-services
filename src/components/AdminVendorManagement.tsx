@@ -23,6 +23,7 @@ interface VendorDetails {
   services: string[];
   contactPhone?: string;
   rating?: number;
+  whatsapp_group_invite_link?: string;
   isActive: boolean;
 }
 
@@ -39,6 +40,7 @@ interface FormData {
   lng: string;
   services: string;
   rating: string;
+  whatsapp_group_invite_link: string;
 }
 
 const AVAILABLE_SERVICES = [
@@ -69,6 +71,7 @@ const AdminVendorManagement: React.FC = () => {
     lng: '',
     services: '',
     rating: '4.5',
+    whatsapp_group_invite_link: '',
   });
 
   useEffect(() => {
@@ -164,6 +167,7 @@ const AdminVendorManagement: React.FC = () => {
           .map((s) => s.trim())
           .filter((s) => s),
         rating: parseFloat(formData.rating),
+        whatsapp_group_invite_link: formData.whatsapp_group_invite_link,
         isActive: true,
       };
 
@@ -213,6 +217,7 @@ const AdminVendorManagement: React.FC = () => {
           .map((s) => s.trim())
           .filter((s) => s),
         rating: parseFloat(formData.rating),
+        whatsapp_group_invite_link: formData.whatsapp_group_invite_link,
       };
 
       const response = await apiClient.adminRequest(`/admin/vendors/${vendorId}`, {
@@ -297,6 +302,7 @@ const AdminVendorManagement: React.FC = () => {
       lng: '',
       services: '',
       rating: '4.5',
+      whatsapp_group_invite_link: '',
     });
   };
 
@@ -310,6 +316,7 @@ const AdminVendorManagement: React.FC = () => {
       lng: vendor.coordinates.lng.toString(),
       services: vendor.services.join(', '),
       rating: (vendor.rating || 4.5).toString(),
+      whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
     });
     setIsEditDialogOpen(true);
   };
@@ -426,6 +433,15 @@ const AdminVendorManagement: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="vendor-whatsapp">WhatsApp Group Invite Link</Label>
+                    <Input
+                      id="vendor-whatsapp"
+                      placeholder="https://chat.whatsapp.com/..."
+                      value={formData.whatsapp_group_invite_link}
+                      onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
+                    />
+                  </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                       Cancel
@@ -498,6 +514,20 @@ const AdminVendorManagement: React.FC = () => {
                       ))}
                     </div>
                   </div>
+
+                  {vendor.whatsapp_group_invite_link && (
+                    <div className="space-y-2 md:col-span-1 lg:col-span-1">
+                      <div className="text-sm font-medium text-gray-700">WhatsApp Group</div>
+                      <a
+                        href={vendor.whatsapp_group_invite_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-600 hover:underline text-sm font-medium"
+                      >
+                        📱 Join Group
+                      </a>
+                    </div>
+                  )}
 
                   <div className="col-span-1 md:col-span-2 lg:col-span-4 flex justify-end gap-2">
                     <Button
@@ -622,6 +652,15 @@ const AdminVendorManagement: React.FC = () => {
                   placeholder="e.g., Dry Cleaning, Laundry, Ironing"
                   value={formData.services}
                   onChange={(e) => setFormData({ ...formData, services: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-vendor-whatsapp">WhatsApp Group Invite Link</Label>
+                <Input
+                  id="edit-vendor-whatsapp"
+                  placeholder="https://chat.whatsapp.com/..."
+                  value={formData.whatsapp_group_invite_link}
+                  onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
                 />
               </div>
               <div className="flex justify-end gap-2">

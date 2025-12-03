@@ -13,6 +13,7 @@ import { Loader } from "lucide-react";
 import { walletService, WalletTransaction } from "@/services/walletService";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
+import { formatDateTimeIST } from "@/utils/timeUtils";
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -143,16 +144,7 @@ const WalletModal: React.FC<WalletModalProps> = ({
                               {transaction.description}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {new Date(transaction.created_at).toLocaleDateString(
-                                "en-IN",
-                                {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                }
-                              )}
+                              {formatDateTimeIST(transaction.created_at)}
                             </p>
                           </div>
                         </div>

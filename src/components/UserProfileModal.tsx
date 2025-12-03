@@ -15,6 +15,7 @@ import { User, Phone, Edit3, Save, X, Wallet, RefreshCw, TrendingUp, TrendingDow
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { walletService, type WalletTransaction } from "@/services/walletService";
 import { toast } from "sonner";
+import { formatDateTimeIST } from "@/utils/timeUtils";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -301,13 +302,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 {transaction.description}
                               </p>
                               <p className="text-xs text-gray-500">
-                                {new Date(transaction.created_at).toLocaleDateString('en-IN', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                                {formatDateTimeIST(transaction.created_at)}
                               </p>
                             </div>
                           </div>

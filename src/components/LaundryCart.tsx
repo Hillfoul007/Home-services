@@ -53,6 +53,8 @@ import ZomatoAddAddressPage from "./ZomatoAddAddressPage";
 import { AddressService } from "@/services/addressService";
 import { SessionManager } from "@/utils/sessionManager";
 import { CouponService } from "@/services/couponService";
+import { walletService } from "@/services/walletService";
+import { Wallet } from "lucide-react";
 
 
 interface LaundryCartProps {
@@ -85,6 +87,12 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   } | null>(null);
   const [couponError, setCouponError] = useState("");
 
+  // Wallet state
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletApplied, setWalletApplied] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [showWalletInput, setShowWalletInput] = useState(false);
+  const [walletAmount, setWalletAmount] = useState("");
 
   // Location availability modal state
   const [showLocationUnavailable, setShowLocationUnavailable] = useState(false);
@@ -93,6 +101,27 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   const authService = OTPAuthService.getInstance();
   const couponService = CouponService.getInstance();
 
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      try {
+        const userId = currentUser?.id || currentUser?._id;
+        if (!userId) return;
+
+        setWalletLoading(true);
+        const result = await walletService.getWalletBalance(userId);
+        if (result.success) {
+          setWalletBalance(result.wallet_balance || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching wallet balance:", error);
+      } finally {
+        setWalletLoading(false);
+      }
+    };
+
+    fetchWalletBalance();
+  }, [currentUser]);
 
   // Load saved form data on component mount (excluding date autofill)
   useEffect(() => {
@@ -320,12 +349,60 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   };
 
   const getTotal = () => {
-    return (
+    return Math.max(
+      0,
       getSubtotal() +
       getDeliveryCharge() +
       getHandlingFee() -
-      getCouponDiscount()
+      getCouponDiscount() -
+      walletApplied
     );
+  };
+
+  const applyWallet = () => {
+    if (!walletAmount.trim()) {
+      addNotification(
+        createErrorNotification("Wallet", "Please enter an amount")
+      );
+      return;
+    }
+
+    const amount = parseFloat(walletAmount);
+    const totalBeforeWallet = getSubtotal() + getDeliveryCharge() + getHandlingFee() - getCouponDiscount();
+
+    if (amount <= 0) {
+      addNotification(
+        createErrorNotification("Wallet", "Amount must be greater than 0")
+      );
+      return;
+    }
+
+    if (amount > walletBalance) {
+      addNotification(
+        createErrorNotification("Wallet", `Insufficient balance. Available: ₹${walletBalance}`)
+      );
+      return;
+    }
+
+    if (amount > totalBeforeWallet) {
+      addNotification(
+        createErrorNotification("Wallet", `Amount cannot exceed total (₹${totalBeforeWallet.toFixed(2)})`)
+      );
+      return;
+    }
+
+    setWalletApplied(amount);
+    setShowWalletInput(false);
+    setWalletAmount("");
+    addNotification(
+      createSuccessNotification("Wallet", `Applied ₹${amount.toFixed(2)} from wallet`)
+    );
+  };
+
+  const removeWallet = () => {
+    setWalletApplied(0);
+    setWalletAmount("");
+    setShowWalletInput(false);
   };
 
   const applyCoupon = async () => {
@@ -364,7 +441,7 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         console.log("✅ Coupon applied successfully:", coupon.code);
       } else {
         setCouponError(validation.error || "Invalid coupon code");
-        console.log("❌ Invalid coupon:", validation.error);
+        console.log("��� Invalid coupon:", validation.error);
       }
     } catch (error) {
       console.error("Error in applyCoupon:", error);
@@ -620,9 +697,12 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         finalTotal,
       });
 
+      const finalAmountAfterWallet = Math.max(0, finalTotal - walletApplied);
+
       const orderData = {
         services,
         totalAmount: finalTotal,
+        final_amount: finalAmountAfterWallet,
         pickupDate: selectedDate.toISOString().split("T")[0],
         deliveryDate: finalDeliveryDate.toISOString().split("T")[0],
         pickupTime: selectedTime,
@@ -633,12 +713,16 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         // Explicit coupon information
         coupon_code: appliedCoupon?.code || null,
         discount_amount: couponDiscount,
+        // Wallet information
+        wallet_applied: walletApplied,
+        cashback: walletApplied,
         original_total: serviceTotal + deliveryCharge + handlingFee,
         charges_breakdown: {
           base_price: serviceTotal,
           delivery_fee: deliveryCharge,
           handling_fee: handlingFee,
           discount: couponDiscount,
+          wallet_applied: walletApplied,
         },
       };
 
@@ -654,8 +738,9 @@ ${services.map((s) => `• ${s.name} x${s.quantity} - ₹${s.price * s.quantity}
 Pickup: ${selectedDate.toLocaleDateString()} at ${selectedTime}
 Delivery: ${finalDeliveryDate.toLocaleDateString()} at ${finalDeliveryTime}
 
-${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})` : ""}
+${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})\n` : ""}${walletApplied > 0 ? `Wallet Applied: (-₹${walletApplied.toFixed(2)})\n` : ""}
 Total Amount: ₹${finalTotal}
+${walletApplied > 0 ? `Final Amount (after wallet): ₹${finalAmountAfterWallet.toFixed(2)}` : ""}
 
 Confirm this booking?`;
 
@@ -1255,6 +1340,82 @@ Confirm this booking?`;
                 <span>-₹{getCouponDiscount()}</span>
               </div>
             )}
+
+            {/* Wallet Section */}
+            <div className="space-y-2 pt-2 border-t">
+              {walletApplied === 0 ? (
+                !showWalletInput ? (
+                  <Button
+                    onClick={() => setShowWalletInput(true)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs h-8 flex items-center justify-center gap-2"
+                    disabled={walletBalance === 0 || walletLoading}
+                  >
+                    <Wallet className="h-3 w-3" />
+                    Use Wallet ({walletLoading ? "Loading..." : `₹${walletBalance.toFixed(2)}`})
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Amount (₹)"
+                        value={walletAmount}
+                        onChange={(e) => setWalletAmount(e.target.value)}
+                        min="0"
+                        max={walletBalance}
+                        step="1"
+                        className="flex-1 h-8 text-sm"
+                      />
+                      <Button
+                        onClick={applyWallet}
+                        variant="default"
+                        size="sm"
+                        className="h-8 px-3 text-sm bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue"
+                      >
+                        Apply
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowWalletInput(false);
+                          setWalletAmount("");
+                        }}
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-gray-500"
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Available: ₹{walletBalance.toFixed(2)}
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="flex justify-between items-center text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600 font-medium text-xs">
+                      ✓ Wallet Applied
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600 font-medium">
+                      -₹{walletApplied.toFixed(2)}
+                    </span>
+                    <Button
+                      onClick={removeWallet}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-red-500 hover:bg-red-50"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <hr className="my-2" />
 

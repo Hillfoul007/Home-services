@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import UserService from "@/services/userService";
 import SavedAddressesModal from "./SavedAddressesModal";
 import { walletService, type WalletTransaction } from "@/services/walletService";
+import { formatDateTimeIST } from "@/utils/timeUtils";
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -364,13 +365,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                                   {transaction.description}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  {new Date(transaction.created_at).toLocaleDateString('en-IN', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
+                                  {formatDateTimeIST(transaction.created_at)}
                                 </p>
                               </div>
                             </div>

@@ -24,6 +24,7 @@ import {
   XCircle,
   AlertCircle,
   Store,
+  MessageCircle,
 } from "lucide-react";
 import { vendorService } from "@/services/vendorService";
 import { walletService } from "@/services/walletService";
@@ -169,6 +170,187 @@ type MutationFlags = {
 };
 
 type MutationKey = keyof MutationFlags;
+
+const generateWhatsAppMessage = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const servicesList = booking.services && booking.services.length > 0
+    ? booking.services.join(", ")
+    : (booking.item_prices && booking.item_prices.length > 0
+        ? booking.item_prices.map(item => item.service_name || item.name).join(", ")
+        : "Laundry Services");
+
+  const walletCashbackAmount = booking.final_amount && booking.wallet_cashback
+    ? ((booking.final_amount * booking.wallet_cashback) / 100).toFixed(2)
+    : "0.00";
+
+  const message = `Order Confirmed! 🎉 Congratulations! Your order has been confirmed and picked up. Please find below the details:
+
+Order ID: ${booking.custom_order_id}
+Tentative delivery date: ${formatDateForMessage(deliveryDate)}
+Tentative delivery time: ${formatTimeForMessage(deliveryTime)}
+Address: ${booking.address || "N/A"}
+Services requested: ${servicesList}
+Total amount to pay: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
+Old Cashback (deducted from wallet): ₹${(booking.cashback || 0).toFixed(2)}
+New Cashback (added to wallet): ₹${walletCashbackAmount}
+
+Thank you for choosing Laundrify! 😊🧺
+
+Dear Customer, Please Download and login to the app with the below link for the bill details:
+
+www.Laundrify.online
+
+Thanks, Team Laundrify!`;
+
+  return message;
+};
+
+const sendWhatsAppMessage = (phoneNumber: string, message: string) => {
+  const encodedMessage = encodeURIComponent(message);
+  const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+  const phoneWithCountryCode = cleanPhoneNumber.length === 10 ? `91${cleanPhoneNumber}` : cleanPhoneNumber;
+
+  const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodedMessage}`;
+  window.open(whatsappUrl, '_blank');
+};
+
+const generatePickupReminder = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const message = `Order Pickup 🧺
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${booking.address || "N/A"}
+Pickup Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}`;
+
+  return message;
+};
+
+const generateDeliveryReminder = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const message = `Order Delivery 🚚
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${booking.address || "N/A"}
+Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
+Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
+[QR Code to be shared]`;
+
+  return message;
+};
+
+const sendVendorReminder = (vendorGroupLink: string, message: string) => {
+  if (!vendorGroupLink) {
+    toast.error("Vendor WhatsApp group link not available");
+    return;
+  }
+
+  const encodedMessage = encodeURIComponent(message);
+  const groupUrl = `${vendorGroupLink}?text=${encodedMessage}`;
+  window.open(groupUrl, '_blank');
+};
 
 const normalizeStatus = (status: string) => {
   if (!status) {
@@ -761,18 +943,51 @@ const AdminBookingManagement: React.FC = () => {
 
   // Load user's wallet balance when editing booking
   useEffect(() => {
-    if (editingBooking?.customer_id && showEditDialog) {
+    if (editingBooking && showEditDialog) {
       const loadWalletBalance = async () => {
         setLoadingWallet(true);
         try {
-          const result = await walletService.getWalletBalance(editingBooking.customer_id);
+          // Extract string ID from customer_id (could be an object or string)
+          let customerId = editingBooking.customer_id;
+          if (customerId && typeof customerId === 'object') {
+            // If it's an object, try to get the _id or id property
+            customerId = customerId._id || customerId.id || customerId.toString();
+          }
+
+          // Use customer_id if available, otherwise fall back to phone number
+          const userId = customerId || editingBooking.phone;
+
+          console.log('🔍 Attempting wallet lookup with:', {
+            customer_id: editingBooking.customer_id,
+            customer_id_type: typeof editingBooking.customer_id,
+            extracted_id: customerId,
+            phone: editingBooking.phone,
+            userId: userId,
+            booking_id: editingBooking._id,
+            booking_name: editingBooking.name
+          });
+
+          if (!userId) {
+            console.warn('❌ No customer_id or phone available for wallet lookup');
+            setUserWalletBalance(0);
+            return;
+          }
+
+          const result = await walletService.getWalletBalance(userId);
+          console.log('💰 Wallet balance response:', {
+            userId,
+            response: result,
+            wallet_balance: result.wallet_balance
+          });
+
           if (result.success) {
             setUserWalletBalance(result.wallet_balance || 0);
           } else {
+            console.warn('⚠️  Wallet fetch returned success: false', result);
             setUserWalletBalance(0);
           }
         } catch (error) {
-          console.warn('Failed to load wallet balance:', error);
+          console.warn('❌ Failed to load wallet balance:', error);
           setUserWalletBalance(0);
         } finally {
           setLoadingWallet(false);
@@ -780,7 +995,7 @@ const AdminBookingManagement: React.FC = () => {
       };
       loadWalletBalance();
     }
-  }, [editingBooking?.customer_id, showEditDialog]);
+  }, [editingBooking?._id, showEditDialog]);
 
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
@@ -1233,12 +1448,35 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => {
+                              const message = generateWhatsAppMessage(booking);
+                              sendWhatsAppMessage(booking.phone, message);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100"
+                            onClick={() => {
+                              const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
+                              const message = generatePickupReminder(booking);
+                              sendVendorReminder(vendorGroupLink, message);
+                            }}
+                          >
+                            📤 Pickup Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
@@ -1369,12 +1607,35 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => {
+                              const message = generateWhatsAppMessage(booking);
+                              sendWhatsAppMessage(booking.phone, message);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100"
+                            onClick={() => {
+                              const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
+                              const message = generateDeliveryReminder(booking);
+                              sendVendorReminder(vendorGroupLink, message);
+                            }}
+                          >
+                            🚚 Delivery Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
@@ -1481,6 +1742,17 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-sm font-medium">₹{booking.final_amount ?? booking.total_price}</div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                          onClick={() => {
+                            const message = generateWhatsAppMessage(booking);
+                            sendWhatsAppMessage(booking.phone, message);
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -1607,27 +1879,6 @@ const AdminBookingManagement: React.FC = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  <Label htmlFor="edit-cashback">Cashback Amount (��)</Label>
-                  <Input
-                    id="edit-cashback"
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={editingBooking.cashback_amount || ""}
-                    onChange={(event) =>
-                      setEditingBooking((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              cashback_amount: parseFloat(event.target.value) || 0,
-                            }
-                          : prev,
-                      )
-                    }
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Deducted from total before discount</p>
                 </div>
                 <div>
                   <Label htmlFor="edit-discount">Discount %</Label>
@@ -1775,6 +2026,7 @@ const AdminBookingManagement: React.FC = () => {
                             return { vendor, distance };
                           })
                           .sort((a, b) => a.distance - b.distance)
+                          .slice(0, 5)
                           .map(({ vendor, distance }) => {
                             const distanceLabel = distance !== Infinity ? ` • ${distance.toFixed(1)} km` : "";
                             return (
