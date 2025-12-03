@@ -190,6 +190,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       address: vendor.address || '',
       password: '',
       services: vendor.services?.join(', ') || '',
+      whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
     });
     setShowPassword(false);
     setIsEditDialogOpen(true);
