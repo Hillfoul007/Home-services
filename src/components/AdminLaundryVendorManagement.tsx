@@ -73,6 +73,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       address: '',
       password: '',
       services: '',
+      whatsapp_group_invite_link: '',
     });
     setShowPassword(false);
   };
