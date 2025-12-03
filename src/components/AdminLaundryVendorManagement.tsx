@@ -427,6 +427,15 @@ const AdminLaundryVendorManagement: React.FC = () => {
                                   onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                                 />
                               </div>
+                              <div>
+                                <Label htmlFor="edit-whatsapp">WhatsApp Group Invite Link</Label>
+                                <Input
+                                  id="edit-whatsapp"
+                                  placeholder="https://chat.whatsapp.com/..."
+                                  value={formData.whatsapp_group_invite_link}
+                                  onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
+                                />
+                              </div>
                               <div className="flex gap-2 pt-2">
                                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
                                 <Button onClick={handleUpdateVendor} className="flex-1">Save</Button>
