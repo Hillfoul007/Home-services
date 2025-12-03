@@ -316,6 +316,7 @@ const AdminVendorManagement: React.FC = () => {
       lng: vendor.coordinates.lng.toString(),
       services: vendor.services.join(', '),
       rating: (vendor.rating || 4.5).toString(),
+      whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
     });
     setIsEditDialogOpen(true);
   };
