@@ -1788,7 +1788,7 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
 router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive } = req.body;
+    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive, whatsapp_group_invite_link } = req.body;
 
     console.log(`📝 Updating vendor: ${vendorId}`);
 
@@ -1810,6 +1810,7 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
         operatingHours,
         minimumOrderValue,
         deliveryTime,
+        whatsapp_group_invite_link,
         isActive: isActive !== undefined ? isActive : true,
       },
       { new: true, runValidators: true }
