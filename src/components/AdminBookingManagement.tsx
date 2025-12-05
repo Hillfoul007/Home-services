@@ -294,7 +294,7 @@ Order ID: ${booking.custom_order_id}
 Name: ${booking.name}
 Contact: ${booking.phone}
 Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
-Pickup Date: ${formatDateForMessage(deliveryDate)}`;
+Pickup Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}`;
 
   return message;
 };
