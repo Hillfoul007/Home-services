@@ -1148,25 +1148,25 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                             )}
                           </div>
 
-                          {/* Wallet Used if applicable */}
-                          {safeBooking.cashback &&
-                            safeBooking.cashback > 0 && (
-                              <div className="flex justify-between items-center mb-2">
+                          {/* Wallet Activity Section */}
+                          <div className="border-t border-blue-300 pt-2">
+                            <h4 className="text-xs font-semibold text-gray-700 mb-2">Wallet Activity</h4>
+
+                            {safeBooking.cashback && safeBooking.cashback > 0 && (
+                              <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm text-blue-600">
-                                  Wallet Used
+                                  💳 Debited from Wallet
                                 </span>
                                 <span className="font-medium text-blue-600">
-                                  -₹{safeBooking.cashback}
+                                  -₹{safeBooking.cashback.toFixed(2)}
                                 </span>
                               </div>
                             )}
 
-                          {/* Wallet Applied if applicable */}
-                          {safeBooking.wallet_applied &&
-                            safeBooking.wallet_applied > 0 && (
-                              <div className="flex justify-between items-center mb-2">
+                            {safeBooking.wallet_applied && safeBooking.wallet_applied > 0 && (
+                              <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm text-blue-600">
-                                  Wallet Applied
+                                  💳 Wallet Used
                                 </span>
                                 <span className="font-medium text-blue-600">
                                   -₹{safeBooking.wallet_applied.toFixed(2)}
@@ -1174,12 +1174,10 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                               </div>
                             )}
 
-                          {/* Cashback Earned if applicable */}
-                          {safeBooking.wallet_cashback &&
-                            safeBooking.wallet_cashback > 0 && (
-                              <div className="flex justify-between items-center mb-2">
+                            {safeBooking.wallet_cashback && safeBooking.wallet_cashback > 0 && (
+                              <div className="flex justify-between items-center">
                                 <span className="text-sm text-purple-600">
-                                  Cashback Earned
+                                  ✨ Cashback Credited to Wallet
                                 </span>
                                 <span className="font-medium text-purple-600">
                                   +₹{(safeBooking.wallet_cashback > 0 && safeBooking.wallet_cashback < 100
@@ -1188,6 +1186,13 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                                 </span>
                               </div>
                             )}
+
+                            {!safeBooking.cashback && !safeBooking.wallet_applied && !safeBooking.wallet_cashback && (
+                              <div className="text-xs text-gray-500">
+                                No wallet transactions
+                              </div>
+                            )}
+                          </div>
 
                           {/* Tax if applicable */}
                           {safeBooking.charges_breakdown?.tax_amount && (
