@@ -1068,7 +1068,7 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                           Price Breakdown
                         </h4>
 
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4">
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4 space-y-3">
                           {/* Service Total */}
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-sm text-gray-600">
