@@ -1122,16 +1122,17 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                             </div>
                           </div>
 
-                          {/* Discount if applicable */}
-                          {safeBooking.discount_amount &&
-                            safeBooking.discount_amount > 0 && (
+                          {/* Discounts & Offers Section */}
+                          <div className="border-t border-green-300 pt-2">
+                            <h4 className="text-xs font-semibold text-gray-700 mb-2">Discounts & Offers</h4>
+                            {safeBooking.discount_amount && safeBooking.discount_amount > 0 ? (
                               <div className="space-y-1">
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-green-600">
                                     Discount
                                   </span>
                                   <span className="font-medium text-green-600">
-                                    -₹{safeBooking.discount_amount}
+                                    -₹{safeBooking.discount_amount.toFixed(2)}
                                   </span>
                                 </div>
                                 {safeBooking.coupon_code && (
@@ -1140,7 +1141,12 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                                   </div>
                                 )}
                               </div>
+                            ) : (
+                              <div className="text-xs text-gray-500">
+                                No discount applied
+                              </div>
                             )}
+                          </div>
 
                           {/* Wallet Used if applicable */}
                           {safeBooking.cashback &&
