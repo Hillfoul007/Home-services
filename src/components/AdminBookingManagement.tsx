@@ -249,8 +249,8 @@ const sendWhatsAppMessage = (phoneNumber: string, message: string) => {
 };
 
 const generatePickupReminder = (booking: Booking): string => {
-  const deliveryDate = booking.delivery_date || booking.scheduled_date;
-  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+  const pickupDate = booking.pickup_date || booking.scheduled_date;
+  const pickupTime = booking.pickup_time || booking.scheduled_time || "00:00";
 
   const formatDateForMessage = (dateStr: string | undefined): string => {
     if (!dateStr) return "N/A";
