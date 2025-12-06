@@ -1204,15 +1204,6 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                             )}
                           </div>
 
-                          {/* Tax if applicable */}
-                          {safeBooking.charges_breakdown?.tax_amount && (
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-sm text-gray-600">Tax</span>
-                              <span className="font-medium">
-                                ���{safeBooking.charges_breakdown.tax_amount}
-                              </span>
-                            </div>
-                          )}
 
                           {/* Final Amount */}
                           <div className="border-t-2 border-green-400 pt-3">
