@@ -429,7 +429,8 @@ const AdminUserBooking: React.FC = () => {
         created_by_admin: true,
         is_quick_pickup: bookingData.is_quick_pickup || false,
         quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
-        assignedVendor: selectedVendor?.id || "",
+        assignedVendor: selectedVendor ? decodeHtmlEntities(selectedVendor.name) : "",
+        assignedVendorId: selectedVendor?.id || "",
         assignedVendorDetails: selectedVendor ? {
           name: decodeHtmlEntities(selectedVendor.name),
           address: decodeHtmlEntities(selectedVendor.address),
