@@ -211,7 +211,11 @@ const AdminUserBooking: React.FC = () => {
         // Auto-select nearest vendor
         if (enrichedVendors.length > 0) {
           setSelectedVendor(enrichedVendors[0]);
-          setBookingData(prev => ({ ...prev, assignedVendor: enrichedVendors[0].id }));
+          setBookingData(prev => ({
+            ...prev,
+            assignedVendor: decodeHtmlEntities(enrichedVendors[0].name),
+            assignedVendorId: enrichedVendors[0].id
+          }));
         }
       } else {
         toast.error('Failed to fetch vendors');
