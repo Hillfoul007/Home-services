@@ -1204,10 +1204,11 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                             </div>
                           )}
 
-                          <div className="border-t border-green-200 pt-2">
-                            <div className="flex justify-between items-center">
+                          {/* Final Amount */}
+                          <div className="border-t-2 border-green-400 pt-3">
+                            <div className="flex justify-between items-center mb-2">
                               <span className="font-semibold text-gray-900">
-                                Total Amount
+                                Final Amount
                               </span>
                               <span className="text-xl font-bold text-green-600">
                                 ₹
@@ -1230,16 +1231,16 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                                         safeBooking.totalAmount ||
                                         safeBooking.total_price ||
                                         0;
-                                  return actualTotal;
+                                  return actualTotal.toFixed(2);
                                 })()}
                               </span>
                             </div>
-                            <div className="flex justify-between items-center mt-1">
+                            <div className="flex justify-between items-center">
                               <span className="text-xs text-gray-500">
                                 Payment Status
                               </span>
                               <span
-                                className={`text-xs px-2 py-1 rounded-full ${
+                                className={`text-xs px-2 py-1 rounded-full font-medium ${
                                   (safeBooking.payment_status ||
                                     safeBooking.paymentStatus) === "paid"
                                     ? "bg-green-100 text-green-800"
