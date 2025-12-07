@@ -204,14 +204,18 @@ const AdminUserBooking: React.FC = () => {
           distance: vendor.distance,
           estimatedTime: vendor.estimatedTime,
           isActive: vendor.isActive !== false,
-        })).sort((a, b) => a.distance - b.distance).slice(0, 5);
+        })).sort((a, b) => a.distance - b.distance).slice(0, 10);
 
         setVendors(enrichedVendors);
 
         // Auto-select nearest vendor
         if (enrichedVendors.length > 0) {
           setSelectedVendor(enrichedVendors[0]);
-          setBookingData(prev => ({ ...prev, assignedVendor: enrichedVendors[0].id }));
+          setBookingData(prev => ({
+            ...prev,
+            assignedVendor: decodeHtmlEntities(enrichedVendors[0].name),
+            assignedVendorId: enrichedVendors[0].id
+          }));
         }
       } else {
         toast.error('Failed to fetch vendors');
@@ -429,7 +433,8 @@ const AdminUserBooking: React.FC = () => {
         created_by_admin: true,
         is_quick_pickup: bookingData.is_quick_pickup || false,
         quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
-        assignedVendor: selectedVendor?.id || "",
+        assignedVendor: selectedVendor ? decodeHtmlEntities(selectedVendor.name) : "",
+        assignedVendorId: selectedVendor?.id || "",
         assignedVendorDetails: selectedVendor ? {
           name: decodeHtmlEntities(selectedVendor.name),
           address: decodeHtmlEntities(selectedVendor.address),

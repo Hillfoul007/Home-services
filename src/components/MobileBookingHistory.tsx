@@ -1068,7 +1068,7 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                           Price Breakdown
                         </h4>
 
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4">
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4 space-y-3">
                           {/* Service Total */}
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-sm text-gray-600">
@@ -1122,16 +1122,27 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                             </div>
                           </div>
 
-                          {/* Discount if applicable */}
-                          {safeBooking.discount_amount &&
-                            safeBooking.discount_amount > 0 && (
+                          {/* Tax */}
+                          {safeBooking.charges_breakdown?.tax_amount && safeBooking.charges_breakdown.tax_amount > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Tax</span>
+                              <span className="font-medium">
+                                +₹{safeBooking.charges_breakdown.tax_amount.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Discounts & Offers Section */}
+                          <div className="border-t border-green-300 pt-2">
+                            <h4 className="text-xs font-semibold text-gray-700 mb-2">Discounts & Offers</h4>
+                            {safeBooking.discount_amount && safeBooking.discount_amount > 0 ? (
                               <div className="space-y-1">
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-green-600">
                                     Discount
                                   </span>
                                   <span className="font-medium text-green-600">
-                                    -₹{safeBooking.discount_amount}
+                                    -₹{safeBooking.discount_amount.toFixed(2)}
                                   </span>
                                 </div>
                                 {safeBooking.coupon_code && (
@@ -1140,27 +1151,32 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                                   </div>
                                 )}
                               </div>
+                            ) : (
+                              <div className="text-xs text-gray-500">
+                                No discount applied
+                              </div>
                             )}
+                          </div>
 
-                          {/* Wallet Used if applicable */}
-                          {safeBooking.cashback &&
-                            safeBooking.cashback > 0 && (
-                              <div className="flex justify-between items-center mb-2">
+                          {/* Wallet Activity Section */}
+                          <div className="border-t border-blue-300 pt-2">
+                            <h4 className="text-xs font-semibold text-gray-700 mb-2">Wallet Activity</h4>
+
+                            {safeBooking.cashback && safeBooking.cashback > 0 && (
+                              <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm text-blue-600">
-                                  Wallet Used
+                                  💳 Debited from Wallet
                                 </span>
                                 <span className="font-medium text-blue-600">
-                                  -₹{safeBooking.cashback}
+                                  -₹{safeBooking.cashback.toFixed(2)}
                                 </span>
                               </div>
                             )}
 
-                          {/* Wallet Applied if applicable */}
-                          {safeBooking.wallet_applied &&
-                            safeBooking.wallet_applied > 0 && (
-                              <div className="flex justify-between items-center mb-2">
+                            {safeBooking.wallet_applied && safeBooking.wallet_applied > 0 && (
+                              <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm text-blue-600">
-                                  Wallet Applied
+                                  💳 Wallet Used
                                 </span>
                                 <span className="font-medium text-blue-600">
                                   -₹{safeBooking.wallet_applied.toFixed(2)}
@@ -1168,12 +1184,10 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                               </div>
                             )}
 
-                          {/* Cashback Earned if applicable */}
-                          {safeBooking.wallet_cashback &&
-                            safeBooking.wallet_cashback > 0 && (
-                              <div className="flex justify-between items-center mb-2">
+                            {safeBooking.wallet_cashback && safeBooking.wallet_cashback > 0 && (
+                              <div className="flex justify-between items-center">
                                 <span className="text-sm text-purple-600">
-                                  Cashback Earned
+                                  ✨ Cashback Credited to Wallet
                                 </span>
                                 <span className="font-medium text-purple-600">
                                   +₹{(safeBooking.wallet_cashback > 0 && safeBooking.wallet_cashback < 100
@@ -1183,20 +1197,19 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                               </div>
                             )}
 
-                          {/* Tax if applicable */}
-                          {safeBooking.charges_breakdown?.tax_amount && (
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-sm text-gray-600">Tax</span>
-                              <span className="font-medium">
-                                ���{safeBooking.charges_breakdown.tax_amount}
-                              </span>
-                            </div>
-                          )}
+                            {!safeBooking.cashback && !safeBooking.wallet_applied && !safeBooking.wallet_cashback && (
+                              <div className="text-xs text-gray-500">
+                                No wallet transactions
+                              </div>
+                            )}
+                          </div>
 
-                          <div className="border-t border-green-200 pt-2">
-                            <div className="flex justify-between items-center">
+
+                          {/* Final Amount */}
+                          <div className="border-t-2 border-green-400 pt-3">
+                            <div className="flex justify-between items-center mb-2">
                               <span className="font-semibold text-gray-900">
-                                Total Amount
+                                Final Amount
                               </span>
                               <span className="text-xl font-bold text-green-600">
                                 ₹
@@ -1219,16 +1232,16 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                                         safeBooking.totalAmount ||
                                         safeBooking.total_price ||
                                         0;
-                                  return actualTotal;
+                                  return actualTotal.toFixed(2);
                                 })()}
                               </span>
                             </div>
-                            <div className="flex justify-between items-center mt-1">
+                            <div className="flex justify-between items-center">
                               <span className="text-xs text-gray-500">
                                 Payment Status
                               </span>
                               <span
-                                className={`text-xs px-2 py-1 rounded-full ${
+                                className={`text-xs px-2 py-1 rounded-full font-medium ${
                                   (safeBooking.payment_status ||
                                     safeBooking.paymentStatus) === "paid"
                                     ? "bg-green-100 text-green-800"

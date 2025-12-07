@@ -33,6 +33,7 @@ import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
+import ReminderModal from "@/components/ReminderModal";
 
 interface ItemPrice {
   service_name?: string;
@@ -86,12 +87,16 @@ interface Booking {
   discount_percent?: number;
   cashback_amount?: number;
   cashback?: number;
+  wallet_applied?: number;
   wallet_cashback?: number;
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
   coordinates?: { lat: number; lng: number };
   distance_to_vendor?: number;
+  assignedVendor?: string;
+  assignedVendorId?: string;
+  vendorGroupLink?: string;
   items_images?: Array<{
     file_id: string;
     filename: string;
@@ -248,8 +253,8 @@ const sendWhatsAppMessage = (phoneNumber: string, message: string) => {
 };
 
 const generatePickupReminder = (booking: Booking): string => {
-  const deliveryDate = booking.delivery_date || booking.scheduled_date;
-  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+  const pickupDate = booking.pickup_date || booking.scheduled_date;
+  const pickupTime = booking.pickup_time || booking.scheduled_time || "00:00";
 
   const formatDateForMessage = (dateStr: string | undefined): string => {
     if (!dateStr) return "N/A";
@@ -282,13 +287,18 @@ const generatePickupReminder = (booking: Booking): string => {
     }
   };
 
+  const address = booking.address || "N/A";
+  const mapsLink = address && address !== "N/A"
+    ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+    : "";
+
   const message = `Order Pickup 🧺
 
 Order ID: ${booking.custom_order_id}
 Name: ${booking.name}
 Contact: ${booking.phone}
-Address: ${booking.address || "N/A"}
-Pickup Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}`;
+Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
+Pickup Date & Time: ${formatDateForMessage(pickupDate)}, ${formatTimeForMessage(pickupTime)}`;
 
   return message;
 };
@@ -328,15 +338,21 @@ const generateDeliveryReminder = (booking: Booking): string => {
     }
   };
 
+  const address = booking.address || "N/A";
+  const mapsLink = address && address !== "N/A"
+    ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+    : "";
+
   const message = `Order Delivery 🚚
 
 Order ID: ${booking.custom_order_id}
 Name: ${booking.name}
 Contact: ${booking.phone}
-Address: ${booking.address || "N/A"}
+Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
 Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
 Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
-[QR Code to be shared]`;
+
+Payment: UPI - 9999820179@ptyes`;
 
   return message;
 };
@@ -634,6 +650,12 @@ const AdminBookingManagement: React.FC = () => {
   const [readySearchTerm, setReadySearchTerm] = useState("");
   const [readyStatusFilter, setReadyStatusFilter] = useState("all");
   const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
+
+  // Reminder modal state
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderType, setReminderType] = useState<'pickup' | 'delivery'>('pickup');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderVendorGroupLink, setReminderVendorGroupLink] = useState<string | undefined>();
 
 
   const fetchVendors = async () => {
@@ -1471,9 +1493,18 @@ const AdminBookingManagement: React.FC = () => {
                             size="sm"
                             className="bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100"
                             onClick={() => {
-                              const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
+                              // Handle both vendor name and vendor ID for backward compatibility
+                              let vendorData = vendorFullData[booking.assignedVendor];
+                              if (!vendorData && booking.assignedVendorId) {
+                                // Try to find by ID if name lookup fails
+                                vendorData = Object.values(vendorFullData).find((v: any) => v.id === booking.assignedVendorId || v._id === booking.assignedVendorId);
+                              }
+                              const vendorGroupLink = booking.vendorGroupLink || vendorData?.whatsapp_group_invite_link;
                               const message = generatePickupReminder(booking);
-                              sendVendorReminder(vendorGroupLink, message);
+                              setReminderMessage(message);
+                              setReminderType('pickup');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
                             }}
                           >
                             📤 Pickup Reminder
@@ -1630,9 +1661,18 @@ const AdminBookingManagement: React.FC = () => {
                             size="sm"
                             className="bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100"
                             onClick={() => {
-                              const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
+                              // Handle both vendor name and vendor ID for backward compatibility
+                              let vendorData = vendorFullData[booking.assignedVendor];
+                              if (!vendorData && booking.assignedVendorId) {
+                                // Try to find by ID if name lookup fails
+                                vendorData = Object.values(vendorFullData).find((v: any) => v.id === booking.assignedVendorId || v._id === booking.assignedVendorId);
+                              }
+                              const vendorGroupLink = booking.vendorGroupLink || vendorData?.whatsapp_group_invite_link;
                               const message = generateDeliveryReminder(booking);
-                              sendVendorReminder(vendorGroupLink, message);
+                              setReminderMessage(message);
+                              setReminderType('delivery');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
                             }}
                           >
                             🚚 Delivery Reminder
@@ -2026,7 +2066,7 @@ const AdminBookingManagement: React.FC = () => {
                             return { vendor, distance };
                           })
                           .sort((a, b) => a.distance - b.distance)
-                          .slice(0, 5)
+                          .slice(0, 10)
                           .map(({ vendor, distance }) => {
                             const distanceLabel = distance !== Infinity ? ` • ${distance.toFixed(1)} km` : "";
                             return (
@@ -2254,7 +2294,7 @@ const AdminBookingManagement: React.FC = () => {
                     <label className="text-sm font-semibold text-blue-900">Cashback Amount</label>
                     <div className="flex justify-between items-center">
                       <span className="text-blue-700">Cashback:</span>
-                      <span className="text-blue-700 font-medium">-₹{(editingBooking.cashback_amount || 0).toFixed(2)}</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.cashback || 0).toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -2358,6 +2398,15 @@ const AdminBookingManagement: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <ReminderModal
+        isOpen={showReminderModal}
+        onClose={() => setShowReminderModal(false)}
+        title={reminderType === 'pickup' ? 'Pickup Reminder' : 'Delivery Reminder'}
+        message={reminderMessage}
+        vendorGroupLink={reminderVendorGroupLink}
+        reminderType={reminderType}
+      />
     </div>
   );
 };
