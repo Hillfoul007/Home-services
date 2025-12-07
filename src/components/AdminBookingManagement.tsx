@@ -87,6 +87,7 @@ interface Booking {
   discount_percent?: number;
   cashback_amount?: number;
   cashback?: number;
+  wallet_applied?: number;
   wallet_cashback?: number;
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
