@@ -93,6 +93,9 @@ interface Booking {
   completed_at?: string;
   coordinates?: { lat: number; lng: number };
   distance_to_vendor?: number;
+  assignedVendor?: string;
+  assignedVendorId?: string;
+  vendorGroupLink?: string;
   items_images?: Array<{
     file_id: string;
     filename: string;
