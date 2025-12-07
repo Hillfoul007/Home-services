@@ -1657,7 +1657,13 @@ const AdminBookingManagement: React.FC = () => {
                             size="sm"
                             className="bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100"
                             onClick={() => {
-                              const vendorGroupLink = booking.vendorGroupLink || vendorFullData[booking.assignedVendor]?.whatsapp_group_invite_link;
+                              // Handle both vendor name and vendor ID for backward compatibility
+                              let vendorData = vendorFullData[booking.assignedVendor];
+                              if (!vendorData && booking.assignedVendorId) {
+                                // Try to find by ID if name lookup fails
+                                vendorData = Object.values(vendorFullData).find((v: any) => v.id === booking.assignedVendorId || v._id === booking.assignedVendorId);
+                              }
+                              const vendorGroupLink = booking.vendorGroupLink || vendorData?.whatsapp_group_invite_link;
                               const message = generateDeliveryReminder(booking);
                               setReminderMessage(message);
                               setReminderType('delivery');
