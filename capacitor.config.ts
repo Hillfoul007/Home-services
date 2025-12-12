@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.laundrify.app',
+  appId: 'com.laundrify.laundry',
   appName: 'Laundrify',
   webDir: 'dist',
   bundledWebRuntime: false
