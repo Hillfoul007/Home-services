@@ -16,8 +16,17 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            storeFile file(project.findProperty('MYAPP_RELEASE_STORE_FILE') ?: '../laundrify-release-keystore.jks')
+            storePassword project.findProperty('MYAPP_RELEASE_STORE_PASSWORD') ?: System.getenv('MYAPP_RELEASE_STORE_PASSWORD')
+            keyAlias project.findProperty('MYAPP_RELEASE_KEY_ALIAS') ?: 'laundrify-key'
+            keyPassword project.findProperty('MYAPP_RELEASE_KEY_PASSWORD') ?: System.getenv('MYAPP_RELEASE_KEY_PASSWORD')
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
