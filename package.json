@@ -34,6 +34,8 @@
     "cap:sync": "npx cap sync",
     "cap:open:android": "npx cap open android",
     "build:android": "npm run build && npx cap copy android && npx cap sync android",
+    "generate:keystore": "bash scripts/generate-keystore.sh",
+    "build:aab": "bash scripts/build-android-aab.sh",
     "migrate:wallet": "node backend/scripts/init-wallet-balance.js"
   },
   "dependencies": {
@@ -100,6 +102,9 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
     "@eslint/js": "^9.13.0",
     "@types/node": "^22.8.6",
     "@types/react": "^18.3.12",
