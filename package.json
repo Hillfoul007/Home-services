@@ -100,6 +100,9 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
     "@eslint/js": "^9.13.0",
     "@types/node": "^22.8.6",
     "@types/react": "^18.3.12",
