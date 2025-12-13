@@ -1436,6 +1436,31 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
       {/* Desktop Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
 
+        {/* Active Order Status Bar - Zomato Style */}
+        {activeOrder && !loadingActiveOrder && (
+          <div className="mb-8 p-6 bg-white rounded-2xl shadow-md border border-blue-100">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Your Active Order</h3>
+              <p className="text-sm text-gray-600">
+                Order #{activeOrder.custom_order_id || activeOrder.order_id || "Order ID"}
+              </p>
+            </div>
+            <OrderStatusBar
+              riderStatus={mapStatusToRiderStatus(activeOrder.status)}
+              bookingStatus={activeOrder.status}
+            />
+            <div className="mt-4">
+              <Button
+                onClick={handleViewBookings}
+                variant="outline"
+                className="text-sm text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                View Full Details
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-laundrify-purple to-laundrify-pink rounded-2xl text-white p-8 mb-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
