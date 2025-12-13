@@ -39,6 +39,7 @@ import {
 import { BookingService } from "@/services/bookingService";
 import { adaptiveBookingHelpers } from "@/integrations/adaptive/bookingHelpers";
 import EditBookingModal from "./EditBookingModal";
+import OrderStatusBar from "./OrderStatusBar";
 import { clearAllUserData } from "@/utils/clearStorage";
 import { filterProductionBookings } from "@/utils/bookingFilters";
 import {
