@@ -31,26 +31,45 @@ npm run build:aab
 - If missing, runs `./gradlew --version` to trigger automatic download
 - Gradle wrapper then downloads the required Gradle version
 
+### 🚨 Windows - If Gradle Wrapper Jar is Still Missing
+
+If you still get `Unable to access jarfile` error on Windows:
+
+**Option 1: Initialize using Command Prompt (Recommended)**
+```cmd
+cd android
+gradlew.bat --version
+cd ..
+npm run build:aab
+```
+
+**Option 2: Delete and Regenerate Android Project**
+```bash
+rm -r android
+npx cap add android
+npm run build:aab
+```
+
 ### Troubleshooting
 
-**If setup still fails:**
+**Verify Java is installed:**
 ```bash
-cd android
-./gradlew.bat --version    # Windows
-./gradlew --version        # macOS/Linux
+java -version
+# Should show JDK 11 or higher
 ```
 
-**To verify Gradle is working:**
+**Clear Gradle cache and retry:**
 ```bash
-cd android
-./gradlew.bat clean        # Windows
-./gradlew clean            # macOS/Linux
+rm -rf android/.gradle
+npm run setup:gradle
+npm run build:aab
 ```
 
-**If gradle still doesn't work:**
-- Ensure Java/JDK 11+ is installed: `java -version`
-- Try clearing: `rm -rf android/.gradle`
-- Then run: `npm run setup:gradle`
+**Check if gradlew scripts exist:**
+```bash
+ls android/gradlew*        # macOS/Linux
+dir android\gradlew*       # Windows
+```
 
 ## After Cloning or Pulling
 After you clone the repository or pull new changes:
