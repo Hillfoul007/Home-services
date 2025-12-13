@@ -15,6 +15,7 @@ export interface MappedBookingData {
   _id?: string;
   custom_order_id: string;
   status: string;
+  riderStatus?: string;
   customer_name: string;
   customer_phone: string;
   address: string;
@@ -37,6 +38,11 @@ export interface MappedBookingData {
   is_quick_pickup?: boolean;
   quick_pickup_tag?: string;
   discount_percent?: number;
+  discount_amount?: number;
+  cashback?: number;
+  wallet_applied?: number;
+  wallet_cashback?: number;
+  coupon_code?: string;
   // Legacy properties for backward compatibility
   totalAmount?: number;
   total_price?: number;
