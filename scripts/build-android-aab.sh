@@ -70,8 +70,18 @@ else
     echo "✅ Using environment variable passwords"
 fi
 
+# Ensure gradlew is executable on Unix systems
+chmod +x gradlew 2>/dev/null || true
+chmod +x gradlew.bat 2>/dev/null || true
+
 # Run gradle build
-./gradlew bundleRelease
+if [ -f "gradlew.bat" ]; then
+    # Windows
+    ./gradlew.bat bundleRelease
+else
+    # Unix
+    ./gradlew bundleRelease
+fi
 
 if [ $? -eq 0 ]; then
     echo ""
