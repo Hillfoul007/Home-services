@@ -35,6 +35,8 @@ import {
   Star,
   ArrowLeft,
   Package,
+  Gift,
+  Wallet,
 } from "lucide-react";
 import { BookingService } from "@/services/bookingService";
 import { adaptiveBookingHelpers } from "@/integrations/adaptive/bookingHelpers";
@@ -1087,199 +1089,159 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                         </div>
                       </div>
 
-                      {/* Price Breakdown */}
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-gray-900 text-sm">
-                          Price Breakdown
-                        </h4>
+                      {/* Price Breakdown - Enhanced */}
+                      <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 rounded-xl border-2 border-green-300 p-4 space-y-3 shadow-sm">
+                        {/* Header */}
+                        <div className="flex items-center gap-2 pb-2 border-b-2 border-green-200">
+                          <Gift className="h-5 w-5 text-green-600" />
+                          <h3 className="text-sm font-bold text-gray-900">
+                            Price Breakdown
+                          </h3>
+                        </div>
 
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4 space-y-3">
-                          {/* Service Total */}
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-600">
-                              Services Total
+                        {/* Services Total */}
+                        <div className="flex justify-between items-center py-1.5 px-2 bg-white/50 rounded-lg">
+                          <span className="text-sm font-medium text-gray-700">
+                            Services Total
+                          </span>
+                          <span className="font-semibold text-gray-900">
+                            ₹
+                            {(() => {
+                              const totalAmount =
+                                safeBooking.totalAmount ||
+                                safeBooking.total_price ||
+                                safeBooking.final_amount ||
+                                0;
+                              return totalAmount.toFixed(2);
+                            })()}
+                          </span>
+                        </div>
+
+                        {/* Tax */}
+                        {safeBooking.charges_breakdown?.tax_amount && safeBooking.charges_breakdown.tax_amount > 0 && (
+                          <div className="flex justify-between items-center py-1.5 px-2 bg-white/50 rounded-lg">
+                            <span className="text-sm font-medium text-gray-700">
+                              Tax (GST)
                             </span>
-                            <span className="font-medium">
-                              ₹
-                              {(() => {
-                                const handlingFee = 0; // Free handling fee
-                                const totalAmount =
-                                  safeBooking.totalAmount ||
-                                  safeBooking.total_price ||
-                                  safeBooking.final_amount ||
-                                  0;
-                                const servicesTotal = Math.max(
-                                  0,
-                                  totalAmount - handlingFee,
-                                );
-                                return servicesTotal;
-                              })()}
+                            <span className="font-semibold text-gray-900">
+                              +₹{safeBooking.charges_breakdown.tax_amount.toFixed(2)}
                             </span>
                           </div>
+                        )}
 
-                          {/* Delivery Fee */}
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-green-600">
-                              Delivery Fee
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="line-through text-gray-400 text-xs">
-                                ₹30
-                              </span>
-                              <span className="font-medium text-green-600">
-                                FREE
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Handling Fee */}
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-green-600">
-                              Handling Fee
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="line-through text-gray-400 text-xs">
-                                ₹9
-                              </span>
-                              <span className="font-medium text-green-600">
-                                FREE
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Tax */}
-                          {safeBooking.charges_breakdown?.tax_amount && safeBooking.charges_breakdown.tax_amount > 0 && (
+                        {/* Discount Section */}
+                        {safeBooking.discount_amount && safeBooking.discount_amount > 0 && (
+                          <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg p-2.5 space-y-2">
+                            <h4 className="text-xs font-bold text-green-700 flex items-center gap-1">
+                              <span>🎉</span> Admin Discount
+                            </h4>
                             <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-600">Tax</span>
-                              <span className="font-medium">
-                                +₹{safeBooking.charges_breakdown.tax_amount.toFixed(2)}
+                              <span className="text-sm text-green-700 font-medium">
+                                Discount Amount
+                              </span>
+                              <span className="font-bold text-lg text-green-600">
+                                -₹{safeBooking.discount_amount.toFixed(2)}
                               </span>
                             </div>
-                          )}
-
-                          {/* Discounts & Offers Section */}
-                          <div className="border-t border-green-300 pt-2">
-                            <h4 className="text-xs font-semibold text-gray-700 mb-2">Discounts & Offers</h4>
-                            {safeBooking.discount_amount && safeBooking.discount_amount > 0 ? (
-                              <div className="space-y-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-green-600">
-                                    Discount
-                                  </span>
-                                  <span className="font-medium text-green-600">
-                                    -₹{safeBooking.discount_amount.toFixed(2)}
-                                  </span>
-                                </div>
-                                {safeBooking.coupon_code && (
-                                  <div className="text-xs text-green-600 flex justify-end">
-                                    Code: {safeBooking.coupon_code}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="text-xs text-gray-500">
-                                No discount applied
+                            {safeBooking.coupon_code && (
+                              <div className="text-xs text-green-700 bg-white/70 px-2 py-1 rounded font-medium">
+                                Code: <span className="font-bold">{safeBooking.coupon_code}</span>
                               </div>
                             )}
                           </div>
+                        )}
 
-                          {/* Wallet Activity Section */}
-                          <div className="border-t border-blue-300 pt-2">
-                            <h4 className="text-xs font-semibold text-gray-700 mb-2">Wallet Activity</h4>
-
-                            {safeBooking.cashback && safeBooking.cashback > 0 && (
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm text-blue-600">
-                                  💳 Debited from Wallet
-                                </span>
-                                <span className="font-medium text-blue-600">
-                                  -₹{safeBooking.cashback.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
+                        {/* Wallet Section */}
+                        {(safeBooking.cashback > 0 || safeBooking.wallet_applied > 0 || safeBooking.wallet_cashback > 0) && (
+                          <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg p-2.5 space-y-2">
+                            <h4 className="text-xs font-bold text-blue-700 flex items-center gap-1">
+                              <Wallet className="h-4 w-4" /> Wallet Activity
+                            </h4>
 
                             {safeBooking.wallet_applied && safeBooking.wallet_applied > 0 && (
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm text-blue-600">
-                                  💳 Wallet Used
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-blue-700 font-medium">
+                                  Wallet Applied
                                 </span>
-                                <span className="font-medium text-blue-600">
+                                <span className="font-bold text-lg text-blue-600">
                                   -₹{safeBooking.wallet_applied.toFixed(2)}
                                 </span>
                               </div>
                             )}
 
-                            {safeBooking.wallet_cashback && safeBooking.wallet_cashback > 0 && (
+                            {safeBooking.cashback && safeBooking.cashback > 0 && (
                               <div className="flex justify-between items-center">
-                                <span className="text-sm text-purple-600">
+                                <span className="text-sm text-blue-700 font-medium">
+                                  Wallet Cashback (Debited)
+                                </span>
+                                <span className="font-bold text-lg text-blue-600">
+                                  -₹{safeBooking.cashback.toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+
+                            {safeBooking.wallet_cashback && safeBooking.wallet_cashback > 0 && (
+                              <div className="flex justify-between items-center bg-white/70 px-2 py-1.5 rounded">
+                                <span className="text-sm text-purple-700 font-bold">
                                   ✨ Cashback Credited to Wallet
                                 </span>
-                                <span className="font-medium text-purple-600">
+                                <span className="font-bold text-lg text-purple-600">
                                   +₹{(safeBooking.wallet_cashback > 0 && safeBooking.wallet_cashback < 100
                                     ? ((safeBooking.final_amount || safeBooking.total_price || 0) * safeBooking.wallet_cashback / 100).toFixed(2)
                                     : safeBooking.wallet_cashback).toFixed(2)}
                                 </span>
                               </div>
                             )}
-
-                            {!safeBooking.cashback && !safeBooking.wallet_applied && !safeBooking.wallet_cashback && (
-                              <div className="text-xs text-gray-500">
-                                No wallet transactions
-                              </div>
-                            )}
                           </div>
+                        )}
 
-
-                          {/* Final Amount */}
-                          <div className="border-t-2 border-green-400 pt-3">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="font-semibold text-gray-900">
-                                Final Amount
-                              </span>
-                              <span className="text-xl font-bold text-green-600">
-                                ₹
-                                {(() => {
-                                  const servicesTotal =
-                                    safeBooking.services.reduce(
-                                      (total: number, service: any) => {
-                                        return (
-                                          total +
-                                          (service.price * service.quantity ||
-                                            0)
-                                        );
-                                      },
-                                      0,
-                                    );
-                                  const actualTotal =
-                                    servicesTotal > 0
-                                      ? servicesTotal
-                                      : safeBooking.final_amount ||
-                                        safeBooking.totalAmount ||
-                                        safeBooking.total_price ||
-                                        0;
-                                  return actualTotal.toFixed(2);
-                                })()}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-500">
-                                Payment Status
-                              </span>
-                              <span
-                                className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                  (safeBooking.payment_status ||
-                                    safeBooking.paymentStatus) === "paid"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {(
-                                  safeBooking.payment_status ||
-                                  safeBooking.paymentStatus ||
-                                  "pending"
-                                ).toUpperCase()}
-                              </span>
-                            </div>
+                        {/* Final Amount - Prominent Display */}
+                        <div className="border-t-2 border-green-300 pt-3 mt-1">
+                          <div className="flex justify-between items-center bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg px-3 py-3 text-white shadow-md">
+                            <span className="font-bold text-sm">Final Amount</span>
+                            <span className="text-2xl font-black">
+                              ₹
+                              {(() => {
+                                const servicesTotal =
+                                  safeBooking.services.reduce(
+                                    (total: number, service: any) => {
+                                      return (
+                                        total +
+                                        (service.price * service.quantity ||
+                                          0)
+                                      );
+                                    },
+                                    0,
+                                  );
+                                const actualTotal =
+                                  servicesTotal > 0
+                                    ? servicesTotal
+                                    : safeBooking.final_amount ||
+                                      safeBooking.totalAmount ||
+                                      safeBooking.total_price ||
+                                      0;
+                                return actualTotal.toFixed(2);
+                              })()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <span className="text-xs font-medium text-gray-600">
+                              Payment Status
+                            </span>
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full font-bold ${
+                                (safeBooking.payment_status ||
+                                  safeBooking.paymentStatus) === "paid"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}
+                            >
+                              {(
+                                safeBooking.payment_status ||
+                                safeBooking.paymentStatus ||
+                                "pending"
+                              ).toUpperCase()}
+                            </span>
                           </div>
                         </div>
                       </div>
