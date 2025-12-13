@@ -854,6 +854,12 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                       className="px-3 pb-3 pt-2 space-y-3 bg-white"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      {/* Order Status Bar - Zomato Style */}
+                      <OrderStatusBar
+                        riderStatus={safeBooking.riderStatus || "unassigned"}
+                        bookingStatus={safeBooking.status}
+                      />
+
                       {/* Booked Services */}
                       {safeBooking.services &&
                         Array.isArray(safeBooking.services) &&
