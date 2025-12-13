@@ -37,8 +37,8 @@
     "generate:keystore": "bash scripts/generate-keystore.sh",
     "build:aab": "bash scripts/build-android-aab.sh",
     "migrate:wallet": "node backend/scripts/init-wallet-balance.js",
-    "setup:gradle": "node scripts/setup-gradle.js",
-    "postinstall": "node scripts/setup-gradle.js"
+    "setup:gradle": "node scripts/setup-gradle.cjs",
+    "postinstall": "node scripts/setup-gradle.cjs"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.10",
