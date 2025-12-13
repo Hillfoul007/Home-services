@@ -1127,134 +1127,98 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
                         {/* Price Breakdown */}
                         <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg">
-                          <h4 className="font-semibold text-gray-900 mb-2 text-xs flex items-center gap-2">
-                            <CreditCard className="h-3 w-3 text-green-600" />
+                          <h4 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-green-600" />
                             Price Breakdown
                           </h4>
 
-                          <div className="space-y-1 text-xs">
-                            {/* Calculate service total and delivery fee */}
-                            {(() => {
-                              const handlingFee = 0; // Free handling fee
-                              const serviceTotal = Math.max(
-                                0,
-                                total - handlingFee,
-                              );
-
-                              return (
-                                <>
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-gray-600">
-                                      Services Total
-                                    </span>
-                                    <span className="font-medium">
-                                      ₹{serviceTotal}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-green-600">
-                                      Delivery Fee
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <span className="line-through text-gray-400 text-xs">
-                                        ₹30
-                                      </span>
-                                      <span className="font-medium text-green-600">
-                                        FREE
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-green-600">
-                                      Handling Fee
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <span className="line-through text-gray-400 text-xs">
-                                        ₹9
-                                      </span>
-                                      <span className="font-medium text-green-600">
-                                        FREE
-                                      </span>
-                                    </div>
-                                  </div>
-                                </>
-                              );
-                            })()}
-
-                            {booking.discount_amount &&
-                              booking.discount_amount > 0 && (
-                                <div className="space-y-1">
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-green-600">
-                                      Discount
-                                    </span>
-                                    <span className="font-medium text-green-600">
-                                      -₹{booking.discount_amount}
-                                    </span>
-                                  </div>
-                                  {booking.coupon_code && (
-                                    <div className="text-xs text-green-600 flex justify-end">
-                                      Code: {booking.coupon_code}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                            {booking.cashback &&
-                              booking.cashback > 0 && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-blue-600">
-                                    Wallet Used
-                                  </span>
-                                  <span className="font-medium text-blue-600">
-                                    -₹{booking.cashback}
-                                  </span>
-                                </div>
-                              )}
-
-                            {booking.wallet_applied &&
-                              booking.wallet_applied > 0 && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-blue-600">
-                                    Wallet Applied
-                                  </span>
-                                  <span className="font-medium text-blue-600">
-                                    -₹{booking.wallet_applied.toFixed(2)}
-                                  </span>
-                                </div>
-                              )}
-
-                            {booking.wallet_cashback &&
-                              booking.wallet_cashback > 0 && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-purple-600">
-                                    Cashback Earned
-                                  </span>
-                                  <span className="font-medium text-purple-600">
-                                    +₹{(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
-                                      ? ((booking.final_amount || booking.total_price || 0) * booking.wallet_cashback / 100).toFixed(2)
-                                      : booking.wallet_cashback).toFixed(2)}
-                                  </span>
-                                </div>
-                              )}
-
-                            <Separator className="my-1" />
-
+                          <div className="space-y-2 text-xs bg-white p-3 rounded-lg">
+                            {/* Services Total */}
                             <div className="flex justify-between items-center">
-                              <span className="font-semibold text-gray-900">
-                                Total Amount
+                              <span className="text-gray-600 font-medium">Services Total</span>
+                              <span className="font-semibold text-gray-900">₹{total}</span>
+                            </div>
+
+                            {/* Delivery Fee */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Delivery Fee</span>
+                              <div className="flex items-center gap-1">
+                                <span className="line-through text-gray-400">₹30</span>
+                                <span className="font-semibold text-green-600">FREE</span>
+                              </div>
+                            </div>
+
+                            {/* Handling Fee */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Handling Fee</span>
+                              <div className="flex items-center gap-1">
+                                <span className="line-through text-gray-400">₹9</span>
+                                <span className="font-semibold text-green-600">FREE</span>
+                              </div>
+                            </div>
+
+                            {/* Discount Amount */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Discount Amount</span>
+                              <span className="font-semibold text-green-600">
+                                {booking.discount_amount && booking.discount_amount > 0
+                                  ? `-₹${booking.discount_amount}`
+                                  : "₹0"}
                               </span>
-                              <span className="font-bold text-green-600">
+                            </div>
+
+                            {/* Coupon Code - Show if discount is applied */}
+                            {booking.discount_amount && booking.discount_amount > 0 && booking.coupon_code && (
+                              <div className="text-xs text-green-600 flex justify-end pl-4">
+                                Code: <span className="font-semibold ml-1">{booking.coupon_code}</span>
+                              </div>
+                            )}
+
+                            {/* Wallet Used (Cashback Debited) */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Wallet Used</span>
+                              <span className="font-semibold text-blue-600">
+                                {booking.cashback && booking.cashback > 0
+                                  ? `-₹${booking.cashback}`
+                                  : "₹0"}
+                              </span>
+                            </div>
+
+                            {/* Wallet Applied */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Wallet Applied</span>
+                              <span className="font-semibold text-blue-600">
+                                {booking.wallet_applied && booking.wallet_applied > 0
+                                  ? `-₹${booking.wallet_applied.toFixed(2)}`
+                                  : "₹0"}
+                              </span>
+                            </div>
+
+                            {/* Cashback Earned (Wallet Cashback) */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Cashback Earned</span>
+                              <span className="font-semibold text-purple-600">
+                                {booking.wallet_cashback && booking.wallet_cashback > 0
+                                  ? `+₹${(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
+                                      ? ((booking.final_amount || booking.total_price || total) * booking.wallet_cashback / 100).toFixed(2)
+                                      : booking.wallet_cashback).toFixed(2)}`
+                                  : "₹0"}
+                              </span>
+                            </div>
+
+                            <Separator className="my-2" />
+
+                            {/* Final Total Amount */}
+                            <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-emerald-100 p-2 rounded">
+                              <span className="font-bold text-gray-900">Final Amount</span>
+                              <span className="font-bold text-green-700 text-sm">
                                 ₹{total}
                               </span>
                             </div>
 
-                            <div className="flex justify-between items-center pt-1">
-                              <span className="text-gray-500">
-                                Payment Status
-                              </span>
+                            {/* Payment Status */}
+                            <div className="flex justify-between items-center pt-2">
+                              <span className="text-gray-600 font-medium">Payment Status</span>
                               <Badge
                                 variant={
                                   (booking.payment_status ||
