@@ -348,6 +348,33 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
       };
     }, [currentUser]);
 
+    const mapStatusToRiderStatus = (status: string): string => {
+      const statusLower = status?.toLowerCase() || "";
+      switch (statusLower) {
+        case "created":
+          return "unassigned";
+        case "vendor_assigned":
+        case "vendor-assigned":
+        case "pending":
+        case "confirmed":
+          return "assigned";
+        case "ready_for_delivery":
+        case "ready-for-delivery":
+        case "delivery_assigned":
+        case "delivery-assigned":
+          return "accepted";
+        case "in_progress":
+        case "in-progress":
+          return "picked_up";
+        case "delivered":
+          return "delivered";
+        case "completed":
+          return "completed";
+        default:
+          return "unassigned";
+      }
+    };
+
     const getStatusColor = (status: string) => {
       switch (status?.toLowerCase()) {
         case "pending":
