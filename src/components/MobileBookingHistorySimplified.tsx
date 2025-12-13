@@ -31,9 +31,12 @@ import {
   Star,
   ArrowLeft,
   Package,
+  Wallet,
+  Gift,
 } from "lucide-react";
 import { BookingService } from "@/services/bookingService";
 import EditBookingModal from "./EditBookingModal";
+import OrderStatusBar from "./OrderStatusBar";
 import { clearAllUserData } from "@/utils/clearStorage";
 import { filterProductionBookings } from "@/utils/bookingFilters";
 import {
