@@ -654,10 +654,14 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                 // Order ID fields - always include for proper fallback
                 order_id: sanitizeValue(booking.order_id, ""),
                 // Date and time fields - use mapped values from booking data mapper
+                pickup_date: sanitizeValue(booking.pickup_date || booking.pickupDate || booking.scheduled_date, ""),
                 pickupDate: sanitizeValue(booking.pickup_date || booking.pickupDate || booking.scheduled_date, ""),
+                delivery_date: sanitizeValue(booking.delivery_date || booking.deliveryDate, ""),
                 deliveryDate: sanitizeValue(booking.delivery_date || booking.deliveryDate, ""),
                 scheduled_date: sanitizeValue(booking.scheduled_date, ""),
+                pickup_time: sanitizeValue(booking.pickup_time || booking.pickupTime || booking.scheduled_time, ""),
                 pickupTime: sanitizeValue(booking.pickup_time || booking.pickupTime || booking.scheduled_time, ""),
+                delivery_time: sanitizeValue(booking.delivery_time || booking.deliveryTime, ""),
                 deliveryTime: sanitizeValue(booking.delivery_time || booking.deliveryTime, ""),
                 scheduled_time: sanitizeValue(booking.scheduled_time, ""),
                 // Other fields
