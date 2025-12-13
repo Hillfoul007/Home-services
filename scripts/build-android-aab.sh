@@ -12,13 +12,19 @@ OUTPUT_DIR="dist-aab"
 echo "🏗️  Building Android App Bundle (AAB) for Google Play..."
 echo ""
 
-# Step 1: Check if Android project exists
+# Step 0: Check if Android project exists
 if [ ! -d "android" ]; then
     echo "❌ Android project not found. Run 'npx cap add android' first."
     exit 1
 fi
 
-# Step 2: Check if keystore exists
+# Step 0b: Initialize Gradle wrapper if needed
+if [ ! -f "android/gradle/wrapper/gradle-wrapper.jar" ]; then
+    echo "📥 Initializing Gradle wrapper (first time only)..."
+    bash scripts/init-gradle.sh || true
+fi
+
+# Step 1: Check if keystore exists
 if [ ! -f "$KEYSTORE_FILE" ]; then
     echo "❌ Keystore file not found: $KEYSTORE_FILE"
     echo ""
