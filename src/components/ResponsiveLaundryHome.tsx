@@ -1068,6 +1068,30 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         </div>
 
+        {/* Active Order Status Bar - Mobile */}
+        {activeOrder && !loadingActiveOrder && (
+          <div className="bg-white p-4 border-b border-gray-100">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-gray-900 mb-1">Your Active Order</h3>
+              <p className="text-xs text-gray-600">
+                Order #{activeOrder.custom_order_id || activeOrder.order_id || "Order ID"}
+              </p>
+            </div>
+            <OrderStatusBar
+              riderStatus={mapStatusToRiderStatus(activeOrder.status)}
+              bookingStatus={activeOrder.status}
+              className="mb-3"
+            />
+            <Button
+              onClick={handleViewBookings}
+              variant="outline"
+              className="w-full text-xs py-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+            >
+              View Full Details
+            </Button>
+          </div>
+        )}
+
         {/* Services Grid */}
         <div
           id="services-section"
