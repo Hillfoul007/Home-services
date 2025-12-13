@@ -464,9 +464,18 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                 {/* Expanded Content */}
                 {isExpanded && (
                   <CardContent
-                    className="px-3 pb-3 pt-2 space-y-3 bg-white"
+                    className="px-3 pb-3 pt-3 space-y-3 bg-white"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {/* Order Status Bar */}
+                    <div className="mb-2">
+                      <OrderStatusBar
+                        riderStatus={booking.status}
+                        bookingStatus={booking.status}
+                        className="w-full"
+                      />
+                    </div>
+
                     {/* Services */}
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-2 rounded-lg border border-blue-200">
                       <div className="flex items-center justify-between mb-1">
