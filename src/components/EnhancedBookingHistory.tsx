@@ -920,6 +920,12 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                         className="px-3 pb-3 pt-2 space-y-3 bg-white"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        {/* Order Status Bar - Zomato Style */}
+                        <OrderStatusBar
+                          riderStatus={mapStatusToRiderStatus(booking.status)}
+                          bookingStatus={booking.status}
+                        />
+
                         {/* Services Detail */}
                         <div className="bg-blue-50 p-3 rounded-lg">
                           <h4 className="font-semibold text-gray-900 mb-2 text-sm flex items-center gap-2">
