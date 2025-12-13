@@ -1,21 +1,29 @@
 # Gradle Wrapper Setup Guide
 
 ## Problem
-When cloning or pulling the code, the `gradle-wrapper.jar` file may not be downloaded automatically, causing builds to fail.
-
-## Solution
-The project now automatically sets up Gradle when you run `npm install`.
-
-### Automatic Setup (Recommended)
-```bash
-npm install
-# This automatically runs "postinstall" hook which downloads gradle-wrapper.jar
+When cloning or pulling the code, the `gradle-wrapper.jar` file may not download automatically, causing AAB builds to fail with:
+```
+Error: Unable to access jarfile .../android/gradle/wrapper/gradle-wrapper.jar
 ```
 
-### Manual Setup
-If you need to manually trigger Gradle setup:
+## Solution
+The project automatically handles Gradle setup. But if it fails, you can fix it manually.
+
+### ✅ Automatic Setup (happens automatically)
+```bash
+npm install
+# This automatically runs "postinstall" hook which sets up gradle-wrapper.jar
+```
+
+### 🔧 Manual Setup (if automatic fails)
+Run this command before building:
 ```bash
 npm run setup:gradle
+```
+
+Then try building again:
+```bash
+npm run build:aab
 ```
 
 ### What It Does
