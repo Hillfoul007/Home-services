@@ -31,9 +31,12 @@ import {
   Star,
   ArrowLeft,
   Package,
+  Wallet,
+  Gift,
 } from "lucide-react";
 import { BookingService } from "@/services/bookingService";
 import EditBookingModal from "./EditBookingModal";
+import OrderStatusBar from "./OrderStatusBar";
 import { clearAllUserData } from "@/utils/clearStorage";
 import { filterProductionBookings } from "@/utils/bookingFilters";
 import {
@@ -461,9 +464,18 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                 {/* Expanded Content */}
                 {isExpanded && (
                   <CardContent
-                    className="px-3 pb-3 pt-2 space-y-3 bg-white"
+                    className="px-3 pb-3 pt-3 space-y-3 bg-white"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {/* Order Status Bar */}
+                    <div className="mb-2">
+                      <OrderStatusBar
+                        riderStatus={booking.status}
+                        bookingStatus={booking.status}
+                        className="w-full"
+                      />
+                    </div>
+
                     {/* Services */}
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-2 rounded-lg border border-blue-200">
                       <div className="flex items-center justify-between mb-1">
@@ -584,19 +596,27 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                       </div>
                     </div>
 
-                    {/* Price Breakdown */}
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4 space-y-3">
+                    {/* Price Breakdown - Enhanced */}
+                    <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 rounded-xl border-2 border-green-300 p-4 space-y-3 shadow-sm">
+                      {/* Header */}
+                      <div className="flex items-center gap-2 pb-2 border-b-2 border-green-200">
+                        <Gift className="h-5 w-5 text-green-600" />
+                        <h3 className="text-sm font-bold text-gray-900">
+                          Price Breakdown
+                        </h3>
+                      </div>
+
                       {/* Services Total */}
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">
+                      <div className="flex justify-between items-center py-1.5 px-2 bg-white/50 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700">
                           Services Total
                         </span>
-                        <span className="font-medium">
+                        <span className="font-semibold text-gray-900">
                           ₹
                           {(() => {
                             // Use database base_amount if available
                             if (booking.pricing.base_amount) {
-                              return booking.pricing.base_amount;
+                              return booking.pricing.base_amount.toFixed(2);
                             }
 
                             // Calculate from services with local fallback
@@ -610,105 +630,94 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                                   service.quantity || 1,
                                 );
                               return total + servicePrice;
-                            }, 0);
+                            }, 0).toFixed(2);
                           })()}
-                          {!booking.pricing.base_amount && (
-                            <span className="text-blue-600 text-[10px] ml-1">
-                              (local)
-                            </span>
-                          )}
                         </span>
                       </div>
 
                       {/* Tax */}
                       {booking.pricing.tax_amount > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Tax</span>
-                          <span className="font-medium">
+                        <div className="flex justify-between items-center py-1.5 px-2 bg-white/50 rounded-lg">
+                          <span className="text-sm font-medium text-gray-700">
+                            Tax (GST)
+                          </span>
+                          <span className="font-semibold text-gray-900">
                             +₹{booking.pricing.tax_amount.toFixed(2)}
                           </span>
                         </div>
                       )}
 
                       {/* Discount Section */}
-                      <div className="border-t border-green-300 pt-2">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2">Discounts & Offers</h4>
-                        {booking.pricing.discount_amount > 0 ? (
-                          <div className="space-y-1 mb-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-green-600">
-                                Discount
-                              </span>
-                              <span className="font-medium text-green-600">
-                                -₹{booking.pricing.discount_amount.toFixed(2)}
-                              </span>
+                      {booking.pricing.discount_amount > 0 && (
+                        <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg p-2.5 space-y-2">
+                          <h4 className="text-xs font-bold text-green-700 flex items-center gap-1">
+                            <span>🎉</span> Admin Discount
+                          </h4>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-green-700 font-medium">
+                              Discount Amount
+                            </span>
+                            <span className="font-bold text-lg text-green-600">
+                              -₹{booking.pricing.discount_amount.toFixed(2)}
+                            </span>
+                          </div>
+                          {booking.coupon_code && (
+                            <div className="text-xs text-green-700 bg-white/70 px-2 py-1 rounded font-medium">
+                              Code: <span className="font-bold">{booking.coupon_code}</span>
                             </div>
-                            {booking.coupon_code && (
-                              <div className="text-xs text-green-600 flex justify-end">
-                                Code: {booking.coupon_code}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-500 text-right mb-2">
-                            No discount applied
-                          </div>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Wallet Section */}
-                      <div className="border-t border-blue-300 pt-2">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2">Wallet Activity</h4>
+                      {(booking.cashback > 0 || booking.wallet_applied > 0 || booking.wallet_cashback > 0) && (
+                        <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg p-2.5 space-y-2">
+                          <h4 className="text-xs font-bold text-blue-700 flex items-center gap-1">
+                            <Wallet className="h-4 w-4" /> Wallet Activity
+                          </h4>
 
-                        {booking.cashback && booking.cashback > 0 && (
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm text-blue-600">
-                              💳 Debited from Wallet
-                            </span>
-                            <span className="font-medium text-blue-600">
-                              -₹{booking.cashback.toFixed(2)}
-                            </span>
-                          </div>
-                        )}
+                          {booking.wallet_applied && booking.wallet_applied > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-blue-700 font-medium">
+                                Wallet Applied
+                              </span>
+                              <span className="font-bold text-lg text-blue-600">
+                                -₹{booking.wallet_applied.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
 
-                        {booking.wallet_applied && booking.wallet_applied > 0 && (
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm text-blue-600">
-                              💳 Wallet Used
-                            </span>
-                            <span className="font-medium text-blue-600">
-                              -₹{booking.wallet_applied.toFixed(2)}
-                            </span>
-                          </div>
-                        )}
+                          {booking.cashback && booking.cashback > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-blue-700 font-medium">
+                                Wallet Cashback (Debited)
+                              </span>
+                              <span className="font-bold text-lg text-blue-600">
+                                -₹{booking.cashback.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
 
-                        {booking.wallet_cashback && booking.wallet_cashback > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-purple-600">
-                              ✨ Cashback Credited to Wallet
-                            </span>
-                            <span className="font-medium text-purple-600">
-                              +₹{(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
-                                ? ((booking.pricing.final_amount || booking.pricing.total_price || 0) * booking.wallet_cashback / 100).toFixed(2)
-                                : booking.wallet_cashback).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
+                          {booking.wallet_cashback && booking.wallet_cashback > 0 && (
+                            <div className="flex justify-between items-center bg-white/70 px-2 py-1.5 rounded">
+                              <span className="text-sm text-purple-700 font-bold">
+                                ✨ Cashback Credited to Wallet
+                              </span>
+                              <span className="font-bold text-lg text-purple-600">
+                                +₹{(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
+                                  ? ((booking.pricing.final_amount || booking.pricing.total_price || 0) * booking.wallet_cashback / 100).toFixed(2)
+                                  : booking.wallet_cashback).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                        {!booking.cashback && !booking.wallet_applied && !booking.wallet_cashback && (
-                          <div className="text-xs text-gray-500">
-                            No wallet transactions
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Final Amount */}
-                      <div className="border-t-2 border-green-400 pt-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-semibold text-gray-900">
-                            Final Amount
-                          </span>
-                          <span className="text-xl font-bold text-green-600">
+                      {/* Final Amount - Prominent Display */}
+                      <div className="border-t-2 border-green-300 pt-3 mt-1">
+                        <div className="flex justify-between items-center bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg px-3 py-3 text-white shadow-md">
+                          <span className="font-bold text-sm">Final Amount</span>
+                          <span className="text-2xl font-black">
                             ₹
                             {(() => {
                               // Use database final_amount if available
@@ -732,26 +741,21 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                                 0,
                               );
 
-                              // Add tax and subtract discount if available
+                              // Add tax and subtract discount and wallet applied
                               const tax = booking.pricing.tax_amount || 0;
-                              const discount =
-                                booking.pricing.discount_amount || 0;
+                              const discount = booking.pricing.discount_amount || 0;
+                              const walletUsed = booking.wallet_applied || 0;
 
-                              return (servicesTotal + tax - discount).toFixed(2);
+                              return (servicesTotal + tax - discount - walletUsed).toFixed(2);
                             })()}
-                            {!booking.pricing.final_amount && (
-                              <span className="text-blue-600 text-[10px] ml-1">
-                                (calculated)
-                              </span>
-                            )}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="text-xs font-medium text-gray-600">
                             Payment Status
                           </span>
                           <span
-                            className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            className={`text-xs px-3 py-1 rounded-full font-bold ${
                               booking.payment_status === "paid"
                                 ? "bg-green-100 text-green-800"
                                 : "bg-yellow-100 text-yellow-800"
