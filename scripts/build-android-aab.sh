@@ -47,14 +47,14 @@ echo ""
 echo "Switching to android directory..."
 cd android
 
-# Check if gradle wrapper exists
-if [ ! -f "gradlew" ]; then
+# Check if gradle wrapper scripts exist
+if [ ! -f "gradlew" ] && [ ! -f "gradlew.bat" ]; then
     echo "❌ Gradle wrapper not found. Please run 'npx cap add android' first."
     exit 1
 fi
 
-# Make gradle executable
-chmod +x gradlew
+# Make gradle executable on Unix
+chmod +x gradlew 2>/dev/null || true
 
 # Check if keystore passwords are set
 if [ -z "$MYAPP_RELEASE_STORE_PASSWORD" ] && [ -z "$MYAPP_RELEASE_KEY_PASSWORD" ]; then
@@ -70,17 +70,21 @@ else
     echo "✅ Using environment variable passwords"
 fi
 
-# Ensure gradlew is executable on Unix systems
-chmod +x gradlew 2>/dev/null || true
-chmod +x gradlew.bat 2>/dev/null || true
+echo ""
+echo "📦 Building Android App Bundle..."
+echo "This may take 3-5 minutes..."
+echo ""
 
-# Run gradle build
+# Run gradle build - use proper path handling for Windows and Unix
 if [ -f "gradlew.bat" ]; then
-    # Windows
-    ./gradlew.bat bundleRelease
-else
-    # Unix
+    # Windows - run from current directory
+    cmd /c gradlew.bat bundleRelease
+elif [ -f "gradlew" ]; then
+    # Unix - make executable and run
     ./gradlew bundleRelease
+else
+    echo "❌ Neither gradlew.bat nor gradlew found"
+    exit 1
 fi
 
 if [ $? -eq 0 ]; then
