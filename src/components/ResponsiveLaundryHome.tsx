@@ -454,6 +454,43 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
     };
   }, []);
 
+  // Load active orders from user bookings
+  useEffect(() => {
+    const loadActiveOrders = async () => {
+      if (!currentUser?.id && !currentUser?._id && !currentUser?.phone) {
+        setActiveOrder(null);
+        return;
+      }
+
+      try {
+        setLoadingActiveOrder(true);
+        const bookingService = BookingService.getInstance();
+        const response = await bookingService.getCurrentUserBookings();
+
+        if (response.success && response.bookings) {
+          // Find active order (not cancelled, not completed)
+          const active = response.bookings.find((booking: any) => {
+            const status = booking.status?.toLowerCase() || "";
+            return status !== "cancelled" && status !== "completed";
+          });
+
+          if (active) {
+            setActiveOrder(active);
+          } else {
+            setActiveOrder(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading active orders:", error);
+        setActiveOrder(null);
+      } finally {
+        setLoadingActiveOrder(false);
+      }
+    };
+
+    loadActiveOrders();
+  }, [currentUser?.id, currentUser?._id, currentUser?.phone]);
+
   // Request notification permission for verification alerts
   const requestNotificationPermission = async () => {
     if ('Notification' in window && Notification.permission === 'default') {
