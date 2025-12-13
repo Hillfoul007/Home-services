@@ -99,6 +99,8 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [showQuickPickupModal, setShowQuickPickupModal] = useState(false);
   const [showQuickPickupAfterLogin, setShowQuickPickupAfterLogin] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<any>(null);
+  const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
