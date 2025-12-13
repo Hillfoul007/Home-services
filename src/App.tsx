@@ -83,8 +83,8 @@ function App() {
           <AnalyticsTracker />
           <div className="App">
             <Routes>
-              <Route path="/" element={<MainLanding />} />
-              <Route path="/laundry" element={<LaundryIndex />} />
+              <Route path="/" element={<LaundryIndex />} />
+              <Route path="/main" element={<MainWebsite />} />
               <Route path="/admin" element={<AdminPortal />} />
               <Route
                 path="/admin/location-config"
@@ -102,7 +102,7 @@ function App() {
               <Route path="/vendor/login" element={<VendorLogin />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
-              <Route path="*" element={<MainLanding />} />
+              <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
             <SonnerToaster />
