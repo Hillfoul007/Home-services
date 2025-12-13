@@ -15,6 +15,7 @@ export interface MappedBookingData {
   _id?: string;
   custom_order_id: string;
   status: string;
+  riderStatus?: string;
   customer_name: string;
   customer_phone: string;
   address: string;
@@ -37,6 +38,11 @@ export interface MappedBookingData {
   is_quick_pickup?: boolean;
   quick_pickup_tag?: string;
   discount_percent?: number;
+  discount_amount?: number;
+  cashback?: number;
+  wallet_applied?: number;
+  wallet_cashback?: number;
+  coupon_code?: string;
   // Legacy properties for backward compatibility
   totalAmount?: number;
   total_price?: number;
@@ -302,6 +308,7 @@ export const mapBookingData = (rawBooking: any): MappedBookingData => {
     _id: rawBooking._id,
     custom_order_id: rawBooking.custom_order_id || rawBooking.order_id || "",
     status: rawBooking.status || "pending",
+    riderStatus: rawBooking.riderStatus || rawBooking.rider_status || "unassigned",
     customer_name: rawBooking.name || "N/A",
     customer_phone: rawBooking.phone || "N/A",
     address: rawBooking.address || "Address not provided",
@@ -318,6 +325,11 @@ export const mapBookingData = (rawBooking: any): MappedBookingData => {
     is_quick_pickup: rawBooking.is_quick_pickup || false,
     quick_pickup_tag: rawBooking.quick_pickup_tag || undefined,
     discount_percent: rawBooking.discount_percent || 0,
+    discount_amount: rawBooking.discount_amount || 0,
+    cashback: rawBooking.cashback || 0,
+    wallet_applied: rawBooking.wallet_applied || 0,
+    wallet_cashback: rawBooking.wallet_cashback || 0,
+    coupon_code: rawBooking.coupon_code || "",
     // Legacy properties for backward compatibility
     totalAmount: pricing.final_amount,
     total_price: pricing.final_amount,

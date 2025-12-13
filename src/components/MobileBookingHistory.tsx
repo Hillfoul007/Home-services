@@ -39,6 +39,7 @@ import {
 import { BookingService } from "@/services/bookingService";
 import { adaptiveBookingHelpers } from "@/integrations/adaptive/bookingHelpers";
 import EditBookingModal from "./EditBookingModal";
+import OrderStatusBar from "./OrderStatusBar";
 import { clearAllUserData } from "@/utils/clearStorage";
 import { filterProductionBookings } from "@/utils/bookingFilters";
 import {
@@ -653,10 +654,14 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                 // Order ID fields - always include for proper fallback
                 order_id: sanitizeValue(booking.order_id, ""),
                 // Date and time fields - use mapped values from booking data mapper
+                pickup_date: sanitizeValue(booking.pickup_date || booking.pickupDate || booking.scheduled_date, ""),
                 pickupDate: sanitizeValue(booking.pickup_date || booking.pickupDate || booking.scheduled_date, ""),
+                delivery_date: sanitizeValue(booking.delivery_date || booking.deliveryDate, ""),
                 deliveryDate: sanitizeValue(booking.delivery_date || booking.deliveryDate, ""),
                 scheduled_date: sanitizeValue(booking.scheduled_date, ""),
+                pickup_time: sanitizeValue(booking.pickup_time || booking.pickupTime || booking.scheduled_time, ""),
                 pickupTime: sanitizeValue(booking.pickup_time || booking.pickupTime || booking.scheduled_time, ""),
+                delivery_time: sanitizeValue(booking.delivery_time || booking.deliveryTime, ""),
                 deliveryTime: sanitizeValue(booking.delivery_time || booking.deliveryTime, ""),
                 scheduled_time: sanitizeValue(booking.scheduled_time, ""),
                 // Other fields
@@ -679,6 +684,20 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                   typeof booking.discount_amount === "number"
                     ? booking.discount_amount
                     : 0,
+                coupon_code: sanitizeValue(booking.coupon_code, ""),
+                cashback:
+                  typeof booking.cashback === "number"
+                    ? booking.cashback
+                    : 0,
+                wallet_applied:
+                  typeof booking.wallet_applied === "number"
+                    ? booking.wallet_applied
+                    : 0,
+                wallet_cashback:
+                  typeof booking.wallet_cashback === "number"
+                    ? booking.wallet_cashback
+                    : 0,
+                riderStatus: sanitizeValue(booking.riderStatus || booking.rider_status, "unassigned"),
                 payment_status: sanitizeValue(
                   booking.payment_status,
                   "pending",
@@ -853,6 +872,12 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                       className="px-3 pb-3 pt-2 space-y-3 bg-white"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      {/* Order Status Bar - Zomato Style */}
+                      <OrderStatusBar
+                        riderStatus={safeBooking.riderStatus || "unassigned"}
+                        bookingStatus={safeBooking.status}
+                      />
+
                       {/* Booked Services */}
                       {safeBooking.services &&
                         Array.isArray(safeBooking.services) &&
