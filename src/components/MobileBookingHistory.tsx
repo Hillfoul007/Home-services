@@ -680,6 +680,20 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                   typeof booking.discount_amount === "number"
                     ? booking.discount_amount
                     : 0,
+                coupon_code: sanitizeValue(booking.coupon_code, ""),
+                cashback:
+                  typeof booking.cashback === "number"
+                    ? booking.cashback
+                    : 0,
+                wallet_applied:
+                  typeof booking.wallet_applied === "number"
+                    ? booking.wallet_applied
+                    : 0,
+                wallet_cashback:
+                  typeof booking.wallet_cashback === "number"
+                    ? booking.wallet_cashback
+                    : 0,
+                riderStatus: sanitizeValue(booking.riderStatus || booking.rider_status, "unassigned"),
                 payment_status: sanitizeValue(
                   booking.payment_status,
                   "pending",
