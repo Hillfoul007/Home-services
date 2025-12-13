@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { NotificationProvider } from "@/contexts/NotificationContext";
-import MainLanding from "@/pages/MainLanding";
 import LaundryIndex from "@/pages/LaundryIndex";
 import LocationConfigPage from "@/pages/LocationConfigPage";
 import AdminPortal from "@/pages/AdminPortal";
