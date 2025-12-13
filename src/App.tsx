@@ -26,6 +26,7 @@ import "@/utils/testEnvironment"; // Auto-run environment tests in development
 import VendorLogin from "@/pages/vendor/VendorLogin";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
+import MainWebsite from "@/pages/MainWebsite";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -84,6 +85,7 @@ function App() {
           <div className="App">
             <Routes>
               <Route path="/" element={<LaundryIndex />} />
+              <Route path="/main" element={<MainWebsite />} />
               <Route path="/admin" element={<AdminPortal />} />
               <Route
                 path="/admin/location-config"

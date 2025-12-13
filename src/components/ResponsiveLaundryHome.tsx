@@ -56,6 +56,8 @@ import ReferralModal from "./ReferralModal";
 import NotificationBell from "./NotificationBell";
 import QuickPickupModal from "./QuickPickupModal";
 import CustomerVerificationPopup from "./CustomerVerificationPopup";
+import OrderStatusBar from "@/components/OrderStatusBar";
+import { BookingService } from "@/services/bookingService";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
 import { useCustomerNotifications } from "@/hooks/useCustomerNotifications";
@@ -97,6 +99,8 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [showQuickPickupModal, setShowQuickPickupModal] = useState(false);
   const [showQuickPickupAfterLogin, setShowQuickPickupAfterLogin] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<any>(null);
+  const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
@@ -450,6 +454,43 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
     };
   }, []);
 
+  // Load active orders from user bookings
+  useEffect(() => {
+    const loadActiveOrders = async () => {
+      if (!currentUser?.id && !currentUser?._id && !currentUser?.phone) {
+        setActiveOrder(null);
+        return;
+      }
+
+      try {
+        setLoadingActiveOrder(true);
+        const bookingService = BookingService.getInstance();
+        const response = await bookingService.getCurrentUserBookings();
+
+        if (response.success && response.bookings) {
+          // Find active order (not cancelled, not completed)
+          const active = response.bookings.find((booking: any) => {
+            const status = booking.status?.toLowerCase() || "";
+            return status !== "cancelled" && status !== "completed";
+          });
+
+          if (active) {
+            setActiveOrder(active);
+          } else {
+            setActiveOrder(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading active orders:", error);
+        setActiveOrder(null);
+      } finally {
+        setLoadingActiveOrder(false);
+      }
+    };
+
+    loadActiveOrders();
+  }, [currentUser?.id, currentUser?._id, currentUser?.phone]);
+
   // Request notification permission for verification alerts
   const requestNotificationPermission = async () => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -672,6 +713,33 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
     const servicesSection = document.getElementById("services-section");
     if (servicesSection) {
       servicesSection.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const mapStatusToRiderStatus = (status: string): string => {
+    const statusLower = status?.toLowerCase() || "";
+    switch (statusLower) {
+      case "created":
+        return "unassigned";
+      case "vendor_assigned":
+      case "vendor-assigned":
+      case "pending":
+      case "confirmed":
+        return "assigned";
+      case "ready_for_delivery":
+      case "ready-for-delivery":
+      case "delivery_assigned":
+      case "delivery-assigned":
+        return "accepted";
+      case "in_progress":
+      case "in-progress":
+        return "picked_up";
+      case "delivered":
+        return "delivered";
+      case "completed":
+        return "completed";
+      default:
+        return "unassigned";
     }
   };
 
@@ -999,6 +1067,30 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Active Order Status Bar - Mobile */}
+        {activeOrder && !loadingActiveOrder && (
+          <div className="bg-white p-4 border-b border-gray-100">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-gray-900 mb-1">Your Active Order</h3>
+              <p className="text-xs text-gray-600">
+                Order #{activeOrder.custom_order_id || activeOrder.order_id || "Order ID"}
+              </p>
+            </div>
+            <OrderStatusBar
+              riderStatus={mapStatusToRiderStatus(activeOrder.status)}
+              bookingStatus={activeOrder.status}
+              className="mb-3"
+            />
+            <Button
+              onClick={handleViewBookings}
+              variant="outline"
+              className="w-full text-xs py-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+            >
+              View Full Details
+            </Button>
+          </div>
+        )}
 
         {/* Services Grid */}
         <div
@@ -1367,6 +1459,31 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
       {/* Desktop Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* Active Order Status Bar - Zomato Style */}
+        {activeOrder && !loadingActiveOrder && (
+          <div className="mb-8 p-6 bg-white rounded-2xl shadow-md border border-blue-100">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Your Active Order</h3>
+              <p className="text-sm text-gray-600">
+                Order #{activeOrder.custom_order_id || activeOrder.order_id || "Order ID"}
+              </p>
+            </div>
+            <OrderStatusBar
+              riderStatus={mapStatusToRiderStatus(activeOrder.status)}
+              bookingStatus={activeOrder.status}
+            />
+            <div className="mt-4">
+              <Button
+                onClick={handleViewBookings}
+                variant="outline"
+                className="text-sm text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                View Full Details
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-laundrify-purple to-laundrify-pink rounded-2xl text-white p-8 mb-8">
