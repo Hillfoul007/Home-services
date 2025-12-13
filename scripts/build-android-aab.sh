@@ -12,12 +12,6 @@ OUTPUT_DIR="dist-aab"
 echo "🏗️  Building Android App Bundle (AAB) for Google Play..."
 echo ""
 
-# Step 0: Ensure Gradle wrapper is set up
-if [ ! -f "android/gradle/wrapper/gradle-wrapper.jar" ]; then
-    echo "📥 Setting up Gradle wrapper..."
-    node scripts/setup-gradle.js || true
-fi
-
 # Step 1: Check if Android project exists
 if [ ! -d "android" ]; then
     echo "❌ Android project not found. Run 'npx cap add android' first."
