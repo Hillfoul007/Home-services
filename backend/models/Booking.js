@@ -171,6 +171,12 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Wallet cashback must be non-negative"],
     },
+    // Wallet amount applied/used in this booking (separate from cashback)
+    wallet_applied: {
+      type: Number,
+      default: 0,
+      min: [0, "Wallet applied must be non-negative"],
+    },
     coupon_code: {
       type: String,
       default: null,
