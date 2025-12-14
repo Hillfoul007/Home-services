@@ -32,6 +32,9 @@ export interface Booking extends Document {
   additional_details?: string;
   total_price: number;
   discount_amount?: number;
+  cashback?: number;
+  wallet_applied?: number;
+  wallet_cashback?: number;
   final_amount: number;
   payment_status: "pending" | "paid" | "failed" | "refunded";
   status: "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
