@@ -216,7 +216,15 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
           // Filter out demo bookings for production
           const productionBookings = filterProductionBookings(
             response.bookings,
-          );
+          ).map((booking: any) => ({
+            ...booking,
+            discount_amount: booking.discount_amount || 0,
+            coupon_code: booking.coupon_code || null,
+            cashback: booking.cashback || 0,
+            wallet_applied: booking.cashback || 0,
+            wallet_cashback: booking.wallet_cashback || 0,
+            payment_status: booking.payment_status || booking.paymentStatus,
+          }));
 
           // Load real quick pickup orders for fallback
           console.log("Loading quick pickup orders for fallback...");
