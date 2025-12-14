@@ -266,7 +266,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
       const isValidLocation = validCities.some(validCity => addressLower.includes(validCity));
 
       if (isValidLocation) {
-        console.log("✅ Address validated - service available in Gurugram/Gurgaon");
+        console.log("✅ Address validated - service available in this location");
         return true;
       }
 
