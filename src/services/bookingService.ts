@@ -576,6 +576,8 @@ export class BookingService {
       ) || [backendBooking.service || "Home Service"],
       totalAmount:
         backendBooking.total_price || backendBooking.final_amount || 0,
+      total_price: backendBooking.total_price,
+      final_amount: backendBooking.final_amount,
       status: backendBooking.status || "pending",
       pickupDate: backendBooking.scheduled_date,
       deliveryDate:
@@ -594,6 +596,12 @@ export class BookingService {
       },
       paymentStatus: backendBooking.payment_status || "pending",
       paymentMethod: "cash",
+      // Financial fields that admin can set
+      cashback: backendBooking.cashback || 0,
+      discount_amount: backendBooking.discount_amount || 0,
+      discount_percent: backendBooking.discount_percent || 0,
+      wallet_applied: backendBooking.wallet_applied || 0,
+      wallet_cashback: backendBooking.wallet_cashback || 0,
       createdAt:
         backendBooking.created_at ||
         backendBooking.createdAt ||
