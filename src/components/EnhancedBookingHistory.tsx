@@ -130,6 +130,8 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 userId: booking.customer_id,
                 services: booking.services || [booking.service],
                 totalAmount: booking.final_amount || booking.total_price,
+                total_price: booking.total_price,
+                final_amount: booking.final_amount,
                 item_prices: booking.item_prices, // Include item prices from database
                 status: booking.status,
                 pickupDate: booking.scheduled_date,
@@ -144,8 +146,16 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                     booking.additional_details || booking.special_instructions,
                 },
                 paymentStatus: booking.payment_status,
+                payment_status: booking.payment_status,
+                discount_amount: booking.discount_amount || 0,
+                coupon_code: booking.coupon_code || null,
+                cashback: booking.cashback || 0,
+                wallet_applied: booking.cashback || 0,
+                wallet_cashback: booking.wallet_cashback || 0,
                 createdAt: booking.created_at || booking.createdAt,
+                created_at: booking.created_at,
                 updatedAt: booking.updated_at || booking.updatedAt,
+                updated_at: booking.updated_at,
               }),
             );
 
