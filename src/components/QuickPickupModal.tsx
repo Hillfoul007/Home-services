@@ -444,30 +444,35 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         return;
       }
 
-      const quickPickupData = {
-        customer_id: customerId,
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        pickup_date: formData.pickup_date,
-        pickup_time: formData.pickup_time,
-        house_number: formData.house_number,
+      // Create booking data for quick pickup
+      const bookingData = {
+        userId: customerId,
+        services: ["Quick Pickup"],
+        totalAmount: 0, // Quick pickup pricing will be determined by rider
+        status: "pending" as const,
+        pickupDate: formData.pickup_date,
+        deliveryDate: formData.pickup_date, // Same day delivery for quick pickup
+        pickupTime: formData.pickup_time,
+        deliveryTime: "TBD", // Will be determined by rider
         address: formData.address,
-        status: "pending",
-        created_at: new Date().toISOString(),
+        contactDetails: {
+          name: customerName,
+          phone: customerPhone,
+          instructions: formData.house_number ? `House/Flat: ${formData.house_number}` : "Quick pickup assessment required",
+        },
+        paymentStatus: "pending" as const,
+        additional_details: "Quick pickup - rider will assess items for pricing",
       };
 
-      console.log("📋 Submitting quick pickup data:", quickPickupData);
-      console.log("🔧 API Client status:", apiClient.getConnectionStatus());
+      console.log("📋 Submitting quick pickup as booking:", bookingData);
 
-      const response = await apiClient.request<any>("/quick-pickup", {
-        method: "POST",
-        body: quickPickupData,
-      });
+      const bookingService = BookingService.getInstance();
+      const response = await bookingService.createBooking(bookingData);
 
-      console.log("📋 Quick pickup response:", response);
+      console.log("📋 Quick pickup booking response:", response);
 
-      if (response.data) {
-        toast.success("Quick pickup created successfully! Our rider will contact you soon.");
+      if (response.success) {
+        toast.success("Quick pickup scheduled! Our rider will contact you soon.");
         onClose();
         // Reset form
         setFormData({
@@ -476,6 +481,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
           house_number: "",
           address: "",
         });
+        // Trigger booking history refresh
+        window.dispatchEvent(new CustomEvent("refreshBookings"));
       } else {
         toast.error(response.error || "Failed to create quick pickup");
       }
