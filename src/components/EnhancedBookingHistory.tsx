@@ -160,61 +160,11 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               }),
             );
 
-            // Load real quick pickup orders
-            console.log("Loading quick pickup orders...");
-            let quickPickupOrders = [];
-            try {
-              const quickPickupResult = await quickPickupService.getCurrentUserQuickPickups();
-              if (quickPickupResult.success && quickPickupResult.quickPickups) {
-                quickPickupOrders = quickPickupResult.quickPickups.map((qp: any) => ({
-                  id: qp.id,
-                  custom_order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                  order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                  userId: qp.userId,
-                  services: qp.items_collected?.map((item: any) => `${item.name} x${item.quantity}`) || ["Quick Pickup - Items TBD"],
-                  totalAmount: qp.actual_cost || qp.estimated_cost || 0,
-                  total_price: qp.actual_cost || qp.estimated_cost || 0,
-                  final_amount: qp.actual_cost || qp.estimated_cost || 0,
-                  item_prices: qp.items_collected || [],
-                  status: qp.status,
-                  pickupDate: qp.pickup_date,
-                  deliveryDate: qp.delivery_date || "TBD",
-                  pickupTime: qp.pickup_time,
-                  deliveryTime: qp.delivery_time || "TBD",
-                  address: qp.address,
-                  contactDetails: {
-                    phone: qp.customer_phone,
-                    name: qp.customer_name,
-                    instructions: qp.special_instructions || 'Quick pickup service',
-                  },
-                  paymentStatus: 'pending',
-                  payment_status: 'pending',
-                  discount_amount: qp.discount_amount || 0,
-                  coupon_code: qp.coupon_code || null,
-                  cashback: qp.cashback || 0,
-                  wallet_applied: qp.cashback || 0,
-                  wallet_cashback: qp.wallet_cashback || 0,
-                  createdAt: qp.createdAt,
-                  created_at: qp.createdAt,
-                  updatedAt: qp.updatedAt,
-                  updated_at: qp.updatedAt,
-                  isQuickPickup: true,
-                  quickPickupNote: '🚚 Quick pickup order'
-                }));
-                console.log("✅ Loaded real quick pickup orders:", quickPickupOrders.length);
-              }
-            } catch (error) {
-              console.warn("⚠️ Failed to load quick pickup orders:", error);
-            }
-
-            // Combine regular bookings with real quick pickup orders
-            const bookingsWithQuickPickup = [...quickPickupOrders, ...mongoBookings];
-
             console.log(
-              "✅ Loaded bookings from MongoDB (filtered + quick pickup demo):",
-              bookingsWithQuickPickup.length,
+              "✅ Loaded bookings from MongoDB (includes quick pickups as bookings):",
+              mongoBookings.length,
             );
-            setBookings(bookingsWithQuickPickup);
+            setBookings(mongoBookings);
             return;
           }
         }
