@@ -819,17 +819,26 @@ const AdminBookingManagement: React.FC = () => {
       setLoading(true);
       const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(`/admin/bookings?limit=100`);
       if (res.data) {
-        const allBookings = [...(res.data.bucketA || []), ...(res.data.bucketB || [])];
-        const processed = allBookings.map((b: any) => ({
+        // Use buckets directly from backend - they're already properly categorized
+        const bucketAData = (res.data.bucketA || []).map((b: any) => ({
           ...b,
           status: normalizeStatus(b.status),
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
-        setBookings(processed);
-        const a = processed.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
-        const b = processed.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
-        setBucketA(a);
-        setBucketB(b);
+
+        const bucketBData = (res.data.bucketB || []).map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+
+        // Combine all bookings for the main list
+        const allBookings = [...bucketAData, ...bucketBData];
+        setBookings(allBookings);
+        setBucketA(bucketAData);
+        setBucketB(bucketBData);
+
+        console.log(`✅ Fetched bookings: bucketA=${bucketAData.length}, bucketB=${bucketBData.length}, total=${allBookings.length}`);
       }
       setLoading(false);
     } catch (e) {
@@ -1022,12 +1031,6 @@ const AdminBookingManagement: React.FC = () => {
     }
   }, [editingBooking?._id, showEditDialog]);
 
-  const rebucketBookings = (bookingsToRebucket: Booking[]) => {
-    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
-    const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
-    setBucketA(a);
-    setBucketB(b);
-  };
 
   const calculateTotalPrice = (orders: Booking[]) => {
     return orders.reduce((total, order) => {
@@ -1069,7 +1072,6 @@ const AdminBookingManagement: React.FC = () => {
     });
 
     setFilteredBookings(filtered);
-    rebucketBookings(bookings);
   };
 
   const applyBookingUpdate = (bookingId: string, update: Partial<Booking>) => {

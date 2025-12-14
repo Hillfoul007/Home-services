@@ -992,6 +992,7 @@ router.get("/customer/:customerId", async (req, res) => {
     const [bookings, quickPickups] = await Promise.all([
       Booking.find(query)
         .select("+item_prices +charges_breakdown") // Explicitly include item_prices and charges_breakdown
+        // Include all financial fields: cashback, discount_amount, discount_percent, wallet_applied, wallet_cashback
         .populate("customer_id", "full_name phone email")
         .populate("rider_id", "full_name phone")
         .sort({ created_at: -1 }),

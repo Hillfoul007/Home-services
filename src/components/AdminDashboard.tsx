@@ -113,6 +113,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Refresh stats when tab changes to ensure latest data
+  useEffect(() => {
+    if (activeTab === "overview") {
+      fetchStats();
+    }
+  }, [activeTab]);
+
   const handleLogout = () => {
     AdminAuth.logout();
     onLogout();

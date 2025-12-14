@@ -364,7 +364,16 @@ class EnhancedApiClient {
             }
           ];
 
-          return { data: { bookings: mockBookings, pagination: { total: mockBookings.length, limit: 100, offset: 0, pages: 1 } }, status: 200 } as ApiResponse<any>;
+          // Return data with bucketA and bucketB to match backend response structure
+          return {
+            data: {
+              bucketA: mockBookings,
+              bucketB: [],
+              bookings: mockBookings,
+              pagination: { total: mockBookings.length, limit: 100, offset: 0, pages: 1 }
+            },
+            status: 200
+          } as ApiResponse<any>;
         }
       }
     } catch (e) {
