@@ -248,6 +248,12 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         city = addressLower.includes("gurugram") ? "gurugram" : "gurgaon";
       } else if (addressLower.includes("delhi")) {
         city = "delhi";
+      } else if (addressLower.includes("chandigarh")) {
+        city = "chandigarh";
+      } else if (addressLower.includes("mohali")) {
+        city = "mohali";
+      } else if (addressLower.includes("kharar")) {
+        city = "kharar";
       } else if (addressLower.includes("sector")) {
         // If address contains sector but no specific city, assume Gurugram
         city = "gurugram";
@@ -255,8 +261,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
 
       console.log("🔍 Validating Quick Pickup address:", { address, city, pincode });
 
-      // Extended validation - service available in all Gurugram/Gurgaon
-      const validCities = ["gurugram", "gurgaon"];
+      // Service available in Delhi, Gurgaon, Chandigarh, Mohali, Kharar
+      const validCities = ["gurugram", "gurgaon", "delhi", "chandigarh", "mohali", "kharar"];
       const isValidLocation = validCities.some(validCity => addressLower.includes(validCity));
 
       if (isValidLocation) {
