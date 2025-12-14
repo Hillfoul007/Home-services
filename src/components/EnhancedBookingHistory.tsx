@@ -95,24 +95,18 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
           services: [
             {
               name: "Men's Suit / Lehenga / Heavy Dresses",
-              quantity: 1,
-              unit_price: 150,
-              price: 150
+              quantity: 1
             },
             {
               name: "Ladies Suit / Kurta & Pyjama / Saree",
-              quantity: 1,
-              unit_price: 100,
-              price: 100
+              quantity: 1
             },
             {
               name: "Regular Items",
-              quantity: 1,
-              unit_price: 40,
-              price: 40
+              quantity: 1
             }
           ],
-          totalAmount: 125,
+          totalAmount: 290,
           item_prices: [
             {
               service_name: "Men's Suit / Lehenga / Heavy Dresses",
