@@ -466,6 +466,9 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       discount_amount: (booking as any).discount_amount || 0,
       discount_percent: (booking as any).discount_percent || 0,
+      cashback: (booking as any).cashback || 0,
+      wallet_applied: (booking as any).wallet_applied || 0,
+      wallet_cashback: (booking as any).wallet_cashback || 0,
     } as Booking;
 
     return normalizedBooking;
