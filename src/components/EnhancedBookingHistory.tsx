@@ -235,6 +235,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
             wallet_applied: booking.cashback || 0,
             wallet_cashback: booking.wallet_cashback || 0,
             payment_status: booking.payment_status || booking.paymentStatus,
+            isQuickPickup: booking.is_quick_pickup || false,
           }));
 
           // Load real quick pickup orders for fallback
