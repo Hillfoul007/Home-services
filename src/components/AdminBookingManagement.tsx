@@ -466,6 +466,9 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       discount_amount: (booking as any).discount_amount || 0,
       discount_percent: (booking as any).discount_percent || 0,
+      cashback: (booking as any).cashback || 0,
+      wallet_applied: (booking as any).wallet_applied || 0,
+      wallet_cashback: (booking as any).wallet_cashback || 0,
     } as Booking;
 
     return normalizedBooking;
@@ -1943,6 +1946,28 @@ const AdminBookingManagement: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1">Applied after cashback</p>
                 </div>
                 <div>
+                  <Label htmlFor="edit-discount-amount">Discount Amount (₹)</Label>
+                  <Input
+                    id="edit-discount-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={editingBooking.discount_amount || ""}
+                    onChange={(event) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              discount_amount: parseFloat(event.target.value) || 0,
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Fixed discount in rupees</p>
+                </div>
+                <div>
                   <Label htmlFor="edit-date">Scheduled Date</Label>
                   <Input
                     id="edit-date"
@@ -2016,6 +2041,86 @@ const AdminBookingManagement: React.FC = () => {
                       )
                     }
                   />
+                </div>
+              </div>
+
+              {/* Pricing & Wallet Section */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Pricing & Wallet
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-cashback">Wallet Used (₹)</Label>
+                    <Input
+                      id="edit-cashback"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={editingBooking.cashback || ""}
+                      onChange={(event) =>
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                cashback: parseFloat(event.target.value) || 0,
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Deducted from user wallet</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-wallet-applied">Wallet Applied (₹)</Label>
+                    <Input
+                      id="edit-wallet-applied"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={editingBooking.wallet_applied || ""}
+                      onChange={(event) =>
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                wallet_applied: parseFloat(event.target.value) || 0,
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Additional wallet deduction</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <Label htmlFor="edit-wallet-cashback">Cashback Earned %</Label>
+                    <Input
+                      id="edit-wallet-cashback"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="0"
+                      value={editingBooking.wallet_cashback || ""}
+                      onChange={(event) =>
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                wallet_cashback: parseFloat(event.target.value) || 0,
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Percentage of final amount</p>
+                  </div>
                 </div>
               </div>
 
@@ -2355,9 +2460,10 @@ const AdminBookingManagement: React.FC = () => {
                         vendor: editingBooking.vendor,
                         cashback_amount: editingBooking.cashback_amount || 0,
                         cashback: editingBooking.cashback || 0,
+                        wallet_applied: editingBooking.wallet_applied || 0,
                         wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
-                        discount_amount: totals.details?.discount || 0,
+                        discount_amount: editingBooking.discount_amount || 0,
                         coordinates: editingBooking.coordinates,
                         distance_to_vendor: editingBooking.distance_to_vendor,
                       };

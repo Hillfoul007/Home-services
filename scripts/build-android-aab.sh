@@ -12,13 +12,19 @@ OUTPUT_DIR="dist-aab"
 echo "🏗️  Building Android App Bundle (AAB) for Google Play..."
 echo ""
 
-# Step 1: Check if Android project exists
+# Step 0: Check if Android project exists
 if [ ! -d "android" ]; then
     echo "❌ Android project not found. Run 'npx cap add android' first."
     exit 1
 fi
 
-# Step 2: Check if keystore exists
+# Step 0b: Initialize Gradle wrapper if needed
+if [ ! -f "android/gradle/wrapper/gradle-wrapper.jar" ]; then
+    echo "📥 Initializing Gradle wrapper (first time only)..."
+    bash scripts/init-gradle.sh || true
+fi
+
+# Step 1: Check if keystore exists
 if [ ! -f "$KEYSTORE_FILE" ]; then
     echo "❌ Keystore file not found: $KEYSTORE_FILE"
     echo ""
@@ -41,14 +47,14 @@ echo ""
 echo "Switching to android directory..."
 cd android
 
-# Check if gradle wrapper exists
-if [ ! -f "gradlew" ]; then
+# Check if gradle wrapper scripts exist
+if [ ! -f "gradlew" ] && [ ! -f "gradlew.bat" ]; then
     echo "❌ Gradle wrapper not found. Please run 'npx cap add android' first."
     exit 1
 fi
 
-# Make gradle executable
-chmod +x gradlew
+# Make gradle executable on Unix
+chmod +x gradlew 2>/dev/null || true
 
 # Check if keystore passwords are set
 if [ -z "$MYAPP_RELEASE_STORE_PASSWORD" ] && [ -z "$MYAPP_RELEASE_KEY_PASSWORD" ]; then
@@ -64,8 +70,22 @@ else
     echo "✅ Using environment variable passwords"
 fi
 
-# Run gradle build
-./gradlew bundleRelease
+echo ""
+echo "📦 Building Android App Bundle..."
+echo "This may take 3-5 minutes..."
+echo ""
+
+# Run gradle build - use proper path handling for Windows and Unix
+if [ -f "gradlew.bat" ]; then
+    # Windows - run from current directory
+    cmd /c gradlew.bat bundleRelease
+elif [ -f "gradlew" ]; then
+    # Unix - make executable and run
+    ./gradlew bundleRelease
+else
+    echo "❌ Neither gradlew.bat nor gradlew found"
+    exit 1
+fi
 
 if [ $? -eq 0 ]; then
     echo ""

@@ -1,4 +1,4 @@
-package com.laundrify.app;
+package com.laundrify.laundry;
 
 import com.getcapacitor.BridgeActivity;
 

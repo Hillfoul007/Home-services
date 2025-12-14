@@ -36,7 +36,9 @@
     "build:android": "npm run build && npx cap copy android && npx cap sync android",
     "generate:keystore": "bash scripts/generate-keystore.sh",
     "build:aab": "bash scripts/build-android-aab.sh",
-    "migrate:wallet": "node backend/scripts/init-wallet-balance.js"
+    "migrate:wallet": "node backend/scripts/init-wallet-balance.js",
+    "setup:gradle": "node scripts/setup-gradle.cjs",
+    "postinstall": "node scripts/setup-gradle.cjs"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.10",
