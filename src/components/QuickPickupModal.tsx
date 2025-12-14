@@ -462,7 +462,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         },
         paymentStatus: "pending" as const,
         additional_details: "Quick pickup - rider will assess items for pricing",
-      };
+        is_quick_pickup: true, // Mark this as a quick pickup order
+      } as any;
 
       console.log("📋 Submitting quick pickup as booking:", bookingData);
 
