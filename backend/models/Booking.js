@@ -165,6 +165,12 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Cashback must be non-negative"],
     },
+    // Wallet amount applied to this booking (additional wallet deduction)
+    wallet_applied: {
+      type: Number,
+      default: 0,
+      min: [0, "Wallet applied must be non-negative"],
+    },
     // Wallet cashback to be credited to user after order completes
     wallet_cashback: {
       type: Number,
