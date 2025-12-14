@@ -2457,9 +2457,10 @@ const AdminBookingManagement: React.FC = () => {
                         vendor: editingBooking.vendor,
                         cashback_amount: editingBooking.cashback_amount || 0,
                         cashback: editingBooking.cashback || 0,
+                        wallet_applied: editingBooking.wallet_applied || 0,
                         wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
-                        discount_amount: totals.details?.discount || 0,
+                        discount_amount: editingBooking.discount_amount || 0,
                         coordinates: editingBooking.coordinates,
                         distance_to_vendor: editingBooking.distance_to_vendor,
                       };
