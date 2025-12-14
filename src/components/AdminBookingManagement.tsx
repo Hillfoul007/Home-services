@@ -1078,7 +1078,6 @@ const AdminBookingManagement: React.FC = () => {
     });
 
     setFilteredBookings(filtered);
-    rebucketBookings(bookings);
   };
 
   const applyBookingUpdate = (bookingId: string, update: Partial<Booking>) => {
