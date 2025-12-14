@@ -2041,6 +2041,86 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
+              {/* Pricing & Wallet Section */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Pricing & Wallet
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-cashback">Wallet Used (₹)</Label>
+                    <Input
+                      id="edit-cashback"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={editingBooking.cashback || ""}
+                      onChange={(event) =>
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                cashback: parseFloat(event.target.value) || 0,
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Deducted from user wallet</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-wallet-applied">Wallet Applied (₹)</Label>
+                    <Input
+                      id="edit-wallet-applied"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={editingBooking.wallet_applied || ""}
+                      onChange={(event) =>
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                wallet_applied: parseFloat(event.target.value) || 0,
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Additional wallet deduction</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <Label htmlFor="edit-wallet-cashback">Cashback Earned %</Label>
+                    <Input
+                      id="edit-wallet-cashback"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="0"
+                      value={editingBooking.wallet_cashback || ""}
+                      onChange={(event) =>
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                wallet_cashback: parseFloat(event.target.value) || 0,
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Percentage of final amount</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Assign Vendor</Label>
