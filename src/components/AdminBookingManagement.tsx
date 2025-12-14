@@ -2236,6 +2236,30 @@ const AdminBookingManagement: React.FC = () => {
                         Max: ₹{userWalletBalance.toFixed(2)}
                       </div>
                     </div>
+
+                    {/* Wallet Applied Input */}
+                    <div>
+                      <label className="text-sm text-purple-900 font-semibold mb-1 block">
+                        Wallet Applied (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBooking.wallet_applied || 0}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          setEditingBooking((prev) =>
+                            prev ? { ...prev, wallet_applied: value } : prev
+                          );
+                        }}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                      />
+                      <div className="text-xs text-purple-600 mt-1">
+                        Additional wallet amount applied to this order
+                      </div>
+                    </div>
                   </div>
 
                   {/* Wallet Cashback Percentage Input */}
