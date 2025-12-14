@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { LocationDetectionService } from "@/services/locationDetectionService";
 import LocationUnavailableModal from "./LocationUnavailableModal";
+import { BookingService } from "@/services/bookingService";
 
 interface QuickPickupModalProps {
   isOpen: boolean;
