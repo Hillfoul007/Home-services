@@ -22,6 +22,8 @@ export interface BookingDetails {
   userId: string;
   services: string[];
   totalAmount: number;
+  total_price?: number;
+  final_amount?: number;
   status: "pending" | "confirmed" | "in-progress" | "completed" | "cancelled";
   pickupDate: string;
   deliveryDate: string;
@@ -38,7 +40,12 @@ export interface BookingDetails {
   createdAt: string;
   updatedAt: string;
   additional_details?: string;
+  // Financial fields set by admin
+  cashback?: number;
   discount_amount?: number;
+  discount_percent?: number;
+  wallet_applied?: number;
+  wallet_cashback?: number;
   item_prices?: Array<{
     service_name: string;
     quantity: number;
