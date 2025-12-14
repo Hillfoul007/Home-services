@@ -1136,15 +1136,21 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             {/* Services Total */}
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600 font-medium">Services Total</span>
-                              <span className="font-semibold text-gray-900">₹{booking.total_price || total}</span>
+                              <span className="font-semibold text-gray-900">₹{(booking.total_price || total).toFixed(2)}</span>
                             </div>
 
                             {/* Delivery Fee */}
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600 font-medium">Delivery Fee</span>
                               <div className="flex items-center gap-1">
-                                <span className="line-through text-gray-400">₹30</span>
-                                <span className="font-semibold text-green-600">FREE</span>
+                                {booking.charges_breakdown?.delivery_fee > 0 ? (
+                                  <>
+                                    <span className="line-through text-gray-400">₹{booking.charges_breakdown.delivery_fee}</span>
+                                    <span className="font-semibold text-green-600">FREE</span>
+                                  </>
+                                ) : (
+                                  <span className="font-semibold text-green-600">FREE</span>
+                                )}
                               </div>
                             </div>
 
@@ -1152,55 +1158,69 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600 font-medium">Handling Fee</span>
                               <div className="flex items-center gap-1">
-                                <span className="line-through text-gray-400">₹9</span>
-                                <span className="font-semibold text-green-600">FREE</span>
+                                {booking.charges_breakdown?.handling_fee > 0 ? (
+                                  <>
+                                    <span className="line-through text-gray-400">₹{booking.charges_breakdown.handling_fee}</span>
+                                    <span className="font-semibold text-green-600">FREE</span>
+                                  </>
+                                ) : (
+                                  <span className="font-semibold text-green-600">FREE</span>
+                                )}
                               </div>
                             </div>
 
                             {/* Discount Amount with Percentage */}
-                            {(booking.discount_amount || booking.discount_percent) && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-600 font-medium">
-                                  Discount {booking.discount_percent ? `(${booking.discount_percent}%)` : ""}
-                                </span>
-                                <span className="font-semibold text-green-600">
-                                  {booking.discount_amount && booking.discount_amount > 0
-                                    ? `-₹${booking.discount_amount.toFixed(2)}`
-                                    : "₹0"}
-                                </span>
-                              </div>
-                            )}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">
+                                Discount Amount {booking.discount_percent ? `(${booking.discount_percent}%)` : ""}
+                              </span>
+                              <span className="font-semibold text-green-600">
+                                {booking.discount_amount && booking.discount_amount > 0
+                                  ? `-₹${booking.discount_amount.toFixed(2)}`
+                                  : "₹0"}
+                              </span>
+                            </div>
 
                             {/* Coupon Code - Show if discount is applied */}
                             {booking.discount_amount && booking.discount_amount > 0 && booking.coupon_code && (
-                              <div className="text-xs text-green-600 flex justify-end pl-4 mb-2">
+                              <div className="text-xs text-green-600 flex justify-end pl-4">
                                 Code: <span className="font-semibold ml-1">{booking.coupon_code}</span>
                               </div>
                             )}
 
                             {/* Wallet Used (Cashback from Wallet) */}
-                            {booking.cashback && booking.cashback > 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-600 font-medium">Wallet Used</span>
-                                <span className="font-semibold text-blue-600">
-                                  -{booking.cashback.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Wallet Used</span>
+                              <span className="font-semibold text-blue-600">
+                                {booking.cashback && booking.cashback > 0
+                                  ? `-₹${booking.cashback.toFixed(2)}`
+                                  : "₹0"}
+                              </span>
+                            </div>
 
-                            {/* Cashback Earned (After Order Completion) */}
-                            {booking.wallet_cashback && booking.wallet_cashback > 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-600 font-medium">
-                                  Cashback Earned {booking.wallet_cashback < 100 ? `(${booking.wallet_cashback}%)` : ""}
-                                </span>
-                                <span className="font-semibold text-purple-600">
-                                  {booking.wallet_cashback < 100
-                                    ? `+₹${((booking.final_amount || booking.total_price || total) * booking.wallet_cashback / 100).toFixed(2)}`
-                                    : `+₹${booking.wallet_cashback.toFixed(2)}`}
-                                </span>
-                              </div>
-                            )}
+                            {/* Wallet Applied (Alternative field if exists) */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Wallet Applied</span>
+                              <span className="font-semibold text-blue-600">
+                                {booking.wallet_applied && booking.wallet_applied > 0
+                                  ? `-₹${booking.wallet_applied.toFixed(2)}`
+                                  : "₹0"}
+                              </span>
+                            </div>
+
+                            {/* Cashback Earned */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">
+                                Cashback Earned {booking.wallet_cashback ? `(${booking.wallet_cashback < 100 ? booking.wallet_cashback + '%' : ''})` : ""}
+                              </span>
+                              <span className="font-semibold text-purple-600">
+                                {booking.wallet_cashback && booking.wallet_cashback > 0
+                                  ? `+₹${(booking.wallet_cashback < 100
+                                      ? ((booking.final_amount || booking.total_price || total) * booking.wallet_cashback / 100).toFixed(2)
+                                      : booking.wallet_cashback).toFixed(2)}`
+                                  : "₹0"}
+                              </span>
+                            </div>
 
                             <Separator className="my-2" />
 
