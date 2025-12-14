@@ -1943,6 +1943,28 @@ const AdminBookingManagement: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1">Applied after cashback</p>
                 </div>
                 <div>
+                  <Label htmlFor="edit-discount-amount">Discount Amount (₹)</Label>
+                  <Input
+                    id="edit-discount-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={editingBooking.discount_amount || ""}
+                    onChange={(event) =>
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              discount_amount: parseFloat(event.target.value) || 0,
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Fixed discount in rupees</p>
+                </div>
+                <div>
                   <Label htmlFor="edit-date">Scheduled Date</Label>
                   <Input
                     id="edit-date"
