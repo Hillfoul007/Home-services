@@ -152,6 +152,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 cashback: booking.cashback || 0,
                 wallet_applied: booking.cashback || 0,
                 wallet_cashback: booking.wallet_cashback || 0,
+                isQuickPickup: booking.is_quick_pickup || false,
                 createdAt: booking.created_at || booking.createdAt,
                 created_at: booking.created_at,
                 updatedAt: booking.updated_at || booking.updatedAt,
