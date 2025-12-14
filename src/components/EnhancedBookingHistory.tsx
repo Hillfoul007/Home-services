@@ -1237,9 +1237,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               <span className="text-gray-600 font-medium">Cashback Earned</span>
                               <span className="font-semibold text-purple-600">
                                 {booking.wallet_cashback && booking.wallet_cashback > 0
-                                  ? `+₹${(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
-                                      ? ((booking.final_amount || booking.total_price || total) * booking.wallet_cashback / 100).toFixed(2)
-                                      : booking.wallet_cashback).toFixed(2)}`
+                                  ? `+₹${parseFloat(booking.wallet_cashback).toFixed(2)}`
                                   : "₹0"}
                               </span>
                             </div>
