@@ -214,10 +214,10 @@ export class LocationDetectionService {
   ): LocationAvailabilityResponse {
     const normalizedCity = city?.toLowerCase().trim();
 
-    // Define available cities - extended to all Gurugram/Gurgaon
-    const availableCities = ["gurgaon", "gurugram"];
+    // Define available cities - Delhi, Gurgaon, Chandigarh, Mohali, Kharar
+    const availableCities = ["gurgaon", "gurugram", "delhi", "chandigarh", "mohali", "kharar"];
 
-    // Check if city matches Gurgaon or Gurugram
+    // Check if city matches any available city
     const isAvailableCity = availableCities.some((availableCity) => {
       return normalizedCity?.includes(availableCity) ||
              fullAddress?.toLowerCase().includes(availableCity);
@@ -227,7 +227,7 @@ export class LocationDetectionService {
       return {
         success: true,
         is_available: true,
-        message: "Service available in Gurugram/Gurgaon",
+        message: "Service available in your area",
       };
     }
 
@@ -235,7 +235,7 @@ export class LocationDetectionService {
     return {
       success: true,
       is_available: false,
-      message: "Service currently available only in Gurugram/Gurgaon area.",
+      message: "Service currently available only in Delhi, Gurgaon, Chandigarh, Mohali, and Kharar.",
     };
   }
 
