@@ -1031,12 +1031,6 @@ const AdminBookingManagement: React.FC = () => {
     }
   }, [editingBooking?._id, showEditDialog]);
 
-  const rebucketBookings = (bookingsToRebucket: Booking[]) => {
-    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
-    const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
-    setBucketA(a);
-    setBucketB(b);
-  };
 
   const calculateTotalPrice = (orders: Booking[]) => {
     return orders.reduce((total, order) => {
