@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, Circle, Clock } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 
 interface OrderStatusBarProps {
   riderStatus?: string;
@@ -12,14 +12,13 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
   bookingStatus = "created",
   className = "",
 }) => {
-  // Map rider statuses to display steps
+  // Map rider statuses to display steps (5 main steps to fit better on mobile)
   const riderStatusSteps = [
-    { value: "unassigned", label: "Order Placed", icon: "📦" },
-    { value: "assigned", label: "Rider Assigned", icon: "🚴" },
-    { value: "accepted", label: "Accepted", icon: "✅" },
-    { value: "picked_up", label: "Picked Up", icon: "📦" },
-    { value: "delivered", label: "On the way", icon: "🚗" },
-    { value: "completed", label: "Delivered", icon: "🎉" },
+    { value: "unassigned", label: "Order Placed" },
+    { value: "assigned", label: "Rider Assigned" },
+    { value: "accepted", label: "Accepted" },
+    { value: "picked_up", label: "Picked Up" },
+    { value: "delivered", label: "On the way" },
   ];
 
   // Find current step index
@@ -36,10 +35,10 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
 
   return (
     <div className={`w-full ${className}`}>
-      {/* Horizontal Status Bar */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-        {/* Status Steps */}
-        <div className="flex items-center justify-between gap-1 mb-3">
+      {/* Horizontal Status Bar - Responsive */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 sm:p-4 border border-blue-200 overflow-hidden">
+        {/* Status Steps - Responsive Grid */}
+        <div className="flex items-stretch justify-between gap-0.5 sm:gap-1 mb-4 min-w-0">
           {riderStatusSteps.map((step, index) => {
             const state = getStepState(index);
             const isCompleted = state === "completed";
@@ -48,28 +47,28 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
             return (
               <React.Fragment key={step.value}>
                 {/* Step Circle */}
-                <div className="flex flex-col items-center flex-1">
+                <div className="flex flex-col items-center justify-start flex-1 min-w-0">
                   <div
                     className={`
-                      relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300
+                      relative w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300
                       ${
                         isCompleted
                           ? "bg-green-500 text-white"
                           : isCurrent
-                            ? "bg-blue-500 text-white ring-2 ring-blue-300 animate-pulse"
-                            : "bg-gray-200 text-gray-500"
+                            ? "bg-blue-500 text-white ring-2 ring-blue-300"
+                            : "bg-gray-300 text-gray-600"
                       }
                     `}
                   >
                     {isCompleted ? (
-                      <CheckCircle2 className="w-5 h-5" />
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     ) : isCurrent ? (
-                      <Clock className="w-5 h-5" />
+                      <Circle className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
                     ) : (
-                      <Circle className="w-5 h-5" />
+                      <Circle className="w-4 h-4 sm:w-5 sm:h-5" />
                     )}
                   </div>
-                  <p className="text-xs font-semibold text-gray-700 mt-2 text-center truncate w-full">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mt-1.5 sm:mt-2 text-center leading-tight">
                     {step.label}
                   </p>
                 </div>
@@ -78,7 +77,7 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
                 {index < riderStatusSteps.length - 1 && (
                   <div
                     className={`
-                      flex-grow h-1 rounded-full transition-all duration-300 mt-5
+                      flex-grow h-1 transition-all duration-300 mt-4 sm:mt-5 mx-0.5 sm:mx-1 rounded-full
                       ${isCompleted ? "bg-green-500" : "bg-gray-300"}
                     `}
                   />
@@ -89,14 +88,16 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
         </div>
 
         {/* Current Status Label */}
-        <div className="text-center">
-          <p className="text-sm font-semibold text-gray-900">
+        <div className="text-center px-2">
+          <p className="text-sm sm:text-base font-semibold text-gray-900">
             {riderStatusSteps[currentStepIndex]?.label || "Status Unknown"}
           </p>
           <p className="text-xs text-gray-600 mt-1">
-            {currentStepIndex === riderStatusSteps.length - 1
-              ? "Order delivered successfully"
-              : "Your order is on the way"}
+            {currentStepIndex === 0
+              ? "Your order is being processed"
+              : currentStepIndex === riderStatusSteps.length - 1
+                ? "Order delivered successfully"
+                : "Your order is on the way"}
           </p>
         </div>
       </div>
