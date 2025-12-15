@@ -114,6 +114,120 @@ export const laundryServices: LaundryService[] = [
       "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2Ff93ebf096d1e43529c8a1e3625dea9da?format=webp&width=800",
   },
 
+  // Other Household
+  {
+    id: "household-blanket-single",
+    name: "Blanket / Quilt - Single",
+    description: "Professional cleaning for single-size blankets and quilts.",
+    price: 300,
+    unit: "PC",
+    category: "other-household",
+    estimatedTime: "48-72 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F6b3c2663d3f1453b8e3aca8210aa20e8?format=webp&width=800",
+  },
+  {
+    id: "household-blanket-double",
+    name: "Blanket / Quilt - Double",
+    description: "Professional cleaning for double-size blankets and quilts.",
+    price: 400,
+    unit: "PC",
+    category: "other-household",
+    estimatedTime: "48-72 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F6b3c2663d3f1453b8e3aca8210aa20e8?format=webp&width=800",
+  },
+  {
+    id: "household-bedsheet-single",
+    name: "Bed sheet - Single",
+    description: "Quality washing for single-size bed sheets.",
+    price: 150,
+    unit: "PC",
+    category: "other-household",
+    estimatedTime: "24-48 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F6b3c2663d3f1453b8e3aca8210aa20e8?format=webp&width=800",
+  },
+  {
+    id: "household-bedsheet-double",
+    name: "Bed sheet - Double",
+    description: "Quality washing for double-size bed sheets.",
+    price: 200,
+    unit: "PC",
+    category: "other-household",
+    estimatedTime: "24-48 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F6b3c2663d3f1453b8e3aca8210aa20e8?format=webp&width=800",
+  },
+  {
+    id: "household-curtain-panel",
+    name: "Curtain / Panel",
+    description: "Professional cleaning for curtains and window panels.",
+    price: 180,
+    unit: "PC",
+    category: "other-household",
+    estimatedTime: "48-72 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F6b3c2663d3f1453b8e3aca8210aa20e8?format=webp&width=800",
+  },
+  {
+    id: "household-table-matte",
+    name: "Table Matte",
+    description: "Professional cleaning for table mats and placemats.",
+    price: 200,
+    unit: "PC",
+    category: "other-household",
+    estimatedTime: "24-48 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F6b3c2663d3f1453b8e3aca8210aa20e8?format=webp&width=800",
+  },
+
+  // Shoes
+  {
+    id: "shoes-sports-sneakers",
+    name: "Sports / Sneakers",
+    description: "Professional cleaning for sports shoes and sneakers.",
+    price: 300,
+    unit: "Pair",
+    category: "shoes",
+    estimatedTime: "24-48 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F50ce6c1ac379418c947c17c24ccab90c?format=webp&width=800",
+  },
+  {
+    id: "shoes-leather",
+    name: "Leather shoes",
+    description: "Expert cleaning and conditioning for leather shoes.",
+    price: 400,
+    unit: "Pair",
+    category: "shoes",
+    estimatedTime: "48-72 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F50ce6c1ac379418c947c17c24ccab90c?format=webp&width=800",
+  },
+  {
+    id: "shoes-boots-ankle",
+    name: "Boots Ankle length",
+    description: "Professional cleaning for ankle-length boots.",
+    price: 500,
+    unit: "Pair",
+    category: "shoes",
+    estimatedTime: "48-72 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F50ce6c1ac379418c947c17c24ccab90c?format=webp&width=800",
+  },
+  {
+    id: "shoes-boots-knee",
+    name: "Boots Knee length",
+    description: "Expert cleaning for knee-length boots.",
+    price: 600,
+    unit: "Pair",
+    category: "shoes",
+    estimatedTime: "48-72 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F50ce6c1ac379418c947c17c24ccab90c?format=webp&width=800",
+  },
+
   // Men's Dry Clean
   {
     id: "dry-clean-mens-shirt",
