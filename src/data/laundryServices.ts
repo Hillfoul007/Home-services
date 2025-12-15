@@ -22,7 +22,7 @@ export const laundryServices: LaundryService[] = [
     id: "laundry-fold",
     name: "Laundry and Fold",
     description: "Basic washing and folding service for everyday clothes.",
-    price: 70,
+    price: 80,
     unit: "KG",
     category: "laundry",
     estimatedTime: "24-48 hours",
