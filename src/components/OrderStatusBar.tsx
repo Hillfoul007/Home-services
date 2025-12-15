@@ -14,11 +14,11 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
 }) => {
   // Map rider statuses to display steps (5 main steps to fit better on mobile)
   const riderStatusSteps = [
-    { value: "unassigned", label: "Order Placed" },
-    { value: "assigned", label: "Rider Assigned" },
-    { value: "accepted", label: "Accepted" },
-    { value: "picked_up", label: "Picked Up" },
-    { value: "delivered", label: "On the way" },
+    { value: "unassigned", label: "Order placed" },
+    { value: "assigned", label: "pickup assigned" },
+    { value: "accepted", label: "pick up complete" },
+    { value: "picked_up", label: "delivery assigned" },
+    { value: "delivered", label: "delivery complete" },
   ];
 
   // Find current step index
