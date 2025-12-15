@@ -524,7 +524,10 @@ export const laundryServices: LaundryService[] = [
 export const serviceCategories = [
   { id: "all", name: "All Services", icon: "🧺" },
   { id: "laundry", name: "Laundry", icon: "🫧" },
+  { id: "woolen", name: "Woolen", icon: "🧶" },
   { id: "iron", name: "Iron", icon: "🔥" },
+  { id: "other-household", name: "Other Household", icon: "🛏️" },
+  { id: "shoes", name: "Shoes", icon: "👟" },
   { id: "mens-dry-clean", name: "Men's Dry Clean", icon: "👔" },
   { id: "womens-dry-clean", name: "Women's Dry Clean", icon: "👗" },
   { id: "woolen-dry-clean", name: "Woolen Dry Clean", icon: "🧥" },
