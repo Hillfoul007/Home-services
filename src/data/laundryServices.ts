@@ -45,6 +45,28 @@ export const laundryServices: LaundryService[] = [
 
     popular: true,
   },
+  {
+    id: "woolen-wash-fold",
+    name: "Woolen Wash and Fold",
+    description: "Gentle washing and folding service for woolens and delicate fabrics.",
+    price: 100,
+    unit: "KG",
+    category: "woolen",
+    estimatedTime: "24-48 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F0eacdeab65264e0fa3186728a9e3c436?format=webp&width=800",
+  },
+  {
+    id: "woolen-wash-iron",
+    name: "Woolen Wash and Iron",
+    description: "Complete washing and gentle ironing service for woolen garments.",
+    price: 140,
+    unit: "KG",
+    category: "woolen",
+    estimatedTime: "24-48 hours",
+    image:
+      "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2F0eacdeab65264e0fa3186728a9e3c436?format=webp&width=800",
+  },
 
   // Iron Services
     {
