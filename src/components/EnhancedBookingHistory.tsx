@@ -1113,16 +1113,6 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               </div>
                             )}
 
-                            {/* Wallet Used (Cashback Debited) */}
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600 font-medium">Wallet Used</span>
-                              <span className="font-semibold text-blue-600">
-                                {booking.cashback && booking.cashback > 0
-                                  ? `-₹${booking.cashback}`
-                                  : "₹0"}
-                              </span>
-                            </div>
-
                             {/* Wallet Applied */}
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600 font-medium">Wallet Applied</span>
@@ -1137,9 +1127,18 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600 font-medium">Cashback Earned</span>
                               <span className="font-semibold text-purple-600">
-                                {booking.wallet_cashback && booking.wallet_cashback > 0
-                                  ? `+₹${parseFloat(booking.wallet_cashback).toFixed(2)}`
-                                  : "₹0"}
+                                {(() => {
+                                  let cashbackAmount = booking.wallet_cashback || 0;
+                                  // If wallet_cashback is a percentage (< 100), calculate the actual amount
+                                  if (cashbackAmount > 0 && cashbackAmount < 100) {
+                                    // It's a percentage, calculate actual amount
+                                    const baseAmount = booking.final_amount || booking.total_price || total;
+                                    cashbackAmount = (baseAmount * cashbackAmount) / 100;
+                                  }
+                                  return cashbackAmount > 0
+                                    ? `+₹${parseFloat(cashbackAmount).toFixed(2)}`
+                                    : "₹0";
+                                })()}
                               </span>
                             </div>
 
