@@ -95,9 +95,13 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
           <p className="text-xs text-gray-600 mt-1">
             {currentStepIndex === 0
               ? "Your order is being processed"
-              : currentStepIndex === riderStatusSteps.length - 1
-                ? "Order delivered successfully"
-                : "Your order is on the way"}
+              : currentStepIndex === 1
+                ? "Rider is being assigned"
+                : currentStepIndex === 2
+                  ? "Rider is picking up your order"
+                  : currentStepIndex === 3
+                    ? "Rider is on the way"
+                    : "Order delivered successfully"}
           </p>
         </div>
       </div>
