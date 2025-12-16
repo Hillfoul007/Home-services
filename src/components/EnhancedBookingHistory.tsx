@@ -870,6 +870,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                         <OrderStatusBar
                           riderStatus={mapStatusToRiderStatus(booking.status)}
                           bookingStatus={booking.status}
+                          isOrderComplete={booking.status === "completed" || booking.status === "delivered"}
                         />
 
                         {/* Services Detail */}
