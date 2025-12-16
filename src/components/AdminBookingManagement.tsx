@@ -352,7 +352,7 @@ Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
 Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
 Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
 
-Payment: UPI - 9999820179@ptyes`;
+Payment: UPI - 7011585587@ptyes`;
 
   return message;
 };
