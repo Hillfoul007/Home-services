@@ -12,6 +12,7 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
   riderStatus = "unassigned",
   bookingStatus = "created",
   className = "",
+  isOrderComplete = false,
 }) => {
   // Map rider statuses to display steps (5 main steps to fit better on mobile)
   const riderStatusSteps = [
