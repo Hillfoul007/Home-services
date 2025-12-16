@@ -5,6 +5,7 @@ interface OrderStatusBarProps {
   riderStatus?: string;
   bookingStatus?: string;
   className?: string;
+  isOrderComplete?: boolean;
 }
 
 const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
