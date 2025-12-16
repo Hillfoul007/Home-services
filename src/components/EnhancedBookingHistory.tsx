@@ -297,18 +297,25 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         case "pending":
         case "confirmed":
           return "assigned";
+        case "pickup_assigned":
+        case "pickup-assigned":
+          return "assigned";
+        case "pickup_completed":
+        case "pickup-completed":
+          return "accepted";
         case "ready_for_delivery":
         case "ready-for-delivery":
         case "delivery_assigned":
         case "delivery-assigned":
-          return "accepted";
+          return "picked_up";
         case "in_progress":
         case "in-progress":
+        case "delivered_to_vendor":
+        case "delivered-to-vendor":
           return "picked_up";
         case "delivered":
-          return "delivered";
         case "completed":
-          return "completed";
+          return "delivered";
         default:
           return "unassigned";
       }
