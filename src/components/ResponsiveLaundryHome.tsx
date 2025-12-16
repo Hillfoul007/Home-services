@@ -1087,6 +1087,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             <OrderStatusBar
               riderStatus={mapStatusToRiderStatus(activeOrder.status)}
               bookingStatus={activeOrder.status}
+              isOrderComplete={activeOrder.status === "completed" || activeOrder.status === "delivered"}
               className="mb-3"
             />
             <Button
