@@ -30,6 +30,10 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
 
   // Determine which steps are completed, current, and upcoming
   const getStepState = (index: number) => {
+    // If order is complete, all steps are completed
+    if (isOrderComplete) {
+      return "completed";
+    }
     if (index < currentStepIndex) return "completed";
     if (index === currentStepIndex) return "current";
     return "upcoming";
