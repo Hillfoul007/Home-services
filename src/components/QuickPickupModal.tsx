@@ -816,14 +816,16 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
                   value={formData.address}
                   onChange={(e) => {
                     setFormData(prev => ({ ...prev, address: e.target.value }));
-                    // Reset auto-detection indicators when user manually edits
+                    // Reset auto-detection indicators and coordinates when user manually edits
                     if (addressAutoDetected) {
                       setAddressAutoDetected(false);
                       setDetectionAccuracy(null);
+                      setDetectedCoordinates(null);
                     }
                   }}
                   onBlur={async (e) => {
                     if (e.target.value.trim()) {
+                      // Don't use old detected coordinates for manual edits - only pass if no manual editing
                       await validatePickupAddress(e.target.value);
                     }
                   }}
