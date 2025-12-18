@@ -108,6 +108,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
   const [detectedLocationText, setDetectedLocationText] = useState("");
   const [addressAutoDetected, setAddressAutoDetected] = useState(false);
   const [detectionAccuracy, setDetectionAccuracy] = useState<number | null>(null);
+  const [detectedCoordinates, setDetectedCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [formData, setFormData] = useState({
     pickup_date: "",
     pickup_time: "",
