@@ -204,6 +204,58 @@ export class LocationDetectionService {
   }
 
   /**
+   * Check if coordinates fall within service areas
+   */
+  private isCoordinateInServiceArea(lat: number, lng: number): boolean {
+    // Service area bounding boxes for available cities
+    const serviceAreas = [
+      {
+        name: "Gurgaon",
+        minLat: 28.35,
+        maxLat: 28.55,
+        minLng: 76.95,
+        maxLng: 77.15,
+      },
+      {
+        name: "Delhi",
+        minLat: 28.40,
+        maxLat: 28.88,
+        minLng: 76.84,
+        maxLng: 77.35,
+      },
+      {
+        name: "Chandigarh",
+        minLat: 30.65,
+        maxLat: 30.80,
+        minLng: 76.68,
+        maxLng: 76.88,
+      },
+      {
+        name: "Mohali",
+        minLat: 30.62,
+        maxLat: 30.77,
+        minLng: 76.67,
+        maxLng: 76.83,
+      },
+      {
+        name: "Kharar",
+        minLat: 30.62,
+        maxLat: 30.72,
+        minLng: 76.52,
+        maxLng: 76.68,
+      },
+    ];
+
+    return serviceAreas.some(
+      (area) =>
+        lat >= area.minLat &&
+        lat <= area.maxLat &&
+        lng >= area.minLng &&
+        lng <= area.maxLng
+    );
+  }
+
+  /**
    * Local fallback for availability check
    */
   private checkAvailabilityLocal(
