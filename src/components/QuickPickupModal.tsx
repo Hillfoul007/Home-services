@@ -249,8 +249,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         setAddressAutoDetected(true);
         setDetectionAccuracy(detectedLocation.accuracy || null);
 
-        // Validate the detected location
-        const isValid = await validatePickupAddress(preciseAddress);
+        // Validate the detected location with coordinates
+        const isValid = await validatePickupAddress(preciseAddress, detectedLocation.coordinates);
         if (isValid) {
           toast.success("📍 Precise location detected and validated!");
         }
