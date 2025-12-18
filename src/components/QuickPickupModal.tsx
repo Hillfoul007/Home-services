@@ -163,10 +163,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
 
       console.log("📋 Fetching previous orders for user:", currentUser._id);
 
-      const response = await apiClient.makeRequest(
-        `/bookings/user/${currentUser._id}`,
-        'GET'
-      );
+      const bookingService = BookingService.getInstance();
+      const response = await bookingService.getUserBookings(currentUser._id);
 
       if (response.success && response.bookings && response.bookings.length > 0) {
         // Get the most recent booking
@@ -183,7 +181,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
             ...prev,
             address: lastAddress
           }));
-          toast.success("📍 Last address loaded");
+          setAddressAutoDetected(true);
+          toast.success("📍 Last address loaded from your previous order");
           // Don't auto-detect location if we have a previous address
           return;
         }
