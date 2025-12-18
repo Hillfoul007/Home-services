@@ -283,6 +283,19 @@ export class LocationDetectionService {
       };
     }
 
+    // Fallback: Check if coordinates fall within service area
+    // This is useful when address doesn't contain city name but coordinates are valid
+    if (coordinates && coordinates.lat && coordinates.lng) {
+      const isInServiceArea = this.isCoordinateInServiceArea(coordinates.lat, coordinates.lng);
+      if (isInServiceArea) {
+        return {
+          success: true,
+          is_available: true,
+          message: "Service available in your area",
+        };
+      }
+    }
+
     // If no matches found
     return {
       success: true,
