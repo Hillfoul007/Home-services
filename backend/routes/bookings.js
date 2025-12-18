@@ -588,9 +588,9 @@ router.post("/", async (req, res) => {
       if (userReferral) {
         console.log(`🎁 Found pending referral for customer ${customer.name}! Referrer: ${userReferral.referrer_id.name}`);
 
-        // Check if a referral discount was applied via FIRST30 or similar
-        // For referral users, FIRST30 becomes a 30% discount courtesy of their referrer
-        if (coupon_code === "FIRST30" || (discount_amount > 0 && total_price > 0)) {
+        // Check if a referral discount was applied via coupon or referral
+        // For referral users, discount is applied courtesy of their referrer
+        if (coupon_code || (discount_amount > 0 && total_price > 0)) {
           console.log("🎉 Referral discount applied through booking coupon system");
 
           // This will be handled when the booking is completed, not here
