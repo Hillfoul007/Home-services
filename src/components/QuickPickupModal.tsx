@@ -472,7 +472,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
     }
 
     // Validate pickup address for service availability
-    const isAddressValid = await validatePickupAddress(formData.address);
+    const isAddressValid = await validatePickupAddress(formData.address, detectedCoordinates || undefined);
     if (!isAddressValid) {
       return; // Address validation will show the location unavailable modal
     }
