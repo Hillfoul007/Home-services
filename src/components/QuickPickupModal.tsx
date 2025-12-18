@@ -830,17 +830,23 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
                 <Button
                   type="button"
                   variant="outline"
-                  className={`h-12 w-12 border-gray-300 hover:border-purple-500 hover:bg-purple-50 ${
+                  className={`h-12 px-3 border-gray-300 hover:border-purple-500 hover:bg-purple-50 flex items-center gap-2 ${
                     detectingLocation ? 'border-purple-300 bg-purple-50' : ''
                   }`}
                   onClick={detectLocation}
                   disabled={detectingLocation}
-                  title={detectingLocation ? "Detecting precise location..." : "Detect my precise location"}
+                  title={detectingLocation ? "Detecting precise location..." : "Use current location"}
                 >
                   {detectingLocation ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                      <span className="text-xs text-purple-600">Detecting...</span>
+                    </>
                   ) : (
-                    <Navigation className="h-4 w-4 text-purple-600" />
+                    <>
+                      <Navigation className="h-4 w-4 text-purple-600" />
+                      <span className="text-xs text-purple-600 hidden sm:inline">Current</span>
+                    </>
                   )}
                 </Button>
               </div>
@@ -853,13 +859,17 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
                 <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
                   <CheckCircle className="h-3 w-3" />
                   <span>
-                    ✅ Address auto-detected with precision
+                    ✅ Address loaded {formData.address.includes("detected") ? "from your current location" : "from your last order"}
                     {detectionAccuracy && ` (±${Math.round(detectionAccuracy)}m accuracy)`}
                   </span>
                 </div>
+              ) : formData.address ? (
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 Edit the address or tap "Current" to detect your current location
+                </p>
               ) : (
                 <p className="text-xs text-gray-500 mt-1">
-                  💡 Auto-detection starts when modal opens. For best results, include house/flat number, building name, and landmarks
+                  💡 Tap "Current" to detect your location or enter address manually
                 </p>
               )}
             </div>
