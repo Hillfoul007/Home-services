@@ -92,6 +92,9 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
       if (existingStyle) {
         document.head.removeChild(existingStyle);
       }
+
+      // Reset detected coordinates when modal closes
+      setDetectedCoordinates(null);
     }
 
     return () => {
