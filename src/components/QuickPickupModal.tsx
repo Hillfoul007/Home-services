@@ -389,8 +389,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         setAddressAutoDetected(true);
         setDetectionAccuracy(detectedLocation.accuracy || null);
 
-        // Validate the detected location
-        const isValid = await validatePickupAddress(comprehensiveAddress);
+        // Validate the detected location with coordinates
+        const isValid = await validatePickupAddress(comprehensiveAddress, detectedLocation.coordinates);
         if (isValid) {
           const accuracyText = detectedLocation.accuracy
             ? ` (±${Math.round(detectedLocation.accuracy)}m accuracy)`
@@ -404,7 +404,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         const basicLocation = await locationDetectionService.detectLocationGPS();
         if (basicLocation) {
           setFormData(prev => ({ ...prev, address: basicLocation.full_address }));
-          await validatePickupAddress(basicLocation.full_address);
+          await validatePickupAddress(basicLocation.full_address, basicLocation.coordinates);
           toast.success("📍 Location detected!");
         } else {
           throw new Error("All location detection methods failed");
