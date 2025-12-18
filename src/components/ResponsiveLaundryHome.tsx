@@ -726,18 +726,25 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
       case "pending":
       case "confirmed":
         return "assigned";
+      case "pickup_assigned":
+      case "pickup-assigned":
+        return "assigned";
+      case "pickup_completed":
+      case "pickup-completed":
+        return "accepted";
       case "ready_for_delivery":
       case "ready-for-delivery":
       case "delivery_assigned":
       case "delivery-assigned":
-        return "accepted";
+        return "picked_up";
       case "in_progress":
       case "in-progress":
+      case "delivered_to_vendor":
+      case "delivered-to-vendor":
         return "picked_up";
       case "delivered":
-        return "delivered";
       case "completed":
-        return "completed";
+        return "delivered";
       default:
         return "unassigned";
     }
@@ -1080,6 +1087,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             <OrderStatusBar
               riderStatus={mapStatusToRiderStatus(activeOrder.status)}
               bookingStatus={activeOrder.status}
+              isOrderComplete={activeOrder.status === "completed" || activeOrder.status === "delivered"}
               className="mb-3"
             />
             <Button
@@ -1472,6 +1480,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             <OrderStatusBar
               riderStatus={mapStatusToRiderStatus(activeOrder.status)}
               bookingStatus={activeOrder.status}
+              isOrderComplete={activeOrder.status === "completed" || activeOrder.status === "delivered"}
             />
             <div className="mt-4">
               <Button

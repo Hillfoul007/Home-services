@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
-import { quickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
 import OrderStatusBar from "@/components/OrderStatusBar";
 
@@ -130,6 +129,8 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 userId: booking.customer_id,
                 services: booking.services || [booking.service],
                 totalAmount: booking.final_amount || booking.total_price,
+                total_price: booking.total_price,
+                final_amount: booking.final_amount,
                 item_prices: booking.item_prices, // Include item prices from database
                 status: booking.status,
                 pickupDate: booking.scheduled_date,
@@ -144,56 +145,25 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                     booking.additional_details || booking.special_instructions,
                 },
                 paymentStatus: booking.payment_status,
+                payment_status: booking.payment_status,
+                discount_amount: booking.discount_amount || 0,
+                coupon_code: booking.coupon_code || null,
+                cashback: booking.cashback || 0,
+                wallet_applied: booking.cashback || 0,
+                wallet_cashback: booking.wallet_cashback || 0,
+                isQuickPickup: booking.is_quick_pickup || false,
                 createdAt: booking.created_at || booking.createdAt,
+                created_at: booking.created_at,
                 updatedAt: booking.updated_at || booking.updatedAt,
+                updated_at: booking.updated_at,
               }),
             );
 
-            // Load real quick pickup orders
-            console.log("Loading quick pickup orders...");
-            let quickPickupOrders = [];
-            try {
-              const quickPickupResult = await quickPickupService.getCurrentUserQuickPickups();
-              if (quickPickupResult.success && quickPickupResult.quickPickups) {
-                quickPickupOrders = quickPickupResult.quickPickups.map((qp: any) => ({
-                  id: qp.id,
-                  custom_order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                  order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                  userId: qp.userId,
-                  services: qp.items_collected?.map((item: any) => `${item.name} x${item.quantity}`) || ["Quick Pickup - Items TBD"],
-                  totalAmount: qp.actual_cost || qp.estimated_cost || 0,
-                  item_prices: qp.items_collected || [],
-                  status: qp.status,
-                  pickupDate: qp.pickup_date,
-                  deliveryDate: qp.delivery_date || "TBD",
-                  pickupTime: qp.pickup_time,
-                  deliveryTime: qp.delivery_time || "TBD",
-                  address: qp.address,
-                  contactDetails: {
-                    phone: qp.customer_phone,
-                    name: qp.customer_name,
-                    instructions: qp.special_instructions || 'Quick pickup service',
-                  },
-                  paymentStatus: 'pending',
-                  createdAt: qp.createdAt,
-                  updatedAt: qp.updatedAt,
-                  isQuickPickup: true,
-                  quickPickupNote: '🚚 Quick pickup order'
-                }));
-                console.log("✅ Loaded real quick pickup orders:", quickPickupOrders.length);
-              }
-            } catch (error) {
-              console.warn("⚠️ Failed to load quick pickup orders:", error);
-            }
-
-            // Combine regular bookings with real quick pickup orders
-            const bookingsWithQuickPickup = [...quickPickupOrders, ...mongoBookings];
-
             console.log(
-              "✅ Loaded bookings from MongoDB (filtered + quick pickup demo):",
-              bookingsWithQuickPickup.length,
+              "✅ Loaded bookings from MongoDB (includes quick pickups as bookings):",
+              mongoBookings.length,
             );
-            setBookings(bookingsWithQuickPickup);
+            setBookings(mongoBookings);
             return;
           }
         }
@@ -206,53 +176,22 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
           // Filter out demo bookings for production
           const productionBookings = filterProductionBookings(
             response.bookings,
-          );
-
-          // Load real quick pickup orders for fallback
-          console.log("Loading quick pickup orders for fallback...");
-          let quickPickupOrders = [];
-          try {
-            const quickPickupResult = await quickPickupService.getCurrentUserQuickPickups();
-            if (quickPickupResult.success && quickPickupResult.quickPickups) {
-              quickPickupOrders = quickPickupResult.quickPickups.map((qp: any) => ({
-                id: qp.id,
-                custom_order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                userId: qp.userId,
-                services: qp.items_collected?.map((item: any) => `${item.name} x${item.quantity}`) || ["Quick Pickup - Items TBD"],
-                totalAmount: qp.actual_cost || qp.estimated_cost || 0,
-                item_prices: qp.items_collected || [],
-                status: qp.status,
-                pickupDate: qp.pickup_date,
-                deliveryDate: qp.delivery_date || "TBD",
-                pickupTime: qp.pickup_time,
-                deliveryTime: qp.delivery_time || "TBD",
-                address: qp.address,
-                contactDetails: {
-                  phone: qp.customer_phone,
-                  name: qp.customer_name,
-                  instructions: qp.special_instructions || 'Quick pickup service',
-                },
-                paymentStatus: 'pending',
-                createdAt: qp.createdAt,
-                updatedAt: qp.updatedAt,
-                isQuickPickup: true,
-                quickPickupNote: '🚚 Quick pickup order'
-              }));
-              console.log("✅ Loaded real quick pickup orders for fallback:", quickPickupOrders.length);
-            }
-          } catch (error) {
-            console.warn("⚠️ Failed to load quick pickup orders for fallback:", error);
-          }
-
-          // Combine regular bookings with real quick pickup orders
-          const bookingsWithQuickPickup = [...quickPickupOrders, ...productionBookings];
+          ).map((booking: any) => ({
+            ...booking,
+            discount_amount: booking.discount_amount || 0,
+            coupon_code: booking.coupon_code || null,
+            cashback: booking.cashback || 0,
+            wallet_applied: booking.cashback || 0,
+            wallet_cashback: booking.wallet_cashback || 0,
+            payment_status: booking.payment_status || booking.paymentStatus,
+            isQuickPickup: booking.is_quick_pickup || false,
+          }));
 
           console.log(
-            "✅ Bookings loaded from BookingService (filtered + real quick pickups):",
-            bookingsWithQuickPickup.length,
+            "✅ Bookings loaded from BookingService (includes quick pickups as bookings):",
+            productionBookings.length,
           );
-          setBookings(bookingsWithQuickPickup);
+          setBookings(productionBookings);
         } else {
           console.log("No bookings found or error:", response.error);
           setBookings([]);
@@ -358,18 +297,25 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         case "pending":
         case "confirmed":
           return "assigned";
+        case "pickup_assigned":
+        case "pickup-assigned":
+          return "assigned";
+        case "pickup_completed":
+        case "pickup-completed":
+          return "accepted";
         case "ready_for_delivery":
         case "ready-for-delivery":
         case "delivery_assigned":
         case "delivery-assigned":
-          return "accepted";
+          return "picked_up";
         case "in_progress":
         case "in-progress":
+        case "delivered_to_vendor":
+        case "delivered-to-vendor":
           return "picked_up";
         case "delivered":
-          return "delivered";
         case "completed":
-          return "completed";
+          return "delivered";
         default:
           return "unassigned";
       }
@@ -924,6 +870,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                         <OrderStatusBar
                           riderStatus={mapStatusToRiderStatus(booking.status)}
                           bookingStatus={booking.status}
+                          isOrderComplete={booking.status === "completed" || booking.status === "delivered"}
                         />
 
                         {/* Services Detail */}
@@ -1174,16 +1121,6 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               </div>
                             )}
 
-                            {/* Wallet Used (Cashback Debited) */}
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600 font-medium">Wallet Used</span>
-                              <span className="font-semibold text-blue-600">
-                                {booking.cashback && booking.cashback > 0
-                                  ? `-₹${booking.cashback}`
-                                  : "₹0"}
-                              </span>
-                            </div>
-
                             {/* Wallet Applied */}
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600 font-medium">Wallet Applied</span>
@@ -1198,11 +1135,18 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600 font-medium">Cashback Earned</span>
                               <span className="font-semibold text-purple-600">
-                                {booking.wallet_cashback && booking.wallet_cashback > 0
-                                  ? `+₹${(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
-                                      ? ((booking.final_amount || booking.total_price || total) * booking.wallet_cashback / 100).toFixed(2)
-                                      : booking.wallet_cashback).toFixed(2)}`
-                                  : "₹0"}
+                                {(() => {
+                                  let cashbackAmount = booking.wallet_cashback || 0;
+                                  // If wallet_cashback is a percentage (< 100), calculate the actual amount
+                                  if (cashbackAmount > 0 && cashbackAmount < 100) {
+                                    // It's a percentage, calculate actual amount
+                                    const baseAmount = booking.final_amount || booking.total_price || total;
+                                    cashbackAmount = (baseAmount * cashbackAmount) / 100;
+                                  }
+                                  return cashbackAmount > 0
+                                    ? `+₹${parseFloat(cashbackAmount).toFixed(2)}`
+                                    : "₹0";
+                                })()}
                               </span>
                             </div>
 

@@ -352,7 +352,7 @@ Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
 Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
 Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
 
-Payment: UPI - 9999820179@ptyes`;
+Payment: UPI - 7011585587@ptyes`;
 
   return message;
 };
@@ -2133,7 +2133,15 @@ const AdminBookingManagement: React.FC = () => {
                                       }}
                                     >
                                       <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue placeholder="Select item" />
+                                        <SelectValue placeholder="Select item">
+                                          {item.service_name || item.name ? (
+                                            <>
+                                              {item.service_name || item.name} — ₹{item.unit_price || item.price || 0}
+                                            </>
+                                          ) : (
+                                            "Select item"
+                                          )}
+                                        </SelectValue>
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="__none__">Select item</SelectItem>

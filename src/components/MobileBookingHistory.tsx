@@ -876,6 +876,7 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                       <OrderStatusBar
                         riderStatus={safeBooking.riderStatus || "unassigned"}
                         bookingStatus={safeBooking.status}
+                        isOrderComplete={safeBooking.status === "completed" || safeBooking.status === "delivered"}
                       />
 
                       {/* Booked Services */}
