@@ -276,7 +276,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
   };
 
   // Validate pickup address using same logic as cart save address with enhanced keywords
-  const validatePickupAddress = async (address: string): Promise<boolean> => {
+  const validatePickupAddress = async (address: string, coordinates?: { lat: number; lng: number }): Promise<boolean> => {
     if (!address.trim()) return true; // Allow empty for now, will be caught by form validation
 
     try {
@@ -304,7 +304,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         city = "gurugram";
       }
 
-      console.log("🔍 Validating Quick Pickup address:", { address, city, pincode });
+      console.log("🔍 Validating Quick Pickup address:", { address, city, pincode, coordinates });
 
       // Service available in Delhi, Gurgaon, Chandigarh, Mohali, Kharar
       const validCities = ["gurugram", "gurgaon", "delhi", "chandigarh", "mohali", "kharar"];
@@ -315,11 +315,12 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         return true;
       }
 
-      // Fallback to location service check
+      // Fallback to location service check with coordinates support
       const availability = await locationDetectionService.checkLocationAvailability(
         city,
         pincode,
-        address
+        address,
+        coordinates
       );
 
       console.log("✅ Address validation result:", availability);
