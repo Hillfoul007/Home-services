@@ -249,6 +249,9 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         // Set visual indicators
         setAddressAutoDetected(true);
         setDetectionAccuracy(detectedLocation.accuracy || null);
+        if (detectedLocation.coordinates) {
+          setDetectedCoordinates(detectedLocation.coordinates);
+        }
 
         // Validate the detected location with coordinates
         const isValid = await validatePickupAddress(preciseAddress, detectedLocation.coordinates);
