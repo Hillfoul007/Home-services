@@ -143,9 +143,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         pickup_time: "", // Reset time when modal opens
       }));
 
-      // Automatically trigger precise location detection when modal opens
-      console.log("🎯 Quick Pickup modal opened - starting auto location detection");
-      autoDetectPreciseLocation();
+      // Fetch last address from previous orders
+      loadLastAddressFromPreviousOrder();
     } else {
       // Reset indicators when modal closes
       setAddressAutoDetected(false);
@@ -153,6 +152,52 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
       setDetectingLocation(false);
     }
   }, [isOpen]);
+
+  // Load last address from user's previous orders
+  const loadLastAddressFromPreviousOrder = async () => {
+    try {
+      if (!currentUser?._id) {
+        console.log("⚠️ No user ID available");
+        return;
+      }
+
+      console.log("📋 Fetching previous orders for user:", currentUser._id);
+
+      const response = await apiClient.makeRequest(
+        `/bookings/user/${currentUser._id}`,
+        'GET'
+      );
+
+      if (response.success && response.bookings && response.bookings.length > 0) {
+        // Get the most recent booking
+        const lastBooking = response.bookings[0];
+        const lastAddress = typeof lastBooking.address === "object"
+          ? (lastBooking.address.fullAddress ||
+             [lastBooking.address.flatNo, lastBooking.address.street, lastBooking.address.landmark,
+              lastBooking.address.city, lastBooking.address.pincode].filter(Boolean).join(", "))
+          : lastBooking.address;
+
+        if (lastAddress) {
+          console.log("✅ Found last address:", lastAddress);
+          setFormData(prev => ({
+            ...prev,
+            address: lastAddress
+          }));
+          toast.success("📍 Last address loaded");
+          // Don't auto-detect location if we have a previous address
+          return;
+        }
+      }
+
+      // If no previous address found, try to detect current location
+      console.log("⚠️ No previous orders found, detecting current location");
+      autoDetectPreciseLocation();
+    } catch (error) {
+      console.error("Error fetching previous orders:", error);
+      // Fallback to location detection
+      autoDetectPreciseLocation();
+    }
+  };
 
   // Auto-detect precise location when modal opens
   const autoDetectPreciseLocation = async () => {
