@@ -70,25 +70,6 @@ router.get("/pgs/city/:city", async (req, res) => {
   }
 });
 
-// Get all cities with active PGs
-router.get("/pgs/cities/list", async (req, res) => {
-  try {
-    const cities = await PG.distinct("city", { is_active: true });
-
-    console.log(`✅ Found ${cities.length} cities with active PGs`);
-
-    res.json({
-      success: true,
-      data: cities.sort(),
-    });
-  } catch (error) {
-    console.error("Error fetching cities:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch cities",
-    });
-  }
-});
 
 // Create a new PG order
 router.post("/", async (req, res) => {
