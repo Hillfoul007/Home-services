@@ -397,6 +397,24 @@ try {
   console.error("❌ Full quick book routes error:", error);
 }
 
+// PG Orders routes
+try {
+  const pgOrderRoutes = require("./routes/pg-orders");
+  app.use("/api/pg-orders", pgOrderRoutes);
+  console.log("🔗 PG Orders routes registered at /api/pg-orders");
+} catch (error) {
+  console.error("❌ Failed to load PG Orders routes:", error.message);
+}
+
+// PG Admin routes
+try {
+  const pgAdminRoutes = require("./routes/pg-admin");
+  app.use("/api/pg-admin", pgAdminRoutes);
+  console.log("🔗 PG Admin routes registered at /api/pg-admin");
+} catch (error) {
+  console.error("❌ Failed to load PG Admin routes:", error.message);
+}
+
 // Rider routes
 try {
   const riderRoutes = require("./routes/riders");
