@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateOnlyIST } from "@/utils/timeUtils";
 import { toast } from "sonner";
 import { Volume2, VolumeX } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
 
 interface Order {
   _id: string;
@@ -23,6 +24,9 @@ interface Order {
   address?: string;
   final_amount?: number;
   total_price?: number;
+  isPGOrder?: boolean;
+  pg_name?: string;
+  no_of_items?: number;
 }
 
 const getScheduledDateTime = (order: Order): Date => {
