@@ -208,11 +208,26 @@ const VendorDashboard: React.FC = () => {
     }
   };
 
-  const changeStatus = async (orderId: string, status: string) => {
+  const changeStatus = async (orderId: string, status: string, isPGOrder: boolean = false) => {
     try {
-      const res = await vendorAuthService.updateOrderStatus(orderId, status);
+      let res;
+
+      if (isPGOrder) {
+        // For PG orders, use the PG orders API
+        res = await apiClient.request<any>(
+          `/pg-orders/${orderId}/status`,
+          {
+            method: "PATCH",
+            body: { status, changed_by: "vendor" },
+          }
+        );
+      } else {
+        // For regular orders, use the vendor auth service
+        res = await vendorAuthService.updateOrderStatus(orderId, status);
+      }
+
       if (!res || !res.success) {
-        toast.error(res.error || "Failed to update status");
+        toast.error(res?.error || "Failed to update status");
         return;
       }
       toast.success("Status updated");
