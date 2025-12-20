@@ -25,6 +25,7 @@ import {
   Gift,
   AlertTriangle,
   Zap,
+  Home,
 } from "lucide-react";
 import {
   laundryServices,
