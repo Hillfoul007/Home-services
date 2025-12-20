@@ -89,6 +89,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   onViewBookings,
   onLogout,
 }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
