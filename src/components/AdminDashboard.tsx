@@ -293,40 +293,80 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       {/* Main Content */}
       <main className="p-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
-          <TabsList className="grid w-full grid-cols-8 gap-1 mb-6 h-auto flex-wrap">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <Button
+              onClick={() => setActiveTab("overview")}
+              variant={activeTab === "overview" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="bookings" className="flex items-center gap-2">
+            </Button>
+            <Button
+              onClick={() => setActiveTab("bookings")}
+              variant={activeTab === "bookings" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <Calendar className="h-4 w-4" />
               <span className="hidden sm:inline">Bookings</span>
-            </TabsTrigger>
-            <TabsTrigger value="user-booking" className="flex items-center gap-2">
+            </Button>
+            <Button
+              onClick={() => setActiveTab("user-booking")}
+              variant={activeTab === "user-booking" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Book User</span>
-            </TabsTrigger>
-            <TabsTrigger value="locations" className="flex items-center gap-2">
+            </Button>
+            <Button
+              onClick={() => setActiveTab("locations")}
+              variant={activeTab === "locations" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <MapPin className="h-4 w-4" />
               <span className="hidden sm:inline">Locations</span>
-            </TabsTrigger>
-            <TabsTrigger value="vendors" className="flex items-center gap-2">
+            </Button>
+            <Button
+              onClick={() => setActiveTab("vendors")}
+              variant={activeTab === "vendors" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <Building className="h-4 w-4" />
               <span className="hidden sm:inline">Vendors</span>
-            </TabsTrigger>
-            <TabsTrigger value="pgs" className="flex items-center gap-2">
+            </Button>
+            <Button
+              onClick={() => setActiveTab("pgs")}
+              variant={activeTab === "pgs" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">PGs</span>
-            </TabsTrigger>
-            <TabsTrigger value="wallet" className="flex items-center gap-2">
+            </Button>
+            <Button
+              onClick={() => setActiveTab("pg-orders")}
+              variant={activeTab === "pg-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">PG Orders</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("wallet")}
+              variant={activeTab === "wallet" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <span>💰</span>
               <span className="hidden sm:inline">Wallet</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
+            </Button>
+            <Button
+              onClick={() => setActiveTab("analytics")}
+              variant={activeTab === "analytics" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Analytics</span>
-            </TabsTrigger>
-          </TabsList>
+            </Button>
+          </div>
 
           <TabsContent value="overview">
             {renderOverview()}
