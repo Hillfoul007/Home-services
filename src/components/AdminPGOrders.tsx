@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Eye, MessageCircle, Edit2 } from "lucide-react";
 import { createSuccessNotification, createErrorNotification } from "@/utils/notificationUtils";
+import PGWhatsappService from "@/services/pgWhatsappService";
 
 interface PGOrder {
   _id: string;
@@ -113,17 +114,34 @@ const AdminPGOrders: React.FC = () => {
 
   const handleSendWhatsApp = async (order: PGOrder, recipientType: "vendor" | "customer") => {
     try {
-      // This would send a WhatsApp message - implement based on your WhatsApp service
-      const message = `Order ${order.order_id}: ${order.num_items} items from ${order.pg_details.name}`;
-      const phoneNumber = recipientType === "vendor" ? order.assigned_vendor?.phone : order.customer_phone;
+      const whatsappService = PGWhatsappService.getInstance();
+      let success = false;
 
-      if (!phoneNumber) {
+      if (recipientType === "vendor" && order.assigned_vendor) {
+        success = await whatsappService.notifyVendor(
+          order.assigned_vendor.phone,
+          order.order_id,
+          order.pg_details.name,
+          order.num_items,
+          order.total_price
+        );
+      } else if (recipientType === "customer") {
+        success = await whatsappService.sendStatusUpdate(
+          order.customer_phone,
+          order.order_id,
+          order.pg_details.name,
+          order.status
+        );
+      } else {
         createErrorNotification("Error", `No ${recipientType} phone number available`);
         return;
       }
 
-      // Call your WhatsApp service here
-      createSuccessNotification("Success", `WhatsApp message sent to ${recipientType}`);
+      if (success) {
+        createSuccessNotification("Success", `WhatsApp message sent to ${recipientType}`);
+      } else {
+        createErrorNotification("Error", "Failed to send message");
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       createErrorNotification("Error", "Failed to send message");
