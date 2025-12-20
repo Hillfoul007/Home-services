@@ -7,6 +7,7 @@ import { ChevronDown, Minus, Plus, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createSuccessNotification, createErrorNotification } from "@/utils/notificationUtils";
 import OTPAuthService from "@/services/otpAuthService";
+import PGWhatsappService from "@/services/pgWhatsappService";
 
 interface PG {
   _id: string;
@@ -117,6 +118,16 @@ const PGBooking: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
+        // Send WhatsApp confirmation
+        const whatsappService = PGWhatsappService.getInstance();
+        await whatsappService.sendOrderConfirmation(
+          user?.phone || customerPhone,
+          data.order.order_id,
+          selectedPG.name,
+          numItems,
+          totalPrice
+        );
+
         createSuccessNotification("Order Created!", "Your PG order has been created successfully");
         navigate(`/pg-order-confirmation/${data.order._id}`, {
           state: { order: data.order },
