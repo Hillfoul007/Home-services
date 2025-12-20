@@ -353,6 +353,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminWalletManagement />
           </TabsContent>
 
+          <TabsContent value="pg">
+            <AdminPGManagement />
+          </TabsContent>
+
           <TabsContent value="analytics">
             <Card>
               <CardHeader>
