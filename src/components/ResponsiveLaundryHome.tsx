@@ -59,6 +59,7 @@ import CustomerVerificationPopup from "./CustomerVerificationPopup";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
 import { useCustomerNotifications } from "@/hooks/useCustomerNotifications";
+import { useNavigate } from "react-router-dom";
 import debugCustomerVerification from "@/utils/debugCustomerVerification";
 import { initializeMobileVerificationFallback, cleanupMobileVerificationFallback } from "@/utils/mobileVerificationFallback";
 import clearTestVerifications from "@/utils/clearTestVerifications";
@@ -86,6 +87,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   onViewBookings,
   onLogout,
 }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
