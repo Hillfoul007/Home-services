@@ -883,6 +883,21 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             </div>
                           )}
 
+                          {/* PG Order Indicator */}
+                          {booking.isPGOrder && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <div className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                <Package className="h-3 w-3" />
+                                <span>PG Service</span>
+                              </div>
+                              {booking.pgNote && (
+                                <div className="text-xs text-purple-600">
+                                  {booking.pgNote}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Quick Info Row */}
                           <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-600">
                             <div className="flex items-center gap-1">
