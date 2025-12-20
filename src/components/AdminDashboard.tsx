@@ -350,6 +350,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminVendorManagement />
           </TabsContent>
 
+          <TabsContent value="pgs">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ PG Management:</strong> Create and manage paying guest (PG) locations. Assign vendors to PGs to handle all orders from that location. Set pricing and minimum items per order.</p>
+            </div>
+            <AdminPGManagement />
+          </TabsContent>
+
           <TabsContent value="wallet">
             <AdminWalletManagement />
           </TabsContent>
