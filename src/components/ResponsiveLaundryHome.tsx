@@ -1052,6 +1052,20 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 All
               </Button>
 
+              <Button
+                onClick={() => {
+                  if (!currentUser?.phone) {
+                    setShowAuthModal(true);
+                  } else {
+                    setShowPGOrders(true);
+                  }
+                }}
+                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium shadow-md border bg-gradient-to-r from-laundrify-purple to-laundrify-pink text-white border-transparent hover:shadow-lg hover:scale-105 transition-all"
+              >
+                <Building2 className="h-3 w-3 mr-1" />
+                <span className="whitespace-nowrap">PG</span>
+              </Button>
+
               {(useStaticFallback
                 ? (serviceCategories || []).slice(1)
                 : dynamicServices || []
