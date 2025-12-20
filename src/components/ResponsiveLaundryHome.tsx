@@ -57,6 +57,7 @@ import NotificationBell from "./NotificationBell";
 import QuickPickupModal from "./QuickPickupModal";
 import CustomerVerificationPopup from "./CustomerVerificationPopup";
 import OrderStatusBar from "@/components/OrderStatusBar";
+import PGOrderCreate from "@/components/PGOrderCreate";
 import { BookingService } from "@/services/bookingService";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
