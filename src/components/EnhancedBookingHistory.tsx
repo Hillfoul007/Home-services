@@ -184,8 +184,45 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               console.warn("⚠️ Failed to load quick pickup orders:", error);
             }
 
-            // Combine regular bookings with real quick pickup orders
-            const bookingsWithQuickPickup = [...quickPickupOrders, ...mongoBookings];
+            // Load PG orders
+            let pgOrders = [];
+            try {
+              const pgResponse = await fetch(`/api/pg-orders/user/${userId}`);
+              const pgData = await pgResponse.json();
+              if (pgData.success && pgData.orders) {
+                pgOrders = pgData.orders.map((pg: any) => ({
+                  id: pg._id,
+                  custom_order_id: pg.order_id,
+                  order_id: pg.order_id,
+                  userId: pg.customer_id,
+                  services: [`Laundry & Iron - ${pg.num_items} items`],
+                  totalAmount: pg.total_price,
+                  item_prices: [],
+                  status: pg.status,
+                  pickupDate: pg.pickup_date,
+                  deliveryDate: pg.delivery_date || "TBD",
+                  pickupTime: "Will be notified",
+                  deliveryTime: "Will be notified",
+                  address: pg.pg_details?.address || "PG Location",
+                  contactDetails: {
+                    phone: pg.customer_phone,
+                    name: pg.customer_name,
+                    instructions: `PG: ${pg.pg_details?.name || 'Unknown'}`,
+                  },
+                  paymentStatus: 'pending',
+                  createdAt: pg.createdAt,
+                  updatedAt: pg.updatedAt,
+                  isPGOrder: true,
+                  pgNote: '📦 PG Laundry Service'
+                }));
+                console.log("✅ Loaded PG orders:", pgOrders.length);
+              }
+            } catch (error) {
+              console.warn("⚠️ Failed to load PG orders:", error);
+            }
+
+            // Combine regular bookings with real quick pickup orders and PG orders
+            const bookingsWithQuickPickup = [...pgOrders, ...quickPickupOrders, ...mongoBookings];
 
             console.log(
               "✅ Loaded bookings from MongoDB (filtered + quick pickup demo):",
