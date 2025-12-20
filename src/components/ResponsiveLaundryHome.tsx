@@ -1848,6 +1848,19 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
+        {/* PG Orders Modal */}
+        {showPGOrders && (
+          <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+            <PGOrderCreate
+              currentUser={currentUser}
+              onOrderCreated={() => {
+                setShowPGOrders(false);
+                handleViewBookings();
+              }}
+              onBack={() => setShowPGOrders(false)}
+            />
+          </div>
+        )}
     </div>
       </div>
   );
