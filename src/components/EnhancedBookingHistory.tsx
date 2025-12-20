@@ -211,6 +211,33 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
       }
     };
 
+    const loadPGOrders = async () => {
+      if (!currentUser?.id && !currentUser?._id && !currentUser?.phone) {
+        console.log("No user ID found for loading PG orders");
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/pg/user/orders", {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("authToken") || ""}`,
+            "x-user-id": currentUser?.id || currentUser?._id || currentUser?.phone,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setPGOrders(data.data || []);
+        } else {
+          console.log("Failed to fetch PG orders, using empty list");
+          setPGOrders([]);
+        }
+      } catch (error) {
+        console.error("Error loading PG orders:", error);
+        setPGOrders([]);
+      }
+    };
+
     const refreshBookings = async () => {
       setRefreshing(true);
       try {
