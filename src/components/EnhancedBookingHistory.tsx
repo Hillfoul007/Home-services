@@ -245,6 +245,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         console.log("��� Refreshing bookings while preserving local data...");
 
         await loadBookings(true);
+        await loadPGOrders();
         addNotification(
           createSuccessNotification(
             "Refreshed",
@@ -266,6 +267,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
     useEffect(() => {
       loadBookings();
+      loadPGOrders();
     }, [currentUser]);
 
     // Listen for booking refresh events
