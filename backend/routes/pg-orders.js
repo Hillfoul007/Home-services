@@ -22,7 +22,27 @@ async function sendWhatsAppNotification(vendorPhone, message) {
   }
 }
 
-// Get all PGs for a city
+// Get all cities with active PGs (specific route - must be before generic routes)
+router.get("/cities/list", async (req, res) => {
+  try {
+    const cities = await PG.distinct("city", { is_active: true });
+
+    console.log(`✅ Found ${cities.length} cities with active PGs`);
+
+    res.json({
+      success: true,
+      data: cities.sort(),
+    });
+  } catch (error) {
+    console.error("Error fetching cities:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch cities",
+    });
+  }
+});
+
+// Get all PGs for a city (specific route)
 router.get("/pgs/city/:city", async (req, res) => {
   try {
     const { city } = req.params;
