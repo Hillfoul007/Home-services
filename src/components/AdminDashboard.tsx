@@ -29,13 +29,15 @@ import AdminBookingManagement from "./AdminBookingManagement";
 import AdminUserBooking from "./AdminUserBooking";
 import AdminServiceLocations from "./AdminServiceLocations";
 import AdminRiderManagement from "./AdminRiderManagement";
+import AdminPGManagement from "./AdminPGManagement";
+import AdminPGOrders from "./AdminPGOrders";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "riders" | "analytics";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "riders" | "analytics" | "pg-management" | "pg-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -289,30 +291,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       {/* Main Content */}
       <main className="p-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
-          <TabsList className="grid w-full grid-cols-6 mb-6">
+          <TabsList className="grid w-full grid-cols-8 mb-6">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Overview
+              <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
             <TabsTrigger value="bookings" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              Bookings
+              <span className="hidden sm:inline">Bookings</span>
             </TabsTrigger>
             <TabsTrigger value="user-booking" className="flex items-center gap-2">
               <User className="h-4 w-4" />
-              Book for User
+              <span className="hidden sm:inline">Book User</span>
             </TabsTrigger>
             <TabsTrigger value="locations" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              Locations
+              <span className="hidden sm:inline">Locations</span>
             </TabsTrigger>
             <TabsTrigger value="riders" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
-              Riders
+              <span className="hidden sm:inline">Riders</span>
+            </TabsTrigger>
+            <TabsTrigger value="pg-management" className="flex items-center gap-2">
+              <Building className="h-4 w-4" />
+              <span className="hidden sm:inline">PGs</span>
+            </TabsTrigger>
+            <TabsTrigger value="pg-orders" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">PG Orders</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <Building className="h-4 w-4" />
-              Analytics
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
             </TabsTrigger>
           </TabsList>
 
@@ -334,6 +344,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
           <TabsContent value="riders">
             <AdminRiderManagement />
+          </TabsContent>
+
+          <TabsContent value="pg-management">
+            <AdminPGManagement />
+          </TabsContent>
+
+          <TabsContent value="pg-orders">
+            <AdminPGOrders />
           </TabsContent>
 
           <TabsContent value="analytics">
