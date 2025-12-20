@@ -184,8 +184,45 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               console.warn("⚠️ Failed to load quick pickup orders:", error);
             }
 
-            // Combine regular bookings with real quick pickup orders
-            const bookingsWithQuickPickup = [...quickPickupOrders, ...mongoBookings];
+            // Load PG orders
+            let pgOrders = [];
+            try {
+              const pgResponse = await fetch(`/api/pg-orders/user/${userId}`);
+              const pgData = await pgResponse.json();
+              if (pgData.success && pgData.orders) {
+                pgOrders = pgData.orders.map((pg: any) => ({
+                  id: pg._id,
+                  custom_order_id: pg.order_id,
+                  order_id: pg.order_id,
+                  userId: pg.customer_id,
+                  services: [`Laundry & Iron - ${pg.num_items} items`],
+                  totalAmount: pg.total_price,
+                  item_prices: [],
+                  status: pg.status,
+                  pickupDate: pg.pickup_date,
+                  deliveryDate: pg.delivery_date || "TBD",
+                  pickupTime: "Will be notified",
+                  deliveryTime: "Will be notified",
+                  address: pg.pg_details?.address || "PG Location",
+                  contactDetails: {
+                    phone: pg.customer_phone,
+                    name: pg.customer_name,
+                    instructions: `PG: ${pg.pg_details?.name || 'Unknown'}`,
+                  },
+                  paymentStatus: 'pending',
+                  createdAt: pg.createdAt,
+                  updatedAt: pg.updatedAt,
+                  isPGOrder: true,
+                  pgNote: '📦 PG Laundry Service'
+                }));
+                console.log("✅ Loaded PG orders:", pgOrders.length);
+              }
+            } catch (error) {
+              console.warn("⚠️ Failed to load PG orders:", error);
+            }
+
+            // Combine regular bookings with real quick pickup orders and PG orders
+            const bookingsWithQuickPickup = [...pgOrders, ...quickPickupOrders, ...mongoBookings];
 
             console.log(
               "✅ Loaded bookings from MongoDB (filtered + quick pickup demo):",
@@ -243,8 +280,45 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
             console.warn("⚠️ Failed to load quick pickup orders for fallback:", error);
           }
 
-          // Combine regular bookings with real quick pickup orders
-          const bookingsWithQuickPickup = [...quickPickupOrders, ...productionBookings];
+          // Load PG orders for fallback
+          let pgOrders = [];
+          try {
+            const pgResponse = await fetch(`/api/pg-orders/user/${userId}`);
+            const pgData = await pgResponse.json();
+            if (pgData.success && pgData.orders) {
+              pgOrders = pgData.orders.map((pg: any) => ({
+                id: pg._id,
+                custom_order_id: pg.order_id,
+                order_id: pg.order_id,
+                userId: pg.customer_id,
+                services: [`Laundry & Iron - ${pg.num_items} items`],
+                totalAmount: pg.total_price,
+                item_prices: [],
+                status: pg.status,
+                pickupDate: pg.pickup_date,
+                deliveryDate: pg.delivery_date || "TBD",
+                pickupTime: "Will be notified",
+                deliveryTime: "Will be notified",
+                address: pg.pg_details?.address || "PG Location",
+                contactDetails: {
+                  phone: pg.customer_phone,
+                  name: pg.customer_name,
+                  instructions: `PG: ${pg.pg_details?.name || 'Unknown'}`,
+                },
+                paymentStatus: 'pending',
+                createdAt: pg.createdAt,
+                updatedAt: pg.updatedAt,
+                isPGOrder: true,
+                pgNote: '📦 PG Laundry Service'
+              }));
+              console.log("✅ Loaded PG orders for fallback:", pgOrders.length);
+            }
+          } catch (error) {
+            console.warn("⚠️ Failed to load PG orders for fallback:", error);
+          }
+
+          // Combine regular bookings with real quick pickup orders and PG orders
+          const bookingsWithQuickPickup = [...pgOrders, ...quickPickupOrders, ...productionBookings];
 
           console.log(
             "✅ Bookings loaded from BookingService (filtered + real quick pickups):",
@@ -804,6 +878,21 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               {booking.quickPickupNote && (
                                 <div className="text-xs text-orange-600">
                                   {booking.quickPickupNote}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* PG Order Indicator */}
+                          {booking.isPGOrder && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <div className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                <Package className="h-3 w-3" />
+                                <span>PG Service</span>
+                              </div>
+                              {booking.pgNote && (
+                                <div className="text-xs text-purple-600">
+                                  {booking.pgNote}
                                 </div>
                               )}
                             </div>

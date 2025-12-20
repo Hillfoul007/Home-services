@@ -59,6 +59,7 @@ import CustomerVerificationPopup from "./CustomerVerificationPopup";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
 import { useCustomerNotifications } from "@/hooks/useCustomerNotifications";
+import { useNavigate } from "react-router-dom";
 import debugCustomerVerification from "@/utils/debugCustomerVerification";
 import { initializeMobileVerificationFallback, cleanupMobileVerificationFallback } from "@/utils/mobileVerificationFallback";
 import clearTestVerifications from "@/utils/clearTestVerifications";
@@ -86,6 +87,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   onViewBookings,
   onLogout,
 }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
@@ -971,6 +973,14 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 }`}
               >
                 All
+              </Button>
+
+              <Button
+                onClick={() => navigate("/pg-booking")}
+                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border bg-laundrify-pink/80 text-white border-white/30 hover:bg-laundrify-pink hover:border-white/50 shadow-md"
+              >
+                <span className="mr-1">🏠</span>
+                <span className="whitespace-nowrap">PG</span>
               </Button>
 
               {(useStaticFallback

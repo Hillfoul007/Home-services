@@ -15,6 +15,8 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import InstallPrompt from "@/components/InstallPrompt";
 import PWAUpdateNotification from "@/components/PWAUpdateNotification";
 import MapsPerformanceIndicator from "@/components/MapsPerformanceIndicator";
+import PGBooking from "@/components/PGBooking";
+import PGOrderConfirmation from "@/components/PGOrderConfirmation";
 import analyticsService from "@/services/analyticsService";
 
 import {
@@ -86,6 +88,8 @@ function App() {
                 path="/admin/location-config"
                 element={<LocationConfigPage />}
               />
+              <Route path="/pg-booking" element={<PGBooking />} />
+              <Route path="/pg-order-confirmation/:orderId" element={<PGOrderConfirmation />} />
               <Route path="/rider" element={<RiderAuth />} />
               <Route path="/rider/register" element={<RiderAuth />} />
               <Route path="/rider/login" element={<RiderAuth />} />

@@ -6,20 +6,10 @@ const router = express.Router();
 // Mock coupon data for now
 const mockCoupons = [
   {
-    code: "FIRST30",
-    discount: 30,
-    maxDiscount: 200,
-    description: "30% off on first order only - one-time use (up to ₹200)",
-    type: "first_order",
-    isFirstOrder: true,
-    isOneTimeUse: true,
-    isActive: true,
-  },
-  {
-    code: "NEW20",
-    discount: 20,
-    maxDiscount: 200,
-    description: "20% off on all orders (up to ₹200)",
+    code: "FLAT10",
+    discount: 10,
+    maxDiscount: 300,
+    description: "10% off on all orders (up to ₹300)",
     type: "general",
     isActive: true,
   },
@@ -120,13 +110,13 @@ router.post("/validate", async (req, res) => {
     }
 
     // Check first-order restrictions for specific coupons
-    if (coupon.isFirstOrder || coupon.code === "FIRST30" || coupon.code === "FIRST10") {
+    if (coupon.isFirstOrder || coupon.code === "FIRST10") {
       // In a real app, this would check user's booking history in database
       // For now, we'll rely on frontend validation and add logging
       console.log(`🔍 First-order coupon ${couponCode} validation for user ${userId}`);
 
       // Additional validation message for first-order coupons
-      if (coupon.code === "FIRST30" || coupon.code === "FIRST10") {
+      if (coupon.code === "FIRST10") {
         return res.json({
           success: true,
           coupon: coupon,
