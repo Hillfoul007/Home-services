@@ -152,6 +152,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 wallet_applied: booking.cashback || 0,
                 wallet_cashback: booking.wallet_cashback || 0,
                 isQuickPickup: booking.is_quick_pickup || false,
+                isPGOrder: false,
                 createdAt: booking.created_at || booking.createdAt,
                 created_at: booking.created_at,
                 updatedAt: booking.updated_at || booking.updatedAt,
@@ -163,6 +164,58 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               "✅ Loaded bookings from MongoDB (includes quick pickups as bookings):",
               mongoBookings.length,
             );
+
+            // Load PG orders for the user
+            try {
+              const pgResponse = await apiClient.request<any>(
+                `/pg-orders/user/${userId}`
+              );
+              if (pgResponse.data && Array.isArray(pgResponse.data)) {
+                const pgOrders = pgResponse.data.map((pgOrder: any) => ({
+                  id: pgOrder._id,
+                  custom_order_id: pgOrder.custom_order_id,
+                  order_id: pgOrder.custom_order_id,
+                  userId: pgOrder.customer_id,
+                  services: ["Laundry and Iron"],
+                  service: "Laundry and Iron",
+                  totalAmount: pgOrder.final_amount || pgOrder.total_price,
+                  total_price: pgOrder.total_price,
+                  final_amount: pgOrder.final_amount,
+                  item_prices: pgOrder.item_prices,
+                  status: pgOrder.status,
+                  pickupDate: pgOrder.created_at?.split('T')[0],
+                  deliveryDate: pgOrder.created_at?.split('T')[0],
+                  address: `${pgOrder.pg_name}, ${pgOrder.city}`,
+                  pg_name: pgOrder.pg_name,
+                  no_of_items: pgOrder.no_of_items,
+                  contactDetails: {
+                    phone: currentUser.phone,
+                    name: currentUser.full_name || currentUser.name,
+                  },
+                  paymentStatus: pgOrder.payment_status,
+                  payment_status: pgOrder.payment_status,
+                  discount_amount: pgOrder.discount_amount || 0,
+                  isPGOrder: true,
+                  createdAt: pgOrder.created_at,
+                  created_at: pgOrder.created_at,
+                  updatedAt: pgOrder.updated_at,
+                  updated_at: pgOrder.updated_at,
+                }));
+
+                mongoBookings = [...mongoBookings, ...pgOrders].sort(
+                  (a, b) =>
+                    new Date(b.created_at).getTime() -
+                    new Date(a.created_at).getTime(),
+                );
+
+                console.log(
+                  `✅ Loaded ${pgOrders.length} PG orders for user`,
+                );
+              }
+            } catch (pgError) {
+              console.warn("Could not load PG orders, continuing with regular bookings:", pgError);
+            }
+
             setBookings(mongoBookings);
             return;
           }
