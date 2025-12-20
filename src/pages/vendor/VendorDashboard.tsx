@@ -94,31 +94,61 @@ const VendorDashboard: React.FC = () => {
     setLoading(true);
     try {
       const res = await vendorAuthService.fetchAssignedOrders();
+      let allOrders: Order[] = [];
+
       if (res && res.success && res.orders) {
-        const newOrders = res.orders;
-
-        // Detect new orders and play notification
-        setOrders(prevOrders => {
-          if (prevOrders.length > 0 && newOrders.length > prevOrders.length) {
-            // Find new orders
-            const prevOrderIds = new Set(prevOrders.map(o => o._id));
-            const newOrderIds = newOrders.filter(o => !prevOrderIds.has(o._id));
-
-            if (newOrderIds.length > 0) {
-              // Play notification for each new order
-              newOrderIds.forEach(async () => {
-                soundNotificationService.playNotification();
-              });
-
-              toast.success(`${newOrderIds.length} new order(s) received! 🎉`);
-            }
-          }
-
-          return newOrders;
-        });
-      } else {
-        toast.error(res.error || "Failed to fetch orders");
+        allOrders = res.orders;
       }
+
+      // Load PG orders assigned to this vendor
+      try {
+        const vendorAuth = vendorAuthService.getVendorAuth();
+        if (vendorAuth?.vendor_id) {
+          const pgResponse = await apiClient.request<any>(
+            `/pg-orders/vendor/${vendorAuth.vendor_id}`
+          );
+          if (pgResponse.data && Array.isArray(pgResponse.data)) {
+            const pgOrders: Order[] = pgResponse.data.map((pgOrder: any) => ({
+              _id: pgOrder._id,
+              custom_order_id: pgOrder.custom_order_id,
+              name: pgOrder.name,
+              phone: pgOrder.phone,
+              service: "Laundry and Iron",
+              status: pgOrder.status,
+              scheduled_date: pgOrder.created_at?.split('T')[0],
+              address: `${pgOrder.pg_name}, ${pgOrder.city}`,
+              final_amount: pgOrder.final_amount,
+              total_price: pgOrder.total_price,
+              isPGOrder: true,
+              pg_name: pgOrder.pg_name,
+              no_of_items: pgOrder.no_of_items,
+            }));
+            allOrders = [...allOrders, ...pgOrders];
+          }
+        }
+      } catch (pgError) {
+        console.warn("Could not load PG orders:", pgError);
+      }
+
+      // Detect new orders and play notification
+      setOrders(prevOrders => {
+        if (prevOrders.length > 0 && allOrders.length > prevOrders.length) {
+          // Find new orders
+          const prevOrderIds = new Set(prevOrders.map(o => o._id));
+          const newOrderIds = allOrders.filter(o => !prevOrderIds.has(o._id));
+
+          if (newOrderIds.length > 0) {
+            // Play notification for each new order
+            newOrderIds.forEach(async () => {
+              soundNotificationService.playNotification();
+            });
+
+            toast.success(`${newOrderIds.length} new order(s) received! 🎉`);
+          }
+        }
+
+        return allOrders;
+      });
     } catch (err: any) {
       toast.error(err?.message || "Failed to load orders");
     } finally {
