@@ -101,6 +101,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
+  const [showPGOrders, setShowPGOrders] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
