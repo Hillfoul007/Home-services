@@ -68,6 +68,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
   React.memo(({ currentUser, onBack, onLoginRequired }) => {
     const { addNotification } = useNotifications();
   const [bookings, setBookings] = useState([]);
+  const [pgOrders, setPGOrders] = useState<any[]>([]);
   const [quickPickups, setQuickPickups] = useState<QuickPickupDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
