@@ -292,34 +292,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       {/* Main Content */}
       <main className="p-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
-          <TabsList className="grid w-full grid-cols-8 mb-6">
+          <TabsList className="grid w-full grid-cols-8 gap-1 mb-6 h-auto flex-wrap">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Overview
+              <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
             <TabsTrigger value="bookings" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              Bookings
+              <span className="hidden sm:inline">Bookings</span>
             </TabsTrigger>
             <TabsTrigger value="user-booking" className="flex items-center gap-2">
               <User className="h-4 w-4" />
-              Book for User
+              <span className="hidden sm:inline">Book User</span>
             </TabsTrigger>
             <TabsTrigger value="locations" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              Locations
+              <span className="hidden sm:inline">Locations</span>
             </TabsTrigger>
             <TabsTrigger value="vendors" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
-              Vendors
+              <span className="hidden sm:inline">Vendors</span>
+            </TabsTrigger>
+            <TabsTrigger value="pgs" className="flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">PGs</span>
             </TabsTrigger>
             <TabsTrigger value="wallet" className="flex items-center gap-2">
               <span>💰</span>
-              Wallet
+              <span className="hidden sm:inline">Wallet</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Analytics
+              <span className="hidden sm:inline">Analytics</span>
             </TabsTrigger>
           </TabsList>
 
