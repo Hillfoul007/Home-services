@@ -158,9 +158,23 @@ router.post("/", async (req, res) => {
 
     // Validation
     if (!customer_id || !pg_id || !pg_name || !city || !no_of_items) {
+      console.warn("❌ Missing required fields:", {
+        customer_id: !!customer_id,
+        pg_id: !!pg_id,
+        pg_name: !!pg_name,
+        city: !!city,
+        no_of_items: !!no_of_items,
+      });
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
+        details: {
+          customer_id: !!customer_id,
+          pg_id: !!pg_id,
+          pg_name: !!pg_name,
+          city: !!city,
+          no_of_items: !!no_of_items,
+        },
       });
     }
 
@@ -174,19 +188,30 @@ router.post("/", async (req, res) => {
     // Get PG details
     const pg = await PG.findById(pg_id);
     if (!pg) {
+      console.warn("❌ PG not found with ID:", pg_id);
       return res.status(404).json({
         success: false,
         error: "PG not found",
+        pg_id,
       });
     }
+
+    console.log("✅ PG found:", pg.name);
 
     // Calculate pricing
     const pricePerItem = pg.price_per_item || 25;
     const totalPrice = no_of_items * pricePerItem;
 
+    // Ensure customer_id is valid ObjectId or string
+    let customerId = customer_id;
+    if (typeof customer_id === "string" && customer_id.length === 24) {
+      // Looks like a MongoDB ObjectId string, keep as is
+      customerId = customer_id;
+    }
+
     // Create order
     const pgOrder = new PGOrder({
-      customer_id,
+      customer_id: customerId,
       pg_id,
       pg_name,
       city,
@@ -218,6 +243,8 @@ router.post("/", async (req, res) => {
         : null,
     });
 
+    console.log("📝 PGOrder object created, saving to database...");
+
     await pgOrder.save();
 
     console.log("✅ PG order created:", pgOrder.custom_order_id);
@@ -233,10 +260,16 @@ router.post("/", async (req, res) => {
       data: pgOrder,
     });
   } catch (error) {
-    console.error("Error creating PG order:", error);
+    console.error("❌ Error creating PG order:", {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack,
+    });
     res.status(500).json({
       success: false,
       error: "Failed to create PG order",
+      details: error.message,
     });
   }
 });
