@@ -80,6 +80,8 @@ const formatScheduledDateTime = (order: Order): string => {
   }
 };
 
+type FilterType = 'all' | 'regular' | 'pg';
+
 const VendorDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -89,6 +91,7 @@ const VendorDashboard: React.FC = () => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [soundSettings, setSoundSettings] = useState<SoundNotificationSettings>(soundNotificationService.getSettings());
   const [showSoundMenu, setShowSoundMenu] = useState(false);
+  const [filterType, setFilterType] = useState<FilterType>('all');
 
   const load = async () => {
     setLoading(true);
