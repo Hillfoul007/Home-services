@@ -230,12 +230,12 @@ const AdminPGOrdersManagement: React.FC = () => {
               <label className="text-sm font-medium text-gray-700 block mb-2">
                 City
               </label>
-              <Select value={selectedCity} onValueChange={setSelectedCity}>
+              <Select value={selectedCity || "all-cities"} onValueChange={(value) => setSelectedCity(value === "all-cities" ? "" : value)}>
                 <SelectTrigger className="w-full md:w-48 border-2 border-laundrify-mint">
                   <SelectValue placeholder="All Cities" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Cities</SelectItem>
+                  <SelectItem value="all-cities">All Cities</SelectItem>
                   {cities.map((city) => (
                     <SelectItem key={city} value={city}>
                       {city}
