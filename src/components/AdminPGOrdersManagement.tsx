@@ -252,6 +252,53 @@ const AdminPGOrdersManagement: React.FC = () => {
     }
   };
 
+  const handleOpenVendorAssignDialog = (order: PGOrder) => {
+    setVendorAssignOrder(order);
+    setSelectedVendorId("");
+    setShowVendorAssignDialog(true);
+  };
+
+  const handleAssignVendor = async () => {
+    if (!vendorAssignOrder || !selectedVendorId) {
+      toast.error("Please select a vendor");
+      return;
+    }
+
+    const selectedVendor = vendors.find(v => v._id === selectedVendorId);
+    if (!selectedVendor) {
+      toast.error("Vendor not found");
+      return;
+    }
+
+    setAssigningVendor(true);
+    try {
+      const response = await apiClient.adminRequest<any>(
+        `/pg-orders/${vendorAssignOrder._id}/assign-vendor`,
+        {
+          method: "POST",
+          body: {
+            vendorId: selectedVendorId,
+            vendorName: selectedVendor.name,
+            vendorPhone: selectedVendor.phone,
+          },
+        }
+      );
+
+      if (response.data) {
+        toast.success(`Order assigned to ${selectedVendor.name} successfully`);
+        loadOrders();
+        setShowVendorAssignDialog(false);
+      } else {
+        toast.error(response.error || "Failed to assign vendor");
+      }
+    } catch (error) {
+      console.error("Error assigning vendor:", error);
+      toast.error("Failed to assign vendor to order");
+    } finally {
+      setAssigningVendor(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
