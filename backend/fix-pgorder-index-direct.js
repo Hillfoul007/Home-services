@@ -19,7 +19,12 @@ async function fixPGOrderIndex() {
     const pgOrdersCollection = db.collection("pgorders");
 
     console.log("\n📋 Current indexes on pgorders collection:");
-    const indexes = await pgOrdersCollection.getIndexes();
+    const indexesCursor = await pgOrdersCollection.listIndexes();
+    const indexes = {};
+    for await (const index of indexesCursor) {
+      indexes[Object.keys(index.key)[0] + "_" + Object.values(index.key)[0]] =
+        index;
+    }
     console.log(JSON.stringify(indexes, null, 2));
 
     // Check if there's an order_id index that's causing the problem
