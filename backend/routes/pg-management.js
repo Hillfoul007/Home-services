@@ -4,6 +4,57 @@ const Vendor = require("../models/Vendor");
 
 const router = express.Router();
 
+// ============================================
+// SPECIFIC NON-PARAMETERIZED ROUTES (FIRST)
+// ============================================
+
+// Get all active cities with PGs
+router.get("/cities/list", async (req, res) => {
+  try {
+    const cities = await PG.distinct("city", { is_active: true });
+
+    const sortedCities = cities.sort();
+
+    console.log(`✅ Found ${sortedCities.length} cities with active PGs`);
+
+    res.json({
+      success: true,
+      data: sortedCities,
+    });
+  } catch (error) {
+    console.error("Error fetching cities:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch cities",
+    });
+  }
+});
+
+// Get vendors for PG assignment
+router.get("/vendors/available", async (req, res) => {
+  try {
+    const vendors = await Vendor.find(
+      { is_active: true },
+      "name phone address city"
+    );
+
+    res.json({
+      success: true,
+      data: vendors,
+    });
+  } catch (error) {
+    console.error("Error fetching vendors:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch vendors",
+    });
+  }
+});
+
+// ============================================
+// CREATE ROUTE
+// ============================================
+
 // Create a new PG
 router.post("/", async (req, res) => {
   try {
@@ -89,6 +140,96 @@ router.post("/", async (req, res) => {
     });
   }
 });
+
+// ============================================
+// MORE SPECIFIC PARAMETERIZED ROUTES (SECOND)
+// ============================================
+
+// Get PGs by city (for user selection)
+router.get("/city/:city", async (req, res) => {
+  try {
+    const { city } = req.params;
+
+    const pgs = await PG.find(
+      {
+        city: { $regex: city, $options: "i" },
+        is_active: true,
+      },
+      "name address phone_number assignedVendor price_per_item min_items"
+    );
+
+    console.log(`✅ Found ${pgs.length} active PGs in ${city}`);
+
+    res.json({
+      success: true,
+      data: pgs,
+    });
+  } catch (error) {
+    console.error("Error fetching PGs by city:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch PGs",
+    });
+  }
+});
+
+// Assign vendor to PG
+router.post("/:pgId/assign-vendor", async (req, res) => {
+  try {
+    const { pgId } = req.params;
+    const { vendorId } = req.body;
+
+    if (!vendorId) {
+      return res.status(400).json({
+        success: false,
+        error: "Vendor ID is required",
+      });
+    }
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        error: "Vendor not found",
+      });
+    }
+
+    const pg = await PG.findByIdAndUpdate(
+      pgId,
+      {
+        assignedVendor: vendorId,
+        assignedVendorName: vendor.name,
+        assignedVendorPhone: vendor.phone,
+      },
+      { new: true }
+    ).populate("assignedVendor", "name phone address");
+
+    if (!pg) {
+      return res.status(404).json({
+        success: false,
+        error: "PG not found",
+      });
+    }
+
+    console.log(`✅ Assigned vendor ${vendorId} to PG ${pgId}`);
+
+    res.json({
+      success: true,
+      data: pg,
+      message: "Vendor assigned successfully",
+    });
+  } catch (error) {
+    console.error("Error assigning vendor:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to assign vendor",
+    });
+  }
+});
+
+// ============================================
+// GENERIC PARAMETERIZED ROUTES (LAST)
+// ============================================
 
 // Get all PGs
 router.get("/", async (req, res) => {
@@ -233,131 +374,6 @@ router.delete("/:pgId", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to delete PG",
-    });
-  }
-});
-
-// Assign vendor to PG
-router.post("/:pgId/assign-vendor", async (req, res) => {
-  try {
-    const { pgId } = req.params;
-    const { vendorId } = req.body;
-
-    if (!vendorId) {
-      return res.status(400).json({
-        success: false,
-        error: "Vendor ID is required",
-      });
-    }
-
-    const vendor = await Vendor.findById(vendorId);
-    if (!vendor) {
-      return res.status(404).json({
-        success: false,
-        error: "Vendor not found",
-      });
-    }
-
-    const pg = await PG.findByIdAndUpdate(
-      pgId,
-      {
-        assignedVendor: vendorId,
-        assignedVendorName: vendor.name,
-        assignedVendorPhone: vendor.phone,
-      },
-      { new: true }
-    ).populate("assignedVendor", "name phone address");
-
-    if (!pg) {
-      return res.status(404).json({
-        success: false,
-        error: "PG not found",
-      });
-    }
-
-    console.log(`✅ Assigned vendor ${vendorId} to PG ${pgId}`);
-
-    res.json({
-      success: true,
-      data: pg,
-      message: "Vendor assigned successfully",
-    });
-  } catch (error) {
-    console.error("Error assigning vendor:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to assign vendor",
-    });
-  }
-});
-
-// Get vendors for PG assignment
-router.get("/vendors/available", async (req, res) => {
-  try {
-    const vendors = await Vendor.find(
-      { is_active: true },
-      "name phone address city"
-    );
-
-    res.json({
-      success: true,
-      data: vendors,
-    });
-  } catch (error) {
-    console.error("Error fetching vendors:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch vendors",
-    });
-  }
-});
-
-// Get PGs by city (for user selection)
-router.get("/city/:city", async (req, res) => {
-  try {
-    const { city } = req.params;
-
-    const pgs = await PG.find(
-      {
-        city: { $regex: city, $options: "i" },
-        is_active: true,
-      },
-      "name address phone_number assignedVendor price_per_item min_items"
-    );
-
-    console.log(`✅ Found ${pgs.length} active PGs in ${city}`);
-
-    res.json({
-      success: true,
-      data: pgs,
-    });
-  } catch (error) {
-    console.error("Error fetching PGs by city:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch PGs",
-    });
-  }
-});
-
-// Get all active cities with PGs
-router.get("/cities/list", async (req, res) => {
-  try {
-    const cities = await PG.distinct("city", { is_active: true });
-
-    const sortedCities = cities.sort();
-
-    console.log(`✅ Found ${sortedCities.length} cities with active PGs`);
-
-    res.json({
-      success: true,
-      data: sortedCities,
-    });
-  } catch (error) {
-    console.error("Error fetching cities:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch cities",
     });
   }
 });
