@@ -85,6 +85,8 @@ router.get("/vendor/:vendorId", async (req, res) => {
     const { vendorId } = req.params;
 
     console.log("🔍 Searching for PG orders for vendor:", vendorId);
+    console.log("📊 VendorId type:", typeof vendorId);
+    console.log("📊 Is valid ObjectId:", mongoose.Types.ObjectId.isValid(vendorId));
 
     // Create query that handles both ObjectId and string formats
     let query = {};
@@ -97,9 +99,11 @@ router.get("/vendor/:vendorId", async (req, res) => {
           { assignedVendor: vendorId }, // Also try as string
         ],
       };
+      console.log("🔎 Query (ObjectId):", JSON.stringify(query));
     } else {
       // If not a valid ObjectId, just search as string
       query = { assignedVendor: vendorId };
+      console.log("🔎 Query (String):", JSON.stringify(query));
     }
 
     const pgOrders = await PGOrder.find(
@@ -111,6 +115,15 @@ router.get("/vendor/:vendorId", async (req, res) => {
     console.log(
       `✅ Found ${pgOrders.length} PG orders for vendor ${vendorId}`
     );
+
+    // Debug: show what assignedVendor values exist in database
+    if (pgOrders.length === 0) {
+      const allPGOrders = await PGOrder.find({}, { assignedVendor: 1, custom_order_id: 1 });
+      console.log("📋 All PG Orders in DB (for debugging):");
+      allPGOrders.forEach(order => {
+        console.log(`  - Order: ${order.custom_order_id}, AssignedVendor: ${order.assignedVendor}`);
+      });
+    }
 
     res.json({
       success: true,
