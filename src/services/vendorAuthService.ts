@@ -93,6 +93,34 @@ class VendorAuthService {
     }
   }
 
+  getVendorAuth(): any {
+    try {
+      const token = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
+      if (!token) {
+        console.warn('⚠️ No vendor auth token found');
+        return null;
+      }
+
+      // Decode JWT to get vendor info
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.warn('⚠️ Invalid token format');
+        return null;
+      }
+
+      const payload = JSON.parse(atob(parts[1]));
+      console.log('✅ Vendor auth retrieved:', { vendor_id: payload.vendor_id });
+      return {
+        vendor_id: payload.vendor_id,
+        vendor_id_str: payload.vendor_id_str,
+        name: payload.name,
+      };
+    } catch (error) {
+      console.error('❌ Error getting vendor auth:', error);
+      return null;
+    }
+  }
+
   async fetchAssignedOrders(): Promise<OrdersResponse> {
     try {
       const token = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');

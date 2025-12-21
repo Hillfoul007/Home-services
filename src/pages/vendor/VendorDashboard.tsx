@@ -80,6 +80,8 @@ const formatScheduledDateTime = (order: Order): string => {
   }
 };
 
+type FilterType = 'all' | 'regular' | 'pg';
+
 const VendorDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -89,6 +91,7 @@ const VendorDashboard: React.FC = () => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [soundSettings, setSoundSettings] = useState<SoundNotificationSettings>(soundNotificationService.getSettings());
   const [showSoundMenu, setShowSoundMenu] = useState(false);
+  const [filterType, setFilterType] = useState<FilterType>('all');
 
   const load = async () => {
     setLoading(true);
@@ -103,14 +106,21 @@ const VendorDashboard: React.FC = () => {
       // Load PG orders assigned to this vendor
       try {
         const vendorAuth = vendorAuthService.getVendorAuth();
+        console.log("🔍 Vendor Auth:", vendorAuth);
+
         if (vendorAuth?.vendor_id) {
+          console.log(`📍 Fetching PG orders for vendor ID: ${vendorAuth.vendor_id}`);
           const pgResponse = await apiClient.request<any>(
             `/pg-orders/vendor/${vendorAuth.vendor_id}`
           );
+          console.log("📦 PG Orders Response:", pgResponse);
+
           // Backend returns { success: true, data: [...] }, so extract the actual array
           const pgOrdersArray = Array.isArray(pgResponse.data)
             ? pgResponse.data
             : (pgResponse.data?.data || []);
+
+          console.log(`✅ Found ${pgOrdersArray?.length || 0} PG orders`);
 
           if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
             const pgOrders: Order[] = pgOrdersArray.map((pgOrder: any) => ({
@@ -129,10 +139,13 @@ const VendorDashboard: React.FC = () => {
               no_of_items: pgOrder.no_of_items,
             }));
             allOrders = [...allOrders, ...pgOrders];
+            console.log("✅ PG Orders merged into allOrders");
           }
+        } else {
+          console.warn("⚠️ No vendor auth found");
         }
       } catch (pgError) {
-        console.warn("Could not load PG orders:", pgError);
+        console.error("❌ Could not load PG orders:", pgError);
       }
 
       // Detect new orders and play notification
@@ -334,9 +347,19 @@ const VendorDashboard: React.FC = () => {
     });
   };
 
-  const bucketA = sortOrdersByTime(orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
-  const bucketB = sortOrdersByTime(orders.filter(o => o.status === 'ready_for_delivery'));
-  const completed = sortOrdersByTime(orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
+  // Apply filter based on filterType
+  const getFilteredOrders = (ordersToFilter: Order[]): Order[] => {
+    if (filterType === 'all') return ordersToFilter;
+    if (filterType === 'regular') return ordersToFilter.filter(o => !o.isPGOrder);
+    if (filterType === 'pg') return ordersToFilter.filter(o => o.isPGOrder);
+    return ordersToFilter;
+  };
+
+  const filteredOrders = getFilteredOrders(orders);
+
+  const bucketA = sortOrdersByTime(filteredOrders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
+  const bucketB = sortOrdersByTime(filteredOrders.filter(o => o.status === 'ready_for_delivery'));
+  const completed = sortOrdersByTime(filteredOrders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
 
   if (loading && orders.length === 0) {
     return (
@@ -430,6 +453,34 @@ const VendorDashboard: React.FC = () => {
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
         </div>
       </div>
+
+      <div className="mb-4 flex gap-2 flex-wrap">
+        <Button
+          variant={filterType === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('all')}
+          className="text-xs md:text-sm"
+        >
+          All Orders ({orders.length})
+        </Button>
+        <Button
+          variant={filterType === 'regular' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('regular')}
+          className="text-xs md:text-sm"
+        >
+          Regular Orders ({orders.filter(o => !o.isPGOrder).length})
+        </Button>
+        <Button
+          variant={filterType === 'pg' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('pg')}
+          className="text-xs md:text-sm"
+        >
+          🏠 PG Orders ({orders.filter(o => o.isPGOrder).length})
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
           <div className="mb-4">
@@ -532,7 +583,7 @@ const VendorDashboard: React.FC = () => {
                   {order.isPGOrder && order.status === 'vendor_assigned' && (
                     <>
                       <div className="text-xs text-gray-600 font-semibold bg-yellow-50 p-2 rounded border border-yellow-200">
-                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹{order.no_of_items * 25}
+                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹25 per piece
                       </div>
                       <div className="flex gap-2">
                         <Button
