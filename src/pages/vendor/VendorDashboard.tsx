@@ -518,7 +518,31 @@ const VendorDashboard: React.FC = () => {
                 )}
 
                 <div className="mt-3 flex flex-col gap-2">
-                  {order.status === 'vendor_assigned' && (
+                  {order.isPGOrder && order.status === 'vendor_assigned' && (
+                    <>
+                      <div className="text-xs text-gray-600 font-semibold bg-yellow-50 p-2 rounded border border-yellow-200">
+                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹{order.no_of_items * 25}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => handlePGOrderResponse(order._id, 'reject')}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-xs md:text-sm"
+                          size="sm"
+                        >
+                          ❌ Reject
+                        </Button>
+                        <Button
+                          onClick={() => handlePGOrderResponse(order._id, 'accept')}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-xs md:text-sm"
+                          size="sm"
+                        >
+                          ✅ Accept
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {!order.isPGOrder && order.status === 'vendor_assigned' && (
                     <>
                       <div className="text-xs text-gray-600 font-semibold">📸 Upload items list image</div>
                       <div className="flex flex-col md:flex-row gap-2">
