@@ -470,21 +470,34 @@ const AdminPGOrdersManagement: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex gap-2 justify-center">
+                      <div className="flex gap-2 justify-center flex-wrap">
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleOpenEditDialog(order)}
                           className="text-laundrify-blue border-laundrify-purple hover:bg-laundrify-purple/10"
+                          title="Edit order status"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        {!order.assignedVendorDetails && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenVendorAssignDialog(order)}
+                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            title="Assign vendor to order"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                          </Button>
+                        )}
                         {order.assignedVendorDetails?.phone && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleOpenMessageDialog(order)}
                             className="text-green-600 border-green-200 hover:bg-green-50"
+                            title="Send message to vendor"
                           >
                             <Send className="h-4 w-4" />
                           </Button>
