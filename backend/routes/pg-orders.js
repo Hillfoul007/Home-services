@@ -209,8 +209,26 @@ router.post("/", async (req, res) => {
       customerId = customer_id;
     }
 
+    // Generate custom order ID before creating the document
+    console.log("🔢 Generating custom order ID for PG:", pg_name);
+    let customOrderId = null;
+    try {
+      customOrderId = await PGOrder.generateCustomOrderId(pg_name, city);
+      console.log("✅ Generated custom order ID:", customOrderId);
+    } catch (idGenerationError) {
+      console.warn("⚠️ Failed to generate custom order ID, using fallback:", idGenerationError.message);
+      // Fallback: Generate a simple order ID
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const pgPrefix = pg_name.substring(0, 4).toUpperCase();
+      const timestamp = Date.now().toString().slice(-6);
+      customOrderId = `PG${pgPrefix}${month}${timestamp}`;
+      console.log("✅ Using fallback custom order ID:", customOrderId);
+    }
+
     // Create order
     const pgOrder = new PGOrder({
+      custom_order_id: customOrderId,
       customer_id: customerId,
       pg_id,
       pg_name,
@@ -243,7 +261,8 @@ router.post("/", async (req, res) => {
         : null,
     });
 
-    console.log("📝 PGOrder object created, saving to database...");
+    console.log("📝 PGOrder object created with ID:", pgOrder.custom_order_id);
+    console.log("📝 Saving to database...");
 
     await pgOrder.save();
 
