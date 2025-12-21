@@ -95,14 +95,27 @@ const AdminPGManagement: React.FC = () => {
     try {
       setLoading(true);
       const response = await apiClient.adminRequest<any>("/pg-management");
-      if (response.data) {
-        setPGs(response.data);
+
+      if (response.error) {
+        throw new Error(response.error);
       }
+
+      // Handle nested data structure: { data: { success: true, data: [...] } }
+      const pgsData = response.data?.data || response.data || [];
+
+      if (Array.isArray(pgsData)) {
+        setPGs(pgsData);
+      } else {
+        console.warn("Invalid PGs response format:", response.data);
+        setPGs([]);
+      }
+
       // Use predefined cities list
       setCities(CITIES);
     } catch (error) {
       console.error("Error loading PGs:", error);
       toast.error("Failed to load PGs");
+      setPGs([]);
     } finally {
       setLoading(false);
     }
@@ -113,8 +126,17 @@ const AdminPGManagement: React.FC = () => {
       const response = await apiClient.adminRequest<any>(
         "/pg-management/vendors/available"
       );
-      if (response.data) {
-        setVendors(response.data);
+
+      if (response.error) {
+        console.warn("Failed to load vendors:", response.error);
+        return;
+      }
+
+      // Handle nested data structure: { data: { success: true, data: [...] } }
+      const vendorsData = response.data?.data || response.data || [];
+
+      if (Array.isArray(vendorsData)) {
+        setVendors(vendorsData);
       }
     } catch (error) {
       console.error("Error loading vendors:", error);
