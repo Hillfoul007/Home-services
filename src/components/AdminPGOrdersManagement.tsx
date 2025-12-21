@@ -249,12 +249,12 @@ const AdminPGOrdersManagement: React.FC = () => {
               <label className="text-sm font-medium text-gray-700 block mb-2">
                 Status
               </label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <Select value={selectedStatus || "all-statuses"} onValueChange={(value) => setSelectedStatus(value === "all-statuses" ? "" : value)}>
                 <SelectTrigger className="w-full md:w-48 border-2 border-laundrify-mint">
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Statuses</SelectItem>
+                  <SelectItem value="all-statuses">All Statuses</SelectItem>
                   {statusOptions.map((status) => (
                     <SelectItem key={status} value={status}>
                       {status}
