@@ -1,13 +1,30 @@
 const mongoose = require("mongoose");
 require("dotenv").config();
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/cleancare_pro";
-
 async function fixPGOrderIndex() {
   try {
+    // Get credentials from environment
+    const MONGODB_USERNAME = process.env.MONGODB_USERNAME;
+    const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD;
+    const MONGODB_CLUSTER = process.env.MONGODB_CLUSTER;
+    const MONGODB_DATABASE = process.env.MONGODB_DATABASE || "cleancare_pro";
+
+    if (!MONGODB_USERNAME || !MONGODB_PASSWORD || !MONGODB_CLUSTER) {
+      throw new Error(
+        "MongoDB credentials (MONGODB_USERNAME, MONGODB_PASSWORD, MONGODB_CLUSTER) must be provided via environment variables"
+      );
+    }
+
+    const mongoURI = `mongodb+srv://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@${MONGODB_CLUSTER}/${MONGODB_DATABASE}?retryWrites=true&w=majority`;
+
     console.log("🔧 Connecting to MongoDB...");
-    await mongoose.connect(MONGODB_URI);
+    console.log(`📍 Cluster: ${MONGODB_CLUSTER}`);
+    console.log(`📚 Database: ${MONGODB_DATABASE}`);
+
+    await mongoose.connect(mongoURI, {
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+    });
     console.log("✅ Connected to MongoDB");
 
     const db = mongoose.connection.db;
