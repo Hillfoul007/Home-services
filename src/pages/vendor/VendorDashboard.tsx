@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateOnlyIST } from "@/utils/timeUtils";
 import { toast } from "sonner";
 import { Volume2, VolumeX } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
 
 interface Order {
   _id: string;
@@ -23,6 +24,9 @@ interface Order {
   address?: string;
   final_amount?: number;
   total_price?: number;
+  isPGOrder?: boolean;
+  pg_name?: string;
+  no_of_items?: number;
 }
 
 const getScheduledDateTime = (order: Order): Date => {
@@ -90,31 +94,61 @@ const VendorDashboard: React.FC = () => {
     setLoading(true);
     try {
       const res = await vendorAuthService.fetchAssignedOrders();
+      let allOrders: Order[] = [];
+
       if (res && res.success && res.orders) {
-        const newOrders = res.orders;
-
-        // Detect new orders and play notification
-        setOrders(prevOrders => {
-          if (prevOrders.length > 0 && newOrders.length > prevOrders.length) {
-            // Find new orders
-            const prevOrderIds = new Set(prevOrders.map(o => o._id));
-            const newOrderIds = newOrders.filter(o => !prevOrderIds.has(o._id));
-
-            if (newOrderIds.length > 0) {
-              // Play notification for each new order
-              newOrderIds.forEach(async () => {
-                soundNotificationService.playNotification();
-              });
-
-              toast.success(`${newOrderIds.length} new order(s) received! 🎉`);
-            }
-          }
-
-          return newOrders;
-        });
-      } else {
-        toast.error(res.error || "Failed to fetch orders");
+        allOrders = res.orders;
       }
+
+      // Load PG orders assigned to this vendor
+      try {
+        const vendorAuth = vendorAuthService.getVendorAuth();
+        if (vendorAuth?.vendor_id) {
+          const pgResponse = await apiClient.request<any>(
+            `/pg-orders/vendor/${vendorAuth.vendor_id}`
+          );
+          if (pgResponse.data && Array.isArray(pgResponse.data)) {
+            const pgOrders: Order[] = pgResponse.data.map((pgOrder: any) => ({
+              _id: pgOrder._id,
+              custom_order_id: pgOrder.custom_order_id,
+              name: pgOrder.name,
+              phone: pgOrder.phone,
+              service: "Laundry and Iron",
+              status: pgOrder.status,
+              scheduled_date: pgOrder.created_at?.split('T')[0],
+              address: `${pgOrder.pg_name}, ${pgOrder.city}`,
+              final_amount: pgOrder.final_amount,
+              total_price: pgOrder.total_price,
+              isPGOrder: true,
+              pg_name: pgOrder.pg_name,
+              no_of_items: pgOrder.no_of_items,
+            }));
+            allOrders = [...allOrders, ...pgOrders];
+          }
+        }
+      } catch (pgError) {
+        console.warn("Could not load PG orders:", pgError);
+      }
+
+      // Detect new orders and play notification
+      setOrders(prevOrders => {
+        if (prevOrders.length > 0 && allOrders.length > prevOrders.length) {
+          // Find new orders
+          const prevOrderIds = new Set(prevOrders.map(o => o._id));
+          const newOrderIds = allOrders.filter(o => !prevOrderIds.has(o._id));
+
+          if (newOrderIds.length > 0) {
+            // Play notification for each new order
+            newOrderIds.forEach(async () => {
+              soundNotificationService.playNotification();
+            });
+
+            toast.success(`${newOrderIds.length} new order(s) received! 🎉`);
+          }
+        }
+
+        return allOrders;
+      });
     } catch (err: any) {
       toast.error(err?.message || "Failed to load orders");
     } finally {
@@ -174,17 +208,54 @@ const VendorDashboard: React.FC = () => {
     }
   };
 
-  const changeStatus = async (orderId: string, status: string) => {
+  const changeStatus = async (orderId: string, status: string, isPGOrder: boolean = false) => {
     try {
-      const res = await vendorAuthService.updateOrderStatus(orderId, status);
+      let res;
+
+      if (isPGOrder) {
+        // For PG orders, use the PG orders API
+        res = await apiClient.request<any>(
+          `/pg-orders/${orderId}/status`,
+          {
+            method: "PATCH",
+            body: { status, changed_by: "vendor" },
+          }
+        );
+      } else {
+        // For regular orders, use the vendor auth service
+        res = await vendorAuthService.updateOrderStatus(orderId, status);
+      }
+
       if (!res || !res.success) {
-        toast.error(res.error || "Failed to update status");
+        toast.error(res?.error || "Failed to update status");
         return;
       }
       toast.success("Status updated");
       load();
     } catch (error: any) {
       toast.error(error?.message || "Update failed");
+    }
+  };
+
+  const handlePGOrderResponse = async (orderId: string, action: 'accept' | 'reject') => {
+    try {
+      const res = await apiClient.request<any>(
+        `/pg-orders/${orderId}/vendor-response`,
+        {
+          method: "POST",
+          body: { action },
+        }
+      );
+
+      if (!res || !res.success) {
+        toast.error(res?.error || "Failed to process response");
+        return;
+      }
+
+      toast.success(action === 'accept' ? "Order accepted! ✅" : "Order rejected ❌");
+      load();
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to process response");
     }
   };
 
@@ -381,12 +452,18 @@ const VendorDashboard: React.FC = () => {
                         </Button>
                       )}
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {order.isPGOrder ? '🏠 PG Service' : order.service}
+                    </div>
+                    {order.isPGOrder ? (
+                      <div className="text-xs text-blue-600 mt-1 font-semibold">📍 {order.pg_name}</div>
+                    ) : (
+                      <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    )}
                     {order.delivery_date && (
                       <div className="text-xs text-gray-500">Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}</div>
                     )}
-                    {order.address && (
+                    {order.address && !order.isPGOrder && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
                         className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
@@ -397,7 +474,7 @@ const VendorDashboard: React.FC = () => {
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded whitespace-nowrap">{order.status}</span>
+                    <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${order.isPGOrder ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>{order.isPGOrder ? '🏠 ' : ''}{order.status}</span>
                     <div className="flex gap-1">
                       {order.address && (
                         <Button
@@ -447,7 +524,31 @@ const VendorDashboard: React.FC = () => {
                 )}
 
                 <div className="mt-3 flex flex-col gap-2">
-                  {order.status === 'vendor_assigned' && (
+                  {order.isPGOrder && order.status === 'vendor_assigned' && (
+                    <>
+                      <div className="text-xs text-gray-600 font-semibold bg-yellow-50 p-2 rounded border border-yellow-200">
+                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹{order.no_of_items * 25}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => handlePGOrderResponse(order._id, 'reject')}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-xs md:text-sm"
+                          size="sm"
+                        >
+                          ❌ Reject
+                        </Button>
+                        <Button
+                          onClick={() => handlePGOrderResponse(order._id, 'accept')}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-xs md:text-sm"
+                          size="sm"
+                        >
+                          ✅ Accept
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {!order.isPGOrder && order.status === 'vendor_assigned' && (
                     <>
                       <div className="text-xs text-gray-600 font-semibold">📸 Upload items list image</div>
                       <div className="flex flex-col md:flex-row gap-2">
@@ -511,14 +612,20 @@ const VendorDashboard: React.FC = () => {
                         </Button>
                       )}
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {order.isPGOrder ? '🏠 PG Service' : order.service}
+                    </div>
+                    {order.isPGOrder ? (
+                      <div className="text-xs text-blue-600 mt-1 font-semibold">📍 {order.pg_name}</div>
+                    ) : (
+                      <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    )}
                     {order.delivery_date && (
                       <div className="text-xs text-orange-600 mt-1 font-semibold">
                         Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}
                       </div>
                     )}
-                    {order.address && (
+                    {order.address && !order.isPGOrder && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
                         className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
@@ -529,7 +636,7 @@ const VendorDashboard: React.FC = () => {
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded whitespace-nowrap">Ready</span>
+                    <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${order.isPGOrder ? 'bg-purple-100 text-purple-800' : 'bg-orange-100 text-orange-800'}`}>Ready</span>
                     <div className="text-sm font-bold text-orange-700">₹{order.final_amount ?? order.total_price}</div>
                     <div className="flex gap-1">
                       {order.address && (

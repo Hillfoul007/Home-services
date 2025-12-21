@@ -27,6 +27,7 @@ import VendorLogin from "@/pages/vendor/VendorLogin";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
 import MainWebsite from "@/pages/MainWebsite";
+import PGBooking from "@/pages/PGBooking";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -103,6 +104,7 @@ function App() {
               <Route path="/vendor/login" element={<VendorLogin />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
+              <Route path="/pg-booking" element={<PGBooking />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />

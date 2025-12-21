@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import {
   Gift,
   AlertTriangle,
   Zap,
+  Home,
 } from "lucide-react";
 import {
   laundryServices,
@@ -88,6 +90,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   onViewBookings,
   onLogout,
 }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
@@ -1049,6 +1052,15 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 All
               </Button>
 
+              <Button
+                onClick={() => navigate("/pg-booking")}
+                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border bg-gradient-to-r from-laundrify-pink to-laundrify-red text-white border-laundrify-red/50 hover:from-laundrify-pink/90 hover:to-laundrify-red/90 shadow-md whitespace-nowrap"
+                title="PG Laundry & Iron Service"
+              >
+                <Home className="h-3 w-3 mr-1" />
+                <span>PG</span>
+              </Button>
+
               {(useStaticFallback
                 ? (serviceCategories || []).slice(1)
                 : dynamicServices || []
@@ -1566,6 +1578,15 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             >
               <ShoppingBag className="h-4 w-4 mr-2" />
               All Services
+            </Button>
+
+            <Button
+              onClick={() => navigate("/pg-booking")}
+              className="flex-shrink-0 rounded-xl font-medium shadow-md border bg-gradient-to-r from-laundrify-pink to-laundrify-red text-white border-laundrify-red hover:from-laundrify-pink/90 hover:to-laundrify-red/90 hover:shadow-lg"
+              title="PG Laundry & Iron Service"
+            >
+              <Home className="h-4 w-4 mr-2" />
+              PG Service
             </Button>
 
             {(useStaticFallback

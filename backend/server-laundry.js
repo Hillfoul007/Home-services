@@ -441,6 +441,20 @@ try {
   console.error("❌ Failed to load Vendor routes:", error.message);
 }
 
+// PG (Paying Guest) routes
+try {
+  const pgOrderRoutes = require("./routes/pg-orders");
+  const pgManagementRoutes = require("./routes/pg-management");
+
+  app.use("/api/pg-orders", pgOrderRoutes);
+  console.log("🔗 PG order routes registered at /api/pg-orders");
+
+  app.use("/api/pg-management", pgManagementRoutes);
+  console.log("🔗 PG management routes registered at /api/pg-management");
+} catch (error) {
+  console.error("❌ Failed to load PG routes:", error.message);
+}
+
 // Google Sheets integration removed
 
 // Push notification endpoints
