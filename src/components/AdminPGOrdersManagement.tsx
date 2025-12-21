@@ -609,6 +609,83 @@ const AdminPGOrdersManagement: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Vendor Assignment Dialog */}
+      <Dialog open={showVendorAssignDialog} onOpenChange={setShowVendorAssignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Vendor to Order</DialogTitle>
+            <DialogDescription>
+              Order: {vendorAssignOrder?.custom_order_id} | PG: {vendorAssignOrder?.pg_name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">
+                Select Vendor
+              </label>
+              {vendors.length > 0 ? (
+                <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
+                  <SelectTrigger className="border-2 border-laundrify-mint">
+                    <SelectValue placeholder="Choose a vendor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor._id} value={vendor._id}>
+                        <div>
+                          <span className="font-medium">{vendor.name}</span>
+                          <span className="text-gray-600 ml-2">{vendor.phone}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-gray-600">No vendors available</p>
+              )}
+            </div>
+
+            {selectedVendorId && vendors.find(v => v._id === selectedVendorId) && (
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <p className="text-sm text-blue-900">
+                  <strong>Vendor:</strong> {vendors.find(v => v._id === selectedVendorId)?.name}
+                </p>
+                <p className="text-sm text-blue-900">
+                  <strong>Phone:</strong> {vendors.find(v => v._id === selectedVendorId)?.phone}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowVendorAssignDialog(false)}
+              disabled={assigningVendor}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignVendor}
+              disabled={assigningVendor || !selectedVendorId}
+              className="bg-laundrify-purple hover:bg-laundrify-purple/90"
+            >
+              {assigningVendor ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Assigning...
+                </>
+              ) : (
+                <>
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Assign Vendor
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
