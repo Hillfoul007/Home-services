@@ -62,9 +62,39 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
   const pricePerItem = selectedPG?.price_per_item || 25;
   const totalPrice = noOfItems * pricePerItem;
 
+  // Fetch available cities from backend
+  const fetchCities = async () => {
+    try {
+      const response = await apiClient.request<any>(
+        "/pg-management/cities/list"
+      );
+
+      if (response.error) {
+        console.warn("Failed to fetch cities:", response.error);
+        setCities([]);
+        return;
+      }
+
+      // Handle the response structure
+      const citiesData = response.data?.data || response.data || [];
+
+      if (Array.isArray(citiesData)) {
+        setCities(citiesData);
+        console.log(`✅ Loaded ${citiesData.length} cities with active PGs`);
+      } else {
+        console.warn("Invalid cities response format:", response.data);
+        setCities([]);
+      }
+    } catch (error) {
+      console.error("Error fetching cities:", error);
+      toast.error("Failed to load available cities");
+      setCities([]);
+    }
+  };
+
   // Load cities on component mount
   useEffect(() => {
-    setCities(CITIES);
+    fetchCities();
   }, []);
 
   // Fetch PGs when city is selected
