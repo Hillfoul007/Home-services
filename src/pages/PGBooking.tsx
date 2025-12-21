@@ -111,8 +111,17 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
       const response = await apiClient.request<any>(
         `/pg-management/city/${city}`
       );
+
+      // Handle the response structure: backend returns {success: true, data: [pgs]}
       if (response.data) {
-        setPGs(Array.isArray(response.data) ? response.data : []);
+        const pgsData = response.data.data || response.data;
+        if (Array.isArray(pgsData)) {
+          setPGs(pgsData);
+          console.log(`✅ Loaded ${pgsData.length} PGs for ${city}`);
+        } else {
+          console.warn("Invalid PGs response format:", response.data);
+          setPGs([]);
+        }
       } else if (response.status === 304) {
         // Handle 304 Not Modified - keep current data
         console.log("PG data cached (304 Not Modified)");
