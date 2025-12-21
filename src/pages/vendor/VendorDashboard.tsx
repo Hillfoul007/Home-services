@@ -573,7 +573,7 @@ const VendorDashboard: React.FC = () => {
                   {order.isPGOrder && order.status === 'vendor_assigned' && (
                     <>
                       <div className="text-xs text-gray-600 font-semibold bg-yellow-50 p-2 rounded border border-yellow-200">
-                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹{order.no_of_items * 25}
+                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹25 per piece
                       </div>
                       <div className="flex gap-2">
                         <Button
