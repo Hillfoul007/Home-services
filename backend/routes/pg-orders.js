@@ -112,8 +112,26 @@ router.get("/user/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
+    console.log("🔍 Searching for PG orders for user:", userId);
+
+    // Create query that handles both ObjectId and string formats
+    let query = {};
+
+    // Try matching as ObjectId first
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      query = {
+        $or: [
+          { customer_id: mongoose.Types.ObjectId(userId) },
+          { customer_id: userId }, // Also try as string
+        ],
+      };
+    } else {
+      // If not a valid ObjectId, just search as string
+      query = { customer_id: userId };
+    }
+
     const pgOrders = await PGOrder.find(
-      { customer_id: userId },
+      query,
       null,
       { sort: { created_at: -1 } }
     );
@@ -122,15 +140,17 @@ router.get("/user/:userId", async (req, res) => {
       `✅ Found ${pgOrders.length} PG orders for user ${userId}`
     );
 
+    // Ensure response always has data array
     res.json({
       success: true,
-      data: pgOrders,
+      data: pgOrders || [],
     });
   } catch (error) {
     console.error("Error fetching user PG orders:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch PG orders",
+      details: error.message,
     });
   }
 });
