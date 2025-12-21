@@ -282,6 +282,30 @@ const AdminPGOrdersManagement: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Error State */}
+      {error && (
+        <Card className="border-0 shadow-md border-l-4 border-l-red-500 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-900">Failed to Load Orders</h3>
+                <p className="text-red-800 text-sm mt-1">{error}</p>
+                <Button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  size="sm"
+                  className="mt-3 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Orders Table */}
       {loading ? (
         <div className="flex justify-center py-12">
