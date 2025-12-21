@@ -34,6 +34,7 @@ import {
   Send,
   AlertCircle,
   CheckCircle,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
@@ -47,6 +48,7 @@ interface PGOrder {
   no_of_items: number;
   final_amount: number;
   status: string;
+  assignedVendor?: string;
   assignedVendorDetails?: {
     name: string;
     phone: string;
@@ -54,6 +56,14 @@ interface PGOrder {
   created_at: string;
   name: string;
   phone: string;
+}
+
+interface Vendor {
+  _id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
 }
 
 const statusOptions = [
