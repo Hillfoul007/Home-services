@@ -151,12 +151,19 @@ router.get("/city/:city", async (req, res) => {
   try {
     const { city } = req.params;
 
+    if (!city) {
+      return res.status(400).json({
+        success: false,
+        error: "City parameter is required",
+      });
+    }
+
     const pgs = await PG.find(
       {
         city: { $regex: city, $options: "i" },
         is_active: true,
       },
-      "name address phone_number assignedVendor price_per_item min_items"
+      "name address phone_number assignedVendor assignedVendorName assignedVendorPhone price_per_item min_items _id"
     );
 
     console.log(`✅ Found ${pgs.length} active PGs in ${city}`);
@@ -166,10 +173,11 @@ router.get("/city/:city", async (req, res) => {
       data: pgs,
     });
   } catch (error) {
-    console.error("Error fetching PGs by city:", error);
+    console.error("Error fetching PGs by city:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch PGs",
+      details: error.message,
     });
   }
 });
