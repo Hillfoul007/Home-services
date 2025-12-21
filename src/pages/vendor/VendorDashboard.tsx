@@ -106,14 +106,21 @@ const VendorDashboard: React.FC = () => {
       // Load PG orders assigned to this vendor
       try {
         const vendorAuth = vendorAuthService.getVendorAuth();
+        console.log("🔍 Vendor Auth:", vendorAuth);
+
         if (vendorAuth?.vendor_id) {
+          console.log(`📍 Fetching PG orders for vendor ID: ${vendorAuth.vendor_id}`);
           const pgResponse = await apiClient.request<any>(
             `/pg-orders/vendor/${vendorAuth.vendor_id}`
           );
+          console.log("📦 PG Orders Response:", pgResponse);
+
           // Backend returns { success: true, data: [...] }, so extract the actual array
           const pgOrdersArray = Array.isArray(pgResponse.data)
             ? pgResponse.data
             : (pgResponse.data?.data || []);
+
+          console.log(`✅ Found ${pgOrdersArray?.length || 0} PG orders`);
 
           if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
             const pgOrders: Order[] = pgOrdersArray.map((pgOrder: any) => ({
@@ -132,10 +139,13 @@ const VendorDashboard: React.FC = () => {
               no_of_items: pgOrder.no_of_items,
             }));
             allOrders = [...allOrders, ...pgOrders];
+            console.log("✅ PG Orders merged into allOrders");
           }
+        } else {
+          console.warn("⚠️ No vendor auth found");
         }
       } catch (pgError) {
-        console.warn("Could not load PG orders:", pgError);
+        console.error("❌ Could not load PG orders:", pgError);
       }
 
       // Detect new orders and play notification
