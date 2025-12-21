@@ -97,12 +97,9 @@ const AdminPGManagement: React.FC = () => {
       const response = await apiClient.adminRequest<any>("/pg-management");
       if (response.data) {
         setPGs(response.data);
-        // Extract unique cities
-        const uniqueCities = [
-          ...new Set(response.data.map((pg: PG) => pg.city)),
-        ];
-        setCities(uniqueCities.sort());
       }
+      // Use predefined cities list
+      setCities(CITIES);
     } catch (error) {
       console.error("Error loading PGs:", error);
       toast.error("Failed to load PGs");
