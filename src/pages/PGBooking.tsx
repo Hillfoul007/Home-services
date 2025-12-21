@@ -75,7 +75,7 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
         return;
       }
 
-      // Handle the response structure
+      // Handle the response structure: backend returns {success: true, data: [cities]}
       const citiesData = response.data?.data || response.data || [];
 
       if (Array.isArray(citiesData)) {
