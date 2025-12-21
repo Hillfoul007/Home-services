@@ -121,7 +121,7 @@ router.get("/user/:userId", async (req, res) => {
     if (mongoose.Types.ObjectId.isValid(userId)) {
       query = {
         $or: [
-          { customer_id: mongoose.Types.ObjectId(userId) },
+          { customer_id: new mongoose.Types.ObjectId(userId) },
           { customer_id: userId }, // Also try as string
         ],
       };
