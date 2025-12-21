@@ -298,9 +298,25 @@ router.post("/", async (req, res) => {
             phone: pg.assignedVendorPhone,
           }
         : null,
+      status_history: pg.assignedVendor
+        ? [
+            {
+              status: "vendor_assigned",
+              changed_at: new Date(),
+              changed_by: "system",
+            },
+          ]
+        : [
+            {
+              status: "created",
+              changed_at: new Date(),
+              changed_by: "system",
+            },
+          ],
     });
 
     console.log("📝 PGOrder object created with ID:", pgOrder.custom_order_id);
+    console.log(`📝 Status set to: ${pgOrder.status}`);
     console.log("📝 Saving to database...");
 
     await pgOrder.save();
