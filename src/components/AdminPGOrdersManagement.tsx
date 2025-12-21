@@ -127,6 +127,24 @@ const AdminPGOrdersManagement: React.FC = () => {
     loadVendors();
   }, []);
 
+  const loadVendors = async () => {
+    try {
+      const response = await apiClient.adminRequest<any>("/pg-management/vendors/available");
+
+      if (response.error) {
+        console.warn("Failed to load vendors:", response.error);
+        return;
+      }
+
+      const vendorsList = response.data?.data || response.data || [];
+      if (Array.isArray(vendorsList)) {
+        setVendors(vendorsList);
+      }
+    } catch (error) {
+      console.warn("Error loading vendors:", error);
+    }
+  };
+
   const loadOrders = async () => {
     try {
       setLoading(true);
