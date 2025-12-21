@@ -199,7 +199,10 @@ const connectDB = async () => {
   try {
     // Use production MongoDB URI
     const mongoURI = productionConfig.MONGODB_URI;
-    ("mongodb+srv://sunflower110001:fV4LhLpWlKj5Vx87@cluster0.ic8p792.mongodb.net/cleancare_pro?retryWrites=true&w=majority");
+
+    if (!mongoURI) {
+      throw new Error("MongoDB URI is not configured in environment variables");
+    }
 
     await mongoose.connect(mongoURI);
 
