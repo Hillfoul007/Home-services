@@ -290,7 +290,7 @@ router.post("/", async (req, res) => {
       ],
       services: ["Laundry and Iron"],
       special_instructions: special_instructions || "",
-      status: "created",
+      status: pg.assignedVendor ? "vendor_assigned" : "created",
       assignedVendor: pg.assignedVendor || null,
       assignedVendorDetails: pg.assignedVendor
         ? {
