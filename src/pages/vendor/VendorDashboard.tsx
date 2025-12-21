@@ -237,6 +237,28 @@ const VendorDashboard: React.FC = () => {
     }
   };
 
+  const handlePGOrderResponse = async (orderId: string, action: 'accept' | 'reject') => {
+    try {
+      const res = await apiClient.request<any>(
+        `/pg-orders/${orderId}/vendor-response`,
+        {
+          method: "POST",
+          body: { action },
+        }
+      );
+
+      if (!res || !res.success) {
+        toast.error(res?.error || "Failed to process response");
+        return;
+      }
+
+      toast.success(action === 'accept' ? "Order accepted! ✅" : "Order rejected ❌");
+      load();
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to process response");
+    }
+  };
+
   const handleLogout = () => {
     vendorAuthService.logout();
     navigate("/vendor/login");
