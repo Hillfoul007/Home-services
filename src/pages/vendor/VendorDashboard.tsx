@@ -443,6 +443,34 @@ const VendorDashboard: React.FC = () => {
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
         </div>
       </div>
+
+      <div className="mb-4 flex gap-2 flex-wrap">
+        <Button
+          variant={filterType === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('all')}
+          className="text-xs md:text-sm"
+        >
+          All Orders ({orders.length})
+        </Button>
+        <Button
+          variant={filterType === 'regular' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('regular')}
+          className="text-xs md:text-sm"
+        >
+          Regular Orders ({orders.filter(o => !o.isPGOrder).length})
+        </Button>
+        <Button
+          variant={filterType === 'pg' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('pg')}
+          className="text-xs md:text-sm"
+        >
+          🏠 PG Orders ({orders.filter(o => o.isPGOrder).length})
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
           <div className="mb-4">
