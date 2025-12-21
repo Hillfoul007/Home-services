@@ -114,17 +114,26 @@ const AdminPGOrdersManagement: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await apiClient.adminRequest<any>("/pg-orders");
-      if (response.data) {
-        setOrders(response.data);
-        // Extract unique cities
-        const uniqueCities = [...new Set(response.data.map((o: PGOrder) => o.city))];
-        setCities(uniqueCities.sort());
-      } else {
-        throw new Error("No data received from server");
+
+      if (response.error) {
+        throw new Error(response.error);
       }
+
+      // Handle nested data structure: { data: { success: true, data: [...] } }
+      const orders = response.data?.data || response.data || [];
+
+      if (!Array.isArray(orders)) {
+        console.warn("Invalid response format:", response.data);
+        throw new Error("Invalid data format from server");
+      }
+
+      setOrders(orders);
+      // Extract unique cities
+      const uniqueCities = [...new Set(orders.map((o: PGOrder) => o.city))];
+      setCities(uniqueCities.sort());
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to load PG orders";
-      console.error("Error loading PG orders:", error);
+      console.error("Error loading PG orders:", { error, errorMessage });
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
