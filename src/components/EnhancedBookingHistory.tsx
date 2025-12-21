@@ -171,8 +171,13 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               const pgResponse = await apiClient.request<any>(
                 `/pg-orders/user/${userId}`
               );
-              if (pgResponse.data && Array.isArray(pgResponse.data)) {
-                const pgOrders = pgResponse.data.map((pgOrder: any) => ({
+              // Backend returns { success: true, data: [...] }, so extract the actual array
+              const pgOrdersArray = Array.isArray(pgResponse.data)
+                ? pgResponse.data
+                : (pgResponse.data?.data || []);
+
+              if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
+                const pgOrders = pgOrdersArray.map((pgOrder: any) => ({
                   id: pgOrder._id,
                   custom_order_id: pgOrder.custom_order_id,
                   order_id: pgOrder.custom_order_id,
