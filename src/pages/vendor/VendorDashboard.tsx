@@ -337,9 +337,19 @@ const VendorDashboard: React.FC = () => {
     });
   };
 
-  const bucketA = sortOrdersByTime(orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
-  const bucketB = sortOrdersByTime(orders.filter(o => o.status === 'ready_for_delivery'));
-  const completed = sortOrdersByTime(orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
+  // Apply filter based on filterType
+  const getFilteredOrders = (ordersToFilter: Order[]): Order[] => {
+    if (filterType === 'all') return ordersToFilter;
+    if (filterType === 'regular') return ordersToFilter.filter(o => !o.isPGOrder);
+    if (filterType === 'pg') return ordersToFilter.filter(o => o.isPGOrder);
+    return ordersToFilter;
+  };
+
+  const filteredOrders = getFilteredOrders(orders);
+
+  const bucketA = sortOrdersByTime(filteredOrders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
+  const bucketB = sortOrdersByTime(filteredOrders.filter(o => o.status === 'ready_for_delivery'));
+  const completed = sortOrdersByTime(filteredOrders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
 
   if (loading && orders.length === 0) {
     return (
