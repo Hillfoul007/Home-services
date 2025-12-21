@@ -83,11 +83,17 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
         `/pg-management/city/${city}`
       );
       if (response.data) {
-        setPGs(response.data);
+        setPGs(Array.isArray(response.data) ? response.data : []);
+      } else if (response.status === 304) {
+        // Handle 304 Not Modified - keep current data
+        console.log("PG data cached (304 Not Modified)");
+      } else {
+        setPGs([]);
       }
     } catch (error) {
       console.error("Error fetching PGs:", error);
-      toast.error("Failed to load PGs");
+      toast.error("Failed to load PGs for " + city);
+      setPGs([]);
     } finally {
       setLoading(false);
     }
