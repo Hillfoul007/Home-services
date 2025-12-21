@@ -99,6 +99,7 @@ const getStatusColor = (status: string) => {
 
 const AdminPGOrdersManagement: React.FC = () => {
   const [orders, setOrders] = useState<PGOrder[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -115,8 +116,15 @@ const AdminPGOrdersManagement: React.FC = () => {
   const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [messagingOrder, setMessagingOrder] = useState<PGOrder | null>(null);
 
+  // Vendor assignment dialog states
+  const [showVendorAssignDialog, setShowVendorAssignDialog] = useState(false);
+  const [vendorAssignOrder, setVendorAssignOrder] = useState<PGOrder | null>(null);
+  const [selectedVendorId, setSelectedVendorId] = useState("");
+  const [assigningVendor, setAssigningVendor] = useState(false);
+
   useEffect(() => {
     loadOrders();
+    loadVendors();
   }, []);
 
   const loadOrders = async () => {
