@@ -11,6 +11,11 @@ const router = express.Router();
 // Get all active cities with PGs
 router.get("/cities/list", async (req, res) => {
   try {
+    // Set cache control headers
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     const cities = await PG.distinct("city", { is_active: true });
 
     const sortedCities = cities.sort();
@@ -22,10 +27,11 @@ router.get("/cities/list", async (req, res) => {
       data: sortedCities,
     });
   } catch (error) {
-    console.error("Error fetching cities:", error);
+    console.error("Error fetching cities:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch cities",
+      details: error.message,
     });
   }
 });
