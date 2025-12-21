@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { CITIES } from "@/data/cities";
 
 interface PG {
   _id: string;
