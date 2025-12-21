@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CITIES } from "@/data/cities";
 import {
   Dialog,
   DialogContent,
