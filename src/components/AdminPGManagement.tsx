@@ -104,17 +104,19 @@ const AdminPGManagement: React.FC = () => {
 
       if (Array.isArray(pgsData)) {
         setPGs(pgsData);
+        // Extract unique cities from loaded PGs
+        const uniqueCities = [...new Set(pgsData.map((pg: PG) => pg.city))];
+        setCities(uniqueCities.sort());
       } else {
         console.warn("Invalid PGs response format:", response.data);
         setPGs([]);
+        setCities([]);
       }
-
-      // Use predefined cities list
-      setCities(CITIES);
     } catch (error) {
       console.error("Error loading PGs:", error);
       toast.error("Failed to load PGs");
       setPGs([]);
+      setCities([]);
     } finally {
       setLoading(false);
     }
