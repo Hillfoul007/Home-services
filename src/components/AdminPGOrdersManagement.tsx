@@ -90,6 +90,7 @@ const getStatusColor = (status: string) => {
 const AdminPGOrdersManagement: React.FC = () => {
   const [orders, setOrders] = useState<PGOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
