@@ -1052,6 +1052,15 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 All
               </Button>
 
+              <Button
+                onClick={() => navigate("/pg-booking")}
+                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border bg-gradient-to-r from-laundrify-pink to-laundrify-red text-white border-laundrify-red/50 hover:from-laundrify-pink/90 hover:to-laundrify-red/90 shadow-md whitespace-nowrap"
+                title="PG Laundry & Iron Service"
+              >
+                <Home className="h-3 w-3 mr-1" />
+                <span>PG</span>
+              </Button>
+
               {(useStaticFallback
                 ? (serviceCategories || []).slice(1)
                 : dynamicServices || []
