@@ -22,7 +22,11 @@ async function sendWhatsAppNotification(vendorPhone, message) {
   }
 }
 
-// Get all cities with active PGs (specific route - must be before generic routes)
+// ============================================
+// SPECIFIC NON-PARAMETERIZED ROUTES (FIRST)
+// ============================================
+
+// Get all cities with active PGs
 router.get("/cities/list", async (req, res) => {
   try {
     const cities = await PG.distinct("city", { is_active: true });
@@ -42,7 +46,7 @@ router.get("/cities/list", async (req, res) => {
   }
 });
 
-// Get all PGs for a city (specific route)
+// Get all PGs for a city
 router.get("/pgs/city/:city", async (req, res) => {
   try {
     const { city } = req.params;
@@ -70,6 +74,69 @@ router.get("/pgs/city/:city", async (req, res) => {
   }
 });
 
+// ============================================
+// SPECIFIC PARAMETERIZED ROUTES (SECOND)
+// ============================================
+
+// Get vendor's assigned PG orders
+router.get("/vendor/:vendorId", async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const pgOrders = await PGOrder.find(
+      { assignedVendor: vendorId },
+      null,
+      { sort: { created_at: -1 } }
+    );
+
+    console.log(
+      `✅ Found ${pgOrders.length} PG orders for vendor ${vendorId}`
+    );
+
+    res.json({
+      success: true,
+      data: pgOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor PG orders:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch vendor orders",
+    });
+  }
+});
+
+// Get user's PG orders
+router.get("/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const pgOrders = await PGOrder.find(
+      { customer_id: userId },
+      null,
+      { sort: { created_at: -1 } }
+    );
+
+    console.log(
+      `✅ Found ${pgOrders.length} PG orders for user ${userId}`
+    );
+
+    res.json({
+      success: true,
+      data: pgOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching user PG orders:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch PG orders",
+    });
+  }
+});
+
+// ============================================
+// POST/CREATE ROUTES
+// ============================================
 
 // Create a new PG order
 router.post("/", async (req, res) => {
@@ -173,87 +240,9 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Get user's PG orders
-router.get("/user/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const pgOrders = await PGOrder.find(
-      { customer_id: userId },
-      null,
-      { sort: { created_at: -1 } }
-    );
-
-    console.log(
-      `✅ Found ${pgOrders.length} PG orders for user ${userId}`
-    );
-
-    res.json({
-      success: true,
-      data: pgOrders,
-    });
-  } catch (error) {
-    console.error("Error fetching user PG orders:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch PG orders",
-    });
-  }
-});
-
-// Get PG order by ID
-router.get("/:orderId", async (req, res) => {
-  try {
-    const { orderId } = req.params;
-
-    const pgOrder = await PGOrder.findById(orderId);
-
-    if (!pgOrder) {
-      return res.status(404).json({
-        success: false,
-        error: "PG order not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: pgOrder,
-    });
-  } catch (error) {
-    console.error("Error fetching PG order:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch PG order",
-    });
-  }
-});
-
-// Get all PG orders (admin)
-router.get("/", async (req, res) => {
-  try {
-    const { city, status, vendor } = req.query;
-    let query = {};
-
-    if (city) query.city = { $regex: city, $options: "i" };
-    if (status) query.status = status;
-    if (vendor) query.assignedVendor = vendor;
-
-    const pgOrders = await PGOrder.find(query, null, { sort: { created_at: -1 } });
-
-    console.log(`✅ Found ${pgOrders.length} PG orders`);
-
-    res.json({
-      success: true,
-      data: pgOrders,
-    });
-  } catch (error) {
-    console.error("Error fetching PG orders:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch PG orders",
-    });
-  }
-});
+// ============================================
+// MORE SPECIFIC PARAMETERIZED ROUTES (THIRD)
+// ============================================
 
 // Update PG order status
 router.patch("/:orderId/status", async (req, res) => {
@@ -308,46 +297,6 @@ router.patch("/:orderId/status", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to update PG order status",
-    });
-  }
-});
-
-// Update PG order details
-router.patch("/:orderId", async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const updates = req.body;
-
-    // Prevent direct status update through this endpoint (use /status endpoint instead)
-    delete updates.custom_order_id;
-
-    const pgOrder = await PGOrder.findByIdAndUpdate(
-      orderId,
-      {
-        ...updates,
-        updated_at: new Date(),
-      },
-      { new: true }
-    );
-
-    if (!pgOrder) {
-      return res.status(404).json({
-        success: false,
-        error: "PG order not found",
-      });
-    }
-
-    console.log(`✅ Updated PG order ${orderId}`);
-
-    res.json({
-      success: true,
-      data: pgOrder,
-    });
-  } catch (error) {
-    console.error("Error updating PG order:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to update PG order",
     });
   }
 });
@@ -414,34 +363,6 @@ router.post("/:orderId/assign-vendor", async (req, res) => {
   }
 });
 
-// Get vendor's assigned PG orders
-router.get("/vendor/:vendorId", async (req, res) => {
-  try {
-    const { vendorId } = req.params;
-
-    const pgOrders = await PGOrder.find(
-      { assignedVendor: vendorId },
-      null,
-      { sort: { created_at: -1 } }
-    );
-
-    console.log(
-      `✅ Found ${pgOrders.length} PG orders for vendor ${vendorId}`
-    );
-
-    res.json({
-      success: true,
-      data: pgOrders,
-    });
-  } catch (error) {
-    console.error("Error fetching vendor PG orders:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch vendor orders",
-    });
-  }
-});
-
 // Vendor accept/reject PG order
 router.post("/:orderId/vendor-response", async (req, res) => {
   try {
@@ -494,6 +415,104 @@ router.post("/:orderId/vendor-response", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to process vendor response",
+    });
+  }
+});
+
+// ============================================
+// GENERIC ROUTES (LAST)
+// ============================================
+
+// Get all PG orders (admin)
+router.get("/", async (req, res) => {
+  try {
+    const { city, status, vendor } = req.query;
+    let query = {};
+
+    if (city) query.city = { $regex: city, $options: "i" };
+    if (status) query.status = status;
+    if (vendor) query.assignedVendor = vendor;
+
+    const pgOrders = await PGOrder.find(query, null, { sort: { created_at: -1 } });
+
+    console.log(`✅ Found ${pgOrders.length} PG orders`);
+
+    res.json({
+      success: true,
+      data: pgOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching PG orders:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch PG orders",
+    });
+  }
+});
+
+// Get PG order by ID
+router.get("/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const pgOrder = await PGOrder.findById(orderId);
+
+    if (!pgOrder) {
+      return res.status(404).json({
+        success: false,
+        error: "PG order not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: pgOrder,
+    });
+  } catch (error) {
+    console.error("Error fetching PG order:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch PG order",
+    });
+  }
+});
+
+// Update PG order details
+router.patch("/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const updates = req.body;
+
+    // Prevent direct status update through this endpoint (use /status endpoint instead)
+    delete updates.custom_order_id;
+
+    const pgOrder = await PGOrder.findByIdAndUpdate(
+      orderId,
+      {
+        ...updates,
+        updated_at: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!pgOrder) {
+      return res.status(404).json({
+        success: false,
+        error: "PG order not found",
+      });
+    }
+
+    console.log(`✅ Updated PG order ${orderId}`);
+
+    res.json({
+      success: true,
+      data: pgOrder,
+    });
+  } catch (error) {
+    console.error("Error updating PG order:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update PG order",
     });
   }
 });
