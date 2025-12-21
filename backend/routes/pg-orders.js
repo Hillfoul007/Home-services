@@ -84,8 +84,26 @@ router.get("/vendor/:vendorId", async (req, res) => {
   try {
     const { vendorId } = req.params;
 
+    console.log("🔍 Searching for PG orders for vendor:", vendorId);
+
+    // Create query that handles both ObjectId and string formats
+    let query = {};
+
+    // Try matching as ObjectId first
+    if (mongoose.Types.ObjectId.isValid(vendorId)) {
+      query = {
+        $or: [
+          { assignedVendor: new mongoose.Types.ObjectId(vendorId) },
+          { assignedVendor: vendorId }, // Also try as string
+        ],
+      };
+    } else {
+      // If not a valid ObjectId, just search as string
+      query = { assignedVendor: vendorId };
+    }
+
     const pgOrders = await PGOrder.find(
-      { assignedVendor: vendorId },
+      query,
       null,
       { sort: { created_at: -1 } }
     );
@@ -96,13 +114,14 @@ router.get("/vendor/:vendorId", async (req, res) => {
 
     res.json({
       success: true,
-      data: pgOrders,
+      data: pgOrders || [],
     });
   } catch (error) {
     console.error("Error fetching vendor PG orders:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch vendor orders",
+      details: error.message,
     });
   }
 });
