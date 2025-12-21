@@ -11,11 +11,6 @@ const router = express.Router();
 // Get all active cities with PGs
 router.get("/cities/list", async (req, res) => {
   try {
-    // Set cache control headers
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-
     const cities = await PG.distinct("city", { is_active: true });
 
     const sortedCities = cities.sort();
