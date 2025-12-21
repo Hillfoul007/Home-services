@@ -46,7 +46,7 @@ interface OrderInstructions {
   orderId: string;
 }
 
-const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
+const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUser }) => {
   const navigate = useNavigate();
   const [cities, setCities] = useState<string[]>([]);
   const [pgs, setPGs] = useState<PG[]>([]);
@@ -54,10 +54,34 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
   const [selectedPG, setSelectedPG] = useState<PG | null>(null);
   const [noOfItems, setNoOfItems] = useState(4);
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(propCurrentUser || null);
   const [instructions, setInstructions] = useState<OrderInstructions>({
     isOpen: false,
     orderId: "",
   });
+
+  // Load current user from localStorage if not passed as prop
+  useEffect(() => {
+    if (propCurrentUser) {
+      setCurrentUser(propCurrentUser);
+    } else {
+      // Try to restore from localStorage (same as LaundryIndex)
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("cleancare_auth_token");
+      const userStr = localStorage.getItem("current_user") || localStorage.getItem("cleancare_user");
+
+      if (token && userStr) {
+        try {
+          const storedUser = JSON.parse(userStr);
+          if (storedUser && (storedUser.phone || storedUser.id || storedUser._id)) {
+            setCurrentUser(storedUser);
+            console.log("✅ User restored from localStorage in PGBooking");
+          }
+        } catch (err) {
+          console.warn("Error parsing stored user data:", err);
+        }
+      }
+    }
+  }, [propCurrentUser]);
 
   const pricePerItem = selectedPG?.price_per_item || 25;
   const totalPrice = noOfItems * pricePerItem;
