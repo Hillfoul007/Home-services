@@ -38,10 +38,11 @@ router.get("/cities/list", async (req, res) => {
       data: cities.sort(),
     });
   } catch (error) {
-    console.error("Error fetching cities:", error);
+    console.error("Error fetching cities:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch cities",
+      details: error.message,
     });
   }
 });
