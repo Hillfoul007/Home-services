@@ -80,6 +80,22 @@ app.use("/api/auth", (req, res, next) => {
   next();
 });
 
+// Middleware to add cache control headers for PG routes (dynamic data)
+app.use("/api/pg-management", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+// Middleware to add cache control headers for PG orders (dynamic data)
+app.use("/api/pg-orders", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // Additional CORS middleware to ensure headers are always set
 app.use((req, res, next) => {
   const origin = req.headers.origin;
