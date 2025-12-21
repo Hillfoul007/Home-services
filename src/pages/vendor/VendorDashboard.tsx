@@ -452,12 +452,18 @@ const VendorDashboard: React.FC = () => {
                         </Button>
                       )}
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {order.isPGOrder ? '🏠 PG Service' : order.service}
+                    </div>
+                    {order.isPGOrder ? (
+                      <div className="text-xs text-blue-600 mt-1 font-semibold">📍 {order.pg_name}</div>
+                    ) : (
+                      <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    )}
                     {order.delivery_date && (
                       <div className="text-xs text-gray-500">Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}</div>
                     )}
-                    {order.address && (
+                    {order.address && !order.isPGOrder && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
                         className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
@@ -468,7 +474,7 @@ const VendorDashboard: React.FC = () => {
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded whitespace-nowrap">{order.status}</span>
+                    <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${order.isPGOrder ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>{order.isPGOrder ? '🏠 ' : ''}{order.status}</span>
                     <div className="flex gap-1">
                       {order.address && (
                         <Button
@@ -606,14 +612,20 @@ const VendorDashboard: React.FC = () => {
                         </Button>
                       )}
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">{order.service}</div>
-                    <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {order.isPGOrder ? '🏠 PG Service' : order.service}
+                    </div>
+                    {order.isPGOrder ? (
+                      <div className="text-xs text-blue-600 mt-1 font-semibold">📍 {order.pg_name}</div>
+                    ) : (
+                      <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
+                    )}
                     {order.delivery_date && (
                       <div className="text-xs text-orange-600 mt-1 font-semibold">
                         Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}
                       </div>
                     )}
-                    {order.address && (
+                    {order.address && !order.isPGOrder && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
                         className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
@@ -624,7 +636,7 @@ const VendorDashboard: React.FC = () => {
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded whitespace-nowrap">Ready</span>
+                    <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${order.isPGOrder ? 'bg-purple-100 text-purple-800' : 'bg-orange-100 text-orange-800'}`}>Ready</span>
                     <div className="text-sm font-bold text-orange-700">₹{order.final_amount ?? order.total_price}</div>
                     <div className="flex gap-1">
                       {order.address && (
