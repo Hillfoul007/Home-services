@@ -466,11 +466,17 @@ const VendorDashboard: React.FC = () => {
   const bucketB = sortOrdersByTime(filteredOrders.filter(o => o.status === 'ready_for_delivery'));
   const completed = sortOrdersByTime(filteredOrders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
 
-  // Debug logging for rendering
-  console.log("📊 [DEBUG] Orders Summary:", {
+  // Verify PG and Regular orders are properly separated
+  const allPGOrders = orders.filter(o => o.isPGOrder);
+  const allRegularOrders = orders.filter(o => !o.isPGOrder);
+
+  console.log("📊 [DEBUG] Orders Separation Verification:", {
     totalOrders: orders.length,
-    pgOrders: orders.filter(o => o.isPGOrder).length,
-    regularOrders: orders.filter(o => !o.isPGOrder).length,
+    pgOrders: allPGOrders.length,
+    regularOrders: allRegularOrders.length,
+    sumMatches: allPGOrders.length + allRegularOrders.length === orders.length ? '✅ YES' : '❌ NO',
+    pgOrderIds: allPGOrders.map(o => o.custom_order_id),
+    filterType,
     bucketA_count: bucketA.length,
     bucketB_count: bucketB.length,
     completed_count: completed.length,
@@ -478,7 +484,6 @@ const VendorDashboard: React.FC = () => {
       id: o.custom_order_id,
       isPG: o.isPGOrder,
       pg_name: o.pg_name,
-      address: o.address,
       status: o.status
     }))
   });
