@@ -138,6 +138,12 @@ const VendorDashboard: React.FC = () => {
               pg_name: pgOrder.pg_name,
               no_of_items: pgOrder.no_of_items,
             }));
+            console.log("✅ PG Orders mapped:", pgOrders.map(o => ({
+              id: o.custom_order_id,
+              pg_name: o.pg_name,
+              address: o.address,
+              status: o.status
+            })));
             allOrders = [...allOrders, ...pgOrders];
             console.log("✅ PG Orders merged into allOrders");
           }
