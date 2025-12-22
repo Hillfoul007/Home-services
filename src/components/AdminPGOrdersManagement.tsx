@@ -553,20 +553,20 @@ const AdminPGOrdersManagement: React.FC = () => {
         </Card>
       )}
 
-      {/* Edit Status Dialog */}
+      {/* Edit Status & Vendor Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Update Order Status</DialogTitle>
+            <DialogTitle>Edit Order</DialogTitle>
             <DialogDescription>
-              Order: {editingOrder?.custom_order_id}
+              Order: {editingOrder?.custom_order_id} | PG: {editingOrder?.pg_name}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-2">
-                New Status
+                Status
               </label>
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger className="border-2 border-laundrify-mint">
@@ -581,20 +581,57 @@ const AdminPGOrdersManagement: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">
+                Assigned Vendor
+              </label>
+              {vendors.length > 0 ? (
+                <Select value={editVendorId} onValueChange={setEditVendorId}>
+                  <SelectTrigger className="border-2 border-laundrify-mint">
+                    <SelectValue placeholder="Select vendor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No vendor (Unassigned)</SelectItem>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor._id} value={vendor._id}>
+                        {vendor.name} ({vendor.phone})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-gray-600">No vendors available</p>
+              )}
+              {editingOrder?.assignedVendorDetails && (
+                <p className="text-xs text-gray-600 mt-2">
+                  Current: {editingOrder.assignedVendorDetails.name}
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowEditDialog(false)}
+              disabled={updatingOrder}
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpdateStatus}
+              disabled={updatingOrder}
               className="bg-laundrify-purple hover:bg-laundrify-purple/90"
             >
-              Update Status
+              {updatingOrder ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                "Update Order"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
