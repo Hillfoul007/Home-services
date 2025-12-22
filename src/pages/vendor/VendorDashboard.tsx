@@ -131,7 +131,7 @@ const VendorDashboard: React.FC = () => {
               service: "Laundry and Iron",
               status: pgOrder.status,
               scheduled_date: pgOrder.created_at?.split('T')[0],
-              address: `${pgOrder.pg_name}, ${pgOrder.city}`,
+              address: pgOrder.address || `${pgOrder.pg_name}, ${pgOrder.city}`,
               final_amount: pgOrder.final_amount,
               total_price: pgOrder.total_price,
               isPGOrder: true,
