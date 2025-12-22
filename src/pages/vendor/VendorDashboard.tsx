@@ -400,6 +400,23 @@ const VendorDashboard: React.FC = () => {
   const bucketB = sortOrdersByTime(filteredOrders.filter(o => o.status === 'ready_for_delivery'));
   const completed = sortOrdersByTime(filteredOrders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
 
+  // Debug logging for rendering
+  console.log("📊 [DEBUG] Orders Summary:", {
+    totalOrders: orders.length,
+    pgOrders: orders.filter(o => o.isPGOrder).length,
+    regularOrders: orders.filter(o => !o.isPGOrder).length,
+    bucketA_count: bucketA.length,
+    bucketB_count: bucketB.length,
+    completed_count: completed.length,
+    bucketA_data: bucketA.map(o => ({
+      id: o.custom_order_id,
+      isPG: o.isPGOrder,
+      pg_name: o.pg_name,
+      address: o.address,
+      status: o.status
+    }))
+  });
+
   if (loading && orders.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
