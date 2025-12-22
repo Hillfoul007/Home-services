@@ -173,10 +173,18 @@ const VendorDashboard: React.FC = () => {
             console.log("✅ PG Orders merged into allOrders");
           }
         } else {
-          console.warn("⚠️ No vendor auth found");
+          console.warn("⚠️ [DEBUG] No vendor auth found or vendor_id missing", {
+            vendorAuth,
+            has_vendor_id: !!vendorAuth?.vendor_id,
+            keys: vendorAuth ? Object.keys(vendorAuth) : []
+          });
         }
       } catch (pgError) {
-        console.error("❌ Could not load PG orders:", pgError);
+        console.error("❌ [DEBUG] Could not load PG orders:", {
+          error: pgError,
+          message: (pgError as any)?.message,
+          stack: (pgError as any)?.stack
+        });
       }
 
       // Detect new orders and play notification
