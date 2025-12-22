@@ -74,8 +74,26 @@ router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
 
     console.log(`✅ Found ${pgOrders.length} PG orders for vendor`);
 
+    // Mark PG orders with isPGOrder flag and convert to plain objects
+    const markedPGOrders = pgOrders.map(pgOrder => {
+      const pgOrderObj = pgOrder.toObject ? pgOrder.toObject() : pgOrder;
+      return {
+        ...pgOrderObj,
+        isPGOrder: true,
+      };
+    });
+
+    // Mark regular booking orders explicitly as NOT PG orders
+    const markedBookingOrders = bookingOrders.map(booking => {
+      const bookingObj = booking.toObject ? booking.toObject() : booking;
+      return {
+        ...bookingObj,
+        isPGOrder: false,
+      };
+    });
+
     // Combine both order types
-    const orders = [...bookingOrders, ...pgOrders].sort((a, b) => {
+    const orders = [...markedBookingOrders, ...markedPGOrders].sort((a, b) => {
       const dateA = new Date(a.created_at || a.createdAt || 0).getTime();
       const dateB = new Date(b.created_at || b.createdAt || 0).getTime();
       return dateB - dateA; // Most recent first
