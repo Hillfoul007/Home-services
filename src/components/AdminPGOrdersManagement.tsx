@@ -201,29 +201,68 @@ const AdminPGOrdersManagement: React.FC = () => {
   const handleOpenEditDialog = (order: PGOrder) => {
     setEditingOrder(order);
     setNewStatus(order.status);
+    setEditVendorId(order.assignedVendor || "");
     setShowEditDialog(true);
   };
 
   const handleUpdateStatus = async () => {
     if (!editingOrder) return;
 
+    setUpdatingOrder(true);
     try {
-      const response = await apiClient.adminRequest<any>(
-        `/pg-orders/${editingOrder._id}/status`,
-        {
-          method: "PATCH",
-          body: { status: newStatus, changed_by: "admin" },
-        }
-      );
+      // Update status
+      if (newStatus !== editingOrder.status) {
+        const statusResponse = await apiClient.adminRequest<any>(
+          `/pg-orders/${editingOrder._id}/status`,
+          {
+            method: "PATCH",
+            body: { status: newStatus, changed_by: "admin" },
+          }
+        );
 
-      if (response.data) {
-        toast.success("Order status updated successfully");
-        loadOrders();
-        setShowEditDialog(false);
+        if (!statusResponse.data) {
+          toast.error("Failed to update order status");
+          setUpdatingOrder(false);
+          return;
+        }
       }
+
+      // Update vendor if changed
+      if (editVendorId && editVendorId !== (editingOrder.assignedVendor || "")) {
+        const selectedVendor = vendors.find(v => v._id === editVendorId);
+        if (!selectedVendor) {
+          toast.error("Selected vendor not found");
+          setUpdatingOrder(false);
+          return;
+        }
+
+        const vendorResponse = await apiClient.adminRequest<any>(
+          `/pg-orders/${editingOrder._id}/assign-vendor`,
+          {
+            method: "POST",
+            body: {
+              vendorId: editVendorId,
+              vendorName: selectedVendor.name,
+              vendorPhone: selectedVendor.phone,
+            },
+          }
+        );
+
+        if (!vendorResponse.data) {
+          toast.error("Failed to assign vendor");
+          setUpdatingOrder(false);
+          return;
+        }
+      }
+
+      toast.success("Order updated successfully");
+      loadOrders();
+      setShowEditDialog(false);
     } catch (error) {
-      console.error("Error updating order status:", error);
-      toast.error("Failed to update order status");
+      console.error("Error updating order:", error);
+      toast.error("Failed to update order");
+    } finally {
+      setUpdatingOrder(false);
     }
   };
 
