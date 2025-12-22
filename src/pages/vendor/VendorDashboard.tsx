@@ -190,11 +190,15 @@ const VendorDashboard: React.FC = () => {
             console.log("✅ PG Orders merged into allOrders");
           }
         } else {
-          console.warn("⚠️ [DEBUG] No vendor auth found or vendor_id missing", {
-            vendorAuth,
-            has_vendor_id: !!vendorAuth?.vendor_id,
-            keys: vendorAuth ? Object.keys(vendorAuth) : []
+          console.warn("⚠️ [DEBUG] No vendor ID found!", {
+            vendorAuth_exists: !!vendorAuth,
+            vendor_auth_object: vendorAuth,
+            vendor_id: vendorAuth?.vendor_id,
+            vendor_id_str: vendorAuth?.vendor_id_str,
+            available_keys: vendorAuth ? Object.keys(vendorAuth) : 'N/A',
+            token_exists: !!rawToken
           });
+          toast.warning("Unable to load PG orders: Vendor ID not found in token");
         }
       } catch (pgError) {
         console.error("❌ [DEBUG] Could not load PG orders:", {
