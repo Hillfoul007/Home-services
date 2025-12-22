@@ -69,7 +69,8 @@ function App() {
       initializeAuthPersistence();
 
       // Initialize PWA updates and service worker cleanup
-      initializePWAUpdates();
+      // Disabled: causes service worker loading issues
+      // initializePWAUpdates();
 
       // Restore authentication state from localStorage
       await restoreAuthState();
