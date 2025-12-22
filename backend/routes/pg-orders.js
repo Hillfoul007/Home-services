@@ -94,23 +94,16 @@ router.get("/vendor/:vendorId", async (req, res) => {
     // Try matching as ObjectId first
     if (mongoose.Types.ObjectId.isValid(vendorId)) {
       query = {
-        $or: [
-          { assignedVendor: new mongoose.Types.ObjectId(vendorId) },
-          { assignedVendor: vendorId }, // Also try as string
-        ],
+        assignedVendor: new mongoose.Types.ObjectId(vendorId),
       };
       console.log("🔎 Query (ObjectId):", JSON.stringify(query));
     } else {
-      // If not a valid ObjectId, just search as string
+      // If not a valid ObjectId, just search as string (fallback)
       query = { assignedVendor: vendorId };
       console.log("🔎 Query (String):", JSON.stringify(query));
     }
 
-    const pgOrders = await PGOrder.find(
-      query,
-      null,
-      { sort: { created_at: -1 } }
-    );
+    const pgOrders = await PGOrder.find(query).sort({ created_at: -1 });
 
     console.log(
       `✅ Found ${pgOrders.length} PG orders for vendor ${vendorId}`
@@ -118,10 +111,11 @@ router.get("/vendor/:vendorId", async (req, res) => {
 
     // Debug: show what assignedVendor values exist in database
     if (pgOrders.length === 0) {
-      const allPGOrders = await PGOrder.find({}, { assignedVendor: 1, custom_order_id: 1 });
-      console.log("📋 All PG Orders in DB (for debugging):");
+      console.warn(`⚠️ No PG orders found for vendor ${vendorId}. Checking database...`);
+      const allPGOrders = await PGOrder.find({}, { assignedVendor: 1, custom_order_id: 1, status: 1 }).limit(10);
+      console.log(`📋 Sample PG Orders in DB (showing ${allPGOrders.length} orders):`);
       allPGOrders.forEach(order => {
-        console.log(`  - Order: ${order.custom_order_id}, AssignedVendor: ${order.assignedVendor}`);
+        console.log(`  - Order: ${order.custom_order_id}, Status: ${order.status}, AssignedVendor: ${order.assignedVendor}, Type: ${typeof order.assignedVendor}`);
       });
     }
 
@@ -130,7 +124,7 @@ router.get("/vendor/:vendorId", async (req, res) => {
       data: pgOrders || [],
     });
   } catch (error) {
-    console.error("Error fetching vendor PG orders:", error);
+    console.error("❌ Error fetching vendor PG orders:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch vendor orders",
