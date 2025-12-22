@@ -519,7 +519,7 @@ const VendorDashboard: React.FC = () => {
                     {order.delivery_date && (
                       <div className="text-xs text-gray-500">Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}</div>
                     )}
-                    {order.address && !order.isPGOrder && (
+                    {order.address && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
                         className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
