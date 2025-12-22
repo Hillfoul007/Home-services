@@ -112,9 +112,11 @@ const AdminPGOrdersManagement: React.FC = () => {
   const [editingOrder, setEditingOrder] = useState<PGOrder | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [newStatus, setNewStatus] = useState("");
+  const [editVendorId, setEditVendorId] = useState("");
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [messagingOrder, setMessagingOrder] = useState<PGOrder | null>(null);
+  const [updatingOrder, setUpdatingOrder] = useState(false);
 
   // Vendor assignment dialog states
   const [showVendorAssignDialog, setShowVendorAssignDialog] = useState(false);
