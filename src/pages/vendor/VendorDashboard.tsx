@@ -123,21 +123,32 @@ const VendorDashboard: React.FC = () => {
           console.log(`✅ Found ${pgOrdersArray?.length || 0} PG orders`);
 
           if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
-            const pgOrders: Order[] = pgOrdersArray.map((pgOrder: any) => ({
-              _id: pgOrder._id,
-              custom_order_id: pgOrder.custom_order_id,
-              name: pgOrder.name,
-              phone: pgOrder.phone,
-              service: "Laundry and Iron",
-              status: pgOrder.status,
-              scheduled_date: pgOrder.created_at?.split('T')[0],
-              address: pgOrder.address || `${pgOrder.pg_name}, ${pgOrder.city}`,
-              final_amount: pgOrder.final_amount,
-              total_price: pgOrder.total_price,
-              isPGOrder: true,
-              pg_name: pgOrder.pg_name,
-              no_of_items: pgOrder.no_of_items,
-            }));
+            const pgOrders: Order[] = pgOrdersArray.map((pgOrder: any) => {
+              // Build address with fallbacks
+              let finalAddress = pgOrder.address || '';
+              if (!finalAddress && pgOrder.pg_name) {
+                finalAddress = pgOrder.pg_name;
+              }
+              if (!finalAddress && pgOrder.city) {
+                finalAddress = pgOrder.city;
+              }
+
+              return {
+                _id: pgOrder._id,
+                custom_order_id: pgOrder.custom_order_id,
+                name: pgOrder.name,
+                phone: pgOrder.phone,
+                service: "Laundry and Iron",
+                status: pgOrder.status,
+                scheduled_date: pgOrder.created_at?.split('T')[0],
+                address: finalAddress,
+                final_amount: pgOrder.final_amount,
+                total_price: pgOrder.total_price,
+                isPGOrder: true,
+                pg_name: pgOrder.pg_name || 'PG Location',
+                no_of_items: pgOrder.no_of_items,
+              };
+            });
             console.log("✅ PG Orders mapped:", pgOrders.map(o => ({
               id: o.custom_order_id,
               pg_name: o.pg_name,
