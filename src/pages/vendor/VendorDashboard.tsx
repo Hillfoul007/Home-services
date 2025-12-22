@@ -96,6 +96,18 @@ const VendorDashboard: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
+      // First, check if vendor is logged in
+      const vendorAuth = vendorAuthService.getVendorAuth();
+      if (!vendorAuth) {
+        console.error("❌ Vendor not authenticated - no valid token");
+        toast.error("Vendor authentication failed. Please log in again.");
+        navigate("/vendor/login");
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ Vendor is authenticated:", vendorAuth.name);
+
       const res = await vendorAuthService.fetchAssignedOrders();
       let allOrders: Order[] = [];
 
