@@ -221,15 +221,23 @@ const VendorDashboard: React.FC = () => {
             console.log("✅ PG Orders merged into allOrders");
           }
         } else {
-          console.warn("⚠️ [DEBUG] No vendor ID found!", {
+          const errorDetails = {
             vendorAuth_exists: !!vendorAuth,
-            vendor_auth_object: vendorAuth,
             vendor_id: vendorAuth?.vendor_id,
             vendor_id_str: vendorAuth?.vendor_id_str,
-            available_keys: vendorAuth ? Object.keys(vendorAuth) : 'N/A',
-            token_exists: !!rawToken
-          });
-          toast.warning("Unable to load PG orders: Vendor ID not found in token");
+            available_keys: vendorAuth ? Object.keys(vendorAuth) : [],
+            token_exists: !!rawToken,
+            rawToken_length: rawToken?.length,
+            isCustomerToken: rawToken && !rawToken.includes('vendor_id'),
+            recommendation: 'Try logging out and logging back in with valid vendor credentials'
+          };
+          console.error("❌ [DEBUG] No vendor ID found in token!", errorDetails);
+          toast.error("Vendor authentication error: Invalid or expired token. Please log in again.");
+
+          // Redirect to login
+          setTimeout(() => {
+            navigate("/vendor/login");
+          }, 2000);
         }
       } catch (pgError) {
         console.error("❌ [DEBUG] Could not load PG orders:", {
