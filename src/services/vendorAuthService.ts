@@ -97,24 +97,55 @@ class VendorAuthService {
     try {
       const token = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
       if (!token) {
-        console.warn('⚠️ No vendor auth token found');
+        console.warn('⚠️ No vendor auth token found in localStorage');
         return null;
       }
 
       // Decode JWT to get vendor info
       const parts = token.split('.');
       if (parts.length !== 3) {
-        console.warn('⚠️ Invalid token format');
+        console.warn('⚠️ Invalid token format - expected 3 parts, got:', parts.length);
         return null;
       }
 
-      const payload = JSON.parse(atob(parts[1]));
-      console.log('✅ Vendor auth retrieved:', { vendor_id: payload.vendor_id });
-      return {
+      // Decode the JWT payload (second part)
+      let payload;
+      try {
+        // Handle potential padding issues with base64
+        const base64String = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const paddingNeeded = (4 - (base64String.length % 4)) % 4;
+        const paddedString = base64String + '='.repeat(paddingNeeded);
+        payload = JSON.parse(atob(paddedString));
+      } catch (decodeError) {
+        console.error('❌ Failed to decode JWT payload:', decodeError);
+        return null;
+      }
+
+      console.log('✅ JWT Payload decoded:', {
+        keys: Object.keys(payload),
         vendor_id: payload.vendor_id,
         vendor_id_str: payload.vendor_id_str,
         name: payload.name,
+        fullPayload: payload
+      });
+
+      // Try to extract vendor_id - it might be the ObjectId or the string
+      const vendorId = payload.vendor_id || payload._id;
+      const vendorIdStr = payload.vendor_id_str || payload.vendor_id;
+
+      if (!vendorId && !vendorIdStr) {
+        console.warn('⚠️ No vendor_id or vendor_id_str found in token payload:', payload);
+        return null;
+      }
+
+      const result = {
+        vendor_id: vendorId,
+        vendor_id_str: vendorIdStr,
+        name: payload.name,
       };
+
+      console.log('✅ Vendor auth successfully retrieved:', result);
+      return result;
     } catch (error) {
       console.error('❌ Error getting vendor auth:', error);
       return null;
