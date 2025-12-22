@@ -82,14 +82,48 @@ class VendorAuthService {
 
       const data = await response.json();
       if (!response.ok) {
-        console.error('❌ Token verification failed');
+        console.error('❌ Token verification failed:', data);
         return null;
       }
 
+      console.log('✅ Token verified successfully:', data.vendor);
       return data.vendor;
     } catch (error) {
       console.error('❌ Token verification error:', error);
       return null;
+    }
+  }
+
+  async validateVendorAuth(): Promise<boolean> {
+    try {
+      const token = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
+
+      if (!token) {
+        console.warn('⚠️ No token in localStorage');
+        return false;
+      }
+
+      console.log('🔍 Validating vendor token...');
+
+      // Try to get vendor auth from token
+      const vendorAuth = this.getVendorAuth();
+      if (!vendorAuth) {
+        console.error('❌ Cannot extract vendor info from token');
+        return false;
+      }
+
+      // Verify token with backend
+      const vendor = await this.verifyToken(token);
+      if (!vendor) {
+        console.error('❌ Token verification failed on backend');
+        return false;
+      }
+
+      console.log('✅ Vendor authentication is valid:', vendor.name);
+      return true;
+    } catch (error) {
+      console.error('❌ Vendor validation error:', error);
+      return false;
     }
   }
 
