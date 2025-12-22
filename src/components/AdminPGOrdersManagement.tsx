@@ -156,8 +156,9 @@ const AdminPGOrdersManagement: React.FC = () => {
 
     const matchCity = !selectedCity || order.city === selectedCity;
     const matchStatus = !selectedStatus || order.status === selectedStatus;
+    const notCancelled = order.status !== "cancelled";
 
-    return matchSearch && matchCity && matchStatus;
+    return matchSearch && matchCity && matchStatus && notCancelled;
   });
 
   const handleOpenEditDialog = (order: PGOrder) => {
@@ -342,6 +343,7 @@ const AdminPGOrdersManagement: React.FC = () => {
                   <TableHead className="font-bold">Customer</TableHead>
                   <TableHead className="font-bold">Items</TableHead>
                   <TableHead className="font-bold">Amount</TableHead>
+                  <TableHead className="font-bold">Booked On</TableHead>
                   <TableHead className="font-bold">Status</TableHead>
                   <TableHead className="font-bold">Vendor</TableHead>
                   <TableHead className="font-bold text-center">Actions</TableHead>
@@ -368,6 +370,19 @@ const AdminPGOrdersManagement: React.FC = () => {
                     </TableCell>
                     <TableCell className="font-semibold text-green-600">
                       ₹{order.final_amount}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {order.created_at
+                        ? new Date(order.created_at).toLocaleString("en-IN", {
+                            timeZone: "Asia/Kolkata",
+                            year: "numeric",
+                            month: "short",
+                            date: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "N/A"}
                     </TableCell>
                     <TableCell>
                       <Badge className={`${getStatusColor(order.status)} border-0`}>
