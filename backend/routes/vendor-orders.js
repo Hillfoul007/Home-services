@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Booking = require("../models/Booking");
+const PGOrder = require("../models/PGOrder");
 const Vendor = require("../models/Vendor");
 const mongoose = require("mongoose");
 const multer = require("multer");
