@@ -56,17 +56,42 @@ class VendorAuthService {
         body: JSON.stringify({ vendor_id: vendorId, password }),
       });
 
-      const data = await response.json();
-
+      // Check if response is ok first
       if (!response.ok) {
-        console.error('❌ Vendor login failed:', data);
-        return { success: false, error: data.error || 'Login failed' };
+        console.error('❌ Vendor login failed with status:', response.status, response.statusText);
+
+        // Try to parse error response
+        try {
+          const data = await response.json();
+          return { success: false, error: data.error || `Login failed (${response.status})` };
+        } catch (parseError) {
+          // If response is not JSON, return a helpful error
+          if (response.status === 0) {
+            return { success: false, error: 'Backend server is not responding. Please try again.' };
+          }
+          return { success: false, error: `Server error: ${response.statusText}` };
+        }
+      }
+
+      // Parse successful response
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', parseError);
+        return { success: false, error: 'Server returned invalid response. Backend may not be running.' };
       }
 
       console.log('✅ Vendor login successful');
       return { success: true, token: data.token, vendor: data.vendor };
     } catch (error: any) {
       console.error('❌ Vendor login error:', error);
+
+      // Check for specific network errors
+      if (error.message?.includes('Failed to fetch')) {
+        return { success: false, error: 'Cannot connect to backend server. Please make sure the backend is running.' };
+      }
+
       return { success: false, error: error.message || 'Login error' };
     }
   }

@@ -34,6 +34,7 @@ import {
   Send,
   AlertCircle,
   CheckCircle,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
@@ -47,6 +48,7 @@ interface PGOrder {
   no_of_items: number;
   final_amount: number;
   status: string;
+  assignedVendor?: string;
   assignedVendorDetails?: {
     name: string;
     phone: string;
@@ -54,6 +56,14 @@ interface PGOrder {
   created_at: string;
   name: string;
   phone: string;
+}
+
+interface Vendor {
+  _id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
 }
 
 const statusOptions = [
@@ -89,6 +99,7 @@ const getStatusColor = (status: string) => {
 
 const AdminPGOrdersManagement: React.FC = () => {
   const [orders, setOrders] = useState<PGOrder[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -101,13 +112,40 @@ const AdminPGOrdersManagement: React.FC = () => {
   const [editingOrder, setEditingOrder] = useState<PGOrder | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [newStatus, setNewStatus] = useState("");
+  const [editVendorId, setEditVendorId] = useState("");
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [messagingOrder, setMessagingOrder] = useState<PGOrder | null>(null);
+  const [updatingOrder, setUpdatingOrder] = useState(false);
+
+  // Vendor assignment dialog states
+  const [showVendorAssignDialog, setShowVendorAssignDialog] = useState(false);
+  const [vendorAssignOrder, setVendorAssignOrder] = useState<PGOrder | null>(null);
+  const [selectedVendorId, setSelectedVendorId] = useState("");
+  const [assigningVendor, setAssigningVendor] = useState(false);
 
   useEffect(() => {
     loadOrders();
+    loadVendors();
   }, []);
+
+  const loadVendors = async () => {
+    try {
+      const response = await apiClient.adminRequest<any>("/pg-management/vendors/available");
+
+      if (response.error) {
+        console.warn("Failed to load vendors:", response.error);
+        return;
+      }
+
+      const vendorsList = response.data?.data || response.data || [];
+      if (Array.isArray(vendorsList)) {
+        setVendors(vendorsList);
+      }
+    } catch (error) {
+      console.warn("Error loading vendors:", error);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -163,29 +201,68 @@ const AdminPGOrdersManagement: React.FC = () => {
   const handleOpenEditDialog = (order: PGOrder) => {
     setEditingOrder(order);
     setNewStatus(order.status);
+    setEditVendorId(order.assignedVendor || "");
     setShowEditDialog(true);
   };
 
   const handleUpdateStatus = async () => {
     if (!editingOrder) return;
 
+    setUpdatingOrder(true);
     try {
-      const response = await apiClient.adminRequest<any>(
-        `/pg-orders/${editingOrder._id}/status`,
-        {
-          method: "PATCH",
-          body: { status: newStatus, changed_by: "admin" },
-        }
-      );
+      // Update status
+      if (newStatus !== editingOrder.status) {
+        const statusResponse = await apiClient.adminRequest<any>(
+          `/pg-orders/${editingOrder._id}/status`,
+          {
+            method: "PATCH",
+            body: { status: newStatus, changed_by: "admin" },
+          }
+        );
 
-      if (response.data) {
-        toast.success("Order status updated successfully");
-        loadOrders();
-        setShowEditDialog(false);
+        if (!statusResponse.data) {
+          toast.error("Failed to update order status");
+          setUpdatingOrder(false);
+          return;
+        }
       }
+
+      // Update vendor if changed
+      if (editVendorId && editVendorId !== (editingOrder.assignedVendor || "")) {
+        const selectedVendor = vendors.find(v => v._id === editVendorId);
+        if (!selectedVendor) {
+          toast.error("Selected vendor not found");
+          setUpdatingOrder(false);
+          return;
+        }
+
+        const vendorResponse = await apiClient.adminRequest<any>(
+          `/pg-orders/${editingOrder._id}/assign-vendor`,
+          {
+            method: "POST",
+            body: {
+              vendorId: editVendorId,
+              vendorName: selectedVendor.name,
+              vendorPhone: selectedVendor.phone,
+            },
+          }
+        );
+
+        if (!vendorResponse.data) {
+          toast.error("Failed to assign vendor");
+          setUpdatingOrder(false);
+          return;
+        }
+      }
+
+      toast.success("Order updated successfully");
+      loadOrders();
+      setShowEditDialog(false);
     } catch (error) {
-      console.error("Error updating order status:", error);
-      toast.error("Failed to update order status");
+      console.error("Error updating order:", error);
+      toast.error("Failed to update order");
+    } finally {
+      setUpdatingOrder(false);
     }
   };
 
@@ -213,6 +290,53 @@ const AdminPGOrdersManagement: React.FC = () => {
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error("Failed to send message");
+    }
+  };
+
+  const handleOpenVendorAssignDialog = (order: PGOrder) => {
+    setVendorAssignOrder(order);
+    setSelectedVendorId("");
+    setShowVendorAssignDialog(true);
+  };
+
+  const handleAssignVendor = async () => {
+    if (!vendorAssignOrder || !selectedVendorId) {
+      toast.error("Please select a vendor");
+      return;
+    }
+
+    const selectedVendor = vendors.find(v => v._id === selectedVendorId);
+    if (!selectedVendor) {
+      toast.error("Vendor not found");
+      return;
+    }
+
+    setAssigningVendor(true);
+    try {
+      const response = await apiClient.adminRequest<any>(
+        `/pg-orders/${vendorAssignOrder._id}/assign-vendor`,
+        {
+          method: "POST",
+          body: {
+            vendorId: selectedVendorId,
+            vendorName: selectedVendor.name,
+            vendorPhone: selectedVendor.phone,
+          },
+        }
+      );
+
+      if (response.data) {
+        toast.success(`Order assigned to ${selectedVendor.name} successfully`);
+        loadOrders();
+        setShowVendorAssignDialog(false);
+      } else {
+        toast.error(response.error || "Failed to assign vendor");
+      }
+    } catch (error) {
+      console.error("Error assigning vendor:", error);
+      toast.error("Failed to assign vendor to order");
+    } finally {
+      setAssigningVendor(false);
     }
   };
 
@@ -387,21 +511,34 @@ const AdminPGOrdersManagement: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex gap-2 justify-center">
+                      <div className="flex gap-2 justify-center flex-wrap">
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleOpenEditDialog(order)}
                           className="text-laundrify-blue border-laundrify-purple hover:bg-laundrify-purple/10"
+                          title="Edit order status"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        {!order.assignedVendorDetails && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenVendorAssignDialog(order)}
+                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            title="Assign vendor to order"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                          </Button>
+                        )}
                         {order.assignedVendorDetails?.phone && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleOpenMessageDialog(order)}
                             className="text-green-600 border-green-200 hover:bg-green-50"
+                            title="Send message to vendor"
                           >
                             <Send className="h-4 w-4" />
                           </Button>
@@ -416,20 +553,20 @@ const AdminPGOrdersManagement: React.FC = () => {
         </Card>
       )}
 
-      {/* Edit Status Dialog */}
+      {/* Edit Status & Vendor Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Update Order Status</DialogTitle>
+            <DialogTitle>Edit Order</DialogTitle>
             <DialogDescription>
-              Order: {editingOrder?.custom_order_id}
+              Order: {editingOrder?.custom_order_id} | PG: {editingOrder?.pg_name}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-2">
-                New Status
+                Status
               </label>
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger className="border-2 border-laundrify-mint">
@@ -444,20 +581,57 @@ const AdminPGOrdersManagement: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">
+                Assigned Vendor
+              </label>
+              {vendors.length > 0 ? (
+                <Select value={editVendorId} onValueChange={setEditVendorId}>
+                  <SelectTrigger className="border-2 border-laundrify-mint">
+                    <SelectValue placeholder="Select vendor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No vendor (Unassigned)</SelectItem>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor._id} value={vendor._id}>
+                        {vendor.name} ({vendor.phone})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-gray-600">No vendors available</p>
+              )}
+              {editingOrder?.assignedVendorDetails && (
+                <p className="text-xs text-gray-600 mt-2">
+                  Current: {editingOrder.assignedVendorDetails.name}
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowEditDialog(false)}
+              disabled={updatingOrder}
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpdateStatus}
+              disabled={updatingOrder}
               className="bg-laundrify-purple hover:bg-laundrify-purple/90"
             >
-              Update Status
+              {updatingOrder ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                "Update Order"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -509,6 +683,83 @@ const AdminPGOrdersManagement: React.FC = () => {
             >
               <Send className="h-4 w-4 mr-2" />
               Send Message
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vendor Assignment Dialog */}
+      <Dialog open={showVendorAssignDialog} onOpenChange={setShowVendorAssignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Vendor to Order</DialogTitle>
+            <DialogDescription>
+              Order: {vendorAssignOrder?.custom_order_id} | PG: {vendorAssignOrder?.pg_name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">
+                Select Vendor
+              </label>
+              {vendors.length > 0 ? (
+                <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
+                  <SelectTrigger className="border-2 border-laundrify-mint">
+                    <SelectValue placeholder="Choose a vendor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor._id} value={vendor._id}>
+                        <div>
+                          <span className="font-medium">{vendor.name}</span>
+                          <span className="text-gray-600 ml-2">{vendor.phone}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-gray-600">No vendors available</p>
+              )}
+            </div>
+
+            {selectedVendorId && vendors.find(v => v._id === selectedVendorId) && (
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <p className="text-sm text-blue-900">
+                  <strong>Vendor:</strong> {vendors.find(v => v._id === selectedVendorId)?.name}
+                </p>
+                <p className="text-sm text-blue-900">
+                  <strong>Phone:</strong> {vendors.find(v => v._id === selectedVendorId)?.phone}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowVendorAssignDialog(false)}
+              disabled={assigningVendor}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignVendor}
+              disabled={assigningVendor || !selectedVendorId}
+              className="bg-laundrify-purple hover:bg-laundrify-purple/90"
+            >
+              {assigningVendor ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Assigning...
+                </>
+              ) : (
+                <>
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Assign Vendor
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
