@@ -108,14 +108,19 @@ const VendorDashboard: React.FC = () => {
         const vendorAuth = vendorAuthService.getVendorAuth();
         const rawToken = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
 
-        console.log("🔍 [DEBUG] Vendor Auth Debug:", {
-          vendorAuth,
+        console.log("🔍 [DEBUG] Token Status:", {
+          hasToken: !!rawToken,
+          tokenType: rawToken ? 'Present' : 'MISSING',
+          tokenLength: rawToken?.length,
+          tokenPreview: rawToken ? rawToken.substring(0, 100) + '...' : 'NO_TOKEN'
+        });
+
+        console.log("🔍 [DEBUG] Vendor Auth from Token:", {
+          authExists: !!vendorAuth,
           vendor_id: vendorAuth?.vendor_id,
           vendor_id_str: vendorAuth?.vendor_id_str,
           name: vendorAuth?.name,
-          type_of_vendor_id: typeof vendorAuth?.vendor_id,
-          hasToken: !!rawToken,
-          tokenPreview: rawToken ? rawToken.substring(0, 50) + '...' : 'NO_TOKEN'
+          allKeys: vendorAuth ? Object.keys(vendorAuth) : 'null'
         });
 
         const vendorIdToUse = vendorAuth?.vendor_id || vendorAuth?.vendor_id_str;
