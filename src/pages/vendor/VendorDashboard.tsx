@@ -106,14 +106,28 @@ const VendorDashboard: React.FC = () => {
       // Load PG orders assigned to this vendor
       try {
         const vendorAuth = vendorAuthService.getVendorAuth();
-        console.log("🔍 Vendor Auth:", vendorAuth);
+        console.log("🔍 [DEBUG] Vendor Auth object:", {
+          full: vendorAuth,
+          vendor_id: vendorAuth?.vendor_id,
+          vendor_id_str: vendorAuth?.vendor_id_str,
+          name: vendorAuth?.name,
+          type_of_vendor_id: typeof vendorAuth?.vendor_id
+        });
 
         if (vendorAuth?.vendor_id) {
-          console.log(`📍 Fetching PG orders for vendor ID: ${vendorAuth.vendor_id}`);
+          const vendorIdToUse = vendorAuth.vendor_id || vendorAuth.vendor_id_str;
+          console.log(`📍 [DEBUG] Fetching PG orders for vendor ID: "${vendorIdToUse}"`);
           const pgResponse = await apiClient.request<any>(
-            `/pg-orders/vendor/${vendorAuth.vendor_id}`
+            `/pg-orders/vendor/${vendorIdToUse}`
           );
-          console.log("📦 PG Orders Response:", pgResponse);
+          console.log("📦 [DEBUG] PG Orders Response:", {
+            success: pgResponse?.data?.success,
+            dataType: typeof pgResponse?.data,
+            isArray: Array.isArray(pgResponse?.data),
+            length: Array.isArray(pgResponse?.data) ? pgResponse.data.length : (pgResponse?.data?.data?.length || 0),
+            error: pgResponse?.error,
+            fullResponse: pgResponse
+          });
 
           // Backend returns { success: true, data: [...] }, so extract the actual array
           const pgOrdersArray = Array.isArray(pgResponse.data)
