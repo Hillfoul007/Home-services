@@ -115,18 +115,22 @@ const VendorDashboard: React.FC = () => {
         });
 
         if (vendorAuth?.vendor_id) {
-          const vendorIdToUse = vendorAuth.vendor_id || vendorAuth.vendor_id_str;
-          console.log(`📍 [DEBUG] Fetching PG orders for vendor ID: "${vendorIdToUse}"`);
+          const vendorIdToUse = vendorAuth.vendor_id;
+          console.log(`📍 [DEBUG] Fetching PG orders for vendor ID: "${vendorIdToUse}" (type: ${typeof vendorIdToUse})`);
+
           const pgResponse = await apiClient.request<any>(
             `/pg-orders/vendor/${vendorIdToUse}`
           );
-          console.log("📦 [DEBUG] PG Orders Response:", {
+          console.log("📦 [DEBUG] Full PG Orders Response:", pgResponse);
+          console.log("📦 [DEBUG] PG Orders Response Structure:", {
             success: pgResponse?.data?.success,
             dataType: typeof pgResponse?.data,
             isArray: Array.isArray(pgResponse?.data),
-            length: Array.isArray(pgResponse?.data) ? pgResponse.data.length : (pgResponse?.data?.data?.length || 0),
+            hasDataProperty: 'data' in (pgResponse?.data || {}),
+            dataLength: Array.isArray(pgResponse?.data) ? pgResponse.data.length : (pgResponse?.data?.data?.length || 0),
+            dataArray: Array.isArray(pgResponse?.data) ? pgResponse.data : (pgResponse?.data?.data || []),
             error: pgResponse?.error,
-            fullResponse: pgResponse
+            status: pgResponse?.status
           });
 
           // Backend returns { success: true, data: [...] }, so extract the actual array
@@ -135,6 +139,13 @@ const VendorDashboard: React.FC = () => {
             : (pgResponse.data?.data || []);
 
           console.log(`✅ Found ${pgOrdersArray?.length || 0} PG orders`);
+          if (pgOrdersArray.length === 0) {
+            console.log("ℹ️ No PG orders found - this could mean:", {
+              noOrdersForThisVendor: "Vendor has no PG orders assigned",
+              checkBackend: "Verify assignedVendor field in database",
+              vendorIdUsed: vendorIdToUse
+            });
+          }
 
           if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
             const pgOrders: Order[] = pgOrdersArray.map((pgOrder: any) => {
