@@ -511,9 +511,10 @@ const VendorDashboard: React.FC = () => {
                     <div className="text-sm text-gray-500 mt-1">
                       {order.isPGOrder ? '🏠 PG Service' : order.service}
                     </div>
-                    {order.isPGOrder ? (
-                      <div className="text-xs text-blue-600 mt-1 font-semibold">📍 {order.pg_name}</div>
-                    ) : (
+                    {order.isPGOrder && order.pg_name && (
+                      <div className="text-xs text-blue-600 mt-1 font-semibold">🏠 PG: {order.pg_name}</div>
+                    )}
+                    {!order.isPGOrder && (
                       <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     )}
                     {order.delivery_date && (
@@ -522,7 +523,7 @@ const VendorDashboard: React.FC = () => {
                     {order.address && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
-                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
+                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left break-words"
                         title="Open in Google Maps"
                       >
                         📍 {order.address}
