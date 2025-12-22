@@ -224,7 +224,16 @@ const VendorDashboard: React.FC = () => {
               status: o.status
             })));
             allOrders = [...allOrders, ...pgOrders];
-            console.log("✅ PG Orders merged into allOrders");
+            console.log("✅ PG Orders merged into allOrders", {
+              regularOrdersCount: allOrders.filter(o => !o.isPGOrder).length,
+              pgOrdersCount: allOrders.filter(o => o.isPGOrder).length,
+              totalCount: allOrders.length,
+              sample_pg: pgOrders.slice(0, 2).map(o => ({
+                id: o.custom_order_id,
+                isPGOrder: o.isPGOrder,
+                pg_name: o.pg_name
+              }))
+            });
           }
         } else {
           const errorDetails = {
