@@ -145,11 +145,25 @@ const VendorDashboard: React.FC = () => {
             : (pgResponse.data?.data || []);
 
           console.log(`✅ Found ${pgOrdersArray?.length || 0} PG orders`);
-          if (pgOrdersArray.length === 0) {
-            console.log("ℹ️ No PG orders found - this could mean:", {
-              noOrdersForThisVendor: "Vendor has no PG orders assigned",
-              checkBackend: "Verify assignedVendor field in database",
-              vendorIdUsed: vendorIdToUse
+          if (pgOrdersArray && pgOrdersArray.length > 0) {
+            console.log("✅ PG Orders Details:", pgOrdersArray.map((o: any) => ({
+              id: o.custom_order_id,
+              pg_name: o.pg_name,
+              address: o.address,
+              city: o.city,
+              status: o.status
+            })));
+          } else {
+            console.log("ℹ️ No PG orders found for vendor:", vendorIdToUse, {
+              possibleReasons: [
+                "No PG orders created for this vendor",
+                "PG orders not assigned to this vendor",
+                "Vendor ID mismatch in database"
+              ],
+              debugInfo: {
+                vendorIdUsed: vendorIdToUse,
+                responseData: pgResponse.data
+              }
             });
           }
 
