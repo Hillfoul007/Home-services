@@ -113,7 +113,12 @@ const VendorDashboard: React.FC = () => {
       let allOrders: Order[] = [];
 
       if (res && res.success && res.orders) {
-        allOrders = res.orders;
+        // Ensure all regular orders are explicitly marked as NOT PG orders
+        allOrders = res.orders.map((order: any) => ({
+          ...order,
+          isPGOrder: order.isPGOrder || false, // Explicitly set isPGOrder to false for regular orders
+        }));
+        console.log(`✅ Loaded ${allOrders.length} regular orders`);
       }
 
       // Load PG orders assigned to this vendor
