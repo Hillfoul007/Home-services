@@ -12,8 +12,6 @@ import RiderOrders from "@/pages/rider/RiderOrders";
 import RiderNotificationsPage from "@/pages/rider/RiderNotificationsPage";
 import RiderHistory from "@/pages/rider/RiderHistory";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import InstallPrompt from "@/components/InstallPrompt";
-import PWAUpdateNotification from "@/components/PWAUpdateNotification";
 import MapsPerformanceIndicator from "@/components/MapsPerformanceIndicator";
 import analyticsService from "@/services/analyticsService";
 
@@ -110,8 +108,6 @@ function App() {
             </Routes>
             <Toaster />
             <SonnerToaster />
-            <InstallPrompt />
-            <PWAUpdateNotification />
             <MapsPerformanceIndicator />
           </div>
         </Router>
