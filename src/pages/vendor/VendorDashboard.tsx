@@ -464,8 +464,26 @@ const VendorDashboard: React.FC = () => {
   // Apply filter based on filterType
   const getFilteredOrders = (ordersToFilter: Order[]): Order[] => {
     if (filterType === 'all') return ordersToFilter;
-    if (filterType === 'regular') return ordersToFilter.filter(o => !o.isPGOrder);
-    if (filterType === 'pg') return ordersToFilter.filter(o => o.isPGOrder);
+    if (filterType === 'regular') {
+      const regularOnly = ordersToFilter.filter(o => !o.isPGOrder);
+      console.log("🔍 Filtering Regular Orders:", {
+        totalInput: ordersToFilter.length,
+        filteredOutput: regularOnly.length,
+        pgOrdersRemoved: ordersToFilter.filter(o => o.isPGOrder).length,
+        hasPGOrders: regularOnly.some(o => o.isPGOrder)
+      });
+      return regularOnly;
+    }
+    if (filterType === 'pg') {
+      const pgOnly = ordersToFilter.filter(o => o.isPGOrder);
+      console.log("🔍 Filtering PG Orders:", {
+        totalInput: ordersToFilter.length,
+        filteredOutput: pgOnly.length,
+        regularOrdersRemoved: ordersToFilter.filter(o => !o.isPGOrder).length,
+        hasRegularOrders: pgOnly.some(o => !o.isPGOrder)
+      });
+      return pgOnly;
+    }
     return ordersToFilter;
   };
 
