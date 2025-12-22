@@ -106,16 +106,22 @@ const VendorDashboard: React.FC = () => {
       // Load PG orders assigned to this vendor
       try {
         const vendorAuth = vendorAuthService.getVendorAuth();
-        console.log("🔍 [DEBUG] Vendor Auth object:", {
-          full: vendorAuth,
+        const rawToken = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
+
+        console.log("🔍 [DEBUG] Vendor Auth Debug:", {
+          vendorAuth,
           vendor_id: vendorAuth?.vendor_id,
           vendor_id_str: vendorAuth?.vendor_id_str,
           name: vendorAuth?.name,
-          type_of_vendor_id: typeof vendorAuth?.vendor_id
+          type_of_vendor_id: typeof vendorAuth?.vendor_id,
+          hasToken: !!rawToken,
+          tokenPreview: rawToken ? rawToken.substring(0, 50) + '...' : 'NO_TOKEN'
         });
 
-        if (vendorAuth?.vendor_id) {
-          const vendorIdToUse = vendorAuth.vendor_id;
+        const vendorIdToUse = vendorAuth?.vendor_id || vendorAuth?.vendor_id_str;
+
+        if (vendorIdToUse) {
+          console.log(`📍 [DEBUG] Using vendor ID: "${vendorIdToUse}"`);
           console.log(`📍 [DEBUG] Fetching PG orders for vendor ID: "${vendorIdToUse}" (type: ${typeof vendorIdToUse})`);
 
           const pgResponse = await apiClient.request<any>(
