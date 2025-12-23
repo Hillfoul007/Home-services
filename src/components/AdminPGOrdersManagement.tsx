@@ -159,9 +159,9 @@ const AdminPGOrdersManagement: React.FC = () => {
 
     const matchCity = !selectedCity || order.city === selectedCity;
     const matchStatus = !selectedStatus || order.status === selectedStatus;
-    const notCancelled = order.status !== "cancelled";
+    const notCompleted = order.status !== "cancelled" && order.status !== "completed" && order.status !== "delivered";
 
-    return matchSearch && matchCity && matchStatus && notCancelled;
+    return matchSearch && matchCity && matchStatus && notCompleted;
   });
 
   const handleOpenEditDialog = (order: PGOrder) => {
