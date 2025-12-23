@@ -336,6 +336,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Vendors</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("users")}
+              variant={activeTab === "users" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Users</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("pgs")}
               variant={activeTab === "pgs" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
