@@ -200,12 +200,16 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
       });
 
       if (response.data) {
-        const orderId = response.data.custom_order_id ||
-                       response.data._id?.slice(-8).toUpperCase() ||
+        // Backend returns { success: true, data: { custom_order_id, ...order } }
+        // So we need to access response.data.data
+        const orderData = response.data.data || response.data;
+        const orderId = orderData?.custom_order_id ||
+                       orderData?._id?.slice(-8).toUpperCase() ||
                        `PG${Date.now().toString().slice(-8)}`;
 
         console.log("✅ Order created with ID:", orderId);
         console.log("📋 Full response data:", response.data);
+        console.log("📋 Order data:", orderData);
 
         toast.success(`Order created! Order ID: ${orderId}`);
 
