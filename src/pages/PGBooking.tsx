@@ -200,19 +200,23 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
       });
 
       if (response.data) {
-        const orderId = response.data.custom_order_id;
+        const orderId = response.data.custom_order_id ||
+                       response.data._id?.slice(-8).toUpperCase() ||
+                       `PG${Date.now().toString().slice(-8)}`;
+
+        console.log("✅ Order created with ID:", orderId);
+        console.log("📋 Full response data:", response.data);
+
         toast.success(`Order created! Order ID: ${orderId}`);
 
-        // Show instruction modal
+        // Show instruction modal - NO auto redirect
         setInstructions({
           isOpen: true,
           orderId,
         });
 
-        // Reset form
-        setTimeout(() => {
-          navigate("/");
-        }, 3000);
+        // Don't auto-redirect - let user stay on confirmation page
+        setLoading(false);
       } else {
         toast.error("Failed to create order");
       }
