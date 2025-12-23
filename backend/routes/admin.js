@@ -2158,4 +2158,60 @@ router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async 
   }
 });
 
+// Delete user account
+router.delete("/users/:userId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    console.log(`🗑️ Deleting user: ${userId}`);
+
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    // Also delete user's bookings
+    await Booking.deleteMany({ customer_id: userId });
+
+    console.log(`✅ User deleted successfully: ${user.name || user.phone}`);
+    res.json({
+      success: true,
+      message: "User and associated bookings deleted successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error deleting user:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// Delete PG (paying guest location)
+router.delete("/pgs/:pgId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { pgId } = req.params;
+
+    console.log(`🗑️ Deleting PG: ${pgId}`);
+
+    const PG = require("../models/PG");
+    const pg = await PG.findByIdAndDelete(pgId);
+
+    if (!pg) {
+      return res.status(404).json({ success: false, error: "PG not found" });
+    }
+
+    // Also delete all PG orders associated with this PG
+    const PGOrder = require("../models/PGOrder");
+    await PGOrder.deleteMany({ pg_id: pgId });
+
+    console.log(`✅ PG deleted successfully: ${pg.name}`);
+    res.json({
+      success: true,
+      message: "PG and associated orders deleted successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error deleting PG:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 module.exports = router;
