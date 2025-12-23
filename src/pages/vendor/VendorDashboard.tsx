@@ -262,12 +262,25 @@ const VendorDashboard: React.FC = () => {
         });
       }
 
+      // Deduplicate orders by _id (remove duplicates)
+      const seenIds = new Set<string>();
+      const uniqueOrders = allOrders.filter(order => {
+        if (seenIds.has(order._id)) {
+          console.log(`🚫 Removing duplicate order: ${order.custom_order_id} (${order._id})`);
+          return false;
+        }
+        seenIds.add(order._id);
+        return true;
+      });
+
+      console.log(`📊 Order deduplication: ${allOrders.length} total → ${uniqueOrders.length} unique orders`);
+
       // Detect new orders and play notification
       setOrders(prevOrders => {
-        if (prevOrders.length > 0 && allOrders.length > prevOrders.length) {
+        if (prevOrders.length > 0 && uniqueOrders.length > prevOrders.length) {
           // Find new orders
           const prevOrderIds = new Set(prevOrders.map(o => o._id));
-          const newOrderIds = allOrders.filter(o => !prevOrderIds.has(o._id));
+          const newOrderIds = uniqueOrders.filter(o => !prevOrderIds.has(o._id));
 
           if (newOrderIds.length > 0) {
             // Play notification for each new order
@@ -279,7 +292,7 @@ const VendorDashboard: React.FC = () => {
           }
         }
 
-        return allOrders;
+        return uniqueOrders;
       });
     } catch (err: any) {
       toast.error(err?.message || "Failed to load orders");
