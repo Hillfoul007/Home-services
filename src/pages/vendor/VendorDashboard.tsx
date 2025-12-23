@@ -794,8 +794,8 @@ const VendorDashboard: React.FC = () => {
                     </>
                   )}
 
-                  {order.status === 'in_progress' && (
-                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery')} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
+                  {(order.status === 'in_progress' || (order.isPGOrder && order.status === 'pickup_completed')) && (
+                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery', order.isPGOrder)} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
                       Ready to Dispatch
                     </Button>
                   )}
