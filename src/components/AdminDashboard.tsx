@@ -33,6 +33,7 @@ import AdminVendorManagement from "./AdminVendorManagement";
 import AdminWalletManagement from "./AdminWalletManagement";
 import AdminPGManagement from "./AdminPGManagement";
 import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
+import AdminUsersManagement from "./AdminUsersManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
