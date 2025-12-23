@@ -501,9 +501,9 @@ router.post("/:orderId/vendor-response", async (req, res) => {
     }
 
     if (action === "accept") {
-      pgOrder.status = "confirmed";
+      pgOrder.status = "ready_for_delivery";
       pgOrder.acceptedAt = new Date();
-      console.log(`✅ Vendor accepted PG order ${orderId}`);
+      console.log(`✅ Vendor accepted PG order ${orderId} - Moving to ready_for_delivery`);
     } else {
       pgOrder.status = "created";
       pgOrder.assignedVendor = null;
