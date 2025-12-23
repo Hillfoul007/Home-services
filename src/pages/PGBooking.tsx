@@ -492,12 +492,21 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
               <CheckCircle className="h-6 w-6" />
               Booking Done!
             </DialogTitle>
-            <DialogDescription>
-              Order ID: {instructions.orderId}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Order ID Display - Prominent */}
+            <div className="bg-green-100 border-2 border-green-500 rounded-lg p-4 text-center">
+              <p className="text-sm text-gray-600 mb-1">Your Order ID</p>
+              <p className="text-3xl font-bold text-green-700">
+                {instructions.orderId || "Generating..."}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Save this ID for your records
+              </p>
+            </div>
+
+            {/* Next Steps */}
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="font-bold text-gray-900 mb-3">
                 📋 Next Steps:
@@ -515,7 +524,7 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
                   <span className="font-bold text-green-600 flex-shrink-0">
                     2.
                   </span>
-                  <span>Paste sticker with Order ID: {instructions.orderId}</span>
+                  <span>Paste sticker with Order ID: <span className="font-bold text-green-700">{instructions.orderId}</span></span>
                 </li>
                 <li className="flex gap-3">
                   <span className="font-bold text-green-600 flex-shrink-0">
@@ -529,7 +538,14 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-2 flex-col-reverse sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => navigate("/")}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Back Home
+            </Button>
             <Button
               onClick={() =>
                 setInstructions({ ...instructions, isOpen: false })
