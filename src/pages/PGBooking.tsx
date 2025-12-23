@@ -214,9 +214,6 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
           isOpen: true,
           orderId,
         });
-
-        // Don't auto-redirect - let user stay on confirmation page
-        setLoading(false);
       } else {
         toast.error("Failed to create order");
       }
