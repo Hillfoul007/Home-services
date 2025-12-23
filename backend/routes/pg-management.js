@@ -353,30 +353,34 @@ router.patch("/:pgId", async (req, res) => {
   }
 });
 
-// Delete PG (soft delete - mark as inactive)
+// Delete PG (hard delete)
 router.delete("/:pgId", async (req, res) => {
   try {
     const { pgId } = req.params;
 
-    const pg = await PG.findByIdAndUpdate(
-      pgId,
-      { is_active: false },
-      { new: true }
-    );
+    console.log(`🗑️ Attempting to delete PG: ${pgId}`);
+
+    const pg = await PG.findByIdAndDelete(pgId);
 
     if (!pg) {
+      console.warn(`⚠️ PG not found for deletion: ${pgId}`);
       return res.status(404).json({
         success: false,
         error: "PG not found",
       });
     }
 
-    console.log("✅ PG deactivated:", pgId);
+    // Also delete associated PG orders
+    const PGOrder = require("../models/PGOrder");
+    const deleteResult = await PGOrder.deleteMany({ pg_id: pgId });
+
+    console.log(`✅ PG deleted: ${pgId}`);
+    console.log(`✅ Deleted ${deleteResult.deletedCount} associated PG orders`);
 
     res.json({
       success: true,
       data: pg,
-      message: "PG deactivated successfully",
+      message: "PG and associated orders deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting PG:", error);

@@ -33,13 +33,14 @@ import AdminVendorManagement from "./AdminVendorManagement";
 import AdminWalletManagement from "./AdminWalletManagement";
 import AdminPGManagement from "./AdminPGManagement";
 import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
+import AdminUsersManagement from "./AdminUsersManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "pgs" | "pg-orders" | "analytics" | "wallet";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "wallet";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -335,6 +336,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Vendors</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("users")}
+              variant={activeTab === "users" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Users</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("pgs")}
               variant={activeTab === "pgs" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -389,6 +398,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
             </div>
             <AdminVendorManagement />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+              <p className="text-purple-900 text-sm"><strong>✓ Users Management:</strong> View all customer accounts and delete users if needed. Deleting a user will also remove all associated bookings.</p>
+            </div>
+            <AdminUsersManagement />
           </TabsContent>
 
           <TabsContent value="pgs">

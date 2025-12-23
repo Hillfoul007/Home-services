@@ -330,11 +330,6 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
                                 {" "}items
                               </p>
                             </div>
-                            {pg.assignedVendorName && (
-                              <div className="text-xs text-gray-500">
-                                Vendor: {pg.assignedVendorName}
-                              </div>
-                            )}
                           </div>
                         </CardContent>
                       </Card>

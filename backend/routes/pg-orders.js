@@ -501,14 +501,14 @@ router.post("/:orderId/vendor-response", async (req, res) => {
     }
 
     if (action === "accept") {
-      pgOrder.status = "confirmed";
+      pgOrder.status = "pickup_completed";
       pgOrder.acceptedAt = new Date();
-      console.log(`✅ Vendor accepted PG order ${orderId}`);
+      console.log(`✅ Vendor accepted PG order ${orderId} - Moving to pickup_completed`);
     } else {
-      pgOrder.status = "created";
+      pgOrder.status = "cancelled";
       pgOrder.assignedVendor = null;
       pgOrder.assignedVendorDetails = null;
-      console.log(`⚠️ Vendor rejected PG order ${orderId}`);
+      console.log(`⚠️ Vendor rejected PG order ${orderId} - Status set to cancelled`);
     }
 
     pgOrder.updated_at = new Date();

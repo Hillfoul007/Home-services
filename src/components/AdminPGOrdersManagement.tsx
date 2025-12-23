@@ -34,6 +34,7 @@ import {
   Send,
   AlertCircle,
   CheckCircle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
@@ -104,6 +105,8 @@ const AdminPGOrdersManagement: React.FC = () => {
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [messagingOrder, setMessagingOrder] = useState<PGOrder | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancellingOrder, setCancellingOrder] = useState<PGOrder | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -156,8 +159,9 @@ const AdminPGOrdersManagement: React.FC = () => {
 
     const matchCity = !selectedCity || order.city === selectedCity;
     const matchStatus = !selectedStatus || order.status === selectedStatus;
+    const notCompleted = order.status !== "cancelled" && order.status !== "completed" && order.status !== "delivered";
 
-    return matchSearch && matchCity && matchStatus;
+    return matchSearch && matchCity && matchStatus && notCompleted;
   });
 
   const handleOpenEditDialog = (order: PGOrder) => {
@@ -197,6 +201,35 @@ const AdminPGOrdersManagement: React.FC = () => {
     setShowMessageDialog(true);
   };
 
+  const handleOpenCancelDialog = (order: PGOrder) => {
+    setCancellingOrder(order);
+    setShowCancelDialog(true);
+  };
+
+  const handleCancelOrder = async () => {
+    if (!cancellingOrder) return;
+
+    try {
+      const response = await apiClient.adminRequest<any>(
+        `/pg-orders/${cancellingOrder._id}/status`,
+        {
+          method: "PATCH",
+          body: { status: "cancelled", changed_by: "admin" },
+        }
+      );
+
+      if (response.data) {
+        toast.success("Order cancelled successfully");
+        loadOrders();
+        setShowCancelDialog(false);
+        setCancellingOrder(null);
+      }
+    } catch (error) {
+      console.error("Error cancelling order:", error);
+      toast.error("Failed to cancel order");
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!messagingOrder || !messagingOrder.assignedVendorDetails?.phone) {
       toast.error("No vendor phone number available");
@@ -204,7 +237,6 @@ const AdminPGOrdersManagement: React.FC = () => {
     }
 
     try {
-      // In a real app, this would send a WhatsApp message via API
       console.log(
         `📱 Sending WhatsApp to ${messagingOrder.assignedVendorDetails.phone}: ${whatsappMessage}`
       );
@@ -342,6 +374,7 @@ const AdminPGOrdersManagement: React.FC = () => {
                   <TableHead className="font-bold">Customer</TableHead>
                   <TableHead className="font-bold">Items</TableHead>
                   <TableHead className="font-bold">Amount</TableHead>
+                  <TableHead className="font-bold">Booked On</TableHead>
                   <TableHead className="font-bold">Status</TableHead>
                   <TableHead className="font-bold">Vendor</TableHead>
                   <TableHead className="font-bold text-center">Actions</TableHead>
@@ -368,6 +401,19 @@ const AdminPGOrdersManagement: React.FC = () => {
                     </TableCell>
                     <TableCell className="font-semibold text-green-600">
                       ₹{order.final_amount}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {order.created_at
+                        ? new Date(order.created_at).toLocaleString("en-IN", {
+                            timeZone: "Asia/Kolkata",
+                            year: "numeric",
+                            month: "short",
+                            date: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "N/A"}
                     </TableCell>
                     <TableCell>
                       <Badge className={`${getStatusColor(order.status)} border-0`}>
@@ -404,6 +450,16 @@ const AdminPGOrdersManagement: React.FC = () => {
                             className="text-green-600 border-green-200 hover:bg-green-50"
                           >
                             <Send className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {order.status !== "cancelled" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenCancelDialog(order)}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
@@ -513,8 +569,44 @@ const AdminPGOrdersManagement: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Order Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Order</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel order {cancellingOrder?.custom_order_id}?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-800">
+                <strong>Warning:</strong> This action cannot be undone. The order status will be changed to "cancelled".
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDialog(false)}
+            >
+              Keep Order
+            </Button>
+            <Button
+              onClick={handleCancelOrder}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Cancel Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
-export default AdminPGOrdersManagement;
+export default AdminPGOrdersManagement
