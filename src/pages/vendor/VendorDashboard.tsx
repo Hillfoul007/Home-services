@@ -912,7 +912,7 @@ const VendorDashboard: React.FC = () => {
                 )}
 
                 <div className="mt-3">
-                  <Button onClick={() => changeStatus(order._id, 'delivered')} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
+                  <Button onClick={() => changeStatus(order._id, 'delivered', order.isPGOrder)} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
                     Mark as Delivered
                   </Button>
                 </div>
