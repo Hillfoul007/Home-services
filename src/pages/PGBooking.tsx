@@ -483,14 +483,6 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
       {/* Instructions Modal */}
       <Dialog
         open={instructions.isOpen}
-        onOpenChange={(open) => {
-          // Only allow closing via buttons, not by clicking outside or pressing ESC
-          if (open === false && instructions.isOpen) {
-            // User tried to close, but we only allow closing via explicit buttons
-            return;
-          }
-          setInstructions({ ...instructions, isOpen: open });
-        }}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
