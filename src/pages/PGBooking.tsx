@@ -542,10 +542,10 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
           <DialogFooter className="flex gap-2 flex-col-reverse sm:flex-row">
             <Button
               variant="outline"
-              onClick={() => navigate("/")}
+              onClick={() => setInstructions({ ...instructions, isOpen: false })}
               className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
-              Back Home
+              Make Another Order
             </Button>
             <Button
               onClick={() =>
