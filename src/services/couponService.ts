@@ -34,24 +34,6 @@ export class CouponService {
   // Get all available coupons
   getAllCoupons(): CouponData[] {
     return [{
-        code: "NEW20",
-        discount: 20,
-        maxDiscount: 200,
-        description: "20% off on all orders (up to ₹200)",
-        type: "general",
-        isActive: true,
-      },
-      {
-        code: "FIRST10",
-        discount: 10,
-        maxDiscount: 200,
-        description: "10% off for first order only (up to ₹200)",
-        type: "first_order",
-        isFirstOrder: true,
-        isOneTimeUse: true,
-        isActive: true,
-      },
-      {
         code: "FLAT10",
         discount: 10,
         maxDiscount: 200,
