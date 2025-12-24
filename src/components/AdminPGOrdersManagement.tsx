@@ -408,7 +408,7 @@ const AdminPGOrdersManagement: React.FC = () => {
                             timeZone: "Asia/Kolkata",
                             year: "numeric",
                             month: "short",
-                            date: "numeric",
+                            day: "numeric",
                             hour: "2-digit",
                             minute: "2-digit",
                             second: "2-digit",
