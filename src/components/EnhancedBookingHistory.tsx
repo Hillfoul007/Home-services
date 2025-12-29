@@ -434,8 +434,38 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
       setCancellingBooking(bookingId);
 
       try {
-        const bookingService = BookingService.getInstance();
-        const result = await bookingService.cancelBooking(bookingId);
+        // Find the booking to check if it's a PG order
+        const booking = bookings.find(
+          (b: any) => b.id === bookingId || b._id === bookingId
+        );
+        const isPGOrder = booking?.isPGOrder || false;
+
+        console.log("📋 Booking details:", { bookingId, isPGOrder, bookingType: isPGOrder ? "PG Order" : "Regular Booking" });
+
+        let result: any;
+
+        if (isPGOrder) {
+          // Use PG orders API endpoint for PG orders
+          console.log("🏢 Using PG orders endpoint to cancel PG order:", bookingId);
+          const response = await apiClient.request<any>(
+            `/pg-orders/${bookingId}/status`,
+            {
+              method: "PATCH",
+              body: { status: "cancelled" },
+            }
+          );
+
+          result = {
+            success: !response.error,
+            error: response.error,
+            data: response.data,
+          };
+        } else {
+          // Use BookingService for regular bookings
+          console.log("📦 Using BookingService to cancel regular booking:", bookingId);
+          const bookingService = BookingService.getInstance();
+          result = await bookingService.cancelBooking(bookingId);
+        }
 
         if (result.success) {
           // Update local state immediately for better UX

@@ -200,19 +200,24 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
       });
 
       if (response.data) {
-        const orderId = response.data.custom_order_id;
+        // Backend returns { success: true, data: { custom_order_id, ...order } }
+        // So we need to access response.data.data
+        const orderData = response.data.data || response.data;
+        const orderId = orderData?.custom_order_id ||
+                       orderData?._id?.slice(-8).toUpperCase() ||
+                       `PG${Date.now().toString().slice(-8)}`;
+
+        console.log("✅ Order created with ID:", orderId);
+        console.log("📋 Full response data:", response.data);
+        console.log("📋 Order data:", orderData);
+
         toast.success(`Order created! Order ID: ${orderId}`);
 
-        // Show instruction modal
+        // Show instruction modal - NO auto redirect
         setInstructions({
           isOpen: true,
           orderId,
         });
-
-        // Reset form
-        setTimeout(() => {
-          navigate("/");
-        }, 3000);
       } else {
         toast.error("Failed to create order");
       }
@@ -478,9 +483,6 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
       {/* Instructions Modal */}
       <Dialog
         open={instructions.isOpen}
-        onOpenChange={(open) =>
-          setInstructions({ ...instructions, isOpen: open })
-        }
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -488,12 +490,21 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
               <CheckCircle className="h-6 w-6" />
               Booking Done!
             </DialogTitle>
-            <DialogDescription>
-              Order ID: {instructions.orderId}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Order ID Display - Prominent */}
+            <div className="bg-green-100 border-2 border-green-500 rounded-lg p-4 text-center">
+              <p className="text-sm text-gray-600 mb-1">Your Order ID</p>
+              <p className="text-3xl font-bold text-green-700">
+                {instructions.orderId || "Generating..."}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Save this ID for your records
+              </p>
+            </div>
+
+            {/* Next Steps */}
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="font-bold text-gray-900 mb-3">
                 📋 Next Steps:
@@ -511,7 +522,7 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
                   <span className="font-bold text-green-600 flex-shrink-0">
                     2.
                   </span>
-                  <span>Paste sticker with Order ID: {instructions.orderId}</span>
+                  <span>Paste sticker with Order ID: <span className="font-bold text-green-700">{instructions.orderId}</span></span>
                 </li>
                 <li className="flex gap-3">
                   <span className="font-bold text-green-600 flex-shrink-0">
@@ -525,7 +536,14 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUs
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-2 flex-col-reverse sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setInstructions({ ...instructions, isOpen: false })}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Make Another Order
+            </Button>
             <Button
               onClick={() =>
                 setInstructions({ ...instructions, isOpen: false })
