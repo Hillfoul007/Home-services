@@ -2,14 +2,15 @@
 
 ## What Was Wrong
 The MainActivity class was in the wrong Java package:
-- **Package name in build.gradle**: `com.laundrify.laundry`
-- **Actual MainActivity location**: `com.laundrify.app` ❌
+- **Package name in build.gradle**: `com.laundrify.laundry` ❌
+- **Actual package name should be**: `com.laundrify.laundry.app`
 - **Result**: `ClassNotFoundException` when Android tried to launch the app
 
 ## What Was Fixed
-Created MainActivity in the **correct package**:
+1. Updated build.gradle to use correct package: `com.laundrify.laundry.app`
+2. Created MainActivity in the **correct package**:
 ```
-android/app/src/main/java/com/laundrify/laundry/MainActivity.java
+android/app/src/main/java/com/laundrify/laundry/app/MainActivity.java
 ```
 
 ## How to Rebuild
