@@ -34,8 +34,13 @@ android {
 }
 
 repositories {
+    google()
+    mavenCentral()
     flatDir{
-        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+        dirs 'libs'
+        if (file('../capacitor-cordova-android-plugins/src/main/libs').exists()) {
+            dirs '../capacitor-cordova-android-plugins/src/main/libs'
+        }
     }
 }
 
