@@ -201,17 +201,38 @@ router.post(
     otpManager.delete(phone);
 
     let user = await User.findOne({ phone });
+    const isNewUser = !user;
+
     if (!user) {
       if (!name)
         return res
           .status(400)
           .json({ success: false, message: "Name required" });
-      user = new User({ phone, name, isVerified: true });
+      user = new User({
+        phone,
+        name,
+        isVerified: true,
+        wallet_balance: 0,
+        wallet_transactions: []
+      });
     } else {
       user.isVerified = true;
       if (!user.name && name) user.name = name;
     }
     await user.save();
+
+    // Generate referral code for new users if they don't have one
+    if (isNewUser && !user.referral_code) {
+      try {
+        const Referral = mongoose.model("Referral");
+        const referralCode = Referral.generateReferralCode(user._id);
+        user.referral_code = referralCode;
+        await user.save();
+        log("Generated referral code for new user:", referralCode);
+      } catch (err) {
+        log("Note: Could not generate referral code:", err.message);
+      }
+    }
 
     const token = generateToken(user._id);
     res.setHeader("Content-Type", "application/json");
