@@ -70,3 +70,77 @@ export function isTimestampExpired(timestamp: number | string, expiryDurationMs:
   const timestampMs = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp;
   return getISTUnixTimestamp() - timestampMs > expiryDurationMs;
 }
+
+/**
+ * Format date in IST for display in Indian context
+ * Format: "26 Oct 2025 at 4:51 PM"
+ * @param date Date string or Date object
+ * @returns Formatted date string in IST
+ */
+export function formatDateTimeIST(date: string | Date | null | undefined): string {
+  if (!date) return "N/A";
+
+  try {
+    let dateObj: Date;
+
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      return "N/A";
+    }
+
+    // Format in IST timezone
+    return dateObj.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+  } catch (error) {
+    console.error("Error formatting date:", date, error);
+    return "N/A";
+  }
+}
+
+/**
+ * Format date only (without time) in IST
+ * Format: "26 Oct 2025"
+ * @param date Date string or Date object
+ * @returns Formatted date string in IST
+ */
+export function formatDateOnlyIST(date: string | Date | null | undefined): string {
+  if (!date) return "N/A";
+
+  try {
+    let dateObj: Date;
+
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      return "N/A";
+    }
+
+    // Format in IST timezone
+    return dateObj.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      weekday: "short"
+    });
+  } catch (error) {
+    console.error("Error formatting date:", date, error);
+    return "N/A";
+  }
+}

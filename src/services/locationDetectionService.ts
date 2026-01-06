@@ -204,6 +204,58 @@ export class LocationDetectionService {
   }
 
   /**
+   * Check if coordinates fall within service areas
+   */
+  private isCoordinateInServiceArea(lat: number, lng: number): boolean {
+    // Service area bounding boxes for available cities
+    const serviceAreas = [
+      {
+        name: "Gurgaon",
+        minLat: 28.35,
+        maxLat: 28.55,
+        minLng: 76.95,
+        maxLng: 77.15,
+      },
+      {
+        name: "Delhi",
+        minLat: 28.40,
+        maxLat: 28.88,
+        minLng: 76.84,
+        maxLng: 77.35,
+      },
+      {
+        name: "Chandigarh",
+        minLat: 30.65,
+        maxLat: 30.80,
+        minLng: 76.68,
+        maxLng: 76.88,
+      },
+      {
+        name: "Mohali",
+        minLat: 30.62,
+        maxLat: 30.77,
+        minLng: 76.67,
+        maxLng: 76.83,
+      },
+      {
+        name: "Kharar",
+        minLat: 30.62,
+        maxLat: 30.72,
+        minLng: 76.52,
+        maxLng: 76.68,
+      },
+    ];
+
+    return serviceAreas.some(
+      (area) =>
+        lat >= area.minLat &&
+        lat <= area.maxLat &&
+        lng >= area.minLng &&
+        lng <= area.maxLng
+    );
+  }
+
+  /**
    * Local fallback for availability check
    */
   private checkAvailabilityLocal(
@@ -214,10 +266,10 @@ export class LocationDetectionService {
   ): LocationAvailabilityResponse {
     const normalizedCity = city?.toLowerCase().trim();
 
-    // Define available cities - extended to all Gurugram/Gurgaon
-    const availableCities = ["gurgaon", "gurugram"];
+    // Define available cities - Delhi, Gurgaon, Chandigarh, Mohali, Kharar
+    const availableCities = ["gurgaon", "gurugram", "delhi", "chandigarh", "mohali", "kharar"];
 
-    // Check if city matches Gurgaon or Gurugram
+    // Check if city matches any available city
     const isAvailableCity = availableCities.some((availableCity) => {
       return normalizedCity?.includes(availableCity) ||
              fullAddress?.toLowerCase().includes(availableCity);
@@ -227,15 +279,28 @@ export class LocationDetectionService {
       return {
         success: true,
         is_available: true,
-        message: "Service available in Gurugram/Gurgaon",
+        message: "Service available in your area",
       };
+    }
+
+    // Fallback: Check if coordinates fall within service area
+    // This is useful when address doesn't contain city name but coordinates are valid
+    if (coordinates && coordinates.lat && coordinates.lng) {
+      const isInServiceArea = this.isCoordinateInServiceArea(coordinates.lat, coordinates.lng);
+      if (isInServiceArea) {
+        return {
+          success: true,
+          is_available: true,
+          message: "Service available in your area",
+        };
+      }
     }
 
     // If no matches found
     return {
       success: true,
       is_available: false,
-      message: "Service currently available only in Gurugram/Gurgaon area.",
+      message: "Service currently available only in Delhi, Gurgaon, Chandigarh, Mohali, and Kharar.",
     };
   }
 

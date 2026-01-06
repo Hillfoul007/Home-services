@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import {
   Gift,
   AlertTriangle,
   Zap,
+  Home,
 } from "lucide-react";
 import {
   laundryServices,
@@ -56,6 +58,8 @@ import ReferralModal from "./ReferralModal";
 import NotificationBell from "./NotificationBell";
 import QuickPickupModal from "./QuickPickupModal";
 import CustomerVerificationPopup from "./CustomerVerificationPopup";
+import OrderStatusBar from "@/components/OrderStatusBar";
+import { BookingService } from "@/services/bookingService";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
 import { useCustomerNotifications } from "@/hooks/useCustomerNotifications";
@@ -86,6 +90,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   onViewBookings,
   onLogout,
 }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
@@ -97,6 +102,8 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [showQuickPickupModal, setShowQuickPickupModal] = useState(false);
   const [showQuickPickupAfterLogin, setShowQuickPickupAfterLogin] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<any>(null);
+  const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
@@ -450,6 +457,43 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
     };
   }, []);
 
+  // Load active orders from user bookings
+  useEffect(() => {
+    const loadActiveOrders = async () => {
+      if (!currentUser?.id && !currentUser?._id && !currentUser?.phone) {
+        setActiveOrder(null);
+        return;
+      }
+
+      try {
+        setLoadingActiveOrder(true);
+        const bookingService = BookingService.getInstance();
+        const response = await bookingService.getCurrentUserBookings();
+
+        if (response.success && response.bookings) {
+          // Find active order (not cancelled, not completed)
+          const active = response.bookings.find((booking: any) => {
+            const status = booking.status?.toLowerCase() || "";
+            return status !== "cancelled" && status !== "completed";
+          });
+
+          if (active) {
+            setActiveOrder(active);
+          } else {
+            setActiveOrder(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading active orders:", error);
+        setActiveOrder(null);
+      } finally {
+        setLoadingActiveOrder(false);
+      }
+    };
+
+    loadActiveOrders();
+  }, [currentUser?.id, currentUser?._id, currentUser?.phone]);
+
   // Request notification permission for verification alerts
   const requestNotificationPermission = async () => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -675,6 +719,40 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
     }
   };
 
+  const mapStatusToRiderStatus = (status: string): string => {
+    const statusLower = status?.toLowerCase() || "";
+    switch (statusLower) {
+      case "created":
+        return "unassigned";
+      case "vendor_assigned":
+      case "vendor-assigned":
+      case "pending":
+      case "confirmed":
+        return "assigned";
+      case "pickup_assigned":
+      case "pickup-assigned":
+        return "assigned";
+      case "pickup_completed":
+      case "pickup-completed":
+        return "accepted";
+      case "ready_for_delivery":
+      case "ready-for-delivery":
+      case "delivery_assigned":
+      case "delivery-assigned":
+        return "picked_up";
+      case "in_progress":
+      case "in-progress":
+      case "delivered_to_vendor":
+      case "delivered-to-vendor":
+        return "picked_up";
+      case "delivered":
+      case "completed":
+        return "delivered";
+      default:
+        return "unassigned";
+    }
+  };
+
   const handleQuickPickup = () => {
     console.log("🚀 Quick Pickup button clicked!");
     console.log("👤 Current user:", currentUser);
@@ -867,6 +945,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           )}
         </div>
 
+
         {/* Non-sticky delivery/location section */}
         <div className="p-4">
           {/* Delivery Time & Location */}
@@ -973,6 +1052,15 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 All
               </Button>
 
+              <Button
+                onClick={() => navigate("/pg-booking")}
+                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border bg-gradient-to-r from-laundrify-pink to-laundrify-red text-white border-laundrify-red/50 hover:from-laundrify-pink/90 hover:to-laundrify-red/90 shadow-md whitespace-nowrap"
+                title="PG Laundry & Iron Service"
+              >
+                <Home className="h-3 w-3 mr-1" />
+                <span>PG</span>
+              </Button>
+
               {(useStaticFallback
                 ? (serviceCategories || []).slice(1)
                 : dynamicServices || []
@@ -998,6 +1086,31 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Active Order Status Bar - Mobile */}
+        {activeOrder && !loadingActiveOrder && (
+          <div className="bg-white p-4 border-b border-gray-100">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-gray-900 mb-1">Your Active Order</h3>
+              <p className="text-xs text-gray-600">
+                Order #{activeOrder.custom_order_id || activeOrder.order_id || "Order ID"}
+              </p>
+            </div>
+            <OrderStatusBar
+              riderStatus={mapStatusToRiderStatus(activeOrder.status)}
+              bookingStatus={activeOrder.status}
+              isOrderComplete={activeOrder.status === "completed" || activeOrder.status === "delivered"}
+              className="mb-3"
+            />
+            <Button
+              onClick={handleViewBookings}
+              variant="outline"
+              className="w-full text-xs py-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+            >
+              View Full Details
+            </Button>
+          </div>
+        )}
 
         {/* Services Grid */}
         <div
@@ -1366,6 +1479,33 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
       {/* Desktop Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* Active Order Status Bar - Zomato Style */}
+        {activeOrder && !loadingActiveOrder && (
+          <div className="mb-8 p-6 bg-white rounded-2xl shadow-md border border-blue-100">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Your Active Order</h3>
+              <p className="text-sm text-gray-600">
+                Order #{activeOrder.custom_order_id || activeOrder.order_id || "Order ID"}
+              </p>
+            </div>
+            <OrderStatusBar
+              riderStatus={mapStatusToRiderStatus(activeOrder.status)}
+              bookingStatus={activeOrder.status}
+              isOrderComplete={activeOrder.status === "completed" || activeOrder.status === "delivered"}
+            />
+            <div className="mt-4">
+              <Button
+                onClick={handleViewBookings}
+                variant="outline"
+                className="text-sm text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                View Full Details
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-laundrify-purple to-laundrify-pink rounded-2xl text-white p-8 mb-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
@@ -1438,6 +1578,15 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             >
               <ShoppingBag className="h-4 w-4 mr-2" />
               All Services
+            </Button>
+
+            <Button
+              onClick={() => navigate("/pg-booking")}
+              className="flex-shrink-0 rounded-xl font-medium shadow-md border bg-gradient-to-r from-laundrify-pink to-laundrify-red text-white border-laundrify-red hover:from-laundrify-pink/90 hover:to-laundrify-red/90 hover:shadow-lg"
+              title="PG Laundry & Iron Service"
+            >
+              <Home className="h-4 w-4 mr-2" />
+              PG Service
             </Button>
 
             {(useStaticFallback

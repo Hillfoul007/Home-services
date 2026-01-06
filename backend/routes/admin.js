@@ -9,6 +9,31 @@ const riderNotificationService = require("../services/riderNotificationService")
 
 const router = express.Router();
 
+// ============= DISTANCE CALCULATION HELPER =============
+// Calculate distance between two coordinates using Haversine formula (in km)
+const calculateDistance = (coord1, coord2) => {
+  if (!coord1 || !coord2 || coord1.lat === undefined || coord1.lng === undefined || coord2.lat === undefined || coord2.lng === undefined) {
+    return null;
+  }
+
+  const R = 6371; // Earth's radius in kilometers
+  const lat1 = (coord1.lat * Math.PI) / 180;
+  const lat2 = (coord2.lat * Math.PI) / 180;
+  const dLat = ((coord2.lat - coord1.lat) * Math.PI) / 180;
+  const dLng = ((coord2.lng - coord1.lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+
+  return Math.round(distance * 100) / 100; // Round to 2 decimal places
+};
+
 // Middleware to verify admin access (simple for now)
 const verifyAdminAccess = (req, res, next) => {
   // In a production environment, you would implement proper admin authentication
@@ -135,8 +160,8 @@ router.get("/users/search", verifyAdminAccess, async (req, res) => {
 // Create user (admin)
 router.post("/users", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, full_name, phone, email, user_type = "customer" } = req.body || {};
-    console.log("🆕 Admin create user request:", { name, phone, email, user_type });
+    const { name, full_name, phone, email, user_type = "customer", address } = req.body || {};
+    console.log("🆕 Admin create user request:", { name, phone, email, user_type, address });
 
     if (!phone || !/\d{10,12}$/.test(("" + phone).replace(/\D/g, ""))) {
       return res.status(400).json({ error: "Phone is required and must be 10-12 digits" });
@@ -164,8 +189,28 @@ router.post("/users", verifyAdminAccess, async (req, res) => {
 
     await user.save();
 
+    // If address is provided, save it to the Address collection
+    let savedAddress = null;
+    if (address && address.trim()) {
+      try {
+        const Address = require("../models/Address");
+        savedAddress = new Address({
+          user_id: user._id,
+          full_address: address,
+          address_type: "home",
+          is_default: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+        await savedAddress.save();
+        console.log("✅ Address saved for user:", user._id);
+      } catch (addrErr) {
+        console.warn("⚠��� Failed to save address for user:", addrErr && addrErr.message);
+      }
+    }
+
     console.log("✅ Admin created user:", user._id);
-    res.status(201).json({ user });
+    res.status(201).json({ user, address: savedAddress });
   } catch (error) {
     console.error("❌ Error creating user:", error);
     if (error.code === 11000) {
@@ -210,26 +255,45 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       updateData.status = "vendor_assigned";
     }
 
-    // If item_prices are being updated, recalculate totals
+    // If item_prices are being updated, recalculate totals and normalize values
     if (Array.isArray(updateData.item_prices) && updateData.item_prices.length > 0) {
+      // Normalize and validate each item
+      updateData.item_prices = updateData.item_prices.map(item => ({
+        service_name: item.service_name || item.name || 'Item',
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        unit_price: Math.max(0, Number(item.unit_price || item.price) || 0),
+        total_price: Math.max(0, Number(item.total_price) || (Math.max(1, Number(item.quantity) || 1) * (Number(item.unit_price || item.price) || 0)))
+      }));
+
+      // Populate services array from item_prices
+      updateData.services = updateData.item_prices.map(item =>
+        `${item.service_name} x${item.quantity} (₹${item.unit_price}/${item.quantity > 1 ? 'SET' : 'PC'})`
+      );
+
+      // Set the main service field to the first service
+      if (updateData.services.length > 0) {
+        updateData.service = updateData.item_prices[0].service_name || 'Service';
+      }
+
       const computedTotal = updateData.item_prices.reduce((sum, item) => {
-        const qty = Number(item.quantity) || 0;
-        const unitPrice = Number(item.unit_price || item.price) || 0;
-        const itemTotal = Number(item.total_price) || (qty * unitPrice);
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const unitPrice = Math.max(0, Number(item.unit_price) || 0);
+        const itemTotal = qty * unitPrice;
         return sum + itemTotal;
       }, 0);
 
-      // If total_price wasn't explicitly set, use the computed value
-      if (typeof updateData.total_price === 'undefined' || updateData.total_price === null) {
-        updateData.total_price = computedTotal;
-      }
+      // Always use the computed total from item_prices (freshly calculated above)
+      updateData.total_price = computedTotal;
 
-      // If final_amount wasn't explicitly set to something different from total_price, use the computed total
+      // If final_amount wasn't explicitly set, use the computed total (accounting for discounts)
       if (typeof updateData.final_amount === 'undefined' || updateData.final_amount === null) {
-        updateData.final_amount = computedTotal;
+        const discountAmount = Number(updateData.discount_amount) || 0;
+        updateData.final_amount = Math.max(0, computedTotal - discountAmount);
       }
 
       console.log(`📊 Computed totals from ${updateData.item_prices.length} items: total_price=${updateData.total_price}, final_amount=${updateData.final_amount}`);
+      console.log(`📝 Normalized item_prices:`, updateData.item_prices.map(it => ({ service_name: it.service_name, qty: it.quantity, price: it.unit_price, total: it.total_price })));
+      console.log(`📝 Updated services array:`, updateData.services);
     }
 
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
@@ -237,6 +301,10 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
     updateData.updated_at = new Date(indianTime);
     updateData.updated_by_admin = true;
+
+    // Get the old booking to check status change
+    const oldBooking = await Booking.findById(bookingId);
+    const oldStatus = oldBooking?.status;
 
     const booking = await Booking.findByIdAndUpdate(
       bookingId,
@@ -246,6 +314,55 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // Handle wallet transactions when booking status changes to completed
+    if (booking.customer_id && oldStatus !== "completed" && booking.status === "completed") {
+      try {
+        const User = require("../models/User");
+        const user = await User.findById(booking.customer_id);
+
+        if (user) {
+          // Debit wallet if cashback was used
+          if (booking.cashback && booking.cashback > 0) {
+            user.wallet_balance = Math.max(0, (user.wallet_balance || 0) - booking.cashback);
+            user.wallet_transactions.push({
+              type: "debit",
+              amount: booking.cashback,
+              description: "Cashback used in booking",
+              booking_id: booking._id,
+              created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+            });
+            console.log(`💰 Debited ���${booking.cashback} from wallet for booking ${booking._id}`);
+          }
+
+          // Credit wallet_cashback (wallet_cashback is now a percentage, calculate actual amount)
+          if (booking.wallet_cashback && booking.wallet_cashback > 0) {
+            // wallet_cashback is stored as percentage (0-100)
+            // Calculate actual cashback amount based on final_amount
+            const cashbackPercentage = parseFloat(booking.wallet_cashback) || 0;
+            const finalAmount = parseFloat(booking.final_amount) || 0;
+            const cashbackAmount = (finalAmount * cashbackPercentage) / 100;
+
+            if (cashbackAmount > 0) {
+              user.wallet_balance = (user.wallet_balance || 0) + cashbackAmount;
+              user.wallet_transactions.push({
+                type: "credit",
+                amount: cashbackAmount,
+                description: `Wallet cashback ${cashbackPercentage}% from completed booking`,
+                booking_id: booking._id,
+                created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+              });
+              console.log(`💰 Credited ₹${cashbackAmount.toFixed(2)} (${cashbackPercentage}% of ₹${finalAmount}) to wallet for booking ${booking._id}`);
+            }
+          }
+
+          await user.save();
+        }
+      } catch (walletError) {
+        console.error("⚠️  Failed to update wallet for completed booking:", walletError);
+        // Don't fail the booking update if wallet update fails
+      }
     }
 
     console.log("✅ Booking updated by admin:", booking._id);
@@ -745,6 +862,22 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       console.warn("Address model not available or failed to fetch addresses:", err && err.message);
     }
 
+    // Fallback: If no addresses found, use the most recent booking's address
+    if (!defaultAddress && bookings.length > 0) {
+      const latestBooking = await Booking.findOne({ customer_id: user._id })
+        .sort({ created_at: -1 })
+        .select("address");
+
+      if (latestBooking && latestBooking.address) {
+        defaultAddress = {
+          full_address: latestBooking.address,
+          address_type: "previous_booking",
+          is_default: false,
+        };
+        console.log("✅ Using address from latest booking for autofill");
+      }
+    }
+
     console.log("✅ Admin fetched user details:", user._id);
     res.json({
       user: {
@@ -1088,7 +1221,7 @@ router.post("/quick-pickups/assign", verifyAdminAccess, async (req, res) => {
   try {
     const { orderId, riderId } = req.body;
 
-    console.log('��� Assigning quick pickup:', { orderId, riderId });
+    console.log('���� Assigning quick pickup:', { orderId, riderId });
 
     if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(riderId)) {
       return res.json({
@@ -1274,9 +1407,9 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
 // Assign vendor to order
 router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
   try {
-    const { orderId, vendorData, orderType } = req.body;
+    const { orderId, vendorData, orderType, bookingCoordinates } = req.body;
 
-    console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType });
+    console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType, bookingCoordinates });
 
     // Vendor options with enhanced data
     const vendors = {
@@ -1305,11 +1438,18 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
       return res.status(400).json({ message: 'Invalid vendor selection' });
     }
 
-    // Merge vendor data with distance/time information from frontend
+    // Calculate distance if coordinates are provided
+    let calculatedDistance = vendorData.distance || 0;
+    if (bookingCoordinates && bookingCoordinates.lat && bookingCoordinates.lng && selectedVendor.coordinates) {
+      calculatedDistance = calculateDistance(bookingCoordinates, selectedVendor.coordinates);
+      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor`);
+    }
+
+    // Merge vendor data with distance/time information
     const vendorWithDistanceData = {
       ...selectedVendor,
-      distance: vendorData.distance || 0,
-      estimatedTime: vendorData.estimatedTime || 60
+      distance: calculatedDistance || 0,
+      estimatedTime: vendorData.estimatedTime || Math.ceil((calculatedDistance || 1) * 2) // ~2 min per km as estimate
     };
 
     // For development/mock mode, just return success
@@ -1409,7 +1549,7 @@ router.get("/customer-verifications/:customerId", verifyAdminAccess, async (req,
 
     // Only return mock data if customer ID matches demo pattern
     if (customerId.includes('user_9999999999') || customerId.includes('demo')) {
-      console.log('✅ Returning mock verifications for demo customer');
+      console.log('�� Returning mock verifications for demo customer');
       return res.json({ verifications: mockVerifications });
     }
 
@@ -1490,7 +1630,7 @@ router.post("/customer-verifications/:verificationId/respond", verifyAdminAccess
           riderNotified = true;
           console.log(`📧 Rider ${riderId} notified about verification response`);
         } else {
-          console.log('⚠️ No rider found for order:', orderId);
+          console.log('���️ No rider found for order:', orderId);
         }
       }
     } catch (notificationError) {
@@ -1566,11 +1706,11 @@ router.post("/customer-verifications", verifyAdminAccess, async (req, res) => {
 // Get all vendors
 router.get("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    console.log("📋 Fetching all vendors");
+    console.log("���� Fetching all vendors");
 
     const vendors = await Vendor.find().sort({ created_at: -1 });
 
-    console.log(`��� Found ${vendors.length} vendors`);
+    console.log(`���� Found ${vendors.length} vendors`);
     res.json({ success: true, vendors });
   } catch (error) {
     console.error("❌ Error fetching vendors:", error);
@@ -1598,29 +1738,40 @@ router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   }
 });
 
-// Create vendor
+// Create vendor - DEPRECATED, use /laundry-vendors instead
+// Kept for backward compatibility but redirects to laundry vendor creation
 router.post("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime } = req.body;
+    const { name, address, phone, email, services, coordinates, contactPhone, whatsapp_group_invite_link } = req.body;
 
-    console.log("🆕 Creating new vendor:", { name, address });
+    console.log("🆕 Creating vendor (redirected to laundry vendor):", { name, address, phone });
+
+    // If only name and address provided (no coordinates), create as laundry vendor
+    if (!coordinates && name && (phone || address)) {
+      return res.status(400).json({
+        error: "Use /laundry-vendors endpoint for vendor creation. This endpoint requires coordinates (lat, lng) for order-based vendors."
+      });
+    }
 
     if (!name || !address || !coordinates || !coordinates.lat || !coordinates.lng) {
       return res.status(400).json({ error: "Name, address, and coordinates (lat, lng) are required" });
     }
 
+    // Generate vendor ID and temporary password (required for schema validation)
+    const vendor_id = Vendor.generateVendorId();
+    const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
     const vendor = new Vendor({
+      vendor_id,
+      password_hash: temp_password, // Will be hashed before save by pre-save hook
       name,
       address,
       coordinates,
       services: services || [],
-      contactPhone: contactPhone || "",
-      rating: rating || 4.0,
-      description: description || "",
-      operatingHours: operatingHours || { open: "09:00", close: "22:00" },
-      minimumOrderValue: minimumOrderValue || 0,
-      deliveryTime: deliveryTime || 30,
-      isActive: true,
+      contactPhone: contactPhone || phone || "",
+      phone: phone || "",
+      whatsapp_group_invite_link: whatsapp_group_invite_link || "",
+      is_active: true,
     });
 
     await vendor.save();
@@ -1637,9 +1788,14 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
 router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive } = req.body;
+    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive, whatsapp_group_invite_link } = req.body;
 
     console.log(`📝 Updating vendor: ${vendorId}`);
+
+    // Validate vendorId
+    if (!vendorId || vendorId === 'undefined') {
+      return res.status(400).json({ error: "Vendor ID is required and must be valid" });
+    }
 
     const vendor = await Vendor.findByIdAndUpdate(
       vendorId,
@@ -1654,6 +1810,7 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
         operatingHours,
         minimumOrderValue,
         deliveryTime,
+        whatsapp_group_invite_link,
         isActive: isActive !== undefined ? isActive : true,
       },
       { new: true, runValidators: true }
@@ -1676,7 +1833,7 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
 
-    console.log(`🗑️ Deleting vendor: ${vendorId}`);
+    console.log(`��️ Deleting vendor: ${vendorId}`);
 
     const vendor = await Vendor.findByIdAndDelete(vendorId);
 
@@ -1689,6 +1846,371 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   } catch (error) {
     console.error("❌ Error deleting vendor:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============= LAUNDRY VENDOR MANAGEMENT (Vendor Portal) =============
+
+// Create laundry vendor with auto-generated credentials
+router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, email, phone, address, services, whatsapp_group_invite_link } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ error: "Name and phone are required" });
+    }
+
+    console.log(`🆕 Creating laundry vendor: ${name}`);
+
+    // Generate unique vendor ID and temporary password
+    const VendorAuth = require("../models/Vendor");
+    const vendor_id = VendorAuth.generateVendorId();
+    const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    const vendor = new VendorAuth({
+      vendor_id,
+      password_hash: temp_password, // Will be hashed before save
+      name,
+      email,
+      phone,
+      address,
+      services: services || [],
+      whatsapp_group_invite_link: whatsapp_group_invite_link || "",
+      is_active: true,
+      created_by: req.admin_id,
+    });
+
+    await vendor.save();
+
+    console.log(`✅ Laundry vendor created: ${vendor_id}`);
+    res.status(201).json({
+      success: true,
+      vendor: {
+        _id: vendor._id,
+        vendor_id,
+        name,
+        email,
+        phone,
+        whatsapp_group_invite_link,
+        temp_password, // Share only once!
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error creating laundry vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get all laundry vendors
+router.get("/laundry-vendors", verifyAdminAccess, async (req, res) => {
+  try {
+    console.log("📋 Fetching laundry vendors");
+
+    const VendorAuth = require("../models/Vendor");
+    const vendors = await VendorAuth.find().select("-password_hash").sort({ created_at: -1 });
+
+    console.log(`✅ Found ${vendors.length} laundry vendors`);
+    res.json({ success: true, vendors });
+  } catch (error) {
+    console.error("❌ Error fetching laundry vendors:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get single laundry vendor
+router.get("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    console.log(`🔍 Fetching laundry vendor: ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId).select("-password_hash");
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Get vendor's assigned orders
+    const orders = await Booking.find({ assignedVendor: vendor._id }).select("_id custom_order_id status");
+
+    console.log(`✅ Vendor found: ${vendor.name}`);
+    res.json({
+      success: true,
+      vendor,
+      assigned_orders_count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching laundry vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update laundry vendor password
+router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { new_password } = req.body;
+
+    if (!new_password || new_password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+
+    console.log(`🔐 Updating password for vendor: ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    await vendor.setPassword(new_password);
+
+    console.log(`✅ Vendor password updated: ${vendorId}`);
+    res.json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error updating vendor password:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update laundry vendor details
+router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { name, email, phone, address, services, is_active, vendor_id, password, whatsapp_group_invite_link } = req.body;
+
+    console.log(`📝 Updating laundry vendor: ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Update basic fields
+    if (name !== undefined) vendor.name = name;
+    if (email !== undefined) vendor.email = email;
+    if (phone !== undefined) vendor.phone = phone;
+    if (address !== undefined) vendor.address = address;
+    if (services !== undefined) vendor.services = services;
+    if (is_active !== undefined) vendor.is_active = is_active;
+    if (vendor_id !== undefined) vendor.vendor_id = vendor_id;
+    if (whatsapp_group_invite_link !== undefined) vendor.whatsapp_group_invite_link = whatsapp_group_invite_link;
+
+    // Update password if provided
+    if (password) {
+      const bcryptjs = require("bcryptjs");
+      const salt = await bcryptjs.genSalt(10);
+      vendor.password_hash = await bcryptjs.hash(password, salt);
+      console.log(`🔐 Password updated for vendor: ${vendor.name}`);
+    }
+
+    vendor.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    await vendor.save();
+
+    console.log(`✅ Vendor updated: ${vendor.name}`);
+    res.json({
+      success: true,
+      vendor: {
+        _id: vendor._id,
+        vendor_id: vendor.vendor_id,
+        name: vendor.name,
+        email: vendor.email,
+        phone: vendor.phone,
+        address: vendor.address,
+        services: vendor.services,
+        whatsapp_group_invite_link: vendor.whatsapp_group_invite_link,
+        is_active: vendor.is_active,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error updating laundry vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Generate new credentials for existing vendor (only once)
+router.post("/vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const Vendor = require("../models/Vendor");
+    const vendor = await Vendor.findById(vendorId).select("+temp_password");
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Check if credentials already exist
+    if (vendor.temp_password) {
+      console.log(`🔑 Credentials already exist for vendor: ${vendor.name}`);
+      return res.json({
+        success: true,
+        credentials: {
+          vendor_id: vendor.vendor_id,
+          temp_password: vendor.temp_password,
+          name: vendor.name,
+        },
+        message: "Existing credentials retrieved (not newly generated)",
+      });
+    }
+
+    console.log(`🔑 Generating credentials for vendor: ${vendorId}`);
+
+    // Ensure vendor has required fields for credentials
+    if (!vendor.vendor_id) {
+      vendor.vendor_id = Vendor.generateVendorId();
+    }
+
+    if (!vendor.phone && vendor.contactPhone) {
+      vendor.phone = vendor.contactPhone;
+    }
+
+    if (!vendor.phone) {
+      vendor.phone = ""; // Will be set by pre-save hook or left empty
+    }
+
+    // Generate new temporary password
+    const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Store plain password temporarily for admin to view
+    vendor.temp_password = temp_password;
+
+    // Hash and set password
+    await vendor.setPassword(temp_password);
+
+    console.log(`✅ Credentials generated for vendor: ${vendor.name}`);
+    res.json({
+      success: true,
+      credentials: {
+        vendor_id: vendor.vendor_id,
+        temp_password,
+        name: vendor.name,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error generating credentials:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Legacy endpoint for backward compatibility
+router.post("/laundry-vendors/:vendorId/generate-credentials", verifyAdminAccess, async (req, res) => {
+  // Redirect to new endpoint
+  res.redirect(307, `/api/admin/vendors/${req.params.vendorId}/generate-credentials`);
+});
+
+// Assign order to vendor
+router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ error: "Order ID is required" });
+    }
+
+    console.log(`📦 Assigning order ${orderId} to vendor ${vendorId}`);
+
+    const VendorAuth = require("../models/Vendor");
+    const vendor = await VendorAuth.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // Update booking with vendor assignment
+    const booking = await Booking.findByIdAndUpdate(
+      orderId,
+      {
+        assignedVendor: vendor._id,
+        status: "vendor_assigned",
+        updated_at: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!booking) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Update vendor's assigned orders
+    if (!vendor.assigned_orders.includes(booking._id)) {
+      vendor.assigned_orders.push(booking._id);
+      await vendor.save();
+    }
+
+    console.log(`✅ Order assigned to vendor: ${vendor.name}`);
+    res.json({
+      success: true,
+      message: "Order assigned successfully",
+      booking,
+    });
+  } catch (error) {
+    console.error("❌ Error assigning order to vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Delete user account
+router.delete("/users/:userId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    console.log(`🗑️ Deleting user: ${userId}`);
+
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    // Also delete user's bookings
+    await Booking.deleteMany({ customer_id: userId });
+
+    console.log(`✅ User deleted successfully: ${user.name || user.phone}`);
+    res.json({
+      success: true,
+      message: "User and associated bookings deleted successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error deleting user:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// Delete PG (paying guest location)
+router.delete("/pgs/:pgId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { pgId } = req.params;
+
+    console.log(`🗑️ Deleting PG: ${pgId}`);
+
+    const PG = require("../models/PG");
+    const pg = await PG.findByIdAndDelete(pgId);
+
+    if (!pg) {
+      return res.status(404).json({ success: false, error: "PG not found" });
+    }
+
+    // Also delete all PG orders associated with this PG
+    const PGOrder = require("../models/PGOrder");
+    await PGOrder.deleteMany({ pg_id: pgId });
+
+    console.log(`✅ PG deleted successfully: ${pg.name}`);
+    res.json({
+      success: true,
+      message: "PG and associated orders deleted successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error deleting PG:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 

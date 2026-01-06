@@ -24,11 +24,16 @@ import {
   XCircle,
   AlertCircle,
   Store,
+  MessageCircle,
 } from "lucide-react";
+import { vendorService } from "@/services/vendorService";
+import { walletService } from "@/services/walletService";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
+import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
+import ReminderModal from "@/components/ReminderModal";
 
 interface ItemPrice {
   service_name?: string;
@@ -79,9 +84,24 @@ interface Booking {
   additional_details?: string;
   service_type?: string;
   discount_amount?: number;
+  discount_percent?: number;
+  cashback_amount?: number;
+  cashback?: number;
+  wallet_applied?: number;
+  wallet_cashback?: number;
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
+  coordinates?: { lat: number; lng: number };
+  distance_to_vendor?: number;
+  assignedVendor?: string;
+  assignedVendorId?: string;
+  vendorGroupLink?: string;
+  items_images?: Array<{
+    file_id: string;
+    filename: string;
+    uploaded_at: string;
+  }>;
 }
 
 const ORDER_FLOW_STEPS = [
@@ -156,6 +176,198 @@ type MutationFlags = {
 
 type MutationKey = keyof MutationFlags;
 
+const generateWhatsAppMessage = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const servicesList = booking.services && booking.services.length > 0
+    ? booking.services.join(", ")
+    : (booking.item_prices && booking.item_prices.length > 0
+        ? booking.item_prices.map(item => item.service_name || item.name).join(", ")
+        : "Laundry Services");
+
+  const walletCashbackAmount = booking.final_amount && booking.wallet_cashback
+    ? ((booking.final_amount * booking.wallet_cashback) / 100).toFixed(2)
+    : "0.00";
+
+  const message = `Order Confirmed! 🎉 Congratulations! Your order has been confirmed and picked up. Please find below the details:
+
+Order ID: ${booking.custom_order_id}
+Tentative delivery date: ${formatDateForMessage(deliveryDate)}
+Tentative delivery time: ${formatTimeForMessage(deliveryTime)}
+Address: ${booking.address || "N/A"}
+Services requested: ${servicesList}
+Total amount to pay: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
+Old Cashback (deducted from wallet): ₹${(booking.cashback || 0).toFixed(2)}
+New Cashback (added to wallet): ₹${walletCashbackAmount}
+
+Thank you for choosing Laundrify! 😊🧺
+
+Dear Customer, Please Download and login to the app with the below link for the bill details:
+
+www.Laundrify.online
+
+Thanks, Team Laundrify!`;
+
+  return message;
+};
+
+const sendWhatsAppMessage = (phoneNumber: string, message: string) => {
+  const encodedMessage = encodeURIComponent(message);
+  const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+  const phoneWithCountryCode = cleanPhoneNumber.length === 10 ? `91${cleanPhoneNumber}` : cleanPhoneNumber;
+
+  const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodedMessage}`;
+  window.open(whatsappUrl, '_blank');
+};
+
+const generatePickupReminder = (booking: Booking): string => {
+  const pickupDate = booking.pickup_date || booking.scheduled_date;
+  const pickupTime = booking.pickup_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const address = booking.address || "N/A";
+  const mapsLink = address && address !== "N/A"
+    ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+    : "";
+
+  const message = `Order Pickup 🧺
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
+Pickup Date & Time: ${formatDateForMessage(pickupDate)}, ${formatTimeForMessage(pickupTime)}`;
+
+  return message;
+};
+
+const generateDeliveryReminder = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const address = booking.address || "N/A";
+  const mapsLink = address && address !== "N/A"
+    ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+    : "";
+
+  const message = `Order Delivery 🚚
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
+Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
+Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
+
+Payment: UPI - 7011585587@ptyes`;
+
+  return message;
+};
+
+const sendVendorReminder = (vendorGroupLink: string, message: string) => {
+  if (!vendorGroupLink) {
+    toast.error("Vendor WhatsApp group link not available");
+    return;
+  }
+
+  const encodedMessage = encodeURIComponent(message);
+  const groupUrl = `${vendorGroupLink}?text=${encodedMessage}`;
+  window.open(groupUrl, '_blank');
+};
+
 const normalizeStatus = (status: string) => {
   if (!status) {
     return "created";
@@ -167,7 +379,6 @@ const normalizeStatus = (status: string) => {
 
 const mapToBackendStatus = (status: string) => {
   const normalized = status?.toLowerCase?.().replace(/\s+/g, "_") || status;
-  // Backend now supports new status names; send normalized status directly
   return normalized;
 };
 
@@ -227,7 +438,6 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-// Normalize booking object for admin edit modal to ensure item_prices shape
 const normalizeBookingForEdit = (booking: Booking): Booking => {
   try {
     const rawItems: any[] = Array.isArray(booking.item_prices) ? booking.item_prices : [];
@@ -246,7 +456,6 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       } as any as ItemPrice;
     });
 
-    // If services array is missing, build from item names
     const services = booking.services && booking.services.length ? booking.services : normalizedItems.map(i => `${i.service_name} x${i.quantity}`);
 
     const normalizedBooking = {
@@ -255,7 +464,6 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       services,
       final_amount: typeof booking.final_amount === 'number' ? booking.final_amount : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
-      // Preserve discount fields if present
       discount_amount: (booking as any).discount_amount || 0,
       discount_percent: (booking as any).discount_percent || 0,
     } as Booking;
@@ -267,22 +475,75 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
   }
 };
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) {
-    return "N/A";
+const formatDate = (dateString?: string | Date) => {
+  return formatDateTimeIST(dateString as any);
+};
+
+const getScheduledDateTime = (booking: Booking): Date => {
+  try {
+    const dateStr = booking.scheduled_date || '';
+    const timeStr = booking.scheduled_time || '00:00';
+
+    if (!dateStr) return new Date(0);
+
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const dateObj = new Date(dateStr);
+    dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+    return dateObj;
+  } catch (e) {
+    return new Date(0);
   }
+};
 
-  const parsed = new Date(dateString);
+const getDeliveryDateTime = (booking: Booking): Date => {
+  try {
+    const dateStr = booking.delivery_date || '';
+    const timeStr = booking.delivery_time || '00:00';
 
-  if (Number.isNaN(parsed.getTime())) {
-    return "N/A";
+    if (!dateStr) return new Date(0);
+
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const dateObj = new Date(dateStr);
+    dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+    return dateObj;
+  } catch (e) {
+    return new Date(0);
   }
+};
 
-  return parsed.toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const formatScheduledDateTime = (booking: Booking): string => {
+  try {
+    const dateStr = booking.scheduled_date || '';
+    const timeStr = booking.scheduled_time || '00:00';
+
+    if (!dateStr) return 'N/A';
+
+    const dateObj = new Date(dateStr);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    const dayMonth = dateObj.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    if (!timeStr || timeStr === '00:00') {
+      return dayMonth;
+    }
+
+    const timeFormatted = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hours, minutes)
+      .toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+    return `${dayMonth}, ${timeFormatted}`;
+  } catch (e) {
+    return formatDateOnlyIST(booking.scheduled_date);
+  }
 };
 
 const StatusFlowIndicator: React.FC<{ currentStatus: string; className?: string }> = ({
@@ -371,7 +632,31 @@ const AdminBookingManagement: React.FC = () => {
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
+  const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
+  const [loadingWallet, setLoadingWallet] = useState(false);
   const [completedOrders, setCompletedOrders] = useState<Booking[]>([]);
+  const [completedSearchTerm, setCompletedSearchTerm] = useState("");
+  const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
+  const [filteredCompletedOrders, setFilteredCompletedOrders] = useState<Booking[]>([]);
+
+  // Pickup bucket (A) filters
+  const [pickupSearchTerm, setPickupSearchTerm] = useState("");
+  const [pickupStatusFilter, setPickupStatusFilter] = useState("all");
+  const [filteredPickupOrders, setFilteredPickupOrders] = useState<Booking[]>([]);
+
+  // Ready for Delivery bucket (B) filters
+  const [readySearchTerm, setReadySearchTerm] = useState("");
+  const [readyStatusFilter, setReadyStatusFilter] = useState("all");
+  const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
+
+  // Reminder modal state
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderType, setReminderType] = useState<'pickup' | 'delivery'>('pickup');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderVendorGroupLink, setReminderVendorGroupLink] = useState<string | undefined>();
+
 
   const fetchVendors = async () => {
     try {
@@ -381,17 +666,42 @@ const AdminBookingManagement: React.FC = () => {
           id: vendor.id || vendor._id,
           name: vendor.name,
         }));
+
+        // Store full vendor data for distance calculations
+        const fullDataMap: Record<string, any> = {};
+        const vendorDetails = [];
+        response.data.vendors.forEach((vendor: any) => {
+          fullDataMap[vendor.name || vendor.id] = vendor;
+          // Also provide to VendorService so other components can use them
+          vendorDetails.push({
+            id: vendor.id || vendor._id,
+            name: vendor.name,
+            address: vendor.address || '',
+            coordinates: vendor.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: vendor.services || [],
+            contactPhone: vendor.contactPhone,
+            rating: vendor.rating,
+            isActive: vendor.isActive !== false,
+          });
+        });
+
         setVendors(vendorOptions);
+        setVendorFullData(fullDataMap);
+
+        // Sync vendors to VendorService for use in other components
+        vendorService.setVendors(vendorDetails);
       }
     } catch (error) {
       console.warn('Failed to fetch vendors:', error);
       setVendors([]);
+      setVendorFullData({});
     }
   };
 
+
   const fetchCompletedOrders = async () => {
     try {
-      const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=20`);
+      const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=50`);
       if (res.data) {
         const anyData: any = res.data as any;
         const list = anyData.bookings || [...(anyData.bucketA || []), ...(anyData.bucketB || [])];
@@ -400,10 +710,128 @@ const AdminBookingManagement: React.FC = () => {
           status: normalizeStatus(b.status),
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
+        processed.sort((a, b) => {
+          const dateA = new Date(a.completed_at || a.updated_at || 0).getTime();
+          const dateB = new Date(b.completed_at || b.updated_at || 0).getTime();
+          return dateB - dateA;
+        });
         setCompletedOrders(processed);
+        filterCompletedOrders(processed);
       }
     } catch (e) {
-      // ignore
+      console.warn('Failed to fetch completed orders', e);
+    }
+  };
+
+  const filterCompletedOrders = (orders?: Booking[]) => {
+    const ordersToFilter = orders || completedOrders;
+    let filtered = ordersToFilter;
+
+    if (completedSearchTerm) {
+      filtered = filtered.filter((booking) =>
+        booking.custom_order_id?.toLowerCase().includes(completedSearchTerm.toLowerCase()) ||
+        booking.name?.toLowerCase().includes(completedSearchTerm.toLowerCase()) ||
+        booking.phone?.includes(completedSearchTerm) ||
+        booking.service?.toLowerCase().includes(completedSearchTerm.toLowerCase()),
+      );
+    }
+
+    if (completedStatusFilter !== "all") {
+      filtered = filtered.filter((booking) => normalizeStatus(booking.status) === completedStatusFilter);
+    }
+
+    setFilteredCompletedOrders(filtered);
+  };
+
+  const filterPickupOrders = (orders?: Booking[]) => {
+    const ordersToFilter = orders || bucketA;
+    let filtered = ordersToFilter;
+
+    if (pickupSearchTerm) {
+      filtered = filtered.filter((booking) =>
+        booking.custom_order_id?.toLowerCase().includes(pickupSearchTerm.toLowerCase()) ||
+        booking.name?.toLowerCase().includes(pickupSearchTerm.toLowerCase()) ||
+        booking.phone?.includes(pickupSearchTerm) ||
+        booking.service?.toLowerCase().includes(pickupSearchTerm.toLowerCase()),
+      );
+    }
+
+    if (pickupStatusFilter !== "all") {
+      filtered = filtered.filter((booking) => normalizeStatus(booking.status) === pickupStatusFilter);
+    }
+
+    filtered.sort((a, b) => {
+      const dateA = getScheduledDateTime(a);
+      const dateB = getScheduledDateTime(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    setFilteredPickupOrders(filtered);
+  };
+
+  const getDeliveryDateTimeForSort = (booking: Booking): Date => {
+    try {
+      const dateStr = booking.delivery_date || booking.scheduled_date || '';
+      const timeStr = booking.delivery_time || booking.scheduled_time || '00:00';
+
+      if (!dateStr) return new Date(0);
+
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const dateObj = new Date(dateStr);
+      dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+      return dateObj;
+    } catch (e) {
+      return new Date(0);
+    }
+  };
+
+  const filterReadyOrders = (orders?: Booking[]) => {
+    const ordersToFilter = orders || bucketB;
+    let filtered = ordersToFilter;
+
+    if (readySearchTerm) {
+      filtered = filtered.filter((booking) =>
+        booking.custom_order_id?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
+        booking.name?.toLowerCase().includes(readySearchTerm.toLowerCase()) ||
+        booking.phone?.includes(readySearchTerm) ||
+        booking.service?.toLowerCase().includes(readySearchTerm.toLowerCase()),
+      );
+    }
+
+    if (readyStatusFilter !== "all") {
+      filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
+    }
+
+    filtered.sort((a, b) => {
+      const dateA = getDeliveryDateTimeForSort(a);
+      const dateB = getDeliveryDateTimeForSort(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    setFilteredReadyOrders(filtered);
+  };
+
+  const fetchBookings = async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(`/admin/bookings?limit=100`);
+      if (res.data) {
+        const allBookings = [...(res.data.bucketA || []), ...(res.data.bucketB || [])];
+        const processed = allBookings.map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+        setBookings(processed);
+        const a = processed.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
+        const b = processed.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+        setBucketA(a);
+        setBucketB(b);
+      }
+      setLoading(false);
+    } catch (e) {
+      console.warn('Failed to fetch bookings', e);
+      setLoading(false);
     }
   };
 
@@ -412,7 +840,6 @@ const AdminBookingManagement: React.FC = () => {
     fetchVendors();
     fetchCompletedOrders();
 
-    // Open SSE connection for real-time admin updates (if server supports it)
     let es: EventSource | null = null;
     try {
       es = new EventSource('/admin/bookings/stream');
@@ -420,11 +847,9 @@ const AdminBookingManagement: React.FC = () => {
         try {
           const payload = JSON.parse(event.data);
           console.log('🔔 Received booking_change SSE payload:', payload?._id || payload);
-          // Skip updates while user is editing to prevent data loss
           if (payload && payload._id && !showEditDialog) {
             applyBookingUpdate(payload._id, payload);
 
-            // Re-filter bookings to reflect incoming changes
             setTimeout(() => filterBookings(), 50);
           }
         } catch (err) {
@@ -434,8 +859,7 @@ const AdminBookingManagement: React.FC = () => {
 
       es.onerror = (err) => {
         console.warn('⚠️ SSE connection error:', err);
-        // Close and let polling resume
-        try { es && es.close(); } catch (e) { /* ignore */ }
+        try { es && es.close(); } catch (e) { }
       };
     } catch (e) {
       console.warn('SSE not supported or failed to connect:', e);
@@ -445,18 +869,15 @@ const AdminBookingManagement: React.FC = () => {
       try {
         if (es) es.close();
       } catch (e) {
-        /* ignore */
       }
     };
   }, []);
 
-  // Helper to get current time in IST format (matching server timezone)
   const getISTTimestamp = (): string => {
     const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
     return new Date(indianTime).toISOString();
   };
 
-  // Poll for updates since last poll and apply them to local state
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
@@ -480,7 +901,6 @@ const AdminBookingManagement: React.FC = () => {
               });
             });
 
-            // Update last poll to the newest updated_at from updates
             const maxUpdated = updates
               .map((b) => new Date(b.updated_at || b.updatedAt || Date.now()))
               .reduce((max, curr) => (curr > max ? curr : max));
@@ -488,7 +908,6 @@ const AdminBookingManagement: React.FC = () => {
             const nextPollTime = getISTTimestamp();
             setLastPollAt(nextPollTime);
           } else {
-            // Nothing new, advance lastPollAt
             const nextPollTime = getISTTimestamp();
             setLastPollAt(nextPollTime);
           }
@@ -498,260 +917,130 @@ const AdminBookingManagement: React.FC = () => {
       }
     };
 
-    // Skip polling while edit dialog is open to prevent state overwrites
     if (showEditDialog) {
       return () => {
         cancelled = true;
       };
     }
 
-    // Start polling interval
-    const id = setInterval(poll, 8000);
-
-    // Also run one immediately after a short delay to avoid race conditions
-    const timeoutId = setTimeout(() => {
-      if (!cancelled) poll();
-    }, 500);
-
+    const interval = setInterval(poll, 10000);
     return () => {
       cancelled = true;
-      clearInterval(id);
-      clearTimeout(timeoutId);
+      clearInterval(interval);
     };
-  }, [lastPollAt, showEditDialog]);
+  }, [showEditDialog, lastPollAt]);
 
   useEffect(() => {
     filterBookings();
-  }, [bookings, searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, bookings]);
 
-  const setMutationFlag = (bookingId: string, key: MutationKey, value: boolean) => {
-    setMutationState((prev) => ({
-      ...prev,
-      [bookingId]: {
-        ...prev[bookingId],
-        [key]: value,
-      },
-    }));
-  };
+  useEffect(() => {
+    filterCompletedOrders();
+  }, [completedSearchTerm, completedStatusFilter, completedOrders]);
 
-  const applyBookingUpdate = (bookingId: string, updates: Partial<Booking>) => {
-    const sanitizedUpdates: Partial<Booking> = {
-      ...updates,
-      status: updates.status ? normalizeStatus(updates.status) : updates.status,
-    };
+  useEffect(() => {
+    filterPickupOrders();
+  }, [pickupSearchTerm, pickupStatusFilter, bucketA]);
 
-    setBookings((prev) =>
-      prev.map((booking) =>
-        booking._id === bookingId
-          ? {
-              ...booking,
-              ...sanitizedUpdates,
-              status: sanitizedUpdates.status || booking.status,
-            }
-          : booking,
-      ),
-    );
+  useEffect(() => {
+    filterReadyOrders();
+  }, [readySearchTerm, readyStatusFilter, bucketB]);
 
-    // Don't overwrite editingBooking if user is actively editing the dialog
-    if (!showEditDialog) {
-      setEditingBooking((prev) =>
-        prev && prev._id === bookingId
-          ? {
-              ...prev,
-              ...sanitizedUpdates,
-              status: sanitizedUpdates.status || prev.status,
-            }
-          : prev,
-      );
+  // Geocode booking address and calculate vendor distances
+  useEffect(() => {
+    if (editingBooking?.address && showEditDialog) {
+      const geocodeAndCalculate = async () => {
+        try {
+          const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+          if (coords) {
+            setBookingAddressCoords(coords);
+          }
+        } catch (error) {
+          console.warn('Failed to geocode address:', error);
+        }
+      };
+      geocodeAndCalculate();
     }
+  }, [editingBooking?.address, showEditDialog]);
 
-    setViewingBooking((prev) =>
-      prev && prev._id === bookingId
-        ? {
-            ...prev,
-            ...sanitizedUpdates,
-            status: sanitizedUpdates.status || prev.status,
-          }
-        : prev,
-    );
-  };
-
-  const convertQuickPickupToBooking = (quickPickup: QuickPickupDetails): Booking => {
-    const createdAt = new Date(quickPickup.createdAt || Date.now()).toISOString();
-    const itemsCollected = quickPickup.items_collected || [];
-
-    return {
-      _id: quickPickup.id,
-      custom_order_id: quickPickup.custom_order_id || quickPickup.id.substring(0, 8).toUpperCase(),
-      name: quickPickup.customer_name || "Quick Pickup Customer",
-      phone: quickPickup.customer_phone || "N/A",
-      customer_id: quickPickup.userId,
-      service: "Quick Pickup",
-      services: itemsCollected.map((item) => item.name),
-      scheduled_date: quickPickup.pickup_date || new Date().toISOString(),
-      scheduled_time: quickPickup.pickup_time || "ASAP",
-      // Use explicit delivery fields if present, otherwise default to pickup date/time
-      delivery_date: quickPickup.delivery_date || quickPickup.pickup_date || undefined,
-      delivery_time: quickPickup.delivery_time || quickPickup.pickup_time || undefined,
-      address: quickPickup.address || "N/A",
-      status: quickPickup.status || "pending",
-      total_price: quickPickup.estimated_cost || quickPickup.actual_cost || 0,
-      final_amount: quickPickup.actual_cost || quickPickup.estimated_cost || 0,
-      created_at: createdAt,
-      updated_at: quickPickup.updatedAt || createdAt,
-      payment_status: "pending",
-      item_prices: itemsCollected.map((item) => ({
-        service_name: item.name,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.total,
-      })),
-      vendor: null,
-      rider: quickPickup.rider_id || null,
-      address_details: {
-        flatNo: quickPickup.house_number || "",
-        landmark: "",
-        type: "quick_pickup",
-      },
-    };
-  };
-
-  const fetchBookings = async () => {
-    try {
-      setLoading(true);
-
-      const response = await apiClient.adminRequest<{ bookings: Booking[] }>("/admin/bookings?limit=100");
-      let allBookings: Booking[] = [];
-
-      if (response.data) {
-        // Handle bucketed response from backend
-        const rawA = (response.data.bucketA || []);
-        const rawB = (response.data.bucketB || []);
-
-        const process = (booking: any) => {
-          const customer = booking.customer_id || {};
-          const customerName =
-            booking.customerName ||
-            booking.name ||
-            customer.full_name ||
-            customer.name ||
-            "Unknown Customer";
-          const customerPhone =
-            booking.customerPhone ||
-            booking.phone ||
-            customer.phone ||
-            "No phone";
-
-          // Ensure item_prices is always an array
-          let itemPrices = booking.item_prices || [];
-          if (!Array.isArray(itemPrices)) {
-            itemPrices = [];
+  // Load user's wallet balance when editing booking
+  useEffect(() => {
+    if (editingBooking && showEditDialog) {
+      const loadWalletBalance = async () => {
+        setLoadingWallet(true);
+        try {
+          // Extract string ID from customer_id (could be an object or string)
+          let customerId = editingBooking.customer_id;
+          if (customerId && typeof customerId === 'object') {
+            // If it's an object, try to get the _id or id property
+            customerId = customerId._id || customerId.id || customerId.toString();
           }
 
-          // Normalize vendor field from multiple possible backend names
-          const vendorName = booking.assignedVendor || booking.assigned_vendor || booking.vendor || booking.assignedVendorName || booking.assigned_vendor_name || null;
+          // Use customer_id if available, otherwise fall back to phone number
+          const userId = customerId || editingBooking.phone;
 
-          return {
-            ...booking,
-            name: customerName,
-            phone: customerPhone,
-            services: booking.services || [],
-            status: normalizeStatus(booking.status),
-            item_prices: itemPrices,
-            vendor: vendorName,
-          } as Booking;
-        };
-
-        const processedA = rawA.map(process);
-        const processedB = rawB.map(process);
-
-        setBucketA(processedA);
-        setBucketB(processedB);
-
-        allBookings = [...processedA, ...processedB];
-      } else if (response.error) {
-        const fallbackResponse = await apiClient.request<{ bookings: Booking[] }>("/bookings?limit=100");
-
-        if (fallbackResponse.data) {
-          const processedFallbackBookings = (fallbackResponse.data.bookings || []).map((booking: any) => {
-            const customer = booking.customer_id || {};
-            const customerName =
-              booking.customerName ||
-              booking.name ||
-              customer.full_name ||
-              customer.name ||
-              "Unknown Customer";
-            const customerPhone =
-              booking.customerPhone ||
-              booking.phone ||
-              customer.phone ||
-              "No phone";
-
-            // Ensure item_prices is always an array
-            let itemPrices = booking.item_prices || [];
-            if (!Array.isArray(itemPrices)) {
-              itemPrices = [];
-            }
-
-            // Normalize vendor field from multiple possible backend names
-            const vendorName = booking.assignedVendor || booking.assigned_vendor || booking.vendor || booking.assignedVendorName || booking.assigned_vendor_name || null;
-
-            return {
-              ...booking,
-              name: customerName,
-              phone: customerPhone,
-              services: booking.services || [],
-              status: normalizeStatus(booking.status),
-              item_prices: itemPrices,
-              vendor: vendorName,
-            } as Booking;
+          console.log('🔍 Attempting wallet lookup with:', {
+            customer_id: editingBooking.customer_id,
+            customer_id_type: typeof editingBooking.customer_id,
+            extracted_id: customerId,
+            phone: editingBooking.phone,
+            userId: userId,
+            booking_id: editingBooking._id,
+            booking_name: editingBooking.name
           });
 
-          allBookings = processedFallbackBookings;
-          toast.info("Using regular bookings API (admin endpoint not available)");
-        } else {
-          toast.error(response.error);
-          allBookings = [];
-        }
-      }
-
-      // Fetch quick-pickup orders
-      try {
-        const quickPickupResponse = await apiClient.adminRequest<{ quickPickups: QuickPickupDetails[] }>("/admin/quick-pickups?limit=100");
-
-        if (quickPickupResponse.data?.quickPickups) {
-          const convertedQuickPickups = quickPickupResponse.data.quickPickups.map(convertQuickPickupToBooking);
-          allBookings = [...allBookings, ...convertedQuickPickups];
-        } else {
-          // Fallback: try to fetch from regular quick-pickup endpoint
-          const quickPickupService = QuickPickupService.getInstance();
-          const quickPickupResponse = await quickPickupService.getCurrentUserQuickPickups();
-
-          if (quickPickupResponse.success && quickPickupResponse.quickPickups) {
-            const convertedQuickPickups = quickPickupResponse.quickPickups.map(convertQuickPickupToBooking);
-            allBookings = [...allBookings, ...convertedQuickPickups];
+          if (!userId) {
+            console.warn('❌ No customer_id or phone available for wallet lookup');
+            setUserWalletBalance(0);
+            return;
           }
+
+          const result = await walletService.getWalletBalance(userId);
+          console.log('💰 Wallet balance response:', {
+            userId,
+            response: result,
+            wallet_balance: result.wallet_balance
+          });
+
+          if (result.success) {
+            setUserWalletBalance(result.wallet_balance || 0);
+          } else {
+            console.warn('⚠️  Wallet fetch returned success: false', result);
+            setUserWalletBalance(0);
+          }
+        } catch (error) {
+          console.warn('❌ Failed to load wallet balance:', error);
+          setUserWalletBalance(0);
+        } finally {
+          setLoadingWallet(false);
         }
-      } catch (qpError) {
-        console.warn("Warning: Could not fetch quick-pickup orders:", qpError);
-        // Continue without quick-pickups, don't fail the entire fetch
-      }
-
-      // Sort all bookings by created_at descending (newest first)
-      allBookings.sort((a, b) => {
-        const dateA = new Date(a.created_at || a.createdAt || 0).getTime();
-        const dateB = new Date(b.created_at || b.createdAt || 0).getTime();
-        return dateB - dateA;
-      });
-
-      setBookings(allBookings);
-      setFilteredBookings(allBookings);
-    } catch (error) {
-      console.error("Error fetching bookings:", error);
-      toast.error("Error fetching bookings");
-    } finally {
-      setLoading(false);
+      };
+      loadWalletBalance();
     }
+  }, [editingBooking?._id, showEditDialog]);
+
+  const rebucketBookings = (bookingsToRebucket: Booking[]) => {
+    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
+    const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+    setBucketA(a);
+    setBucketB(b);
+  };
+
+  const calculateTotalPrice = (orders: Booking[]) => {
+    return orders.reduce((total, order) => {
+      return total + (order.total_price || 0);
+    }, 0);
+  };
+
+  const groupOrdersByVendor = (orders: Booking[]): Record<string, Booking[]> => {
+    return orders.reduce((acc, order) => {
+      const vendorName = order.assignedVendor || "Unassigned";
+      if (!acc[vendorName]) {
+        acc[vendorName] = [];
+      }
+      acc[vendorName].push(order);
+      return acc;
+    }, {} as Record<string, Booking[]>);
   };
 
   const filterBookings = () => {
@@ -770,7 +1059,38 @@ const AdminBookingManagement: React.FC = () => {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === statusFilter);
     }
 
+    filtered.sort((a, b) => {
+      const dateA = getScheduledDateTime(a);
+      const dateB = getScheduledDateTime(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
     setFilteredBookings(filtered);
+    rebucketBookings(bookings);
+  };
+
+  const applyBookingUpdate = (bookingId: string, update: Partial<Booking>) => {
+    setBookings((prev) => {
+      const index = prev.findIndex((b) => b._id === bookingId);
+      if (index !== -1) {
+        const updated = { ...prev[index], ...update };
+        const next = [...prev];
+        next[index] = updated;
+        return next;
+      } else {
+        return [...prev, update as Booking];
+      }
+    });
+  };
+
+  const setMutationFlag = (bookingId: string, key: MutationKey, value: boolean) => {
+    setMutationState((prev) => ({
+      ...prev,
+      [bookingId]: {
+        ...prev[bookingId],
+        [key]: value,
+      },
+    }));
   };
 
   const updateBookingStatus = async (bookingId: string, newStatus: string) => {
@@ -843,7 +1163,6 @@ const AdminBookingManagement: React.FC = () => {
 
         toast.success(successMessage);
 
-        // Trigger immediate polling to sync updates
         setTimeout(() => {
           console.log("🔄 Triggering immediate poll after assignment update");
           setLastPollAt(getISTTimestamp());
@@ -873,33 +1192,30 @@ const AdminBookingManagement: React.FC = () => {
     );
   };
 
-
   const handleItemPriceChange = (index: number, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
     setEditingBooking((prev) => {
       if (!prev) return prev;
 
-      const currentItems = prev.item_prices || [];
-      const nextItems = currentItems.map((item, i) => (i === index ? { ...item } : { ...item }));
-      const nextItem = { ...(nextItems[index] || {}) } as ItemPrice;
+      const currentItems = Array.isArray(prev.item_prices) ? prev.item_prices : [];
+      const nextItems = [...currentItems];
+      const currentItem = nextItems[index] || {};
+      const nextItem = { ...currentItem } as ItemPrice;
 
       if (field === "service_name") {
         nextItem.service_name = rawValue;
-      }
-
-      if (field === "quantity") {
+      } else if (field === "quantity") {
         const parsedQuantity = parseFloat(rawValue);
-        nextItem.quantity = Number.isFinite(parsedQuantity) ? parsedQuantity : 0;
-      }
-
-      if (field === "unit_price") {
+        nextItem.quantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : 1;
+      } else if (field === "unit_price") {
         const parsedPrice = parseFloat(rawValue);
-        nextItem.unit_price = Number.isFinite(parsedPrice) ? parsedPrice : 0;
+        nextItem.unit_price = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
       }
 
-      const quantity = nextItem.quantity ?? 0;
-      const unitPrice = nextItem.unit_price ?? nextItem.price ?? 0;
+      const quantity = Number(nextItem.quantity ?? 1) || 1;
+      const unitPrice = Number(nextItem.unit_price ?? nextItem.price ?? 0) || 0;
 
-      nextItem.total_price = +(Number(quantity || 0) * Number(unitPrice || 0)).toFixed(2);
+      nextItem.total_price = +(quantity * unitPrice).toFixed(2);
+
       nextItems[index] = nextItem;
 
       return {
@@ -933,10 +1249,34 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const computeEditingTotals = (bookingData: Booking | null) => {
-    if (!bookingData) return { total: 0, final: 0 };
+    if (!bookingData) return { total: 0, final: 0, details: { subtotal: 0, cashback: 0, afterCashback: 0, discount: 0 } };
     const items = bookingData.item_prices || [];
-    const subtotal = items.reduce((s, it) => s + (Number(it.total_price) || 0), 0);
-    return { total: +(subtotal).toFixed(2), final: +(subtotal).toFixed(2) };
+    const subtotal = items.reduce((s, it) => {
+      const qty = Number(it.quantity ?? 0) || 0;
+      const unitPrice = Number(it.unit_price ?? it.price ?? 0) || 0;
+      const itemTotal = Number(it.total_price) || (qty * unitPrice);
+      return s + itemTotal;
+    }, 0);
+
+    // Apply cashback first (use new 'cashback' field if available, otherwise fallback to 'cashback_amount')
+    const cashbackAmount = Number((bookingData as any).cashback ?? bookingData.cashback_amount ?? 0) || 0;
+    const afterCashback = subtotal - cashbackAmount;
+
+    // Then apply discount percentage
+    const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
+    const discountAmount = (afterCashback * discountPercent) / 100;
+    const finalAmount = afterCashback - discountAmount;
+
+    return {
+      total: +(subtotal).toFixed(2),
+      final: +(finalAmount).toFixed(2),
+      details: {
+        subtotal: +(subtotal).toFixed(2),
+        cashback: +(cashbackAmount).toFixed(2),
+        afterCashback: +(afterCashback).toFixed(2),
+        discount: +(discountAmount).toFixed(2)
+      }
+    };
   };
 
   if (loading) {
@@ -1024,13 +1364,13 @@ const AdminBookingManagement: React.FC = () => {
           <button onClick={() => setViewMode('pickup')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'pickup' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <MapPin className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Pickup</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredPickupOrders.length}</span>
           </button>
 
           <button onClick={() => setViewMode('ready')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'ready' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <Clock className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Ready/Delivered</span>
-            <span className="ml-2 text-xs text-gray-500">{filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length}</span>
+            <span className="ml-2 text-xs text-gray-500">{filteredReadyOrders.length}</span>
           </button>
         </div>
       </div>
@@ -1038,14 +1378,51 @@ const AdminBookingManagement: React.FC = () => {
       <div className={viewMode === 'both' ? 'grid grid-cols-1 gap-6 lg:grid-cols-2' : 'grid grid-cols-1 gap-6'}>
         {/* Bucket A: Pickup & Vendor Flow */}
         <div className={viewMode === 'ready' ? 'hidden' : ''}>
-          <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
-          <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Pickup / Vendor Flow</h3>
+              <p className="text-sm text-gray-500">Orders currently being picked up or delivered to vendor</p>
+            </div>
+            <div className="text-right bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div className="text-xs text-gray-600 font-medium">Total Value</div>
+              <div className="text-2xl font-bold text-blue-700">₹{calculateTotalPrice(filteredPickupOrders).toLocaleString('en-IN')}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
+            <div className="flex-1">
+              <Label htmlFor="pickup-search">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+                <Input
+                  id="pickup-search"
+                  placeholder="Search by order ID, name, phone, or service..."
+                  value={pickupSearchTerm}
+                  onChange={(e) => setPickupSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="md:w-56">
+              <Label htmlFor="pickup-status-filter">Filter by Status</Label>
+              <Select value={pickupStatusFilter} onValueChange={setPickupStatusFilter}>
+                <SelectTrigger id="pickup-status-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="created">Order Created</SelectItem>
+                  <SelectItem value="vendor_assigned">Vendor Assigned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["created","vendor_assigned"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredPickupOrders.length > 0 ? (
+              filteredPickupOrders.map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
-                    {/* reuse existing booking card layout by calling a small render helper - inline for simplicity */}
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -1060,23 +1437,24 @@ const AdminBookingManagement: React.FC = () => {
                           <Phone className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.phone}</span>
                         </div>
-                        {booking.vendor && (
+                        {booking.assignedVendor && (
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
                       </div>
 
                       <div className="space-y-2">
-                        <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Calendar className="h-4 w-4" />
-                          {formatDate(booking.scheduled_date)}
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          {(booking as any).is_quick_pickup && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Clock className="h-4 w-4" />
-                          {booking.scheduled_time || "-"}
+                          <Calendar className="h-4 w-4" />
+                          {formatScheduledDateTime(booking)}
                         </div>
                       </div>
 
@@ -1092,12 +1470,44 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => {
+                              const message = generateWhatsAppMessage(booking);
+                              sendWhatsAppMessage(booking.phone, message);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100"
+                            onClick={() => {
+                              // Handle both vendor name and vendor ID for backward compatibility
+                              let vendorData = vendorFullData[booking.assignedVendor];
+                              if (!vendorData && booking.assignedVendorId) {
+                                // Try to find by ID if name lookup fails
+                                vendorData = Object.values(vendorFullData).find((v: any) => v.id === booking.assignedVendorId || v._id === booking.assignedVendorId);
+                              }
+                              const vendorGroupLink = booking.vendorGroupLink || vendorData?.whatsapp_group_invite_link;
+                              const message = generatePickupReminder(booking);
+                              setReminderMessage(message);
+                              setReminderType('pickup');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
+                            }}
+                          >
+                            📤 Pickup Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
@@ -1139,11 +1549,50 @@ const AdminBookingManagement: React.FC = () => {
 
         {/* Bucket B: Ready for Delivery */}
         <div className={viewMode === 'pickup' ? 'hidden' : ''}>
-          <h3 className="text-lg font-semibold">Ready for Delivery</h3>
-          <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Ready for Delivery</h3>
+              <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+            </div>
+            <div className="text-right bg-green-50 p-3 rounded-lg border border-green-200">
+              <div className="text-xs text-gray-600 font-medium">Total to Collect</div>
+              <div className="text-2xl font-bold text-green-700">₹{calculateTotalPrice(filteredReadyOrders).toLocaleString('en-IN')}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
+            <div className="flex-1">
+              <Label htmlFor="ready-search">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+                <Input
+                  id="ready-search"
+                  placeholder="Search by order ID, name, phone, or service..."
+                  value={readySearchTerm}
+                  onChange={(e) => setReadySearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="md:w-56">
+              <Label htmlFor="ready-status-filter">Filter by Status</Label>
+              <Select value={readyStatusFilter} onValueChange={setReadyStatusFilter}>
+                <SelectTrigger id="ready-status-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pickup_completed">Pickup Completed</SelectItem>
+                  <SelectItem value="ready_for_delivery">Ready for Delivery</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="mt-3 space-y-4">
-            {filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length > 0 ? (
-              filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).map(booking => (
+            {filteredReadyOrders.length > 0 ? (
+              filteredReadyOrders.map(booking => (
                 <Card key={booking._id} className="transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
@@ -1156,23 +1605,24 @@ const AdminBookingManagement: React.FC = () => {
                           <User className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.name}</span>
                         </div>
-                        {booking.vendor && (
+                        {booking.assignedVendor && (
                           <div className="flex items-center gap-2 mt-1">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.vendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
                       </div>
 
                       <div className="space-y-2">
-                        <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Calendar className="h-4 w-4" />
-                          {formatDate(booking.delivery_date || booking.scheduled_date)}
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          {(booking as any).is_quick_pickup && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Clock className="h-4 w-4" />
-                          {booking.delivery_time || booking.delivery_time === '' ? (booking.delivery_time || "-") : (booking.scheduled_time || "-")}
+                          <Calendar className="h-4 w-4" />
+                          {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
                         </div>
                       </div>
 
@@ -1183,17 +1633,49 @@ const AdminBookingManagement: React.FC = () => {
                         </Badge>
                         <div className="flex items-center gap-2 text-sm">
                           <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                          <span className="font-medium">���{booking.final_amount ?? booking.total_price}</span>
                         </div>
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => {
+                              const message = generateWhatsAppMessage(booking);
+                              sendWhatsAppMessage(booking.phone, message);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100"
+                            onClick={() => {
+                              // Handle both vendor name and vendor ID for backward compatibility
+                              let vendorData = vendorFullData[booking.assignedVendor];
+                              if (!vendorData && booking.assignedVendorId) {
+                                // Try to find by ID if name lookup fails
+                                vendorData = Object.values(vendorFullData).find((v: any) => v.id === booking.assignedVendorId || v._id === booking.assignedVendorId);
+                              }
+                              const vendorGroupLink = booking.vendorGroupLink || vendorData?.whatsapp_group_invite_link;
+                              const message = generateDeliveryReminder(booking);
+                              setReminderMessage(message);
+                              setReminderType('delivery');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
+                            }}
+                          >
+                            🚚 Delivery Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
@@ -1250,25 +1732,78 @@ const AdminBookingManagement: React.FC = () => {
       </div>
 
       {completedOrders.length > 0 && (
-        <div className="mt-6">
+        <div className="mt-6 mb-6">
           <Card>
             <CardContent className="pt-6">
-              <h3 className="text-lg font-semibold mb-2">Completed Orders</h3>
-              <p className="text-sm text-gray-500 mb-3">Recently completed orders (last 20)</p>
-              <div className="space-y-3">
-                {completedOrders.map((booking) => (
-                  <div key={booking._id} className="flex items-center justify-between rounded-md border p-3">
-                    <div className="flex items-center gap-3">
-                      <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                        {getStatusIcon(booking.status)}
-                        <span>{getStatusLabel(booking.status)}</span>
-                      </Badge>
-                      <span className="font-medium">#{booking.custom_order_id}</span>
-                      <span className="text-sm text-gray-600">{booking.name}</span>
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold mb-2">Completed Orders</h3>
+                <p className="text-sm text-gray-500 mb-4">Latest completed orders with search and filtering</p>
+                
+                <div className="flex flex-col gap-4 md:flex-row mb-4">
+                  <div className="flex-1">
+                    <Label htmlFor="completed-search">Search</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+                      <Input
+                        id="completed-search"
+                        placeholder="Search by order ID, name, phone, or service..."
+                        value={completedSearchTerm}
+                        onChange={(e) => setCompletedSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
                     </div>
-                    <div className="text-sm text-gray-700">₹{booking.final_amount ?? booking.total_price}</div>
                   </div>
-                ))}
+                  <div className="md:w-56">
+                    <Label htmlFor="completed-status-filter">Filter by Status</Label>
+                    <Select value={completedStatusFilter} onValueChange={setCompletedStatusFilter}>
+                      <SelectTrigger id="completed-status-filter">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {filteredCompletedOrders.length > 0 ? (
+                  filteredCompletedOrders.map((booking) => (
+                    <div key={booking._id} className="flex items-center justify-between rounded-md border p-3 hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">#{booking.custom_order_id}</span>
+                        <span className="text-sm text-gray-600">{booking.name}</span>
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusLabel(booking.status)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-sm font-medium">₹{booking.final_amount ?? booking.total_price}</div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                          onClick={() => {
+                            const message = generateWhatsAppMessage(booking);
+                            sendWhatsAppMessage(booking.phone, message);
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    {completedOrders.length === 0 ? "No completed orders" : "No orders match your search"}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1278,7 +1813,7 @@ const AdminBookingManagement: React.FC = () => {
       </div>
 
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Booking Details</DialogTitle>
           </DialogHeader>
@@ -1309,133 +1844,6 @@ const AdminBookingManagement: React.FC = () => {
                     </a>
                   </div>
                 </div>
-                <div>
-                  <Label>Customer ID</Label>
-                  <p className="text-sm text-gray-600">
-                    {typeof viewingBooking.customer_id === "object" && viewingBooking.customer_id?._id
-                      ? viewingBooking.customer_id._id
-                      : viewingBooking.customer_id}
-                  </p>
-                </div>
-                <div>
-                  <Label>Payment Status</Label>
-                  <Badge variant={viewingBooking.payment_status === "paid" ? "default" : "secondary"}>
-                    {viewingBooking.payment_status || "pending"}
-                  </Badge>
-                </div>
-                <div>
-                  <Label>Assigned Rider</Label>
-                  <p className="text-sm">{viewingBooking.rider || "Not assigned"}</p>
-                </div>
-                <div>
-                  <Label>Assigned Vendor</Label>
-                  <p className="text-sm">{viewingBooking.vendor || "Not assigned"}</p>
-                </div>
-              </div>
-
-              <StatusFlowIndicator currentStatus={viewingBooking.status} />
-
-              <div className="border-t pt-4">
-                <h4 className="mb-3 flex items-center font-semibold">
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Schedule Details
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Pickup Date</Label>
-                    <p className="font-medium">{formatDate(viewingBooking.scheduled_date)}</p>
-                  </div>
-                  <div>
-                    <Label>Pickup Time</Label>
-                    <p className="font-medium">{viewingBooking.scheduled_time}</p>
-                  </div>
-                  {viewingBooking.delivery_date && (
-                    <div>
-                      <Label>Delivery Date</Label>
-                      <p>{formatDate(viewingBooking.delivery_date)}</p>
-                    </div>
-                  )}
-                  {viewingBooking.delivery_time && (
-                    <div>
-                      <Label>Delivery Time</Label>
-                      <p>{viewingBooking.delivery_time}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <h4 className="mb-3 flex items-center font-semibold">
-                  <MapPin className="mr-2 h-4 w-4" />
-                  Address Details
-                </h4>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-gray-900">{viewingBooking.address}</p>
-                  {viewingBooking.address_details && (
-                    <div className="mt-2 text-sm text-gray-600">
-                      {viewingBooking.address_details.flatNo && (
-                        <span>Flat: {viewingBooking.address_details.flatNo} • </span>
-                      )}
-                      {viewingBooking.address_details.landmark && (
-                        <span>Landmark: {viewingBooking.address_details.landmark} • </span>
-                      )}
-                      {viewingBooking.address_details.type && (
-                        <span>Type: {viewingBooking.address_details.type}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <h4 className="mb-3 flex items-center font-semibold">
-                  <Package className="mr-2 h-4 w-4" />
-                  Service Details
-                </h4>
-                <div className="space-y-3">
-                  <div>
-                    <Label>Primary Service</Label>
-                    <p className="font-medium">{viewingBooking.service}</p>
-                    {viewingBooking.service_type && (
-                      <p className="text-sm text-gray-600">Type: {viewingBooking.service_type}</p>
-                    )}
-                  </div>
-
-                  {viewingBooking.services && viewingBooking.services.length > 0 && (
-                    <div>
-                      <Label>Additional Services</Label>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {viewingBooking.services.map((service, index) => (
-                          <Badge key={index} variant="outline">
-                            {typeof service === "string" ? service : JSON.stringify(service)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {viewingBooking.item_prices && viewingBooking.item_prices.length > 0 && (
-                    <div>
-                      <Label>Service Breakdown</Label>
-                      <div className="mt-2 space-y-2">
-                        {viewingBooking.item_prices.map((item, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between rounded-lg bg-gray-50 p-3"
-                          >
-                            <div>
-                              <p className="font-medium">{item.service_name || item.name}</p>
-                              <p className="text-sm text-gray-600">
-                                Qty: {item.quantity} × ₹{item.unit_price || item.price || 0}
-                              </p>
-                            </div>
-                            <p className="font-semibold">₹{item.total_price || 0}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
 
               <div className="border-t pt-4">
@@ -1448,86 +1856,26 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Total Price:</span>
                     <span className="font-medium">₹{viewingBooking.total_price}</span>
                   </div>
+                  {((viewingBooking as any).discount_percent || 0) > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Discount %:</span>
+                      <span className="font-medium">{(viewingBooking as any).discount_percent}%</span>
+                    </div>
+                  )}
                   {viewingBooking.discount_amount && viewingBooking.discount_amount > 0 && (
                     <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
+                      <span>Discount Amount:</span>
                       <span>-₹{viewingBooking.discount_amount}</span>
-                    </div>
-                  )}
-                  {viewingBooking.coupon_code && (
-                    <div className="flex justify-between text-sm text-gray-600">
-                      <span>Coupon Applied:</span>
-                      <span>{viewingBooking.coupon_code}</span>
-                    </div>
-                  )}
-                  {viewingBooking.charges_breakdown && (
-                    <div className="mt-2 border-t pt-2 text-sm">
-                      {viewingBooking.charges_breakdown.base_price && (
-                        <div className="flex justify-between">
-                          <span>Base Price:</span>
-                          <span>₹{viewingBooking.charges_breakdown.base_price}</span>
-                        </div>
-                      )}
-                      {viewingBooking.charges_breakdown.tax_amount && (
-                        <div className="flex justify-between">
-                          <span>Tax:</span>
-                          <span>₹{viewingBooking.charges_breakdown.tax_amount}</span>
-                        </div>
-                      )}
-                      {viewingBooking.charges_breakdown.service_fee && (
-                        <div className="flex justify-between">
-                          <span>Service Fee:</span>
-                          <span>₹{viewingBooking.charges_breakdown.service_fee}</span>
-                        </div>
-                      )}
-                      {viewingBooking.charges_breakdown.delivery_fee && (
-                        <div className="flex justify-between">
-                          <span>Delivery Fee:</span>
-                          <span>��{viewingBooking.charges_breakdown.delivery_fee}</span>
-                        </div>
-                      )}
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
                     <span>Final Amount:</span>
-                    <span>���{viewingBooking.final_amount}</span>
+                    <span>₹{viewingBooking.final_amount}</span>
                   </div>
-                </div>
-              </div>
-
-              {(viewingBooking.special_instructions || viewingBooking.additional_details) && (
-                <div className="border-t pt-4">
-                  <h4 className="mb-3 font-semibold">Additional Information</h4>
-                  {viewingBooking.special_instructions && (
-                    <div className="mb-2">
-                      <Label>Special Instructions</Label>
-                      <p className="text-gray-700">{viewingBooking.special_instructions}</p>
-                    </div>
-                  )}
-                  {viewingBooking.additional_details && (
-                    <div>
-                      <Label>Additional Details</Label>
-                      <p className="text-gray-700">{viewingBooking.additional_details}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="border-t pt-4">
-                <h4 className="mb-3 font-semibold">Order Timeline</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <Label>Created At</Label>
-                    <p>{formatDate(viewingBooking.created_at)}</p>
-                  </div>
-                  <div>
-                    <Label>Updated At</Label>
-                    <p>{formatDate(viewingBooking.updated_at)}</p>
-                  </div>
-                  {viewingBooking.completed_at && (
-                    <div>
-                      <Label>Completed At</Label>
-                      <p>{formatDate(viewingBooking.completed_at)}</p>
+                  {viewingBooking.wallet_cashback && viewingBooking.wallet_cashback > 0 && (
+                    <div className="flex justify-between border-t pt-2 text-purple-600">
+                      <span>Wallet Cashback:</span>
+                      <span className="font-medium">{viewingBooking.wallet_cashback}% = ₹{((viewingBooking.final_amount || 0) * viewingBooking.wallet_cashback / 100).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
@@ -1538,17 +1886,16 @@ const AdminBookingManagement: React.FC = () => {
       </Dialog>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Booking</DialogTitle>
           </DialogHeader>
           {editingBooking && (
-            <div className="space-y-4" key={editingBooking._id}>
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-status">Status</Label>
                   <Select
-                    id="edit-status"
                     value={normalizeStatus(editingBooking.status)}
                     onValueChange={(value) =>
                       setEditingBooking((prev) =>
@@ -1574,22 +1921,26 @@ const AdminBookingManagement: React.FC = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="edit-amount">Final Amount</Label>
+                  <Label htmlFor="edit-discount">Discount %</Label>
                   <Input
-                    id="edit-amount"
+                    id="edit-discount"
                     type="number"
-                    value={editingBooking.final_amount}
+                    min="0"
+                    max="100"
+                    placeholder="0"
+                    value={editingBooking.discount_percent || ""}
                     onChange={(event) =>
                       setEditingBooking((prev) =>
                         prev
                           ? {
                               ...prev,
-                              final_amount: parseFloat(event.target.value) || 0,
+                              discount_percent: parseFloat(event.target.value) || 0,
                             }
                           : prev,
                       )
                     }
                   />
+                  <p className="text-xs text-gray-500 mt-1">Applied after cashback</p>
                 </div>
                 <div>
                   <Label htmlFor="edit-date">Scheduled Date</Label>
@@ -1668,61 +2019,76 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <Label>Assign Vendor</Label>
-                <Select
-                  value={editingBooking.vendor ?? "__unassigned__"}
-                  onValueChange={(value) =>
-                    setEditingBooking((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            vendor: value === "__unassigned__" ? null : value,
-                          }
-                        : prev,
-                    )
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                    {vendors.length > 0 ? (
-                      vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.name}>
-                          {vendor.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="no-vendors" disabled>
-                        No vendors available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {vendors.length > 0 ? `${vendors.length} vendor(s) available` : 'No saved vendors - create one in Vendors tab'}
-                </p>
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Assign Vendor</Label>
+                  <Select
+                    value={editingBooking.vendor ?? "__unassigned__"}
+                    onValueChange={(value) => {
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              vendor: value === "__unassigned__" ? null : value,
+                            }
+                          : prev,
+                      );
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                      {vendors.length > 0 ? (
+                        vendors
+                          .map((vendor) => {
+                            let distance = Infinity;
+                            const vendorData = vendorFullData[vendor.name];
 
-              <div>
-                <Label htmlFor="edit-address">Address</Label>
-                <Textarea
-                  id="edit-address"
-                  value={editingBooking.address}
-                  onChange={(event) =>
-                    setEditingBooking((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            address: event.target.value,
-                          }
-                        : prev,
-                    )
-                  }
-                  rows={3}
-                />
+                            if (bookingAddressCoords && vendorData && vendorData.coordinates) {
+                              try {
+                                const vendorCoords = vendorData.coordinates;
+                                const R = 6371;
+                                const dLat = (vendorCoords.lat - bookingAddressCoords.lat) * (Math.PI / 180);
+                                const dLng = (vendorCoords.lng - bookingAddressCoords.lng) * (Math.PI / 180);
+                                const a =
+                                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                  Math.cos(bookingAddressCoords.lat * (Math.PI / 180)) * Math.cos(vendorCoords.lat * (Math.PI / 180)) *
+                                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                distance = R * c;
+                              } catch (e) {
+                                distance = Infinity;
+                              }
+                            }
+
+                            return { vendor, distance };
+                          })
+                          .sort((a, b) => a.distance - b.distance)
+                          .slice(0, 10)
+                          .map(({ vendor, distance }) => {
+                            const distanceLabel = distance !== Infinity ? ` • ${distance.toFixed(1)} km` : "";
+                            return (
+                              <SelectItem key={vendor.id} value={vendor.name}>
+                                {vendor.name}{distanceLabel}
+                              </SelectItem>
+                            );
+                          })
+                      ) : (
+                        <SelectItem value="no-vendors" disabled>
+                          No vendors available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editingBooking.distance_to_vendor ? (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <Label className="text-blue-900 text-sm">Distance to Vendor</Label>
+                    <div className="text-lg font-bold text-blue-700 mt-2">{editingBooking.distance_to_vendor.toFixed(2)} km</div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="border-t pt-4">
@@ -1748,9 +2114,8 @@ const AdminBookingManagement: React.FC = () => {
                             {editingBooking.item_prices.map((item, index) => {
                               const displayPrice = item.unit_price ?? item.price ?? 0;
                               const displayTotal = item.total_price ?? (item.quantity ?? 0) * displayPrice;
-                              const itemKey = (item as any)._key || `item-${index}`;
                               return (
-                                <tr key={itemKey} className="border-b hover:bg-gray-50">
+                                <tr key={index} className="border-b hover:bg-gray-50">
                                   <td className="py-3 px-3">
                                     <Select
                                       value={item.service_name || item.name || ""}
@@ -1768,7 +2133,15 @@ const AdminBookingManagement: React.FC = () => {
                                       }}
                                     >
                                       <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue placeholder="Select item" />
+                                        <SelectValue placeholder="Select item">
+                                          {item.service_name || item.name ? (
+                                            <>
+                                              {item.service_name || item.name} — ₹{item.unit_price || item.price || 0}
+                                            </>
+                                          ) : (
+                                            "Select item"
+                                          )}
+                                        </SelectValue>
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="__none__">Select item</SelectItem>
@@ -1824,6 +2197,148 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
+              <div className="border-t pt-4">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  💰 Wallet & Cashback
+                </h4>
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 mb-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* User Wallet Balance */}
+                    <div>
+                      <div className="text-sm text-purple-900 font-semibold mb-1">
+                        User's Wallet Balance
+                      </div>
+                      {loadingWallet ? (
+                        <div className="text-lg font-bold text-purple-700">Loading...</div>
+                      ) : (
+                        <div className="text-2xl font-bold text-green-600">
+                          ₹{userWalletBalance.toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cashback Input */}
+                    <div>
+                      <label className="text-sm text-purple-900 font-semibold mb-1 block">
+                        Cashback for This Order (debits wallet)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBooking.cashback || 0}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          if (value <= userWalletBalance) {
+                            setEditingBooking((prev) =>
+                              prev ? { ...prev, cashback: value } : prev
+                            );
+                          } else {
+                            toast.error("Cashback cannot exceed wallet balance");
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                      />
+                      <div className="text-xs text-purple-600 mt-1">
+                        Max: ₹{userWalletBalance.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet Cashback Percentage Input */}
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <label className="text-sm text-purple-900 font-semibold mb-2 block">
+                      Wallet Cashback Percentage (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={editingBooking.wallet_cashback || 0}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setEditingBooking((prev) =>
+                          prev ? { ...prev, wallet_cashback: Math.min(value, 100) } : prev
+                        );
+                      }}
+                      placeholder="0.0"
+                      className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                    />
+                    {editingBooking.wallet_cashback && editingBooking.wallet_cashback > 0 && (
+                      <div className="mt-2 p-2 bg-purple-100 rounded border border-purple-300">
+                        <div className="text-sm text-purple-900 font-semibold">
+                          Cashback Amount: ₹{((computeEditingTotals(editingBooking).final * editingBooking.wallet_cashback) / 100).toFixed(2)}
+                        </div>
+                        <div className="text-xs text-purple-600 mt-1">
+                          {editingBooking.wallet_cashback}% of ₹{computeEditingTotals(editingBooking).final.toFixed(2)} = credited to wallet after order completion
+                        </div>
+                      </div>
+                    )}
+                    {(!editingBooking.wallet_cashback || editingBooking.wallet_cashback === 0) && (
+                      <div className="text-xs text-purple-600 mt-1">
+                        Enter a percentage (0-100) to give cashback to user's wallet after order completion
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Pricing Summary
+                </h4>
+                <div className="space-y-3 rounded-lg bg-gray-50 p-4">
+                  {/* Subtotal */}
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
+                  </div>
+
+                  {/* Cashback Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Cashback Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Cashback:</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.cashback || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Discount Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Discount Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Discount {editingBooking.discount_percent || 0}%:</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.discount || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* After Cashback */}
+                  {(editingBooking.cashback_amount ?? 0) > 0 && (
+                    <div className="flex justify-between border-t pt-2">
+                      <span>After Cashback:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).details?.afterCashback || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* After Discount */}
+                  {(editingBooking.discount_percent ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span>After Discount:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).final || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* Total / Final Amount */}
+                  <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                    <span>Total:</span>
+                    <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowEditDialog(false)}>
                   Cancel
@@ -1835,7 +2350,6 @@ const AdminBookingManagement: React.FC = () => {
                     }
 
                     try {
-                      // Recompute totals from items
                       const totals = computeEditingTotals(editingBooking);
 
                       const payload: any = {
@@ -1846,66 +2360,36 @@ const AdminBookingManagement: React.FC = () => {
                         scheduled_time: editingBooking.scheduled_time,
                         delivery_date: editingBooking.delivery_date || "",
                         delivery_time: editingBooking.delivery_time || "",
-                        address: editingBooking.address || "",
-                        rider: editingBooking.rider,
                         vendor: editingBooking.vendor,
-                        // Include discount fields if present
-                        discount_amount: (editingBooking as any).discount_amount || 0,
-                        discount_percent: (editingBooking as any).discount_percent || 0,
+                        cashback_amount: editingBooking.cashback_amount || 0,
+                        cashback: editingBooking.cashback || 0,
+                        wallet_cashback: editingBooking.wallet_cashback || 0,
+                        discount_percent: editingBooking.discount_percent || 0,
+                        discount_amount: totals.details?.discount || 0,
+                        coordinates: editingBooking.coordinates,
+                        distance_to_vendor: editingBooking.distance_to_vendor,
                       };
 
-                      // Build services array from item names for backend compatibility
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
                         payload.item_prices = editingBooking.item_prices
                           .filter((it) => it.service_name && it.service_name.trim() !== "")
                           .map((it) => ({
-                            service_name: it.service_name || it.name || "Item",
-                            quantity: it.quantity || 0,
-                            unit_price: it.unit_price || it.price || 0,
-                            total_price: it.total_price || 0,
+                            service_name: it.service_name || it.name,
+                            quantity: it.quantity ?? 1,
+                            unit_price: it.unit_price ?? it.price ?? 0,
+                            total_price: it.total_price || (it.quantity ?? 1) * (it.unit_price ?? it.price ?? 0),
                           }));
-
-                        payload.services = payload.item_prices.map((it) =>
-                          it.quantity > 1 ? `${it.service_name} x${it.quantity}` : it.service_name,
-                        );
-
-                        payload.service = payload.services.join(", ") || "Misc Service";
-                      } else {
-                        // Allow admin to save without services by providing defaults
-                        payload.item_prices = [];
-                        payload.services = ["Misc Service"];
-                        payload.service = "Misc Service";
                       }
 
-                      const response = await apiClient.adminRequest<{ booking?: Booking }>(
-                        `/admin/bookings/${editingBooking._id}`,
-                        {
-                          method: "PUT",
-                          body: payload,
-                        },
-                      );
+                      const response = await apiClient.adminRequest<{ booking?: Booking }>(`/admin/bookings/${editingBooking._id}`, {
+                        method: "PUT",
+                        body: payload,
+                      });
 
                       if (response.data) {
-                        const updatedBooking = response.data.booking;
-
-                        if (updatedBooking) {
-                          applyBookingUpdate(editingBooking._id, {
-                            ...updatedBooking,
-                            status: normalizeStatus(updatedBooking.status),
-                          });
-                        } else {
-                          applyBookingUpdate(editingBooking._id, payload);
-                        }
-
                         toast.success("Booking updated successfully");
+                        applyBookingUpdate(editingBooking._id, response.data.booking || editingBooking);
                         setShowEditDialog(false);
-                        setEditingBooking(null);
-
-                        // Trigger immediate polling to sync updates
-                        setTimeout(() => {
-                          console.log("🔄 Triggering immediate poll after booking edit");
-                          setLastPollAt(getISTTimestamp());
-                        }, 500);
                       } else {
                         toast.error(response.error || "Failed to update booking");
                       }
@@ -1922,6 +2406,15 @@ const AdminBookingManagement: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <ReminderModal
+        isOpen={showReminderModal}
+        onClose={() => setShowReminderModal(false)}
+        title={reminderType === 'pickup' ? 'Pickup Reminder' : 'Delivery Reminder'}
+        message={reminderMessage}
+        vendorGroupLink={reminderVendorGroupLink}
+        reminderType={reminderType}
+      />
     </div>
   );
 };

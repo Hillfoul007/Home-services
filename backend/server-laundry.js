@@ -80,6 +80,22 @@ app.use("/api/auth", (req, res, next) => {
   next();
 });
 
+// Middleware to add cache control headers for PG routes (dynamic data)
+app.use("/api/pg-management", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+// Middleware to add cache control headers for PG orders (dynamic data)
+app.use("/api/pg-orders", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // Additional CORS middleware to ensure headers are always set
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -199,7 +215,10 @@ const connectDB = async () => {
   try {
     // Use production MongoDB URI
     const mongoURI = productionConfig.MONGODB_URI;
-    ("mongodb+srv://sunflower110001:fV4LhLpWlKj5Vx87@cluster0.ic8p792.mongodb.net/cleancare_pro?retryWrites=true&w=majority");
+
+    if (!mongoURI) {
+      throw new Error("MongoDB URI is not configured in environment variables");
+    }
 
     await mongoose.connect(mongoURI);
 
@@ -367,6 +386,16 @@ try {
   console.error("❌ Failed to load Referral routes:", error.message);
 }
 
+// Wallet routes
+try {
+  const walletRoutes = require("./routes/wallet");
+  app.use("/api/wallet", walletRoutes);
+  console.log("🔗 Wallet routes registered at /api/wallet");
+} catch (error) {
+  console.error("❌ Failed to load Wallet routes:", error.message);
+  console.error("❌ Full wallet routes error:", error);
+}
+
 // Admin routes
 try {
   const adminRoutes = require("./routes/admin");
@@ -415,6 +444,34 @@ try {
 } catch (error) {
   console.error("❌ Failed to load Notification routes:", error.message);
   console.error("❌ Full notification routes error:", error);
+}
+
+// Vendor routes
+try {
+  const vendorAuthRoutes = require("./routes/vendor-auth");
+  const vendorOrdersRoutes = require("./routes/vendor-orders");
+
+  app.use("/api/vendor/auth", vendorAuthRoutes);
+  console.log("🔗 Vendor auth routes registered at /api/vendor/auth");
+
+  app.use("/api/vendor/orders", vendorOrdersRoutes);
+  console.log("🔗 Vendor order routes registered at /api/vendor/orders");
+} catch (error) {
+  console.error("❌ Failed to load Vendor routes:", error.message);
+}
+
+// PG (Paying Guest) routes
+try {
+  const pgOrderRoutes = require("./routes/pg-orders");
+  const pgManagementRoutes = require("./routes/pg-management");
+
+  app.use("/api/pg-orders", pgOrderRoutes);
+  console.log("🔗 PG order routes registered at /api/pg-orders");
+
+  app.use("/api/pg-management", pgManagementRoutes);
+  console.log("🔗 PG management routes registered at /api/pg-management");
+} catch (error) {
+  console.error("❌ Failed to load PG routes:", error.message);
 }
 
 // Google Sheets integration removed

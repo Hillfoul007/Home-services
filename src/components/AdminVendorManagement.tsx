@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/apiClient';
 
 interface VendorDetails {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   address: string;
   coordinates: {
@@ -22,8 +23,14 @@ interface VendorDetails {
   services: string[];
   contactPhone?: string;
   rating?: number;
+  whatsapp_group_invite_link?: string;
   isActive: boolean;
 }
+
+// Helper to get vendor ID (handle both id and _id from database)
+const getVendorId = (vendor: VendorDetails): string => {
+  return vendor.id || (vendor._id as string) || '';
+};
 
 interface FormData {
   name: string;
@@ -33,6 +40,7 @@ interface FormData {
   lng: string;
   services: string;
   rating: string;
+  whatsapp_group_invite_link: string;
 }
 
 const AVAILABLE_SERVICES = [
@@ -53,6 +61,8 @@ const AdminVendorManagement: React.FC = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<VendorDetails | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState<{ vendor_id: string; temp_password: string; name?: string } | null>(null);
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     address: '',
@@ -61,6 +71,7 @@ const AdminVendorManagement: React.FC = () => {
     lng: '',
     services: '',
     rating: '4.5',
+    whatsapp_group_invite_link: '',
   });
 
   useEffect(() => {
@@ -72,7 +83,13 @@ const AdminVendorManagement: React.FC = () => {
       setLoading(true);
       const response = await apiClient.adminRequest<{ vendors: VendorDetails[] }>('/admin/vendors');
       if (response.data?.vendors) {
-        setVendors(response.data.vendors);
+        // Normalize vendors to have both id and _id for compatibility
+        const normalizedVendors = response.data.vendors.map((v: any) => ({
+          ...v,
+          id: v.id || v._id,
+          _id: v._id || v.id,
+        }));
+        setVendors(normalizedVendors);
       } else {
         // Fallback: use local vendor data if API doesn't return anything
         setVendors([
@@ -150,6 +167,7 @@ const AdminVendorManagement: React.FC = () => {
           .map((s) => s.trim())
           .filter((s) => s),
         rating: parseFloat(formData.rating),
+        whatsapp_group_invite_link: formData.whatsapp_group_invite_link,
         isActive: true,
       };
 
@@ -178,6 +196,12 @@ const AdminVendorManagement: React.FC = () => {
       return;
     }
 
+    const vendorId = getVendorId(editingVendor);
+    if (!vendorId) {
+      toast.error('Vendor ID is missing');
+      return;
+    }
+
     try {
       const updatedVendor: VendorDetails = {
         ...editingVendor,
@@ -193,15 +217,16 @@ const AdminVendorManagement: React.FC = () => {
           .map((s) => s.trim())
           .filter((s) => s),
         rating: parseFloat(formData.rating),
+        whatsapp_group_invite_link: formData.whatsapp_group_invite_link,
       };
 
-      const response = await apiClient.adminRequest(`/admin/vendors/${editingVendor.id}`, {
+      const response = await apiClient.adminRequest(`/admin/vendors/${vendorId}`, {
         method: 'PUT',
         body: updatedVendor,
       });
 
       if (response.data) {
-        setVendors(vendors.map((v) => (v.id === editingVendor.id ? updatedVendor : v)));
+        setVendors(vendors.map((v) => (getVendorId(v) === vendorId ? updatedVendor : v)));
         toast.success('Vendor updated successfully');
         setIsEditDialogOpen(false);
         setEditingVendor(null);
@@ -215,7 +240,13 @@ const AdminVendorManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteVendor = async (vendorId: string) => {
+  const handleDeleteVendor = async (vendor: VendorDetails) => {
+    const vendorId = getVendorId(vendor);
+    if (!vendorId) {
+      toast.error('Vendor ID is missing');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this vendor?')) {
       return;
     }
@@ -226,7 +257,7 @@ const AdminVendorManagement: React.FC = () => {
       });
 
       if (response.data) {
-        setVendors(vendors.filter((v) => v.id !== vendorId));
+        setVendors(vendors.filter((v) => getVendorId(v) !== vendorId));
         toast.success('Vendor deleted successfully');
       } else {
         toast.error(response.error || 'Failed to delete vendor');
@@ -234,6 +265,31 @@ const AdminVendorManagement: React.FC = () => {
     } catch (error) {
       console.error('Error deleting vendor:', error);
       toast.error('Error deleting vendor');
+    }
+  };
+
+  const handleGenerateCredentials = async (vendor: VendorDetails) => {
+    try {
+      setCredentialsLoading(true);
+      const vendorId = getVendorId(vendor);
+      const response = await apiClient.adminRequest(`/admin/vendors/${vendorId}/generate-credentials`, {
+        method: 'POST',
+      });
+
+      if (response.data?.credentials) {
+        setGeneratedCredentials(response.data.credentials);
+        const message = response.data.message
+          ? 'Existing credentials retrieved'
+          : 'New credentials generated!';
+        toast.success(message);
+      } else {
+        toast.error(response.error || 'Failed to generate credentials');
+      }
+    } catch (error) {
+      console.error('Error generating credentials:', error);
+      toast.error('Error generating credentials');
+    } finally {
+      setCredentialsLoading(false);
     }
   };
 
@@ -246,6 +302,7 @@ const AdminVendorManagement: React.FC = () => {
       lng: '',
       services: '',
       rating: '4.5',
+      whatsapp_group_invite_link: '',
     });
   };
 
@@ -259,6 +316,7 @@ const AdminVendorManagement: React.FC = () => {
       lng: vendor.coordinates.lng.toString(),
       services: vendor.services.join(', '),
       rating: (vendor.rating || 4.5).toString(),
+      whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
     });
     setIsEditDialogOpen(true);
   };
@@ -375,6 +433,15 @@ const AdminVendorManagement: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="vendor-whatsapp">WhatsApp Group Invite Link</Label>
+                    <Input
+                      id="vendor-whatsapp"
+                      placeholder="https://chat.whatsapp.com/..."
+                      value={formData.whatsapp_group_invite_link}
+                      onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
+                    />
+                  </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                       Cancel
@@ -448,7 +515,30 @@ const AdminVendorManagement: React.FC = () => {
                     </div>
                   </div>
 
+                  {vendor.whatsapp_group_invite_link && (
+                    <div className="space-y-2 md:col-span-1 lg:col-span-1">
+                      <div className="text-sm font-medium text-gray-700">WhatsApp Group</div>
+                      <a
+                        href={vendor.whatsapp_group_invite_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-600 hover:underline text-sm font-medium"
+                      >
+                        📱 Join Group
+                      </a>
+                    </div>
+                  )}
+
                   <div className="col-span-1 md:col-span-2 lg:col-span-4 flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleGenerateCredentials(vendor)}
+                      disabled={credentialsLoading}
+                      className="gap-2"
+                    >
+                      {credentialsLoading ? '...' : '🔑'} Credentials
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -461,7 +551,7 @@ const AdminVendorManagement: React.FC = () => {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleDeleteVendor(vendor.id)}
+                      onClick={() => handleDeleteVendor(vendor)}
                       className="gap-2"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -564,12 +654,81 @@ const AdminVendorManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                 />
               </div>
+              <div>
+                <Label htmlFor="edit-vendor-whatsapp">WhatsApp Group Invite Link</Label>
+                <Input
+                  id="edit-vendor-whatsapp"
+                  placeholder="https://chat.whatsapp.com/..."
+                  value={formData.whatsapp_group_invite_link}
+                  onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
+                />
+              </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancel
                 </Button>
                 <Button onClick={handleUpdateVendor}>Update Vendor</Button>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Credentials Display Dialog */}
+      <Dialog open={!!generatedCredentials} onOpenChange={(open) => !open && setGeneratedCredentials(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>🔐 {generatedCredentials?.name || 'Vendor'} Login Credentials</DialogTitle>
+            <DialogDescription>These are the permanent login credentials for this vendor</DialogDescription>
+          </DialogHeader>
+          {generatedCredentials && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Vendor ID</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-white border rounded px-3 py-2 font-mono text-sm break-all">
+                      {generatedCredentials.vendor_id}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.vendor_id);
+                        toast.success('Vendor ID copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">Password</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-white border rounded px-3 py-2 font-mono text-sm break-all">
+                      {generatedCredentials.temp_password}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCredentials.temp_password);
+                        toast.success('Password copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-900">
+                  <strong>✓ Important:</strong> Share these credentials securely with the vendor. They can use the Vendor ID and password to login to their vendor portal. These credentials are saved and will not change unless regenerated.
+                </p>
+              </div>
+              <Button onClick={() => setGeneratedCredentials(null)} className="w-full">
+                Done
+              </Button>
             </div>
           )}
         </DialogContent>

@@ -12,8 +12,6 @@ import RiderOrders from "@/pages/rider/RiderOrders";
 import RiderNotificationsPage from "@/pages/rider/RiderNotificationsPage";
 import RiderHistory from "@/pages/rider/RiderHistory";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import InstallPrompt from "@/components/InstallPrompt";
-import PWAUpdateNotification from "@/components/PWAUpdateNotification";
 import MapsPerformanceIndicator from "@/components/MapsPerformanceIndicator";
 import analyticsService from "@/services/analyticsService";
 
@@ -23,6 +21,11 @@ import {
 } from "@/utils/authPersistence";
 import { initializePWAUpdates } from "@/utils/swCleanup";
 import "@/utils/testEnvironment"; // Auto-run environment tests in development
+import VendorLogin from "@/pages/vendor/VendorLogin";
+import VendorDashboard from "@/pages/vendor/VendorDashboard";
+import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
+import MainWebsite from "@/pages/MainWebsite";
+import PGBooking from "@/pages/PGBooking";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -64,7 +67,8 @@ function App() {
       initializeAuthPersistence();
 
       // Initialize PWA updates and service worker cleanup
-      initializePWAUpdates();
+      // Disabled: causes service worker loading issues
+      // initializePWAUpdates();
 
       // Restore authentication state from localStorage
       await restoreAuthState();
@@ -81,6 +85,7 @@ function App() {
           <div className="App">
             <Routes>
               <Route path="/" element={<LaundryIndex />} />
+              <Route path="/main" element={<MainWebsite />} />
               <Route path="/admin" element={<AdminPortal />} />
               <Route
                 path="/admin/location-config"
@@ -95,12 +100,14 @@ function App() {
               <Route path="/rider/notifications" element={<RiderNotificationsPage />} />
               <Route path="/rider/history" element={<RiderHistory />} />
               <Route path="/rider/profile" element={<RiderDashboard />} />
+              <Route path="/vendor/login" element={<VendorLogin />} />
+              <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+              <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
+              <Route path="/pg-booking" element={<PGBooking />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
             <SonnerToaster />
-            <InstallPrompt />
-            <PWAUpdateNotification />
             <MapsPerformanceIndicator />
           </div>
         </Router>

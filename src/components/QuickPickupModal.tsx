@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { LocationDetectionService } from "@/services/locationDetectionService";
 import LocationUnavailableModal from "./LocationUnavailableModal";
+import { BookingService } from "@/services/bookingService";
 
 interface QuickPickupModalProps {
   isOpen: boolean;
@@ -91,6 +92,9 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
       if (existingStyle) {
         document.head.removeChild(existingStyle);
       }
+
+      // Reset detected coordinates when modal closes
+      setDetectedCoordinates(null);
     }
 
     return () => {
@@ -107,6 +111,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
   const [detectedLocationText, setDetectedLocationText] = useState("");
   const [addressAutoDetected, setAddressAutoDetected] = useState(false);
   const [detectionAccuracy, setDetectionAccuracy] = useState<number | null>(null);
+  const [detectedCoordinates, setDetectedCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [formData, setFormData] = useState({
     pickup_date: "",
     pickup_time: "",
@@ -142,9 +147,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         pickup_time: "", // Reset time when modal opens
       }));
 
-      // Automatically trigger precise location detection when modal opens
-      console.log("🎯 Quick Pickup modal opened - starting auto location detection");
-      autoDetectPreciseLocation();
+      // Fetch last address from previous orders
+      loadLastAddressFromPreviousOrder();
     } else {
       // Reset indicators when modal closes
       setAddressAutoDetected(false);
@@ -152,6 +156,51 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
       setDetectingLocation(false);
     }
   }, [isOpen]);
+
+  // Load last address from user's previous orders
+  const loadLastAddressFromPreviousOrder = async () => {
+    try {
+      if (!currentUser?._id) {
+        console.log("⚠️ No user ID available");
+        return;
+      }
+
+      console.log("📋 Fetching previous orders for user:", currentUser._id);
+
+      const bookingService = BookingService.getInstance();
+      const response = await bookingService.getUserBookings(currentUser._id);
+
+      if (response.success && response.bookings && response.bookings.length > 0) {
+        // Get the most recent booking
+        const lastBooking = response.bookings[0];
+        const lastAddress = typeof lastBooking.address === "object"
+          ? (lastBooking.address.fullAddress ||
+             [lastBooking.address.flatNo, lastBooking.address.street, lastBooking.address.landmark,
+              lastBooking.address.city, lastBooking.address.pincode].filter(Boolean).join(", "))
+          : lastBooking.address;
+
+        if (lastAddress) {
+          console.log("✅ Found last address:", lastAddress);
+          setFormData(prev => ({
+            ...prev,
+            address: lastAddress
+          }));
+          setAddressAutoDetected(true);
+          toast.success("📍 Last address loaded from your previous order");
+          // Don't auto-detect location if we have a previous address
+          return;
+        }
+      }
+
+      // If no previous address found, try to detect current location
+      console.log("⚠️ No previous orders found, detecting current location");
+      autoDetectPreciseLocation();
+    } catch (error) {
+      console.error("Error fetching previous orders:", error);
+      // Fallback to location detection
+      autoDetectPreciseLocation();
+    }
+  };
 
   // Auto-detect precise location when modal opens
   const autoDetectPreciseLocation = async () => {
@@ -203,9 +252,12 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         // Set visual indicators
         setAddressAutoDetected(true);
         setDetectionAccuracy(detectedLocation.accuracy || null);
+        if (detectedLocation.coordinates) {
+          setDetectedCoordinates(detectedLocation.coordinates);
+        }
 
-        // Validate the detected location
-        const isValid = await validatePickupAddress(preciseAddress);
+        // Validate the detected location with coordinates
+        const isValid = await validatePickupAddress(preciseAddress, detectedLocation.coordinates);
         if (isValid) {
           toast.success("📍 Precise location detected and validated!");
         }
@@ -231,7 +283,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
   };
 
   // Validate pickup address using same logic as cart save address with enhanced keywords
-  const validatePickupAddress = async (address: string): Promise<boolean> => {
+  const validatePickupAddress = async (address: string, coordinates?: { lat: number; lng: number }): Promise<boolean> => {
     if (!address.trim()) return true; // Allow empty for now, will be caught by form validation
 
     try {
@@ -248,27 +300,34 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         city = addressLower.includes("gurugram") ? "gurugram" : "gurgaon";
       } else if (addressLower.includes("delhi")) {
         city = "delhi";
+      } else if (addressLower.includes("chandigarh")) {
+        city = "chandigarh";
+      } else if (addressLower.includes("mohali")) {
+        city = "mohali";
+      } else if (addressLower.includes("kharar")) {
+        city = "kharar";
       } else if (addressLower.includes("sector")) {
         // If address contains sector but no specific city, assume Gurugram
         city = "gurugram";
       }
 
-      console.log("🔍 Validating Quick Pickup address:", { address, city, pincode });
+      console.log("🔍 Validating Quick Pickup address:", { address, city, pincode, coordinates });
 
-      // Extended validation - service available in all Gurugram/Gurgaon
-      const validCities = ["gurugram", "gurgaon"];
+      // Service available in Delhi, Gurgaon, Chandigarh, Mohali, Kharar
+      const validCities = ["gurugram", "gurgaon", "delhi", "chandigarh", "mohali", "kharar"];
       const isValidLocation = validCities.some(validCity => addressLower.includes(validCity));
 
       if (isValidLocation) {
-        console.log("✅ Address validated - service available in Gurugram/Gurgaon");
+        console.log("✅ Address validated - service available in this location");
         return true;
       }
 
-      // Fallback to location service check
+      // Fallback to location service check with coordinates support
       const availability = await locationDetectionService.checkLocationAvailability(
         city,
         pincode,
-        address
+        address,
+        coordinates
       );
 
       console.log("✅ Address validation result:", availability);
@@ -336,9 +395,12 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         // Set visual indicators
         setAddressAutoDetected(true);
         setDetectionAccuracy(detectedLocation.accuracy || null);
+        if (detectedLocation.coordinates) {
+          setDetectedCoordinates(detectedLocation.coordinates);
+        }
 
-        // Validate the detected location
-        const isValid = await validatePickupAddress(comprehensiveAddress);
+        // Validate the detected location with coordinates
+        const isValid = await validatePickupAddress(comprehensiveAddress, detectedLocation.coordinates);
         if (isValid) {
           const accuracyText = detectedLocation.accuracy
             ? ` (±${Math.round(detectedLocation.accuracy)}m accuracy)`
@@ -352,7 +414,10 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         const basicLocation = await locationDetectionService.detectLocationGPS();
         if (basicLocation) {
           setFormData(prev => ({ ...prev, address: basicLocation.full_address }));
-          await validatePickupAddress(basicLocation.full_address);
+          if (basicLocation.coordinates) {
+            setDetectedCoordinates(basicLocation.coordinates);
+          }
+          await validatePickupAddress(basicLocation.full_address, basicLocation.coordinates);
           toast.success("📍 Location detected!");
         } else {
           throw new Error("All location detection methods failed");
@@ -410,7 +475,7 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
     }
 
     // Validate pickup address for service availability
-    const isAddressValid = await validatePickupAddress(formData.address);
+    const isAddressValid = await validatePickupAddress(formData.address, detectedCoordinates || undefined);
     if (!isAddressValid) {
       return; // Address validation will show the location unavailable modal
     }
@@ -437,30 +502,36 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
         return;
       }
 
-      const quickPickupData = {
-        customer_id: customerId,
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        pickup_date: formData.pickup_date,
-        pickup_time: formData.pickup_time,
-        house_number: formData.house_number,
+      // Create booking data for quick pickup
+      const bookingData = {
+        userId: customerId,
+        services: ["Quick Pickup"],
+        totalAmount: 0, // Quick pickup pricing will be determined by rider
+        status: "pending" as const,
+        pickupDate: formData.pickup_date,
+        deliveryDate: formData.pickup_date, // Same day delivery for quick pickup
+        pickupTime: formData.pickup_time,
+        deliveryTime: "TBD", // Will be determined by rider
         address: formData.address,
-        status: "pending",
-        created_at: new Date().toISOString(),
-      };
+        contactDetails: {
+          name: customerName,
+          phone: customerPhone,
+          instructions: formData.house_number ? `House/Flat: ${formData.house_number}` : "Quick pickup assessment required",
+        },
+        paymentStatus: "pending" as const,
+        additional_details: "Quick pickup - rider will assess items for pricing",
+        is_quick_pickup: true, // Mark this as a quick pickup order
+      } as any;
 
-      console.log("📋 Submitting quick pickup data:", quickPickupData);
-      console.log("🔧 API Client status:", apiClient.getConnectionStatus());
+      console.log("📋 Submitting quick pickup as booking:", bookingData);
 
-      const response = await apiClient.request<any>("/quick-pickup", {
-        method: "POST",
-        body: quickPickupData,
-      });
+      const bookingService = BookingService.getInstance();
+      const response = await bookingService.createBooking(bookingData);
 
-      console.log("📋 Quick pickup response:", response);
+      console.log("📋 Quick pickup booking response:", response);
 
-      if (response.data) {
-        toast.success("Quick pickup created successfully! Our rider will contact you soon.");
+      if (response.success) {
+        toast.success("Quick pickup scheduled! Our rider will contact you soon.");
         onClose();
         // Reset form
         setFormData({
@@ -469,6 +540,8 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
           house_number: "",
           address: "",
         });
+        // Trigger booking history refresh
+        window.dispatchEvent(new CustomEvent("refreshBookings"));
       } else {
         toast.error(response.error || "Failed to create quick pickup");
       }
@@ -746,14 +819,16 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
                   value={formData.address}
                   onChange={(e) => {
                     setFormData(prev => ({ ...prev, address: e.target.value }));
-                    // Reset auto-detection indicators when user manually edits
+                    // Reset auto-detection indicators and coordinates when user manually edits
                     if (addressAutoDetected) {
                       setAddressAutoDetected(false);
                       setDetectionAccuracy(null);
+                      setDetectedCoordinates(null);
                     }
                   }}
                   onBlur={async (e) => {
                     if (e.target.value.trim()) {
+                      // Don't use old detected coordinates for manual edits - only pass if no manual editing
                       await validatePickupAddress(e.target.value);
                     }
                   }}
@@ -770,17 +845,23 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
                 <Button
                   type="button"
                   variant="outline"
-                  className={`h-12 w-12 border-gray-300 hover:border-purple-500 hover:bg-purple-50 ${
+                  className={`h-12 px-3 border-gray-300 hover:border-purple-500 hover:bg-purple-50 flex items-center gap-2 ${
                     detectingLocation ? 'border-purple-300 bg-purple-50' : ''
                   }`}
                   onClick={detectLocation}
                   disabled={detectingLocation}
-                  title={detectingLocation ? "Detecting precise location..." : "Detect my precise location"}
+                  title={detectingLocation ? "Detecting precise location..." : "Use current location"}
                 >
                   {detectingLocation ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                      <span className="text-xs text-purple-600">Detecting...</span>
+                    </>
                   ) : (
-                    <Navigation className="h-4 w-4 text-purple-600" />
+                    <>
+                      <Navigation className="h-4 w-4 text-purple-600" />
+                      <span className="text-xs text-purple-600 hidden sm:inline">Current</span>
+                    </>
                   )}
                 </Button>
               </div>
@@ -793,13 +874,17 @@ const QuickPickupModal: React.FC<QuickPickupModalProps> = ({
                 <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
                   <CheckCircle className="h-3 w-3" />
                   <span>
-                    ✅ Address auto-detected with precision
+                    ✅ Address loaded {formData.address.includes("detected") ? "from your current location" : "from your last order"}
                     {detectionAccuracy && ` (±${Math.round(detectionAccuracy)}m accuracy)`}
                   </span>
                 </div>
+              ) : formData.address ? (
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 Edit the address or tap "Current" to detect your current location
+                </p>
               ) : (
                 <p className="text-xs text-gray-500 mt-1">
-                  💡 Auto-detection starts when modal opens. For best results, include house/flat number, building name, and landmarks
+                  💡 Tap "Current" to detect your location or enter address manually
                 </p>
               )}
             </div>

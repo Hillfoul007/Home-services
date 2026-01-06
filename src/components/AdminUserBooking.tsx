@@ -17,9 +17,12 @@ import {
   DollarSign,
   CheckCircle,
   AlertCircle,
+  Navigation,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { vendorService } from "@/services/vendorService";
+import { X } from "lucide-react";
 
 interface User {
   _id: string;
@@ -39,6 +42,18 @@ interface ServiceItem {
   category: string;
 }
 
+interface VendorWithDistance {
+  id: string;
+  _id: string;
+  name: string;
+  address: string;
+  phone?: string;
+  coordinates: { lat: number; lng: number };
+  distance: number;
+  estimatedTime?: number;
+  isActive?: boolean;
+}
+
 const AdminUserBooking: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,17 +70,165 @@ const AdminUserBooking: React.FC = () => {
     delivery_time: "",
     address: "",
     special_instructions: "",
-    // discount_percent is the admin input; discount_amount is computed automatically
-    discount_percent: 0,
-    discount_amount: 0,
+    is_quick_pickup: false,
+    assignedVendor: "",
   });
 
+  // Vendor management state
+  const [vendors, setVendors] = useState<VendorWithDistance[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState<VendorWithDistance | null>(null);
 
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
   const [newUserAddress, setNewUserAddress] = useState("");
 
+  // Service selection state
+  const [availableServices] = useState<ServiceItem[]>([
+    { id: "1", name: "Regular Iron", category: "Ironing", quantity: 1, price: 20, unit: "PC" },
+    { id: "2", name: "Men's Suit", category: "Premium", quantity: 1, price: 150, unit: "SET" },
+    { id: "3", name: "Lehenga", category: "Premium", quantity: 1, price: 200, unit: "SET" },
+    { id: "4", name: "Heavy Dresses", category: "Premium", quantity: 1, price: 150, unit: "SET" },
+    { id: "5", name: "Shirt", category: "Regular", quantity: 1, price: 40, unit: "PC" },
+    { id: "6", name: "T-Shirt", category: "Regular", quantity: 1, price: 30, unit: "PC" },
+    { id: "7", name: "Pants", category: "Regular", quantity: 1, price: 50, unit: "PC" },
+    { id: "8", name: "Saree", category: "Premium", quantity: 1, price: 100, unit: "PC" },
+    { id: "9", name: "Bedsheet", category: "Household", quantity: 1, price: 60, unit: "PC" },
+    { id: "10", name: "Curtains", category: "Household", quantity: 1, price: 80, unit: "SET" },
+  ]);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [selectedServiceQuantity, setSelectedServiceQuantity] = useState(1);
+
   const isValidObjectId = (v: string | undefined | null) => !!v && /^[a-fA-F0-9]{24}$/.test(v);
+
+  // Helper function to decode HTML entities
+  const decodeHtmlEntities = (text: string): string => {
+    if (!text) return text;
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  };
+
+  // Add service to booking
+  const addServiceToBooking = () => {
+    if (!selectedServiceId) {
+      toast.error("Please select a service");
+      return;
+    }
+
+    const service = availableServices.find(s => s.id === selectedServiceId);
+    if (!service) {
+      toast.error("Service not found");
+      return;
+    }
+
+    // Check if service already exists
+    const existingService = bookingData.services.find(s => s.id === service.id);
+    if (existingService) {
+      // Update quantity
+      setBookingData(prev => ({
+        ...prev,
+        services: prev.services.map(s =>
+          s.id === service.id
+            ? { ...s, quantity: s.quantity + selectedServiceQuantity }
+            : s
+        ),
+      }));
+    } else {
+      // Add new service
+      setBookingData(prev => ({
+        ...prev,
+        services: [
+          ...prev.services,
+          { ...service, quantity: selectedServiceQuantity },
+        ],
+      }));
+    }
+
+    // Reset selection
+    setSelectedServiceId("");
+    setSelectedServiceQuantity(1);
+    toast.success("Service added to booking");
+  };
+
+  // Remove service from booking
+  const removeServiceFromBooking = (serviceId: string) => {
+    setBookingData(prev => ({
+      ...prev,
+      services: prev.services.filter(s => s.id !== serviceId),
+    }));
+  };
+
+  // Fetch vendors based on address
+  const fetchVendorsForAddress = async (address: string) => {
+    if (!address.trim()) {
+      setVendors([]);
+      setSelectedVendor(null);
+      return;
+    }
+
+    try {
+      setVendorsLoading(true);
+
+      // Fetch all vendors from API
+      const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
+
+      if (response.data && Array.isArray(response.data.vendors)) {
+        // Filter active vendors
+        const vendorsList = response.data.vendors.filter((v: any) => v.is_active !== false);
+
+        // Set vendors in the vendorService to use its distance calculation
+        vendorService.setVendors(
+          vendorsList.map((v: any) => ({
+            id: v._id || v.id,
+            name: v.name,
+            address: v.address,
+            coordinates: v.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: v.services || [],
+            contactPhone: v.phone || v.contactPhone,
+            isActive: v.is_active !== false,
+          }))
+        );
+
+        // Get vendor recommendations with distance using vendorService
+        const vendorsWithDistance = await vendorService.getVendorRecommendations(address);
+
+        // Convert to component format with all needed info
+        const enrichedVendors = vendorsWithDistance.map((vendor) => ({
+          id: vendor.id,
+          _id: vendor.id,
+          name: decodeHtmlEntities(vendor.name),
+          address: decodeHtmlEntities(vendor.address),
+          phone: vendor.contactPhone,
+          coordinates: vendor.coordinates,
+          distance: vendor.distance,
+          estimatedTime: vendor.estimatedTime,
+          isActive: vendor.isActive !== false,
+        })).sort((a, b) => a.distance - b.distance).slice(0, 10);
+
+        setVendors(enrichedVendors);
+
+        // Auto-select nearest vendor
+        if (enrichedVendors.length > 0) {
+          setSelectedVendor(enrichedVendors[0]);
+          setBookingData(prev => ({
+            ...prev,
+            assignedVendor: decodeHtmlEntities(enrichedVendors[0].name),
+            assignedVendorId: enrichedVendors[0].id
+          }));
+        }
+      } else {
+        toast.error('Failed to fetch vendors');
+        setVendors([]);
+      }
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      toast.error('Error fetching vendors for address');
+      setVendors([]);
+    } finally {
+      setVendorsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (searchTerm.length >= 3) {
@@ -127,6 +290,7 @@ const AdminUserBooking: React.FC = () => {
   const selectUser = async (user: User) => {
     setSearchTerm("");
     setUsers([]);
+    setSelectedUser(user);
 
     try {
       const resp = await apiClient.adminRequest<any>(`/admin/users/${encodeURIComponent(user._id)}`);
@@ -136,10 +300,17 @@ const AdminUserBooking: React.FC = () => {
 
         // Autofill latest/default address into booking form
         const defaultAddress = resp.data.defaultAddress || (Array.isArray(resp.data.addresses) && resp.data.addresses[0]);
-        if (defaultAddress && defaultAddress.full_address) {
-          setBookingData((prev) => ({ ...prev, address: defaultAddress.full_address }));
-        } else if (fetchedUser.address) {
-          setBookingData((prev) => ({ ...prev, address: fetchedUser.address }));
+        const finalAddress = (defaultAddress && defaultAddress.full_address) || fetchedUser.address;
+
+        if (finalAddress) {
+          console.log("✅ Autofilling address:", finalAddress);
+          setBookingData((prev) => ({ ...prev, address: finalAddress }));
+          // Fetch vendors for this address
+          await fetchVendorsForAddress(finalAddress);
+        } else {
+          console.warn("⚠️ No address found for user. Please enter address manually.");
+          setVendors([]);
+          setSelectedVendor(null);
         }
 
         return;
@@ -147,9 +318,6 @@ const AdminUserBooking: React.FC = () => {
     } catch (error) {
       console.warn('Failed to fetch user details for autofill', error);
     }
-
-    // Fallback when admin API unavailable
-    setSelectedUser(user);
   };
 
 
@@ -161,14 +329,7 @@ const AdminUserBooking: React.FC = () => {
   };
 
   const calculateFinalAmount = () => {
-    const total = calculateTotal();
-    const percent = Number(bookingData.discount_percent) || 0;
-    const discountAmount = Math.round((total * percent) / 100 * 100) / 100;
-    // keep discount_amount in state in sync
-    if (bookingData.discount_amount !== discountAmount) {
-      setBookingData((prev) => ({ ...prev, discount_amount: discountAmount }));
-    }
-    return Math.max(0, total - discountAmount);
+    return calculateTotal();
   };
 
 
@@ -185,6 +346,11 @@ const AdminUserBooking: React.FC = () => {
 
     if (!bookingData.address.trim()) {
       toast.error("Please enter the pickup address");
+      return;
+    }
+
+    if (!selectedVendor) {
+      toast.error("Please select a vendor for this booking");
       return;
     }
 
@@ -234,13 +400,26 @@ const AdminUserBooking: React.FC = () => {
         }
       }
 
+      // Validate services are added
+      if (bookingData.services.length === 0) {
+        toast.error("Please add at least one service to the booking");
+        setSubmitting(false);
+        return;
+      }
+
       const bookingPayload = {
         customer_id: finalCustomerId,
         name: finalUserName,
         phone: finalUserPhone,
-        service: bookingData.service || bookingData.services[0]?.name || "",
+        service: bookingData.services[0]?.name || "Laundry Service",
         service_type: "laundry",
         services: bookingData.services.map(service => `${service.name} x${service.quantity} (₹${service.price}/${service.unit})`),
+        item_prices: bookingData.services.map((service) => ({
+          service_name: service.name,
+          quantity: service.quantity,
+          unit_price: service.price,
+          total_price: service.quantity * service.price,
+        })),
         scheduled_date: bookingData.scheduled_date,
         scheduled_time: bookingData.scheduled_time,
         delivery_date: bookingData.delivery_date || bookingData.scheduled_date,
@@ -249,14 +428,28 @@ const AdminUserBooking: React.FC = () => {
         address: bookingData.address,
         additional_details: bookingData.special_instructions,
         total_price: calculateTotal(),
-        discount_percent: bookingData.discount_percent || 0,
-        discount_amount: bookingData.discount_amount,
         final_amount: calculateFinalAmount(),
         special_instructions: bookingData.special_instructions,
         created_by_admin: true,
+        is_quick_pickup: bookingData.is_quick_pickup || false,
+        quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
+        assignedVendor: selectedVendor ? decodeHtmlEntities(selectedVendor.name) : "",
+        assignedVendorId: selectedVendor?.id || "",
+        assignedVendorDetails: selectedVendor ? {
+          name: decodeHtmlEntities(selectedVendor.name),
+          address: decodeHtmlEntities(selectedVendor.address),
+          phone: selectedVendor.phone,
+          distance: selectedVendor.distance,
+          estimatedTime: selectedVendor.estimatedTime,
+        } : undefined,
       };
 
-      console.log("Submitting booking:", bookingPayload);
+      console.log("🔍 Submitting booking with services:", {
+        services: bookingPayload.services,
+        item_prices: bookingPayload.item_prices,
+        total_price: bookingPayload.total_price,
+        final_amount: bookingPayload.final_amount,
+      });
 
       // Use real API client with admin authentication
       const response = await apiClient.adminRequest<{booking: any}>("/admin/bookings", {
@@ -271,6 +464,8 @@ const AdminUserBooking: React.FC = () => {
         setSelectedUser(null);
         setNewUserName("");
         setNewUserAddress("");
+        setVendors([]);
+        setSelectedVendor(null);
         setBookingData({
           service: "",
           services: [],
@@ -280,8 +475,8 @@ const AdminUserBooking: React.FC = () => {
           delivery_time: "",
           address: "",
           special_instructions: "",
-          discount_percent: 0,
-          discount_amount: 0,
+          is_quick_pickup: false,
+          assignedVendor: "",
         });
       } else {
         toast.error(`Failed to create booking: ${response.error || "Unknown error"}`);
@@ -351,7 +546,7 @@ const AdminUserBooking: React.FC = () => {
                               {user.name || user.full_name || "Unnamed User"}
                             </div>
                             <div className="text-sm text-gray-600">
-                              📞 {user.phone}
+                              �� {user.phone}
                             </div>
                             {user.email && (
                               <div className="text-sm text-gray-600">
@@ -426,29 +621,67 @@ const AdminUserBooking: React.FC = () => {
                   <AlertDescription>Customer selected successfully!</AlertDescription>
                 </Alert>
                 
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">
-                        {selectedUser.name || selectedUser.full_name || "Unnamed User"}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        📞 {selectedUser.phone}
-                      </div>
-                      {selectedUser.email && (
-                        <div className="text-sm text-gray-600">
-                          ✉️ {selectedUser.email}
+                <div className="space-y-3">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">
+                          {selectedUser.name || selectedUser.full_name || "Unnamed User"}
                         </div>
-                      )}
+                        <div className="text-sm text-gray-600">
+                          📞 {selectedUser.phone}
+                        </div>
+                        {selectedUser.email && (
+                          <div className="text-sm text-gray-600">
+                            ✉️ {selectedUser.email}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedUser(null);
+                          setVendors([]);
+                          setSelectedVendor(null);
+                          setBookingData(prev => ({ ...prev, address: "", assignedVendor: "" }));
+                        }}
+                      >
+                        Change User
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedUser(null)}
-                    >
-                      Change User
-                    </Button>
                   </div>
+
+                  {selectedVendor && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="font-medium text-green-900 mb-3">Assigned Vendor</div>
+                      <div className="space-y-2">
+                        <div className="text-sm">
+                          <span className="font-medium">{selectedVendor.name}</span>
+                        </div>
+                        <div className="text-xs text-gray-700">
+                          📍 {selectedVendor.address}
+                        </div>
+                        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-green-200">
+                          <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                            <Navigation className="h-3 w-3" />
+                            {selectedVendor.distance.toFixed(2)}km away
+                          </Badge>
+                          {selectedVendor.estimatedTime && (
+                            <Badge variant="outline" className="text-xs flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              ~{selectedVendor.estimatedTime}m
+                            </Badge>
+                          )}
+                          {selectedVendor.phone && (
+                            <span className="text-xs text-gray-600">
+                              📞 {selectedVendor.phone}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -546,23 +779,23 @@ const AdminUserBooking: React.FC = () => {
                 </Select>
               </div>
 
-              <div className="md:col-span-2">
-                <Label htmlFor="discount">Discount Percent (%)</Label>
-                <Input
-                  id="discount"
-                  type="number"
-                  min={0}
-                  max={100}
-                  placeholder="0"
-                  value={bookingData.discount_percent || ""}
+
+              <div className="md:col-span-2 flex items-center gap-2">
+                <input
+                  id="quick-pickup"
+                  type="checkbox"
+                  checked={bookingData.is_quick_pickup}
                   onChange={(e) =>
                     setBookingData({
                       ...bookingData,
-                      discount_percent: parseFloat(e.target.value) || 0,
+                      is_quick_pickup: e.target.checked,
                     })
                   }
+                  className="h-4 w-4 rounded border-gray-300"
                 />
-                <p className="text-xs text-gray-500 mt-1">This percentage will be applied to the cart total automatically.</p>
+                <Label htmlFor="quick-pickup" className="mb-0 cursor-pointer">
+                  Mark as Quick Pickup Order 🚀
+                </Label>
               </div>
             </div>
 
@@ -572,12 +805,190 @@ const AdminUserBooking: React.FC = () => {
                 id="address"
                 placeholder="Enter complete pickup address..."
                 value={bookingData.address}
-                onChange={(e) =>
-                  setBookingData({ ...bookingData, address: e.target.value })
-                }
+                onChange={(e) => {
+                  const newAddress = e.target.value;
+                  setBookingData({ ...bookingData, address: newAddress });
+                  // Fetch vendors when address changes
+                  if (newAddress.trim().length > 5) {
+                    fetchVendorsForAddress(newAddress);
+                  }
+                }}
                 rows={3}
               />
             </div>
+
+            {/* Vendor Selection */}
+            <div>
+              <Label htmlFor="vendor-select">Assign Vendor (Allotment)</Label>
+              {vendorsLoading && (
+                <div className="text-sm text-gray-500 py-3 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    Loading vendors...
+                  </div>
+                </div>
+              )}
+
+              {!vendorsLoading && vendors.length > 0 ? (
+                <div className="space-y-3 mt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {vendors.map((vendor) => (
+                      <div
+                        key={vendor.id}
+                        onClick={() => {
+                          setSelectedVendor(vendor);
+                          setBookingData(prev => ({ ...prev, assignedVendor: vendor.id }));
+                        }}
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          selectedVendor?.id === vendor.id
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300 bg-white"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900">{vendor.name}</div>
+                              <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                📍 {vendor.address}
+                              </div>
+                            </div>
+                            {selectedVendor?.id === vendor.id && (
+                              <div className="ml-2">
+                                <CheckCircle className="h-5 w-5 text-blue-600" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap pt-2 border-t">
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Navigation className="h-3 w-3" />
+                              {vendor.distance.toFixed(2)}km
+                            </Badge>
+                            {vendor.estimatedTime && (
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {vendor.estimatedTime}m
+                              </Badge>
+                            )}
+                            {vendor.phone && (
+                              <Badge variant="outline" className="text-xs">
+                                📞 {vendor.phone}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : !vendorsLoading && bookingData.address.trim().length > 0 ? (
+                <Alert className="mt-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    No vendors found for this location. Please enter a different address or check vendor availability.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="text-sm text-gray-500 py-3 text-center">
+                  Enter a pickup address to see available vendors
+                </div>
+              )}
+            </div>
+
+            {/* Services Selection */}
+            <div className="border-t pt-4">
+              <Label className="text-base font-semibold mb-4 block">Select Services</Label>
+
+              <div className="space-y-4">
+                {/* Add Service Section */}
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="service-select">Select Service</Label>
+                      <Select
+                        value={selectedServiceId}
+                        onValueChange={setSelectedServiceId}
+                      >
+                        <SelectTrigger id="service-select">
+                          <SelectValue placeholder="Choose a service..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableServices.map((service) => (
+                            <SelectItem key={service.id} value={service.id}>
+                              {service.name} (₹{service.price}/{service.unit})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="quantity">Quantity</Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        min="1"
+                        value={selectedServiceQuantity}
+                        onChange={(e) => setSelectedServiceQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <Button
+                        onClick={addServiceToBooking}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        Add to Booking
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Added Services List */}
+                {bookingData.services.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Added Services ({bookingData.services.length})</Label>
+                    <div className="space-y-2">
+                      {bookingData.services.map((service) => (
+                        <div
+                          key={service.id}
+                          className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200"
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">
+                              {service.name}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Qty: {service.quantity} × ₹{service.price}/{service.unit} = ₹{(service.quantity * service.price).toFixed(2)}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeServiceFromBooking(service.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {bookingData.services.length === 0 && (
+              <Alert className="border-red-200 bg-red-50">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  ⚠️ At least one service must be added to create a booking. Please select services above.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div>
               <Label htmlFor="instructions">Special Instructions (Optional)</Label>
@@ -595,7 +1006,7 @@ const AdminUserBooking: React.FC = () => {
             <div className="flex justify-end">
               <Button
                 onClick={submitBooking}
-                disabled={submitting}
+                disabled={submitting || bookingData.services.length === 0}
                 className="min-w-32"
               >
                 {submitting ? (

@@ -1,10 +1,16 @@
 const http = require('http');
 const url = require('url');
+const fs = require('fs');
+const path = require('path');
 
 const PORT = 3001;
 
 // In-memory storage for updated orders
 const orderUpdates = new Map();
+
+// Path to frontend dist folder
+const DIST_PATH = path.join(__dirname, 'dist');
+const PUBLIC_PATH = path.join(__dirname, 'public');
 
 // Simple JSON parser for POST requests
 function parseJSON(req, callback) {
@@ -41,10 +47,71 @@ function verifyToken(req) {
   return { riderId: 'demo_rider_123', phone: '9876543210' };
 }
 
+// Serve static files or fall back to index.html for SPA
+function serveStaticOrSPA(pathname, res) {
+  // Try to serve from dist folder first
+  let filePath = path.join(DIST_PATH, pathname);
+
+  // Security: prevent directory traversal
+  if (!filePath.startsWith(DIST_PATH)) {
+    filePath = path.join(DIST_PATH, 'index.html');
+  }
+
+  // Check if file exists
+  try {
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath);
+
+      // If it's a directory, try index.html
+      if (stat.isDirectory()) {
+        filePath = path.join(filePath, 'index.html');
+      }
+
+      // Serve the file
+      if (fs.existsSync(filePath)) {
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        const ext = path.extname(filePath);
+
+        let contentType = 'text/html';
+        if (ext === '.js') contentType = 'application/javascript';
+        else if (ext === '.css') contentType = 'text/css';
+        else if (ext === '.json') contentType = 'application/json';
+        else if (ext === '.svg') contentType = 'image/svg+xml';
+        else if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+        else if (ext === '.gif') contentType = 'image/gif';
+        else if (ext === '.ico') contentType = 'image/x-icon';
+
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(fileContent);
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error(`Error serving file ${filePath}:`, error.message);
+  }
+
+  // Fall back to index.html for SPA routing
+  try {
+    const indexPath = path.join(DIST_PATH, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      const indexContent = fs.readFileSync(indexPath, 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(indexContent);
+      return true;
+    }
+  } catch (error) {
+    console.error(`Error serving index.html:`, error.message);
+  }
+
+  return false;
+}
+
 // Create server
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url, true);
-  const path = parsedUrl.pathname;
+  const pathname = parsedUrl.pathname;
+  const path = pathname;
   const method = req.method;
 
   // Set CORS headers
@@ -578,7 +645,62 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 404 handler
+  // Wallet balance endpoint
+  const walletBalanceMatch = path.match(/^\/api\/wallet\/balance\/(.+)$/);
+  if (walletBalanceMatch && method === 'GET') {
+    const userId = decodeURIComponent(walletBalanceMatch[1]);
+    console.log(`💰 Wallet balance requested for userId: ${userId}`);
+
+    // Mock wallet data for the demo users
+    let walletBalance = 100; // Default balance
+    if (userId === '9717619183' || userId === 'chaman' || userId === 'CHAMAN KATARIA') {
+      walletBalance = 100;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      wallet_balance: walletBalance
+    }));
+    return;
+  }
+
+  // Wallet transactions endpoint
+  const walletTransactionsMatch = path.match(/^\/api\/wallet\/transactions\/(.+)$/);
+  if (walletTransactionsMatch && method === 'GET') {
+    const userId = decodeURIComponent(walletTransactionsMatch[1]);
+    console.log(`📝 Wallet transactions requested for userId: ${userId}`);
+
+    // Mock transactions
+    const transactions = [
+      {
+        type: 'credit',
+        amount: 50,
+        description: 'Cashback from completed order',
+        created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        type: 'credit',
+        amount: 50,
+        description: 'Referral bonus',
+        created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      transactions: transactions
+    }));
+    return;
+  }
+
+  // Try to serve static files or SPA fall back
+  if (serveStaticOrSPA(pathname, res)) {
+    return;
+  }
+
+  // 404 handler - only if not a static file/SPA route
   console.log('⚠️ 404 - Route not found:', path);
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({

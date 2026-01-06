@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
-import { quickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
+import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
+import OrderStatusBar from "@/components/OrderStatusBar";
 
 import {
   createSuccessNotification,
@@ -52,6 +53,7 @@ import {
 import { BookingService } from "@/services/bookingService";
 import EditBookingModal from "./EditBookingModal";
 import { filterProductionBookings } from "@/utils/bookingFilters";
+import { apiClient } from "@/lib/apiClient";
 import {
   getServicePriceWithFallback,
   calculateServiceTotal,
@@ -128,6 +130,8 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 userId: booking.customer_id,
                 services: booking.services || [booking.service],
                 totalAmount: booking.final_amount || booking.total_price,
+                total_price: booking.total_price,
+                final_amount: booking.final_amount,
                 item_prices: booking.item_prices, // Include item prices from database
                 status: booking.status,
                 pickupDate: booking.scheduled_date,
@@ -142,56 +146,83 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                     booking.additional_details || booking.special_instructions,
                 },
                 paymentStatus: booking.payment_status,
+                payment_status: booking.payment_status,
+                discount_amount: booking.discount_amount || 0,
+                coupon_code: booking.coupon_code || null,
+                cashback: booking.cashback || 0,
+                wallet_applied: booking.cashback || 0,
+                wallet_cashback: booking.wallet_cashback || 0,
+                isQuickPickup: booking.is_quick_pickup || false,
+                isPGOrder: false,
                 createdAt: booking.created_at || booking.createdAt,
+                created_at: booking.created_at,
                 updatedAt: booking.updated_at || booking.updatedAt,
+                updated_at: booking.updated_at,
               }),
             );
 
-            // Load real quick pickup orders
-            console.log("Loading quick pickup orders...");
-            let quickPickupOrders = [];
+            console.log(
+              "✅ Loaded bookings from MongoDB (includes quick pickups as bookings):",
+              mongoBookings.length,
+            );
+
+            // Load PG orders for the user
             try {
-              const quickPickupResult = await quickPickupService.getCurrentUserQuickPickups();
-              if (quickPickupResult.success && quickPickupResult.quickPickups) {
-                quickPickupOrders = quickPickupResult.quickPickups.map((qp: any) => ({
-                  id: qp.id,
-                  custom_order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                  order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                  userId: qp.userId,
-                  services: qp.items_collected?.map((item: any) => `${item.name} x${item.quantity}`) || ["Quick Pickup - Items TBD"],
-                  totalAmount: qp.actual_cost || qp.estimated_cost || 0,
-                  item_prices: qp.items_collected || [],
-                  status: qp.status,
-                  pickupDate: qp.pickup_date,
-                  deliveryDate: qp.delivery_date || "TBD",
-                  pickupTime: qp.pickup_time,
-                  deliveryTime: qp.delivery_time || "TBD",
-                  address: qp.address,
+              const pgResponse = await apiClient.request<any>(
+                `/pg-orders/user/${userId}`
+              );
+              // Backend returns { success: true, data: [...] }, so extract the actual array
+              const pgOrdersArray = Array.isArray(pgResponse.data)
+                ? pgResponse.data
+                : (pgResponse.data?.data || []);
+
+              if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
+                const pgOrders = pgOrdersArray.map((pgOrder: any) => ({
+                  id: pgOrder._id,
+                  custom_order_id: pgOrder.custom_order_id,
+                  order_id: pgOrder.custom_order_id,
+                  userId: pgOrder.customer_id,
+                  services: ["Laundry and Iron"],
+                  service: "Laundry and Iron",
+                  totalAmount: pgOrder.final_amount || pgOrder.total_price,
+                  total_price: pgOrder.total_price,
+                  final_amount: pgOrder.final_amount,
+                  item_prices: pgOrder.item_prices,
+                  status: pgOrder.status,
+                  pickupDate: pgOrder.created_at?.split('T')[0],
+                  deliveryDate: pgOrder.created_at?.split('T')[0],
+                  address: `${pgOrder.pg_name}, ${pgOrder.city}`,
+                  pg_name: pgOrder.pg_name,
+                  no_of_items: pgOrder.no_of_items,
                   contactDetails: {
-                    phone: qp.customer_phone,
-                    name: qp.customer_name,
-                    instructions: qp.special_instructions || 'Quick pickup service',
+                    phone: currentUser.phone,
+                    name: currentUser.full_name || currentUser.name,
                   },
-                  paymentStatus: 'pending',
-                  createdAt: qp.createdAt,
-                  updatedAt: qp.updatedAt,
-                  isQuickPickup: true,
-                  quickPickupNote: '🚚 Quick pickup order'
+                  paymentStatus: pgOrder.payment_status,
+                  payment_status: pgOrder.payment_status,
+                  discount_amount: pgOrder.discount_amount || 0,
+                  isPGOrder: true,
+                  createdAt: pgOrder.created_at,
+                  created_at: pgOrder.created_at,
+                  updatedAt: pgOrder.updated_at,
+                  updated_at: pgOrder.updated_at,
                 }));
-                console.log("✅ Loaded real quick pickup orders:", quickPickupOrders.length);
+
+                mongoBookings = [...mongoBookings, ...pgOrders].sort(
+                  (a, b) =>
+                    new Date(b.created_at).getTime() -
+                    new Date(a.created_at).getTime(),
+                );
+
+                console.log(
+                  `✅ Loaded ${pgOrders.length} PG orders for user`,
+                );
               }
-            } catch (error) {
-              console.warn("⚠️ Failed to load quick pickup orders:", error);
+            } catch (pgError) {
+              console.warn("Could not load PG orders, continuing with regular bookings:", pgError);
             }
 
-            // Combine regular bookings with real quick pickup orders
-            const bookingsWithQuickPickup = [...quickPickupOrders, ...mongoBookings];
-
-            console.log(
-              "✅ Loaded bookings from MongoDB (filtered + quick pickup demo):",
-              bookingsWithQuickPickup.length,
-            );
-            setBookings(bookingsWithQuickPickup);
+            setBookings(mongoBookings);
             return;
           }
         }
@@ -204,53 +235,22 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
           // Filter out demo bookings for production
           const productionBookings = filterProductionBookings(
             response.bookings,
-          );
-
-          // Load real quick pickup orders for fallback
-          console.log("Loading quick pickup orders for fallback...");
-          let quickPickupOrders = [];
-          try {
-            const quickPickupResult = await quickPickupService.getCurrentUserQuickPickups();
-            if (quickPickupResult.success && quickPickupResult.quickPickups) {
-              quickPickupOrders = quickPickupResult.quickPickups.map((qp: any) => ({
-                id: qp.id,
-                custom_order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                order_id: qp.custom_order_id || `QP${qp.id.slice(-6).toUpperCase()}`,
-                userId: qp.userId,
-                services: qp.items_collected?.map((item: any) => `${item.name} x${item.quantity}`) || ["Quick Pickup - Items TBD"],
-                totalAmount: qp.actual_cost || qp.estimated_cost || 0,
-                item_prices: qp.items_collected || [],
-                status: qp.status,
-                pickupDate: qp.pickup_date,
-                deliveryDate: qp.delivery_date || "TBD",
-                pickupTime: qp.pickup_time,
-                deliveryTime: qp.delivery_time || "TBD",
-                address: qp.address,
-                contactDetails: {
-                  phone: qp.customer_phone,
-                  name: qp.customer_name,
-                  instructions: qp.special_instructions || 'Quick pickup service',
-                },
-                paymentStatus: 'pending',
-                createdAt: qp.createdAt,
-                updatedAt: qp.updatedAt,
-                isQuickPickup: true,
-                quickPickupNote: '🚚 Quick pickup order'
-              }));
-              console.log("✅ Loaded real quick pickup orders for fallback:", quickPickupOrders.length);
-            }
-          } catch (error) {
-            console.warn("⚠️ Failed to load quick pickup orders for fallback:", error);
-          }
-
-          // Combine regular bookings with real quick pickup orders
-          const bookingsWithQuickPickup = [...quickPickupOrders, ...productionBookings];
+          ).map((booking: any) => ({
+            ...booking,
+            discount_amount: booking.discount_amount || 0,
+            coupon_code: booking.coupon_code || null,
+            cashback: booking.cashback || 0,
+            wallet_applied: booking.cashback || 0,
+            wallet_cashback: booking.wallet_cashback || 0,
+            payment_status: booking.payment_status || booking.paymentStatus,
+            isQuickPickup: booking.is_quick_pickup || false,
+          }));
 
           console.log(
-            "✅ Bookings loaded from BookingService (filtered + real quick pickups):",
-            bookingsWithQuickPickup.length,
+            "✅ Bookings loaded from BookingService (includes quick pickups as bookings):",
+            productionBookings.length,
           );
-          setBookings(bookingsWithQuickPickup);
+          setBookings(productionBookings);
         } else {
           console.log("No bookings found or error:", response.error);
           setBookings([]);
@@ -346,6 +346,40 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
       };
     }, [currentUser]);
 
+    const mapStatusToRiderStatus = (status: string): string => {
+      const statusLower = status?.toLowerCase() || "";
+      switch (statusLower) {
+        case "created":
+          return "unassigned";
+        case "vendor_assigned":
+        case "vendor-assigned":
+        case "pending":
+        case "confirmed":
+          return "assigned";
+        case "pickup_assigned":
+        case "pickup-assigned":
+          return "assigned";
+        case "pickup_completed":
+        case "pickup-completed":
+          return "accepted";
+        case "ready_for_delivery":
+        case "ready-for-delivery":
+        case "delivery_assigned":
+        case "delivery-assigned":
+          return "picked_up";
+        case "in_progress":
+        case "in-progress":
+        case "delivered_to_vendor":
+        case "delivered-to-vendor":
+          return "picked_up";
+        case "delivered":
+        case "completed":
+          return "delivered";
+        default:
+          return "unassigned";
+      }
+    };
+
     const getStatusColor = (status: string) => {
       switch (status?.toLowerCase()) {
         case "pending":
@@ -396,12 +430,42 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         return;
       }
 
-      console.log("🔥 Starting booking cancellation for ID:", bookingId);
+      console.log("�� Starting booking cancellation for ID:", bookingId);
       setCancellingBooking(bookingId);
 
       try {
-        const bookingService = BookingService.getInstance();
-        const result = await bookingService.cancelBooking(bookingId);
+        // Find the booking to check if it's a PG order
+        const booking = bookings.find(
+          (b: any) => b.id === bookingId || b._id === bookingId
+        );
+        const isPGOrder = booking?.isPGOrder || false;
+
+        console.log("📋 Booking details:", { bookingId, isPGOrder, bookingType: isPGOrder ? "PG Order" : "Regular Booking" });
+
+        let result: any;
+
+        if (isPGOrder) {
+          // Use PG orders API endpoint for PG orders
+          console.log("🏢 Using PG orders endpoint to cancel PG order:", bookingId);
+          const response = await apiClient.request<any>(
+            `/pg-orders/${bookingId}/status`,
+            {
+              method: "PATCH",
+              body: { status: "cancelled" },
+            }
+          );
+
+          result = {
+            success: !response.error,
+            error: response.error,
+            data: response.data,
+          };
+        } else {
+          // Use BookingService for regular bookings
+          console.log("📦 Using BookingService to cancel regular booking:", bookingId);
+          const bookingService = BookingService.getInstance();
+          result = await bookingService.cancelBooking(bookingId);
+        }
 
         if (result.success) {
           // Update local state immediately for better UX
@@ -795,15 +859,15 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                           </div>
 
                           {/* Quick Pickup Indicator */}
-                          {booking.isQuickPickup && (
+                          {(booking.isQuickPickup || (booking as any).is_quick_pickup) && (
                             <div className="flex items-center gap-1 mt-1">
-                              <div className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                              <div className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <RefreshCw className="h-3 w-3" />
-                                <span>Quick Pickup</span>
+                                <span>🚀 Quick Pickup</span>
                               </div>
-                              {booking.quickPickupNote && (
-                                <div className="text-xs text-orange-600">
-                                  {booking.quickPickupNote}
+                              {((booking as any).quick_pickup_tag || booking.quickPickupNote) && (
+                                <div className="text-xs text-blue-600 font-medium">
+                                  {(booking as any).quick_pickup_tag || booking.quickPickupNote}
                                 </div>
                               )}
                             </div>
@@ -857,26 +921,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
                           {/* Order placed time */}
                           <div className="text-xs text-gray-500 mt-1">
-                            Ordered:{" "}
-                            {new Date(
-                              booking.created_at ||
-                                booking.createdAt ||
-                                Date.now(),
-                            ).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}{" "}
-                            at{" "}
-                            {new Date(
-                              booking.created_at ||
-                                booking.createdAt ||
-                                Date.now(),
-                            ).toLocaleTimeString("en-IN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            })}
+                            Ordered: {formatDateTimeIST(booking.created_at || booking.createdAt)}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -910,6 +955,13 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                         className="px-3 pb-3 pt-2 space-y-3 bg-white"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        {/* Order Status Bar - Zomato Style */}
+                        <OrderStatusBar
+                          riderStatus={mapStatusToRiderStatus(booking.status)}
+                          bookingStatus={booking.status}
+                          isOrderComplete={booking.status === "completed" || booking.status === "delivered"}
+                        />
+
                         {/* Services Detail */}
                         <div className="bg-blue-50 p-3 rounded-lg">
                           <h4 className="font-semibold text-gray-900 mb-2 text-sm flex items-center gap-2">
@@ -948,25 +1000,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                 Order Placed Date
                               </span>
                               <span className="font-medium">
-                                {new Date(
-                                  booking.created_at ||
-                                    booking.createdAt ||
-                                    Date.now(),
-                                ).toLocaleDateString("en-IN", {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                })}{" "}
-                                at{" "}
-                                {new Date(
-                                  booking.created_at ||
-                                    booking.createdAt ||
-                                    Date.now(),
-                                ).toLocaleTimeString("en-IN", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                })}
+                                {formatDateTimeIST(booking.created_at || booking.createdAt)}
                               </span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
@@ -1129,89 +1163,95 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
                         {/* Price Breakdown */}
                         <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg">
-                          <h4 className="font-semibold text-gray-900 mb-2 text-xs flex items-center gap-2">
-                            <CreditCard className="h-3 w-3 text-green-600" />
+                          <h4 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-green-600" />
                             Price Breakdown
                           </h4>
 
-                          <div className="space-y-1 text-xs">
-                            {/* Calculate service total and delivery fee */}
-                            {(() => {
-                              const handlingFee = 0; // Free handling fee
-                              const serviceTotal = Math.max(
-                                0,
-                                total - handlingFee,
-                              );
-
-                              return (
-                                <>
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-gray-600">
-                                      Services Total
-                                    </span>
-                                    <span className="font-medium">
-                                      ₹{serviceTotal}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-green-600">
-                                      Delivery Fee
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <span className="line-through text-gray-400 text-xs">
-                                        ₹30
-                                      </span>
-                                      <span className="font-medium text-green-600">
-                                        FREE
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-green-600">
-                                      Handling Fee
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <span className="line-through text-gray-400 text-xs">
-                                        ₹9
-                                      </span>
-                                      <span className="font-medium text-green-600">
-                                        FREE
-                                      </span>
-                                    </div>
-                                  </div>
-                                </>
-                              );
-                            })()}
-
-                            {booking.discount_amount &&
-                              booking.discount_amount > 0 && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-green-600">
-                                    Discount
-                                  </span>
-                                  <span className="font-medium text-green-600">
-                                    -₹{booking.discount_amount}
-                                  </span>
-                                </div>
-                              )}
-
-                            <Separator className="my-1" />
-
+                          <div className="space-y-2 text-xs bg-white p-3 rounded-lg">
+                            {/* Services Total */}
                             <div className="flex justify-between items-center">
-                              <span className="font-semibold text-gray-900">
-                                Total Amount
+                              <span className="text-gray-600 font-medium">Services Total</span>
+                              <span className="font-semibold text-gray-900">₹{total}</span>
+                            </div>
+
+                            {/* Delivery Fee */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Delivery Fee</span>
+                              <div className="flex items-center gap-1">
+                                <span className="line-through text-gray-400">₹30</span>
+                                <span className="font-semibold text-green-600">FREE</span>
+                              </div>
+                            </div>
+
+                            {/* Handling Fee */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Handling Fee</span>
+                              <div className="flex items-center gap-1">
+                                <span className="line-through text-gray-400">₹9</span>
+                                <span className="font-semibold text-green-600">FREE</span>
+                              </div>
+                            </div>
+
+                            {/* Discount Amount */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Discount Amount</span>
+                              <span className="font-semibold text-green-600">
+                                {booking.discount_amount && booking.discount_amount > 0
+                                  ? `-₹${booking.discount_amount}`
+                                  : "₹0"}
                               </span>
-                              <span className="font-bold text-green-600">
+                            </div>
+
+                            {/* Coupon Code - Show if discount is applied */}
+                            {booking.discount_amount && booking.discount_amount > 0 && booking.coupon_code && (
+                              <div className="text-xs text-green-600 flex justify-end pl-4">
+                                Code: <span className="font-semibold ml-1">{booking.coupon_code}</span>
+                              </div>
+                            )}
+
+                            {/* Wallet Applied */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Wallet Applied</span>
+                              <span className="font-semibold text-blue-600">
+                                {booking.wallet_applied && booking.wallet_applied > 0
+                                  ? `-₹${booking.wallet_applied.toFixed(2)}`
+                                  : "₹0"}
+                              </span>
+                            </div>
+
+                            {/* Cashback Earned (Wallet Cashback) */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 font-medium">Cashback Earned</span>
+                              <span className="font-semibold text-purple-600">
+                                {(() => {
+                                  let cashbackAmount = booking.wallet_cashback || 0;
+                                  // If wallet_cashback is a percentage (< 100), calculate the actual amount
+                                  if (cashbackAmount > 0 && cashbackAmount < 100) {
+                                    // It's a percentage, calculate actual amount
+                                    const baseAmount = booking.final_amount || booking.total_price || total;
+                                    cashbackAmount = (baseAmount * cashbackAmount) / 100;
+                                  }
+                                  return cashbackAmount > 0
+                                    ? `+₹${parseFloat(cashbackAmount).toFixed(2)}`
+                                    : "₹0";
+                                })()}
+                              </span>
+                            </div>
+
+                            <Separator className="my-2" />
+
+                            {/* Final Total Amount */}
+                            <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-emerald-100 p-2 rounded">
+                              <span className="font-bold text-gray-900">Final Amount</span>
+                              <span className="font-bold text-green-700 text-sm">
                                 ₹{total}
                               </span>
                             </div>
 
-                            <div className="flex justify-between items-center pt-1">
-                              <span className="text-gray-500">
-                                Payment Status
-                              </span>
+                            {/* Payment Status */}
+                            <div className="flex justify-between items-center pt-2">
+                              <span className="text-gray-600 font-medium">Payment Status</span>
                               <Badge
                                 variant={
                                   (booking.payment_status ||

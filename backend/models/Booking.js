@@ -159,6 +159,18 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Discount amount must be non-negative"],
     },
+    // Cashback applied to this booking (deducted from user's wallet)
+    cashback: {
+      type: Number,
+      default: 0,
+      min: [0, "Cashback must be non-negative"],
+    },
+    // Wallet cashback to be credited to user after order completes
+    wallet_cashback: {
+      type: Number,
+      default: 0,
+      min: [0, "Wallet cashback must be non-negative"],
+    },
     coupon_code: {
       type: String,
       default: null,
@@ -249,6 +261,42 @@ const bookingSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
+    },
+    discount_percent: {
+      type: Number,
+      default: 0,
+      min: [0, "Discount percent must be non-negative"],
+      max: [100, "Discount percent cannot exceed 100"],
+    },
+    is_quick_pickup: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    quick_pickup_tag: {
+      type: String,
+      default: null,
+    },
+    items_images: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.ObjectId,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    status_history: {
+      type: [
+        {
+          status: String,
+          changed_at: Date,
+          changed_by: String,
+          vendor_id: mongoose.Schema.Types.ObjectId,
+        },
+      ],
+      default: [],
     },
     completed_at: {
       type: Date,

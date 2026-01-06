@@ -63,6 +63,7 @@ router.post("/", async (req, res) => {
       coupon_code,
       special_instructions,
       charges_breakdown,
+      item_prices: requestItemPrices,
     } = req.body;
 
     // Validation
@@ -445,8 +446,21 @@ router.post("/", async (req, res) => {
     console.log("✅ VALIDATION STEP 5: Customer found/created:", customer._id);
 
     // Prepare item prices for storage
+    // If item_prices are provided in the request, use them directly
+    // Otherwise, create from services array (with defaults)
     let item_prices = [];
-    if (Array.isArray(services)) {
+
+    if (Array.isArray(requestItemPrices) && requestItemPrices.length > 0) {
+      // Use provided item_prices from frontend (which has accurate pricing)
+      item_prices = requestItemPrices.map((item) => ({
+        service_name: item.service_name || item.name || "Item",
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        unit_price: Math.max(0, Number(item.unit_price || item.price) || 0),
+        total_price: Math.max(0, Number(item.total_price) || (Math.max(1, Number(item.quantity) || 1) * (Number(item.unit_price || item.price) || 0))),
+      }));
+      console.log("✅ Using item_prices from request:", item_prices);
+    } else if (Array.isArray(services)) {
+      // Fallback: create from services array (for backward compatibility)
       item_prices = services.map((service) => {
         const serviceName =
           typeof service === "object"
@@ -463,6 +477,7 @@ router.post("/", async (req, res) => {
           total_price: price * quantity,
         };
       });
+      console.log("⚠️ item_prices not provided in request, creating from services:", item_prices);
     }
 
     // Check for potential duplicate bookings (same customer, service, date, time)
@@ -495,6 +510,19 @@ router.post("/", async (req, res) => {
         isDuplicate: true,
       });
     }
+
+    // Recalculate and validate totals based on item_prices
+    const calculatedTotal = item_prices.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
+    const finalTotalPrice = calculatedTotal > 0 ? calculatedTotal : total_price;
+    const finalDiscount = Number(discount_amount) || 0;
+    const finalAmount = Math.max(0, finalTotalPrice - finalDiscount);
+
+    console.log("📊 Final totals calculation:");
+    console.log(`   - Calculated from items: ₹${calculatedTotal}`);
+    console.log(`   - Request total_price: ₹${total_price}`);
+    console.log(`   - Using total_price: ₹${finalTotalPrice}`);
+    console.log(`   - Discount: ₹${finalDiscount}`);
+    console.log(`   - Final amount: ₹${finalAmount}`);
 
     // Create booking with proper customer_id as ObjectId
     // Get Indian Standard Time for timestamps
@@ -531,9 +559,9 @@ router.post("/", async (req, res) => {
       coordinates:
         (addressObject && addressObject.coordinates) || coordinates || {},
       additional_details,
-      total_price,
-      discount_amount: discount_amount || 0,
-      final_amount: final_amount || total_price - (discount_amount || 0),
+      total_price: finalTotalPrice,
+      discount_amount: finalDiscount,
+      final_amount: finalAmount,
       coupon_code: coupon_code || null,
       special_instructions,
       charges_breakdown,
@@ -1270,7 +1298,7 @@ router.put("/:bookingId/status", async (req, res) => {
         const customerReferral = await Referral.findOne({
           referee_id: booking.customer_id._id,
           status: "pending"
-        }).populate('referrer_id', 'name phone email');
+        }).populate('referrer_id', 'name phone email').populate('referee_id', 'name phone email');
 
         if (customerReferral) {
           console.log(`🎉 Found referral for customer ${booking.customer_id.full_name}! Referrer: ${customerReferral.referrer_id.name}`);
@@ -1281,33 +1309,56 @@ router.put("/:bookingId/status", async (req, res) => {
             booking.discount_amount || 0
           );
 
-          // Generate reward coupon for the referrer
-          const rewardCouponCode = Referral.generateRewardCouponCode(customerReferral.referrer_id._id);
+          // Credit wallet for both referrer and referee
+          const referralRewardAmount = 100; // ₹100 for both
+          const referrerId = customerReferral.referrer_id._id;
+          const refereeId = customerReferral.referee_id._id;
+
+          // Credit referrer's wallet
+          const referrerUser = await User.findById(referrerId);
+          if (referrerUser) {
+            referrerUser.wallet_balance = (referrerUser.wallet_balance || 0) + referralRewardAmount;
+            referrerUser.wallet_transactions.push({
+              type: "credit",
+              amount: referralRewardAmount,
+              description: `Referral reward from ${customerReferral.referee_id.name} (${customerReferral.referee_id.phone})`,
+              created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+              referral_id: customerReferral._id
+            });
+            await referrerUser.save();
+            console.log(`✅ Credited ₹${referralRewardAmount} to referrer ${referrerId}`);
+          }
+
+          // Credit referee's wallet
+          const refereeUser = await User.findById(refereeId);
+          if (refereeUser) {
+            refereeUser.wallet_balance = (refereeUser.wallet_balance || 0) + referralRewardAmount;
+            refereeUser.wallet_transactions.push({
+              type: "credit",
+              amount: referralRewardAmount,
+              description: `Referral reward for completing first order`,
+              created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+              referral_id: customerReferral._id
+            });
+            await refereeUser.save();
+            console.log(`✅ Credited ₹${referralRewardAmount} to referee ${refereeId}`);
+          }
 
           // Mark referrer as rewarded
-          await customerReferral.markReferrerRewarded(rewardCouponCode);
+          await customerReferral.markReferrerRewarded(`WALLET_CREDIT_${customerReferral._id}`);
 
-          // Add the reward coupon to the referrer's available coupons
-          await User.findByIdAndUpdate(customerReferral.referrer_id._id, {
-            $push: {
-              available_coupons: {
-                code: rewardCouponCode,
-                type: "referral_reward",
-                discount_percentage: customerReferral.referrer_reward_percentage,
-                max_discount_amount: 500,
-                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
-              }
-            },
+          // Update referral stats
+          await User.findByIdAndUpdate(referrerId, {
             $inc: {
               "referral_stats.successful_referrals": 1,
               "referral_stats.total_rewards_earned": 1
             }
           });
 
-          console.log(`✅ Referral reward processed! Referrer ${customerReferral.referrer_id.name} earned coupon: ${rewardCouponCode}`);
+          console.log(`✅ Referral reward processed! Both referrer and referee earned ₹${referralRewardAmount}`);
 
           // You could trigger a notification here
-          // await sendReferralRewardNotification(customerReferral.referrer_id, rewardCouponCode);
+          // await sendReferralRewardNotification(customerReferral.referrer_id, referralRewardAmount);
 
         } else {
           console.log("ℹ️ No pending referral found for this customer");

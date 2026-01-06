@@ -33,40 +33,11 @@ export class CouponService {
 
   // Get all available coupons
   getAllCoupons(): CouponData[] {
-    return [
-      {
-        code: "FIRST30",
-        discount: 30,
-        maxDiscount: 200,
-        description: "30% off on first order only - one-time use (up to ₹200)",
-        type: "first_order",
-        isFirstOrder: true,
-        isOneTimeUse: true,
-        isActive: true,
-      },
-      {
-        code: "NEW20",
-        discount: 20,
-        maxDiscount: 200,
-        description: "20% off on all orders (up to ₹200)",
-        type: "general",
-        isActive: true,
-      },
-      {
-        code: "FIRST10",
+    return [{
+        code: "FLAT10",
         discount: 10,
         maxDiscount: 200,
-        description: "10% off on first order only - one-time use",
-        type: "first_order",
-        isFirstOrder: true,
-        isOneTimeUse: true,
-        isActive: true,
-      },
-      {
-        code: "SAVE20",
-        discount: 20,
-        maxDiscount: 200,
-        description: "20% off",
+        description: "10% off up to ₹200",
         type: "general",
         isActive: true,
       },
@@ -93,7 +64,7 @@ export class CouponService {
     ) as CouponUsage[];
 
     const hasUsedFirstOrderCoupon = usedCoupons.some(coupon =>
-      coupon.code === "FIRST30"
+      coupon.code === "FIRST10"
     );
 
     return existingBookings.length === 0 && !hasUsedFirstOrderCoupon;
@@ -112,9 +83,9 @@ export class CouponService {
 
     const hasUsedSpecific = usedCoupons.some(usage => usage.code === couponCode);
 
-    // Additional safeguard: Check if FIRST30/FIRST10 has been used across all guest sessions
+    // Additional safeguard: Check if FIRST10 has been used across all guest sessions
     // to prevent guest ID switching abuse
-    if ((couponCode === "FIRST30" || couponCode === "FIRST10") && userId.startsWith('guest_')) {
+    if (couponCode === "FIRST10" && userId.startsWith('guest_')) {
       const allKeys = Object.keys(localStorage);
       const hasUsedAcrossGuests = allKeys.some(key => {
         if (key.startsWith('used_coupons_guest_')) {
@@ -165,10 +136,6 @@ export class CouponService {
       return { valid: false, error: "This coupon is valid for first orders only" };
     }
 
-    // For FIRST30, check if it's been used before
-    if (coupon.code === "FIRST30" && this.hasCouponBeenUsed(coupon.code, userId)) {
-      return { valid: false, error: "This coupon has already been used" };
-    }
 
     // For referral reward coupons, always validate via API
     if (this.isReferralRewardCoupon(couponCode)) {

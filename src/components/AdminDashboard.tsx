@@ -23,19 +23,24 @@ import {
   User,
   Building,
   Package,
+  Home,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
 import AdminUserBooking from "./AdminUserBooking";
 import AdminServiceLocations from "./AdminServiceLocations";
 import AdminVendorManagement from "./AdminVendorManagement";
+import AdminWalletManagement from "./AdminWalletManagement";
+import AdminPGManagement from "./AdminPGManagement";
+import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
+import AdminUsersManagement from "./AdminUsersManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "wallet";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -289,32 +294,88 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       {/* Main Content */}
       <main className="p-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
-          <TabsList className="grid w-full grid-cols-6 mb-6">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <Button
+              onClick={() => setActiveTab("overview")}
+              variant={activeTab === "overview" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <BarChart3 className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="bookings" className="flex items-center gap-2">
+              <span className="hidden sm:inline">Overview</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("bookings")}
+              variant={activeTab === "bookings" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <Calendar className="h-4 w-4" />
-              Bookings
-            </TabsTrigger>
-            <TabsTrigger value="user-booking" className="flex items-center gap-2">
+              <span className="hidden sm:inline">Bookings</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("user-booking")}
+              variant={activeTab === "user-booking" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <User className="h-4 w-4" />
-              Book for User
-            </TabsTrigger>
-            <TabsTrigger value="locations" className="flex items-center gap-2">
+              <span className="hidden sm:inline">Book User</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("locations")}
+              variant={activeTab === "locations" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <MapPin className="h-4 w-4" />
-              Locations
-            </TabsTrigger>
-            <TabsTrigger value="vendors" className="flex items-center gap-2">
+              <span className="hidden sm:inline">Locations</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("vendors")}
+              variant={activeTab === "vendors" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
               <Building className="h-4 w-4" />
-              Vendors
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <Building className="h-4 w-4" />
-              Analytics
-            </TabsTrigger>
-          </TabsList>
+              <span className="hidden sm:inline">Vendors</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("users")}
+              variant={activeTab === "users" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Users</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("pgs")}
+              variant={activeTab === "pgs" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">PGs</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("pg-orders")}
+              variant={activeTab === "pg-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">PG Orders</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("wallet")}
+              variant={activeTab === "wallet" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>💰</span>
+              <span className="hidden sm:inline">Wallet</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("analytics")}
+              variant={activeTab === "analytics" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </Button>
+          </div>
 
           <TabsContent value="overview">
             {renderOverview()}
@@ -333,7 +394,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </TabsContent>
 
           <TabsContent value="vendors">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
+            </div>
             <AdminVendorManagement />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+              <p className="text-purple-900 text-sm"><strong>✓ Users Management:</strong> View all customer accounts and delete users if needed. Deleting a user will also remove all associated bookings.</p>
+            </div>
+            <AdminUsersManagement />
+          </TabsContent>
+
+          <TabsContent value="pgs">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ PG Management:</strong> Create and manage paying guest (PG) locations. Assign vendors to PGs to handle all orders from that location. Set pricing and minimum items per order.</p>
+            </div>
+            <AdminPGManagement />
+          </TabsContent>
+
+          <TabsContent value="pg-orders">
+            <AdminPGOrdersManagement />
+          </TabsContent>
+
+          <TabsContent value="wallet">
+            <AdminWalletManagement />
           </TabsContent>
 
           <TabsContent value="analytics">

@@ -93,10 +93,10 @@ detectedLocationSchema.statics.checkAvailability = function (city, pincode) {
   const normalizedCity = city?.toLowerCase().trim();
   const normalizedPincode = pincode?.trim();
 
-  // Extended service to all of Gurugram/Gurgaon
-  const availableCities = ["gurgaon", "gurugram"];
+  // Service available in Delhi, Gurgaon, Chandigarh, Mohali, Kharar
+  const availableCities = ["gurgaon", "gurugram", "delhi", "chandigarh", "mohali", "kharar"];
 
-  // Check if the city matches Gurgaon or Gurugram
+  // Check if the city matches any available city
   const isAvailableCity = availableCities.some((availableCity) => {
     return normalizedCity?.includes(availableCity);
   });
@@ -104,13 +104,13 @@ detectedLocationSchema.statics.checkAvailability = function (city, pincode) {
   if (isAvailableCity) {
     return {
       is_available: true,
-      message: "Service available in Gurugram/Gurgaon",
+      message: "Service available in your area",
     };
   }
 
   return {
     is_available: false,
-    message: "Service currently available only in Gurugram/Gurgaon area.",
+    message: "Service currently available only in Delhi, Gurgaon, Chandigarh, Mohali, and Kharar.",
   };
 };
 
