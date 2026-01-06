@@ -221,7 +221,11 @@ const ReferralModal: React.FC<ReferralModalProps> = ({
     }
 
     const userName = currentUser?.name || currentUser?.full_name || "Friend";
-    const referralLink = `${window.location.origin}?ref=${referralCode}`;
+    // Link to sign-in page with referral code auto-filled
+    const signInUrl = new URL(window.location.origin);
+    signInUrl.pathname = "/";
+    signInUrl.searchParams.set("ref", referralCode);
+    const referralLink = signInUrl.toString();
 
     const message = `🧺 *Laundrify - Professional Laundry Service*
 
@@ -229,7 +233,7 @@ Hi! I've been using Laundrify for my laundry needs and I absolutely love their s
 
 🎁 *Special Offer for You:*
 Use my referral code: *${referralCode}*
-Get *30% OFF* your first order!
+Get ₹100 in your wallet + 30% OFF your first order!
 
 ✨ Why Laundrify?
 • Professional cleaning & pressing
@@ -237,10 +241,10 @@ Get *30% OFF* your first order!
 • Same-day service available
 • Trusted by thousands
 
-🔗 *Click here to get started:*
+🔗 *Click here to sign up:*
 ${referralLink}
 
-(Your referral code will be automatically applied!)
+(Your referral code will be automatically applied when you sign up!)
 
 Happy cleaning! 🌟
 - ${userName}`;
@@ -349,7 +353,7 @@ Happy cleaning! 🌟
                   <div>
                     <p className="font-semibold text-gray-900">Share your code</p>
                     <p className="text-sm text-gray-600">
-                      Send your unique referral code to friends and family
+                      Send your unique referral code to friends and family via WhatsApp or any platform
                     </p>
                   </div>
                 </div>
@@ -358,9 +362,9 @@ Happy cleaning! 🌟
                     2
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">They get 30% off</p>
+                    <p className="font-semibold text-gray-900">They sign up with your code</p>
                     <p className="text-sm text-gray-600">
-                      Your friends save big on their first laundry order
+                      Your friend signs up using your referral code - they get ₹100 in their wallet
                     </p>
                   </div>
                 </div>
@@ -369,9 +373,9 @@ Happy cleaning! 🌟
                     3
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">You get 50% off</p>
+                    <p className="font-semibold text-gray-900">You both earn ₹100</p>
                     <p className="text-sm text-gray-600">
-                      Earn a 50% discount coupon when their order completes!
+                      When they complete their first order, you both get ₹100 credited to your wallets!
                     </p>
                   </div>
                 </div>
@@ -460,15 +464,15 @@ Happy cleaning! 🌟
                   <Card className="text-center">
                     <CardContent className="p-6">
                       <Users className="h-10 w-10 text-laundrify-purple mx-auto mb-3" />
-                      <p className="text-3xl font-bold text-gray-900">{stats.asReferrer.totalReferrals}</p>
-                      <p className="text-sm text-gray-600 font-medium">Total Referrals</p>
+                      <p className="text-3xl font-bold text-gray-900">{stats.asReferrer.totalReferrals || 0}</p>
+                      <p className="text-sm text-gray-600 font-medium">Friends Referred</p>
                     </CardContent>
                   </Card>
                   <Card className="text-center">
                     <CardContent className="p-6">
                       <Trophy className="h-10 w-10 text-yellow-500 mx-auto mb-3" />
-                      <p className="text-3xl font-bold text-gray-900">{stats.asReferrer.totalRewardsEarned}</p>
-                      <p className="text-sm text-gray-600 font-medium">Rewards Earned</p>
+                      <p className="text-3xl font-bold text-green-600">₹{(stats.asReferrer.completedReferrals || 0) * 100}</p>
+                      <p className="text-sm text-gray-600 font-medium">Wallet Earned</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -482,10 +486,10 @@ Happy cleaning! 🌟
                         <p className="font-semibold">You were referred by</p>
                       </div>
                       <p className="text-xl font-bold text-laundrify-purple">
-                        {stats.asReferee.referrerName}
+                        {stats.asReferee.referrerName || "A Friend"}
                       </p>
                       <Badge variant="secondary" className="mt-2">
-                        Status: {stats.asReferree.status}
+                        Status: {stats.asReferee.status || "Pending"}
                       </Badge>
                     </CardContent>
                   </Card>
