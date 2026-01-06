@@ -464,15 +464,15 @@ Happy cleaning! 🌟
                   <Card className="text-center">
                     <CardContent className="p-6">
                       <Users className="h-10 w-10 text-laundrify-purple mx-auto mb-3" />
-                      <p className="text-3xl font-bold text-gray-900">{stats.asReferrer.totalReferrals}</p>
-                      <p className="text-sm text-gray-600 font-medium">Total Referrals</p>
+                      <p className="text-3xl font-bold text-gray-900">{stats.asReferrer.totalReferrals || 0}</p>
+                      <p className="text-sm text-gray-600 font-medium">Friends Referred</p>
                     </CardContent>
                   </Card>
                   <Card className="text-center">
                     <CardContent className="p-6">
                       <Trophy className="h-10 w-10 text-yellow-500 mx-auto mb-3" />
-                      <p className="text-3xl font-bold text-gray-900">{stats.asReferrer.totalRewardsEarned}</p>
-                      <p className="text-sm text-gray-600 font-medium">Rewards Earned</p>
+                      <p className="text-3xl font-bold text-green-600">₹{(stats.asReferrer.completedReferrals || 0) * 100}</p>
+                      <p className="text-sm text-gray-600 font-medium">Wallet Earned</p>
                     </CardContent>
                   </Card>
                 </div>
