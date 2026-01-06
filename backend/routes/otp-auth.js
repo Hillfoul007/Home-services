@@ -301,6 +301,7 @@ router.post("/register", async (req, res) => {
       user_type = "customer",
       is_verified = true,
       phone_verified = true,
+      referralCode,
     } = req.body;
 
     if (!phone) {
@@ -317,6 +318,7 @@ router.post("/register", async (req, res) => {
     }
 
     let user = await User.findOne({ phone: cleanedPhone });
+    const isNewUser = !user;
 
     if (!user) {
       // Create new user
@@ -325,6 +327,9 @@ router.post("/register", async (req, res) => {
         name: full_name || name || `User ${cleanedPhone.slice(-4)}`,
         email: email || "",
         isVerified: is_verified,
+        user_type: user_type,
+        wallet_balance: 0,
+        wallet_transactions: [],
       });
     } else {
       // Update existing user
@@ -337,6 +342,41 @@ router.post("/register", async (req, res) => {
     await user.save();
     log("User registered/updated:", user.phone);
 
+    // Generate referral code for new users if they don't have one
+    if (isNewUser && !user.referral_code) {
+      try {
+        const Referral = mongoose.model("Referral");
+        const referralCode = Referral.generateReferralCode(user._id);
+        user.referral_code = referralCode;
+        await user.save();
+        log("Generated referral code for new user:", referralCode);
+      } catch (err) {
+        log("Note: Could not generate referral code:", err.message);
+      }
+    }
+
+    // Apply referral code if provided
+    if (referralCode && isNewUser) {
+      try {
+        const Referral = mongoose.model("Referral");
+        const validReferral = await Referral.findValidReferral(referralCode);
+
+        if (validReferral) {
+          // Create referral record
+          const newReferral = new Referral({
+            referrer_id: validReferral.referrer_id,
+            referee_id: user._id,
+            referral_code: referralCode.toUpperCase(),
+            status: "pending"
+          });
+          await newReferral.save();
+          log(`Applied referral code ${referralCode} to new user ${user.phone}`);
+        }
+      } catch (err) {
+        log("Note: Could not apply referral code:", err.message);
+      }
+    }
+
     res.setHeader("Content-Type", "application/json");
     res.status(200).json({
       success: true,
@@ -347,6 +387,7 @@ router.post("/register", async (req, res) => {
         name: user.name,
         email: user.email,
         isVerified: user.isVerified,
+        referral_code: user.referral_code,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
