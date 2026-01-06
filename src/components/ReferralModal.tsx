@@ -486,10 +486,10 @@ Happy cleaning! 🌟
                         <p className="font-semibold">You were referred by</p>
                       </div>
                       <p className="text-xl font-bold text-laundrify-purple">
-                        {stats.asReferee.referrerName}
+                        {stats.asReferee.referrerName || "A Friend"}
                       </p>
                       <Badge variant="secondary" className="mt-2">
-                        Status: {stats.asReferree.status}
+                        Status: {stats.asReferee.status || "Pending"}
                       </Badge>
                     </CardContent>
                   </Card>
