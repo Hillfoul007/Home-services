@@ -221,7 +221,11 @@ const ReferralModal: React.FC<ReferralModalProps> = ({
     }
 
     const userName = currentUser?.name || currentUser?.full_name || "Friend";
-    const referralLink = `${window.location.origin}?ref=${referralCode}`;
+    // Link to sign-in page with referral code auto-filled
+    const signInUrl = new URL(window.location.origin);
+    signInUrl.pathname = "/";
+    signInUrl.searchParams.set("ref", referralCode);
+    const referralLink = signInUrl.toString();
 
     const message = `🧺 *Laundrify - Professional Laundry Service*
 
@@ -229,7 +233,7 @@ Hi! I've been using Laundrify for my laundry needs and I absolutely love their s
 
 🎁 *Special Offer for You:*
 Use my referral code: *${referralCode}*
-Get *30% OFF* your first order!
+Get ₹100 in your wallet + 30% OFF your first order!
 
 ✨ Why Laundrify?
 • Professional cleaning & pressing
@@ -237,10 +241,10 @@ Get *30% OFF* your first order!
 • Same-day service available
 • Trusted by thousands
 
-🔗 *Click here to get started:*
+🔗 *Click here to sign up:*
 ${referralLink}
 
-(Your referral code will be automatically applied!)
+(Your referral code will be automatically applied when you sign up!)
 
 Happy cleaning! 🌟
 - ${userName}`;
