@@ -7,7 +7,7 @@ console.log('🚀 Starting both frontend and backend servers...');
 
 // Start backend first
 console.log('📡 Starting backend server on port 3001...');
-const backendProcess = spawn('node', ['simple-backend.cjs'], {
+const backendProcess = spawn('node', ['backend/server-laundry.js'], {
   stdio: ['pipe', 'pipe', 'pipe'],
   cwd: __dirname
 });
