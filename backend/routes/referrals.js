@@ -292,7 +292,7 @@ router.post("/complete-first-order", async (req, res) => {
     const referral = await Referral.findOne({
       referee_id: userId,
       status: "pending"
-    }).populate('referrer_id', 'name phone email');
+    }).populate('referrer_id', 'name phone email').populate('referee_id', 'name phone email');
 
     if (!referral) {
       console.log(`ℹ️ No pending referral found for user ${userId}`);
@@ -306,16 +306,45 @@ router.post("/complete-first-order", async (req, res) => {
     // Mark first order as completed
     await referral.markFirstOrderCompleted(bookingId, discountApplied || 0);
 
-    // Generate reward coupon for the referrer
-    const rewardCouponCode = Referral.generateRewardCouponCode(referral.referrer_id._id);
+    // Credit wallet for both referrer and referee
+    const referralRewardAmount = 100; // ₹100 for both
+    const referrerId = referral.referrer_id._id;
+    const refereeId = referral.referee_id._id;
+
+    // Credit referrer's wallet
+    const referrerUser = await User.findById(referrerId);
+    if (referrerUser) {
+      referrerUser.wallet_balance = (referrerUser.wallet_balance || 0) + referralRewardAmount;
+      referrerUser.wallet_transactions.push({
+        type: "credit",
+        amount: referralRewardAmount,
+        description: `Referral reward from ${referral.referee_id.name} (${referral.referee_id.phone})`,
+        created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+        referral_id: referral._id
+      });
+      await referrerUser.save();
+      console.log(`✅ Credited ₹${referralRewardAmount} to referrer ${referrerId}`);
+    }
+
+    // Credit referee's wallet
+    const refereeUser = await User.findById(refereeId);
+    if (refereeUser) {
+      refereeUser.wallet_balance = (refereeUser.wallet_balance || 0) + referralRewardAmount;
+      refereeUser.wallet_transactions.push({
+        type: "credit",
+        amount: referralRewardAmount,
+        description: `Referral reward for completing first order`,
+        created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+        referral_id: referral._id
+      });
+      await refereeUser.save();
+      console.log(`✅ Credited ₹${referralRewardAmount} to referee ${refereeId}`);
+    }
 
     // Mark referrer as rewarded
-    await referral.markReferrerRewarded(rewardCouponCode);
+    await referral.markReferrerRewarded(`WALLET_CREDIT_${referral._id}`);
 
-    console.log(`✅ Referral completed! Referrer ${referral.referrer_id.name} earned reward coupon: ${rewardCouponCode}`);
-
-    // Send notification or trigger event for referrer reward
-    // This could be expanded to send email, push notification, etc.
+    console.log(`✅ Referral completed! Referrer ${referral.referrer_id.name} and Referee both earned ₹${referralRewardAmount}`);
 
     res.json({
       success: true,
@@ -324,7 +353,7 @@ router.post("/complete-first-order", async (req, res) => {
       referral: {
         referrerId: referral.referrer_id._id,
         referrerName: referral.referrer_id.name,
-        rewardCouponCode: rewardCouponCode,
+        rewardAmount: referralRewardAmount,
         discountApplied: discountApplied || 0
       }
     });
