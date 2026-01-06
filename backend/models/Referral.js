@@ -158,14 +158,25 @@ referralSchema.methods.markReferrerRewarded = async function(couponCode) {
   return this.save();
 };
 
-// Static method to generate unique referral code
+// Static method to generate unique, never-changing referral code
 referralSchema.statics.generateReferralCode = function(userId) {
-  // Create a referral code based on user ID and timestamp
-  const timestamp = Date.now().toString(36);
-  const userPart = userId.toString().slice(-4);
-  const randomPart = Math.random().toString(36).substr(2, 4).toUpperCase();
-  
-  return `REF${userPart}${timestamp}${randomPart}`.toUpperCase();
+  // Create a deterministic referral code based on user ID only
+  // This ensures the same user always gets the same referral code
+  const userIdStr = userId.toString();
+  const userPart = userIdStr.slice(-6).toUpperCase();
+
+  // Use a simple hash of the user ID for consistency
+  // This ensures the code never changes for the same user
+  const codeHash = userIdStr
+    .split('')
+    .reduce((acc, char) => {
+      return ((acc << 5) - acc) + char.charCodeAt(0);
+    }, 0)
+    .toString(36)
+    .toUpperCase()
+    .slice(-4);
+
+  return `REF${userPart}${codeHash}`.toUpperCase();
 };
 
 // Static method to generate reward coupon code
