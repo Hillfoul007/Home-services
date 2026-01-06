@@ -1298,7 +1298,7 @@ router.put("/:bookingId/status", async (req, res) => {
         const customerReferral = await Referral.findOne({
           referee_id: booking.customer_id._id,
           status: "pending"
-        }).populate('referrer_id', 'name phone email');
+        }).populate('referrer_id', 'name phone email').populate('referee_id', 'name phone email');
 
         if (customerReferral) {
           console.log(`🎉 Found referral for customer ${booking.customer_id.full_name}! Referrer: ${customerReferral.referrer_id.name}`);
@@ -1309,33 +1309,56 @@ router.put("/:bookingId/status", async (req, res) => {
             booking.discount_amount || 0
           );
 
-          // Generate reward coupon for the referrer
-          const rewardCouponCode = Referral.generateRewardCouponCode(customerReferral.referrer_id._id);
+          // Credit wallet for both referrer and referee
+          const referralRewardAmount = 100; // ₹100 for both
+          const referrerId = customerReferral.referrer_id._id;
+          const refereeId = customerReferral.referee_id._id;
+
+          // Credit referrer's wallet
+          const referrerUser = await User.findById(referrerId);
+          if (referrerUser) {
+            referrerUser.wallet_balance = (referrerUser.wallet_balance || 0) + referralRewardAmount;
+            referrerUser.wallet_transactions.push({
+              type: "credit",
+              amount: referralRewardAmount,
+              description: `Referral reward from ${customerReferral.referee_id.name} (${customerReferral.referee_id.phone})`,
+              created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+              referral_id: customerReferral._id
+            });
+            await referrerUser.save();
+            console.log(`✅ Credited ₹${referralRewardAmount} to referrer ${referrerId}`);
+          }
+
+          // Credit referee's wallet
+          const refereeUser = await User.findById(refereeId);
+          if (refereeUser) {
+            refereeUser.wallet_balance = (refereeUser.wallet_balance || 0) + referralRewardAmount;
+            refereeUser.wallet_transactions.push({
+              type: "credit",
+              amount: referralRewardAmount,
+              description: `Referral reward for completing first order`,
+              created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+              referral_id: customerReferral._id
+            });
+            await refereeUser.save();
+            console.log(`✅ Credited ₹${referralRewardAmount} to referee ${refereeId}`);
+          }
 
           // Mark referrer as rewarded
-          await customerReferral.markReferrerRewarded(rewardCouponCode);
+          await customerReferral.markReferrerRewarded(`WALLET_CREDIT_${customerReferral._id}`);
 
-          // Add the reward coupon to the referrer's available coupons
-          await User.findByIdAndUpdate(customerReferral.referrer_id._id, {
-            $push: {
-              available_coupons: {
-                code: rewardCouponCode,
-                type: "referral_reward",
-                discount_percentage: customerReferral.referrer_reward_percentage,
-                max_discount_amount: 500,
-                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
-              }
-            },
+          // Update referral stats
+          await User.findByIdAndUpdate(referrerId, {
             $inc: {
               "referral_stats.successful_referrals": 1,
               "referral_stats.total_rewards_earned": 1
             }
           });
 
-          console.log(`✅ Referral reward processed! Referrer ${customerReferral.referrer_id.name} earned coupon: ${rewardCouponCode}`);
+          console.log(`✅ Referral reward processed! Both referrer and referee earned ₹${referralRewardAmount}`);
 
           // You could trigger a notification here
-          // await sendReferralRewardNotification(customerReferral.referrer_id, rewardCouponCode);
+          // await sendReferralRewardNotification(customerReferral.referrer_id, referralRewardAmount);
 
         } else {
           console.log("ℹ️ No pending referral found for this customer");
