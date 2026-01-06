@@ -353,7 +353,7 @@ Happy cleaning! 🌟
                   <div>
                     <p className="font-semibold text-gray-900">Share your code</p>
                     <p className="text-sm text-gray-600">
-                      Send your unique referral code to friends and family
+                      Send your unique referral code to friends and family via WhatsApp or any platform
                     </p>
                   </div>
                 </div>
@@ -362,9 +362,9 @@ Happy cleaning! 🌟
                     2
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">They get 30% off</p>
+                    <p className="font-semibold text-gray-900">They sign up with your code</p>
                     <p className="text-sm text-gray-600">
-                      Your friends save big on their first laundry order
+                      Your friend signs up using your referral code - they get ₹100 in their wallet
                     </p>
                   </div>
                 </div>
@@ -373,9 +373,9 @@ Happy cleaning! 🌟
                     3
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">You get 50% off</p>
+                    <p className="font-semibold text-gray-900">You both earn ₹100</p>
                     <p className="text-sm text-gray-600">
-                      Earn a 50% discount coupon when their order completes!
+                      When they complete their first order, you both get ₹100 credited to your wallets!
                     </p>
                   </div>
                 </div>
