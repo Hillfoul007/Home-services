@@ -297,27 +297,6 @@ const LaundryIndex = () => {
   };
 
 
-  const checkReferralCodeInUrl = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const refCode = urlParams.get('ref');
-
-    if (refCode && refCode.trim()) {
-      console.log('🎁 Referral code detected in URL:', refCode);
-
-      // Check if user is already logged in
-      if (isLoggedIn && currentUser) {
-        console.log('ℹ️ User already logged in, referral code detected but not auto-opening modal');
-        return;
-      }
-
-      // Add a small delay to ensure the page is fully loaded, then show auth modal
-      setTimeout(() => {
-        console.log('🎁 Auto-opening auth modal for referral code:', refCode);
-        setCurrentView("auth");
-      }, 1000);
-    }
-  };
-
   const checkAuthState = async () => {
     try {
       console.log("🔍 Checking authentication state...");
