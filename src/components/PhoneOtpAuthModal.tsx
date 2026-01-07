@@ -45,19 +45,12 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [referralValidation, setReferralValidation] = useState<{
-    isValid: boolean | null;
-    discount?: number;
-    referrerName?: string;
-    message?: string;
-  }>({ isValid: null });
   const isMobile = useIsMobile();
 
   const [formData, setFormData] = useState({
     phone: "",
     otp: "",
     name: "",
-    referralCode: "",
   });
 
   const dvhostingSmsService = DVHostingSmsService.getInstance();
@@ -72,25 +65,6 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
     window.addEventListener("error", handleError);
     return () => window.removeEventListener("error", handleError);
   }, []);
-
-  // Auto-fill referral code from URL parameter
-  React.useEffect(() => {
-    if (isOpen) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const refCode = urlParams.get('ref');
-
-      if (refCode && refCode.trim()) {
-        console.log('🎁 Auto-filling referral code from URL:', refCode);
-        setFormData(prev => ({
-          ...prev,
-          referralCode: refCode.trim().toUpperCase()
-        }));
-
-        // Validate the referral code automatically
-        validateReferralCode(refCode.trim());
-      }
-    }
-  }, [isOpen]);
 
   // Early return after all hooks are declared
   if (hasError) {
