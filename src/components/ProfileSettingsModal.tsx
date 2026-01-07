@@ -50,6 +50,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
