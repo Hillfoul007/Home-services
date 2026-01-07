@@ -72,6 +72,21 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
     }
   }, [isOpen, currentUser?.phone]);
 
+  const generateFallbackCode = (user: any): string => {
+    // Generate a referral code from phone number: last 6 digits + random suffix
+    let code = "REF";
+    if (user.phone) {
+      // Extract last 6 digits of phone
+      const phoneDigits = user.phone.replace(/\D/g, "").slice(-6);
+      code += phoneDigits;
+    } else if (user._id) {
+      code += user._id.slice(-6).toUpperCase();
+    } else {
+      code += Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+    return code;
+  };
+
   const loadReferralData = async () => {
     if (!currentUser) return;
 
@@ -79,25 +94,79 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
       setLoading(true);
       const userId = currentUser._id || currentUser.phone;
 
-      // Fetch referral code
-      const codeResponse = await fetch(`/api/referral/my-code/${userId}`);
-      const codeData = await codeResponse.json();
-      if (codeData.success) {
-        setReferralCode(codeData.referral_code);
+      // Try to get referral code from user object first
+      let code = currentUser.referral_code;
+
+      // If not in user object, try API
+      if (!code) {
+        try {
+          const codeResponse = await fetch(`/api/referral/my-code/${userId}`);
+          if (codeResponse.ok) {
+            const codeData = await codeResponse.json();
+            if (codeData.success && codeData.referral_code) {
+              code = codeData.referral_code;
+            }
+          }
+        } catch (error) {
+          console.warn("Failed to fetch referral code from API, using fallback:", error);
+        }
       }
+
+      // Generate fallback code if still not available
+      if (!code) {
+        code = generateFallbackCode(currentUser);
+      }
+
+      setReferralCode(code);
 
       // Fetch referral stats
-      const statsResponse = await fetch(`/api/referral/stats/${userId}`);
-      const statsData = await statsResponse.json();
-      if (statsData.success) {
-        setStats(statsData);
+      try {
+        const statsResponse = await fetch(`/api/referral/stats/${userId}`);
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          if (statsData.success) {
+            setStats(statsData);
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to fetch referral stats:", error);
+        // Set default stats
+        setStats({
+          total_referrals: 0,
+          completed_referrals: 0,
+          pending_referrals: 0,
+          earnings: 0,
+          referrals: [],
+        });
       }
 
-      // Fetch share link
-      const linkResponse = await fetch(`/api/referral/share-link/${userId}`);
-      const linkData = await linkResponse.json();
-      if (linkData.success) {
-        setShareLink(linkData);
+      // Fetch share link or generate fallback
+      try {
+        const linkResponse = await fetch(`/api/referral/share-link/${userId}`);
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json();
+          if (linkData.success) {
+            setShareLink(linkData);
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to fetch share link, generating fallback:", error);
+        // Generate fallback share link
+        if (code) {
+          const appUrl = window.location.origin;
+          const shareText = `Hey! 🎉 Join me on Laundrify! Use my referral code *${code}* to get ₹50 bonus on your first order. I'll also earn ₹100 when you complete your first order! 💰`;
+          const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText + `\n\nOpen: ${appUrl}?ref=${code}`)}`;
+          const appLink = `${appUrl}?ref=${code}`;
+          const copyText = `${shareText}\n\n${appLink}`;
+
+          setShareLink({
+            referral_code: code,
+            share_text: shareText,
+            whatsapp_link: whatsappLink,
+            app_link: appLink,
+            copy_text: copyText,
+          });
+        }
       }
     } catch (error) {
       console.error("Error loading referral data:", error);
