@@ -198,24 +198,6 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
           // Silent fail for user save to backend
         }
 
-        // Apply referral code if provided and valid
-        if (formData.referralCode && referralValidation.isValid) {
-          try {
-            const referralResponse = await apiClient.applyReferralCode(
-              formData.referralCode.trim(),
-              result.user._id,
-            );
-            if (referralResponse.data?.success) {
-              setSuccess(
-                `Login successful! ${referralResponse.data.message || "Referral code applied!"}`,
-              );
-            }
-          } catch (referralError) {
-            console.warn("Failed to apply referral code:", referralError);
-            // Don't fail the login if referral application fails
-          }
-        }
-
         onSuccess(result.user);
         onClose();
         resetForm();
