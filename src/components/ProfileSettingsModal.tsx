@@ -403,20 +403,26 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
           </TabsContent>
 
           {/* Refer & Earn Tab */}
-          <TabsContent value="referral" className="flex-1 overflow-hidden">
-            <div className="h-full flex items-center justify-center">
-              <ReferralEarnModal
-                isOpen={activeTab === "referral"}
-                onClose={() => setActiveTab("profile")}
-                currentUser={currentUser}
-              />
-              <div className="text-center">
+          <TabsContent value="referral" className="flex-1 overflow-y-auto">
+            <div className="p-3 max-h-[calc(90vh-180px)]">
+              <div className="flex flex-col items-center justify-center py-8 space-y-6">
+                <div className="rounded-full bg-gradient-to-br from-green-100 to-emerald-100 p-4">
+                  <Gift className="h-10 w-10 text-green-600" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Refer & Earn
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Share your referral code with friends and earn ₹100 for every successful referral
+                  </p>
+                </div>
                 <Button
                   onClick={() => setShowReferralModal(true)}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                 >
-                  <Gift className="h-5 w-5 mr-2" />
-                  Open Refer & Earn
+                  <Gift className="h-4 w-4 mr-2" />
+                  View Refer & Earn Details
                 </Button>
               </div>
             </div>
@@ -428,6 +434,13 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       <SavedAddressesModal
         isOpen={showAddressModal}
         onClose={() => setShowAddressModal(false)}
+        currentUser={currentUser}
+      />
+
+      {/* Refer & Earn Modal */}
+      <ReferralEarnModal
+        isOpen={showReferralModal}
+        onClose={() => setShowReferralModal(false)}
         currentUser={currentUser}
       />
     </Dialog>
