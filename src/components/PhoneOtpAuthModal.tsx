@@ -114,35 +114,6 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
     return phoneRegex.test(phone);
   };
 
-  const validateReferralCode = async (code: string) => {
-    if (!code || code.trim().length === 0) {
-      setReferralValidation({ isValid: null });
-      return;
-    }
-
-    try {
-      const response = await apiClient.validateReferralCode(code.trim());
-      if (response.data && response.data.success) {
-        setReferralValidation({
-          isValid: true,
-          discount: response.data.referral.discount_percentage,
-          referrerName: response.data.referral.referrer_name,
-          message: `Valid! You'll get ${response.data.referral.discount_percentage}% off`,
-        });
-      } else {
-        setReferralValidation({
-          isValid: false,
-          message: response.data?.message || "Invalid referral code",
-        });
-      }
-    } catch (error: any) {
-      setReferralValidation({
-        isValid: false,
-        message: "Unable to validate referral code",
-      });
-    }
-  };
-
   const handleSendOTP = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
