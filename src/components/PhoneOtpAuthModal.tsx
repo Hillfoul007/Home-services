@@ -193,9 +193,10 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
 
         // Save user to MongoDB backend for persistence across sessions
         try {
-          await dvhostingSmsService.saveUserToBackend(result.user);
+          await dvhostingSmsService.saveUserToBackend(result.user, referralCode);
         } catch (userSaveError) {
           // Silent fail for user save to backend
+          console.error("Error saving user to backend:", userSaveError);
         }
 
         onSuccess(result.user);
