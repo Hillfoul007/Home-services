@@ -18,6 +18,7 @@ import {
   createErrorNotification,
 } from "@/utils/notificationUtils";
 import useWalletPolling from "@/hooks/useWalletPolling";
+import { getReferralCodeFromUrl, storeReferralCode, getStoredReferralCode, clearStoredReferralCode } from "@/utils/referralUtils";
 
 // Helper function for coordinate-based location detection (fallback)
 const getCoordinateBasedLocation = (
@@ -214,6 +215,8 @@ const LaundryIndex = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentLocation, setCurrentLocation] = useState<string>("");
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const authService = DVHostingSmsService.getInstance();
@@ -232,6 +235,28 @@ const LaundryIndex = () => {
     initializeApp();
     checkAuthState();
     getUserLocation();
+
+    // Check for referral code in URL
+    const urlReferralCode = getReferralCodeFromUrl();
+    if (urlReferralCode) {
+      console.log("🎁 Referral code found in URL:", urlReferralCode);
+      setReferralCode(urlReferralCode);
+      storeReferralCode(urlReferralCode);
+
+      // If user is not logged in, show auth modal
+      if (!isLoggedIn) {
+        setShowAuthModal(true);
+      }
+
+      // Clean up URL to remove referral parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // Check if there's a stored referral code from earlier
+      const storedCode = getStoredReferralCode();
+      if (storedCode) {
+        setReferralCode(storedCode);
+      }
+    }
 
     // Listen for auth events from other tabs or auth persistence
     const handleAuthLogin = (event: CustomEvent) => {
@@ -1018,9 +1043,29 @@ const getDetailedLocationInfo = async (
                 // Return to the view they were trying to access
                 setCurrentView(previousView);
               }}
+              referralCode={referralCode || undefined}
             />
           </div>
         </div>
+      )}
+
+      {/* Referral Code Auth Modal - shown when referral code is detected */}
+      {showAuthModal && !isLoggedIn && (
+        <PhoneOtpAuthModal
+          isOpen={true}
+          onClose={() => {
+            setShowAuthModal(false);
+            clearStoredReferralCode();
+            setReferralCode(null);
+          }}
+          onSuccess={(user) => {
+            clearStoredReferralCode();
+            setReferralCode(null);
+            setShowAuthModal(false);
+            handleLoginSuccess(user);
+          }}
+          referralCode={referralCode || undefined}
+        />
       )}
 
       {currentView === "bookings" && (
