@@ -101,11 +101,9 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
       phone: "",
       otp: "",
       name: "",
-      referralCode: "",
     });
     setError("");
     setSuccess("");
-    setReferralValidation({ isValid: null });
     setCurrentStep("phone");
   };
 
