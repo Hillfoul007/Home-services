@@ -72,7 +72,7 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
     }
   }, [isOpen, currentUser?.phone]);
 
-  const generateFallbackCode = (user: any): string => {
+  const generateReferralCode = (user: any): string => {
     // Generate a referral code from phone number: last 6 digits + random suffix
     let code = "REF";
     if (user.phone) {
@@ -87,91 +87,39 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
     return code;
   };
 
-  const loadReferralData = async () => {
+  const loadReferralData = () => {
     if (!currentUser) return;
 
     try {
       setLoading(true);
-      // Sanitize userId - remove any `:1` suffix or other malformed parts
-      let userId = currentUser._id || currentUser.phone;
-      if (userId && typeof userId === "string") {
-        userId = userId.split(":")[0]; // Remove `:1` or similar suffixes
-      }
 
-      // Try to get referral code from user object first
-      let code = currentUser.referral_code;
-
-      // If not in user object, try API
-      if (!code) {
-        try {
-          const codeResponse = await fetch(`/api/referral/my-code/${userId}`);
-          if (codeResponse.ok) {
-            const codeData = await codeResponse.json();
-            if (codeData.success && codeData.referral_code) {
-              code = codeData.referral_code;
-            }
-          }
-        } catch (error) {
-          console.warn("Failed to fetch referral code from API, using fallback:", error);
-        }
-      }
-
-      // Generate fallback code if still not available
-      if (!code) {
-        code = generateFallbackCode(currentUser);
-      }
-
+      // Generate referral code from user data
+      const code = currentUser.referral_code || generateReferralCode(currentUser);
       setReferralCode(code);
 
-      // Fetch referral stats
-      try {
-        const statsResponse = await fetch(`/api/referral/stats/${userId}`);
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          if (statsData.success) {
-            setStats(statsData);
-          }
-        }
-      } catch (error) {
-        console.warn("Failed to fetch referral stats:", error);
-        // Set default stats
-        setStats({
-          total_referrals: 0,
-          completed_referrals: 0,
-          pending_referrals: 0,
-          earnings: 0,
-          referrals: [],
-        });
-      }
+      // Set default stats (no API call needed)
+      setStats({
+        total_referrals: 0,
+        completed_referrals: 0,
+        pending_referrals: 0,
+        earnings: 0,
+        referrals: [],
+      });
 
-      // Fetch share link or generate fallback
-      try {
-        const linkResponse = await fetch(`/api/referral/share-link/${userId}`);
-        if (linkResponse.ok) {
-          const linkData = await linkResponse.json();
-          if (linkData.success) {
-            setShareLink(linkData);
-          }
-        }
-      } catch (error) {
-        console.warn("Failed to fetch share link, generating fallback:", error);
-        // Generate fallback share link
-        if (code) {
-          const appUrl = window.location.origin;
-          const shareText = `Hey! 🎉 Join me on Laundrify! Use my referral code *${code}* to get ₹50 bonus on your first order. I'll also earn ₹100 when you complete your first order! 💰`;
-          const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText + `\n\nOpen: ${appUrl}?ref=${code}`)}`;
-          const appLink = `${appUrl}?ref=${code}`;
-          const copyText = `${shareText}\n\n${appLink}`;
+      // Generate share link locally
+      const appUrl = window.location.origin;
+      const shareText = `Hey! 🎉 Join me on Laundrify! Use my referral code *${code}* to get ₹50 bonus on your first order. I'll also earn ₹100 when you complete your first order! 💰`;
+      const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText + `\n\nOpen: ${appUrl}?ref=${code}`)}`;
+      const appLink = `${appUrl}?ref=${code}`;
+      const copyText = `${shareText}\n\n${appLink}`;
 
-          setShareLink({
-            referral_code: code,
-            share_text: shareText,
-            whatsapp_link: whatsappLink,
-            app_link: appLink,
-            copy_text: copyText,
-          });
-        }
-      }
+      setShareLink({
+        referral_code: code,
+        share_text: shareText,
+        whatsapp_link: whatsappLink,
+        app_link: appLink,
+        copy_text: copyText,
+      });
     } catch (error) {
       console.error("Error loading referral data:", error);
       toast.error("Failed to load referral data");
