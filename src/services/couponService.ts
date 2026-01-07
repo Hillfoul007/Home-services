@@ -9,7 +9,6 @@ interface CouponData {
   excludeFirstOrder?: boolean;
   minimumAmount?: number;
   isActive: boolean;
-  isReferralReward?: boolean;
 }
 
 interface CouponUsage {
@@ -42,11 +41,6 @@ export class CouponService {
         isActive: true,
       },
     ];
-  }
-
-  // Check if a coupon is a referral reward coupon
-  isReferralRewardCoupon(couponCode: string): boolean {
-    return couponCode.toUpperCase().startsWith('REWARD');
   }
 
   // Check if user is a first-time user
@@ -136,19 +130,6 @@ export class CouponService {
       return { valid: false, error: "This coupon is valid for first orders only" };
     }
 
-
-    // For referral reward coupons, always validate via API
-    if (this.isReferralRewardCoupon(couponCode)) {
-      // Referral reward coupons need backend validation
-      // Return tentative approval, actual validation happens in validateCouponAsync
-      return { valid: true, coupon: {
-        ...coupon,
-        code: couponCode.toUpperCase(),
-        type: "referral_reward",
-        isReferralReward: true,
-        description: "Referral reward coupon - validating..."
-      }};
-    }
 
     return { valid: true, coupon };
   }

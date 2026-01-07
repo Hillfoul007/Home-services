@@ -99,45 +99,7 @@ const userSchema = new mongoose.Schema(
       discountAmount: Number,
     }],
 
-    // Referral system fields
-    referral_code: {
-      type: String,
-      unique: true,
-      sparse: true,
-      uppercase: true,
-      trim: true,
-      index: true,
-    },
-
-    // Referral statistics
-    referral_stats: {
-      total_referrals: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      successful_referrals: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      pending_rewards: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      total_rewards_earned: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      last_referral_at: {
-        type: Date,
-        default: null,
-      },
-    },
-
-    // Available discount coupons (including referral rewards)
+    // Available discount coupons
     available_coupons: [{
       code: {
         type: String,

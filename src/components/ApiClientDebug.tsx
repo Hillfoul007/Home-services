@@ -27,27 +27,6 @@ const ApiClientDebug: React.FC = () => {
     }
   };
 
-  const testReferralGeneration = async () => {
-    setStatus("Testing referral generation...");
-    setRequestCount(c => c + 1);
-    
-    try {
-      const result = await apiClient.generateReferralCode("test-user-123");
-      setLastResult(result);
-      setStatus("Referral generation completed");
-      if (result.data) {
-        toast.success("Referral generation successful");
-      } else {
-        toast.warning("Referral generation returned no data");
-      }
-    } catch (error) {
-      console.error("Referral generation failed:", error);
-      setLastResult({ error: error.message });
-      setStatus("Referral generation failed");
-      toast.error("Referral generation failed");
-    }
-  };
-
   const clearRequestQueue = () => {
     apiClient.clearPendingRequests();
     toast.info("Request queue cleared");
@@ -78,9 +57,6 @@ const ApiClientDebug: React.FC = () => {
         <div className="grid grid-cols-2 gap-2">
           <Button onClick={testHealthCheck} variant="outline" size="sm">
             Test Health Check
-          </Button>
-          <Button onClick={testReferralGeneration} variant="outline" size="sm">
-            Test Referral API
           </Button>
           <Button onClick={getQueueStatus} variant="outline" size="sm">
             Check Queue

@@ -232,7 +232,6 @@ const LaundryIndex = () => {
     initializeApp();
     checkAuthState();
     getUserLocation();
-    checkReferralCodeInUrl();
 
     // Listen for auth events from other tabs or auth persistence
     const handleAuthLogin = (event: CustomEvent) => {
@@ -247,23 +246,8 @@ const LaundryIndex = () => {
       setCurrentView("home");
     };
 
-    // Handle referral notifications
-    const handleReferralBonus = (event: CustomEvent) => {
-      const { bonusCoupon } = event.detail;
-      addNotification(
-        createSuccessNotification(
-          "Referral Bonus Earned! 🎉",
-          `You've earned a ${bonusCoupon.discount}% discount coupon (${bonusCoupon.code}) for referring a friend!`,
-        ),
-      );
-    };
-
     window.addEventListener("auth-login", handleAuthLogin as EventListener);
     window.addEventListener("auth-logout", handleAuthLogout);
-    window.addEventListener(
-      "referralBonusAwarded",
-      handleReferralBonus as EventListener,
-    );
 
     // Handle iOS session restoration
     const handleIOSSessionRestore = () => {
@@ -279,10 +263,6 @@ const LaundryIndex = () => {
         handleAuthLogin as EventListener,
       );
       window.removeEventListener("auth-logout", handleAuthLogout);
-      window.removeEventListener(
-        "referralBonusAwarded",
-        handleReferralBonus as EventListener,
-      );
       window.removeEventListener(
         "ios-session-restored",
         handleIOSSessionRestore,
@@ -316,27 +296,6 @@ const LaundryIndex = () => {
     }
   };
 
-
-  const checkReferralCodeInUrl = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const refCode = urlParams.get('ref');
-
-    if (refCode && refCode.trim()) {
-      console.log('🎁 Referral code detected in URL:', refCode);
-
-      // Check if user is already logged in
-      if (isLoggedIn && currentUser) {
-        console.log('ℹ️ User already logged in, referral code detected but not auto-opening modal');
-        return;
-      }
-
-      // Add a small delay to ensure the page is fully loaded, then show auth modal
-      setTimeout(() => {
-        console.log('🎁 Auto-opening auth modal for referral code:', refCode);
-        setCurrentView("auth");
-      }, 1000);
-    }
-  };
 
   const checkAuthState = async () => {
     try {
