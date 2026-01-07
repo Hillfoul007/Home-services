@@ -18,6 +18,7 @@ import {
   createErrorNotification,
 } from "@/utils/notificationUtils";
 import useWalletPolling from "@/hooks/useWalletPolling";
+import { getReferralCodeFromUrl, storeReferralCode, getStoredReferralCode, clearStoredReferralCode } from "@/utils/referralUtils";
 
 // Helper function for coordinate-based location detection (fallback)
 const getCoordinateBasedLocation = (
