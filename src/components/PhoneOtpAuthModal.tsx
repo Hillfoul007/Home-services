@@ -415,19 +415,25 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
                         }`}
                       />
                     </div>
+                    {referralValidation.isValidating && (
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <span className="inline-block w-1 h-1 bg-gray-400 rounded-full animate-pulse"></span>
+                        Validating code...
+                      </p>
+                    )}
                     {referralValidation.isValid === true && (
-                      <p className="text-xs text-laundrify-blue mt-1">
-                        ✓ {referralValidation.message}
+                      <p className="text-xs text-laundrify-blue mt-1 font-medium">
+                        ✓ {referralValidation.message} {referralValidation.referrerName && `from ${referralValidation.referrerName}`}
                       </p>
                     )}
                     {referralValidation.isValid === false && (
-                      <p className="text-xs text-red-600 mt-1">
+                      <p className="text-xs text-red-600 mt-1 font-medium">
                         ✗ {referralValidation.message}
                       </p>
                     )}
-                    {referralValidation.isValid === null && (
+                    {referralValidation.isValid === null && !referralValidation.isValidating && (
                       <p className="text-xs text-gray-500 mt-1">
-                        Get 50% off on your first order with a valid referral
+                        Get 30% off on your first order with a valid referral
                         code
                       </p>
                     )}
