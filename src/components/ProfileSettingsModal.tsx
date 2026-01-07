@@ -401,6 +401,26 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               )}
             </div>
           </TabsContent>
+
+          {/* Refer & Earn Tab */}
+          <TabsContent value="referral" className="flex-1 overflow-hidden">
+            <div className="h-full flex items-center justify-center">
+              <ReferralEarnModal
+                isOpen={activeTab === "referral"}
+                onClose={() => setActiveTab("profile")}
+                currentUser={currentUser}
+              />
+              <div className="text-center">
+                <Button
+                  onClick={() => setShowReferralModal(true)}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                >
+                  <Gift className="h-5 w-5 mr-2" />
+                  Open Refer & Earn
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </DialogContent>
 
