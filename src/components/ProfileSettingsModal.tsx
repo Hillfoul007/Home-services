@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import UserService from "@/services/userService";
 import SavedAddressesModal from "./SavedAddressesModal";
+import ReferralEarnModal from "./ReferralEarnModal";
 import { walletService, type WalletTransaction } from "@/services/walletService";
 import { formatDateTimeIST } from "@/utils/timeUtils";
 
