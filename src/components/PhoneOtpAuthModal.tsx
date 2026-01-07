@@ -289,59 +289,6 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <Label
-                      htmlFor="referralCode"
-                      className="text-sm font-medium"
-                    >
-                      Referral Code (Optional)
-                    </Label>
-                    <div className="mt-1 relative">
-                      <Gift className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="referralCode"
-                        type="text"
-                        placeholder="Enter referral code"
-                        value={formData.referralCode}
-                        onChange={(e) => {
-                          const code = e.target.value.toUpperCase();
-                          setFormData({
-                            ...formData,
-                            referralCode: code,
-                          });
-                          if (code.length >= 3) {
-                            validateReferralCode(code);
-                          } else {
-                            setReferralValidation({ isValid: null });
-                          }
-                        }}
-                        className={`pl-10 ${
-                          referralValidation.isValid === true
-                            ? "border-laundrify-mint focus:border-laundrify-mint"
-                            : referralValidation.isValid === false
-                              ? "border-red-500 focus:border-red-500"
-                              : ""
-                        }`}
-                      />
-                    </div>
-                    {referralValidation.isValid === true && (
-                      <p className="text-xs text-laundrify-blue mt-1">
-                        ✓ {referralValidation.message}
-                      </p>
-                    )}
-                    {referralValidation.isValid === false && (
-                      <p className="text-xs text-red-600 mt-1">
-                        ✗ {referralValidation.message}
-                      </p>
-                    )}
-                    {referralValidation.isValid === null && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Get 50% off on your first order with a valid referral
-                        code
-                      </p>
-                    )}
-                  </div>
-
                   {error && (
                     <div className="bg-red-50 border border-red-200 rounded-md p-3">
                       <div className="flex">
