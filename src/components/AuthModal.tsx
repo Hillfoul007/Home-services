@@ -547,34 +547,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
 
-            <div>
-              <Label
-                htmlFor="referralCode"
-                className="text-gray-700 font-medium"
-              >
-                Referral Code (Optional)
-              </Label>
-              <Input
-                id="referralCode"
-                type="text"
-                value={formData.referralCode}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    referralCode: e.target.value.toUpperCase(),
-                  })
-                }
-                className="mt-2 rounded-xl border-green-200 focus:border-green-500 focus:ring-green-500"
-                placeholder="Enter referral code to get 50% off first order"
-              />
-              {formData.referralCode && (
-                <p className="text-sm text-green-600 mt-1">
-                  ✓ Referral code applied! Get 50% off your first order (up to
-                  ₹200)
-                </p>
-              )}
-            </div>
-
             <Button
               type="submit"
               disabled={isLoading}
