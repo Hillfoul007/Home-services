@@ -169,11 +169,15 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2 shrink-0 mx-1">
+          <TabsList className="grid w-full grid-cols-3 shrink-0 mx-1">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="wallet">
               <Wallet className="h-4 w-4 mr-2" />
               Wallet
+            </TabsTrigger>
+            <TabsTrigger value="referral">
+              <Gift className="h-4 w-4 mr-2" />
+              Refer
             </TabsTrigger>
           </TabsList>
 
