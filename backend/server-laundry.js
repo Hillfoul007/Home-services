@@ -377,15 +377,6 @@ try {
   console.error("❌ Failed to load Coupon routes:", error.message);
 }
 
-// Referral routes
-try {
-  const referralRoutes = require("./routes/referrals");
-  app.use("/api/referrals", referralRoutes);
-  console.log("🔗 Referral routes registered at /api/referrals");
-} catch (error) {
-  console.error("❌ Failed to load Referral routes:", error.message);
-}
-
 // Wallet routes
 try {
   const walletRoutes = require("./routes/wallet");
