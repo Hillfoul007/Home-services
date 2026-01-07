@@ -236,6 +236,28 @@ const LaundryIndex = () => {
     checkAuthState();
     getUserLocation();
 
+    // Check for referral code in URL
+    const urlReferralCode = getReferralCodeFromUrl();
+    if (urlReferralCode) {
+      console.log("🎁 Referral code found in URL:", urlReferralCode);
+      setReferralCode(urlReferralCode);
+      storeReferralCode(urlReferralCode);
+
+      // If user is not logged in, show auth modal
+      if (!isLoggedIn) {
+        setShowAuthModal(true);
+      }
+
+      // Clean up URL to remove referral parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // Check if there's a stored referral code from earlier
+      const storedCode = getStoredReferralCode();
+      if (storedCode) {
+        setReferralCode(storedCode);
+      }
+    }
+
     // Listen for auth events from other tabs or auth persistence
     const handleAuthLogin = (event: CustomEvent) => {
       console.log("🎉 Auth login event received");
