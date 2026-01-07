@@ -250,6 +250,24 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
               </Button>
             </div>
 
+            {/* Referral Info Banner */}
+            {referralCode && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <Gift className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-green-900">
+                      Special Offer!
+                    </p>
+                    <p className="text-sm text-green-700 mt-1">
+                      You'll get ₹50 bonus on your first order with code:{" "}
+                      <span className="font-bold">{referralCode}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Mobile content will be added here */}
             <div className="space-y-4">
               {/* Phone Step */}
