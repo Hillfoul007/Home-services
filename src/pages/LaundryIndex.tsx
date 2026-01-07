@@ -1043,9 +1043,29 @@ const getDetailedLocationInfo = async (
                 // Return to the view they were trying to access
                 setCurrentView(previousView);
               }}
+              referralCode={referralCode || undefined}
             />
           </div>
         </div>
+      )}
+
+      {/* Referral Code Auth Modal - shown when referral code is detected */}
+      {showAuthModal && !isLoggedIn && (
+        <PhoneOtpAuthModal
+          isOpen={true}
+          onClose={() => {
+            setShowAuthModal(false);
+            clearStoredReferralCode();
+            setReferralCode(null);
+          }}
+          onSuccess={(user) => {
+            clearStoredReferralCode();
+            setReferralCode(null);
+            setShowAuthModal(false);
+            handleLoginSuccess(user);
+          }}
+          referralCode={referralCode || undefined}
+        />
       )}
 
       {currentView === "bookings" && (
