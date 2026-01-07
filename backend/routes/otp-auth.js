@@ -294,6 +294,19 @@ router.post("/save-user", async (req, res) => {
     await user.save();
     log("User saved/updated:", user.phone);
 
+    // Generate referral code if user doesn't have one
+    if (!user.referral_code) {
+      try {
+        const Referral = mongoose.model("Referral");
+        const referralCode = Referral.generateReferralCode(user._id);
+        user.referral_code = referralCode;
+        await user.save();
+        log(`✅ Generated referral code for user:`, referralCode);
+      } catch (err) {
+        log("⚠️ Note: Could not generate referral code:", err.message);
+      }
+    }
+
     res.setHeader("Content-Type", "application/json");
     res.status(200).json({
       success: true,
@@ -304,6 +317,7 @@ router.post("/save-user", async (req, res) => {
         name: user.name,
         email: user.email,
         isVerified: user.isVerified,
+        referral_code: user.referral_code,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
