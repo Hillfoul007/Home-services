@@ -80,17 +80,6 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
     }, 150);
   };
 
-  const handleReferralClick = () => {
-    setClickedItem("referral");
-    // Close the dropdown with a delay to allow the dialog to open properly
-    setTimeout(() => {
-      setIsOpen(false);
-      setShowReferralModal(true);
-      // Reset clicked state after dropdown closes
-      setTimeout(() => setClickedItem(null), 300);
-    }, 100);
-  };
-
   return (
     <>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
