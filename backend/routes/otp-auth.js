@@ -234,6 +234,7 @@ router.post("/save-user", async (req, res) => {
       is_verified = true,
       phone_verified = true,
       preferences = {},
+      referral_code, // Referral code from referrer
     } = req.body;
 
     if (!phone) {
@@ -250,6 +251,7 @@ router.post("/save-user", async (req, res) => {
     }
 
     let user = await User.findOne({ phone: cleanedPhone });
+    let isNewUser = !user;
 
     if (!user) {
       // Create new user
@@ -267,6 +269,80 @@ router.post("/save-user", async (req, res) => {
       user.lastLogin = new Date();
     }
 
+    // Generate referral code for new user (if doesn't exist)
+    if (!user.referral_code) {
+      const baseCode = cleanedPhone.slice(-8).toUpperCase();
+      let referralCodeToUse = baseCode;
+      let counter = 1;
+
+      while (await User.findOne({ referral_code: referralCodeToUse })) {
+        referralCodeToUse = `${baseCode}${counter}`;
+        counter++;
+      }
+
+      user.referral_code = referralCodeToUse;
+      log("Generated referral code for user:", referralCodeToUse);
+    }
+
+    // Handle referral if user is being referred by someone
+    if (referral_code && isNewUser) {
+      try {
+        const referrer = await User.findOne({ referral_code: referral_code.toUpperCase() });
+
+        if (referrer && referrer._id.toString() !== user._id.toString()) {
+          user.referred_by = referrer._id;
+          referrer.referral_stats.total_referrals += 1;
+          referrer.referral_stats.last_referral_date = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+
+          await referrer.save();
+          log("User referred by:", referrer.phone);
+
+          // Create Referral document
+          const Referral = require("../models/Referral");
+          const newReferral = new Referral({
+            referrer_id: referrer._id,
+            referee_id: user._id,
+            referral_code: referral_code.toUpperCase(),
+            status: "pending",
+            referrer_reward: 100,
+            referee_reward: 50,
+          });
+          await newReferral.save();
+          log("Referral document created");
+
+          // Credit referee wallet immediately with ₹50
+          user.wallet_balance = (user.wallet_balance || 0) + 50;
+          user.wallet_transactions.push({
+            type: "credit",
+            amount: 50,
+            description: "Sign-up referral bonus",
+            created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
+          });
+          log("Credited ₹50 referral bonus to referee");
+        } else {
+          log("Invalid referral code or same user");
+        }
+      } catch (referralError) {
+        log("Error processing referral:", referralError.message);
+      }
+    }
+
+    // Initialize wallet and referral fields if not exist
+    if (!user.wallet_balance) {
+      user.wallet_balance = 0;
+    }
+    if (!user.wallet_transactions) {
+      user.wallet_transactions = [];
+    }
+    if (!user.referral_stats) {
+      user.referral_stats = {
+        total_referrals: 0,
+        completed_referrals: 0,
+        earned_amount: 0,
+        last_referral_date: null,
+      };
+    }
+
     await user.save();
     log("User saved/updated:", user.phone);
 
@@ -280,6 +356,8 @@ router.post("/save-user", async (req, res) => {
         name: user.name,
         email: user.email,
         isVerified: user.isVerified,
+        referral_code: user.referral_code,
+        wallet_balance: user.wallet_balance,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
