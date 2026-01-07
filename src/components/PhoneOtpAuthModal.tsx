@@ -403,7 +403,7 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
                           if (code.length >= 3) {
                             validateReferralCode(code);
                           } else {
-                            setReferralValidation({ isValid: null });
+                            setReferralValidation({ isValid: null, isValidating: false });
                           }
                         }}
                         className={`pl-10 ${
