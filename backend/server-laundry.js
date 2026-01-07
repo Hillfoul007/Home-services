@@ -387,6 +387,16 @@ try {
   console.error("❌ Full wallet routes error:", error);
 }
 
+// Referral routes
+try {
+  const referralRoutes = require("./routes/referral");
+  app.use("/api/referral", referralRoutes);
+  console.log("🔗 Referral routes registered at /api/referral");
+} catch (error) {
+  console.error("❌ Failed to load Referral routes:", error.message);
+  console.error("❌ Full referral routes error:", error);
+}
+
 // Admin routes
 try {
   const adminRoutes = require("./routes/admin");
