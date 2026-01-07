@@ -177,10 +177,14 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
   };
 
   const handleCopyCode = async () => {
+    if (!referralCode) {
+      toast.error("Referral code not available");
+      return;
+    }
     try {
       setCopying(true);
       await navigator.clipboard.writeText(referralCode);
-      toast.success("Referral code copied to clipboard!");
+      toast.success("Referral code copied! 📋");
     } catch (error) {
       toast.error("Failed to copy code");
     } finally {
@@ -189,28 +193,40 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
   };
 
   const handleWhatsAppShare = () => {
+    if (!referralCode) {
+      toast.error("Referral code not available");
+      return;
+    }
+
     if (shareLink?.whatsapp_link) {
       window.open(shareLink.whatsapp_link, "_blank");
+      toast.success("Opening WhatsApp... 📱");
+    } else {
+      toast.error("Unable to open WhatsApp");
     }
   };
 
   const handleShareLink = () => {
-    if (shareLink?.app_link) {
-      try {
-        if (navigator.share) {
-          navigator.share({
-            title: "Join Laundrify",
-            text: shareLink.share_text,
-            url: shareLink.app_link,
-          });
-        } else {
-          // Fallback: copy to clipboard
-          navigator.clipboard.writeText(shareLink.app_link);
-          toast.success("Share link copied to clipboard!");
-        }
-      } catch (error) {
-        console.error("Error sharing:", error);
+    if (!referralCode || !shareLink?.app_link) {
+      toast.error("Share link not available");
+      return;
+    }
+
+    try {
+      if (navigator.share) {
+        navigator.share({
+          title: "Join Laundrify",
+          text: shareLink.share_text,
+          url: shareLink.app_link,
+        });
+      } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(shareLink.copy_text || shareLink.app_link);
+        toast.success("Share link copied to clipboard! 📋");
       }
+    } catch (error) {
+      console.error("Error sharing:", error);
+      toast.error("Unable to share");
     }
   };
 
