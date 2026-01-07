@@ -177,9 +177,28 @@ router.post("/apply", async (req, res) => {
       });
     }
 
-    // Find and validate the referral
-    const existingReferral = await Referral.findValidReferral(referralCode);
-    if (!existingReferral) {
+    // Find and validate the referral - check both Referral model and User model
+    let existingReferral = await Referral.findValidReferral(referralCode);
+    let referrerId = null;
+
+    if (existingReferral) {
+      // Found in Referral model (code already being used)
+      referrerId = existingReferral.referrer_id._id || existingReferral.referrer_id;
+      console.log(`✅ Found referral in Referral model: ${referralCode}`);
+    } else {
+      // Check if the code exists in a User's referral_code field (new unused code)
+      const referrerUser = await User.findOne({
+        referral_code: referralCode.toUpperCase()
+      });
+
+      if (referrerUser) {
+        referrerId = referrerUser._id;
+        console.log(`✅ Found referral code in User model: ${referralCode} (Referrer: ${referrerId})`);
+      }
+    }
+
+    // If still not found, return error
+    if (!referrerId) {
       return res.status(404).json({
         success: false,
         message: "Invalid or expired referral code"
@@ -187,7 +206,7 @@ router.post("/apply", async (req, res) => {
     }
 
     // Check if user is trying to use their own code
-    if (existingReferral.referrer_id.toString() === userId) {
+    if (referrerId.toString() === userId) {
       return res.status(400).json({
         success: false,
         message: "You cannot use your own referral code"
@@ -205,7 +224,7 @@ router.post("/apply", async (req, res) => {
 
     // Create new referral record
     const newReferral = new Referral({
-      referrer_id: existingReferral.referrer_id,
+      referrer_id: referrerId,
       referee_id: userId,
       referral_code: referralCode.toUpperCase(),
       status: "pending"
@@ -213,7 +232,7 @@ router.post("/apply", async (req, res) => {
 
     await newReferral.save();
 
-    console.log(`✅ Applied referral code ${referralCode} - Referrer: ${existingReferral.referrer_id._id}, Referee: ${userId}`);
+    console.log(`✅ Applied referral code ${referralCode} - Referrer: ${referrerId}, Referee: ${userId}`);
 
     res.json({
       success: true,
