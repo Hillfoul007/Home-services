@@ -274,5 +274,8 @@ userSchema.statics.phoneExists = async function (phone) {
 // Create indexes
 userSchema.index({ user_type: 1 });
 userSchema.index({ created_at: -1 });
+userSchema.index({ phone: 1 });
+userSchema.index({ referral_code: 1 });
+userSchema.index({ referred_by: 1 });
 
 module.exports = mongoose.model("User", userSchema);
