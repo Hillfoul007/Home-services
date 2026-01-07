@@ -1,4 +1,5 @@
 const express = require("express");
+const express = require("express");
 const mongoose = require("mongoose");
 const Referral = require("../models/Referral");
 const User = require("../models/User");
@@ -82,10 +83,28 @@ router.post("/validate", async (req, res) => {
       });
     }
 
-    // Find the referral by code
-    const referral = await Referral.findValidReferral(referralCode);
+    // First, try to find the referral by code in the Referral model (for codes already being used)
+    let referral = await Referral.findValidReferral(referralCode);
+    let referrer = null;
 
+    // If not found in Referral model, check if the code exists in a User's referral_code field
+    // This is for new/unused referral codes that haven't been applied yet
     if (!referral) {
+      const referrerUser = await User.findOne({
+        referral_code: referralCode.toUpperCase()
+      }).select('_id name phone');
+
+      if (referrerUser) {
+        referrer = referrerUser;
+        console.log(`✅ Found unused referral code in User model: ${referralCode} (Referrer: ${referrerUser._id})`);
+      }
+    } else {
+      referrer = referral.referrer_id;
+      console.log(`✅ Found referral code in Referral model: ${referralCode}`);
+    }
+
+    // If still not found, return error
+    if (!referrer) {
       console.log(`❌ Invalid or expired referral code: ${referralCode}`);
       return res.status(404).json({
         success: false,
@@ -94,7 +113,7 @@ router.post("/validate", async (req, res) => {
     }
 
     // Check if the user is trying to use their own referral code
-    if (userId && referral.referrer_id.toString() === userId) {
+    if (userId && referrer._id.toString() === userId) {
       return res.status(400).json({
         success: false,
         message: "You cannot use your own referral code"
@@ -114,16 +133,17 @@ router.post("/validate", async (req, res) => {
 
     console.log(`✅ Valid referral code: ${referralCode}`);
 
+    // Return success response with referrer info
     res.json({
       success: true,
       referral: {
-        code: referral.referral_code,
-        referrer_name: referral.referrer_id.name,
-        discount_percentage: referral.referee_discount_percentage,
-        max_discount: referral.referee_max_discount,
-        expires_at: referral.expires_at
+        code: referralCode.toUpperCase(),
+        referrer_name: referrer.name || "Laundrify",
+        discount_percentage: 30, // Default discount for referee
+        max_discount: 200,
+        expires_at: referral?.expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       },
-      message: `Valid referral code! You'll get ${referral.referee_discount_percentage}% off your first order`
+      message: `Valid referral code! You'll get 30% off your first order`
     });
 
   } catch (error) {
@@ -158,9 +178,28 @@ router.post("/apply", async (req, res) => {
       });
     }
 
-    // Find and validate the referral
-    const existingReferral = await Referral.findValidReferral(referralCode);
-    if (!existingReferral) {
+    // Find and validate the referral - check both Referral model and User model
+    let existingReferral = await Referral.findValidReferral(referralCode);
+    let referrerId = null;
+
+    if (existingReferral) {
+      // Found in Referral model (code already being used)
+      referrerId = existingReferral.referrer_id._id || existingReferral.referrer_id;
+      console.log(`✅ Found referral in Referral model: ${referralCode}`);
+    } else {
+      // Check if the code exists in a User's referral_code field (new unused code)
+      const referrerUser = await User.findOne({
+        referral_code: referralCode.toUpperCase()
+      });
+
+      if (referrerUser) {
+        referrerId = referrerUser._id;
+        console.log(`✅ Found referral code in User model: ${referralCode} (Referrer: ${referrerId})`);
+      }
+    }
+
+    // If still not found, return error
+    if (!referrerId) {
       return res.status(404).json({
         success: false,
         message: "Invalid or expired referral code"
@@ -168,7 +207,7 @@ router.post("/apply", async (req, res) => {
     }
 
     // Check if user is trying to use their own code
-    if (existingReferral.referrer_id.toString() === userId) {
+    if (referrerId.toString() === userId) {
       return res.status(400).json({
         success: false,
         message: "You cannot use your own referral code"
@@ -186,7 +225,7 @@ router.post("/apply", async (req, res) => {
 
     // Create new referral record
     const newReferral = new Referral({
-      referrer_id: existingReferral.referrer_id,
+      referrer_id: referrerId,
       referee_id: userId,
       referral_code: referralCode.toUpperCase(),
       status: "pending"
@@ -194,7 +233,7 @@ router.post("/apply", async (req, res) => {
 
     await newReferral.save();
 
-    console.log(`✅ Applied referral code ${referralCode} - Referrer: ${existingReferral.referrer_id._id}, Referee: ${userId}`);
+    console.log(`✅ Applied referral code ${referralCode} - Referrer: ${referrerId}, Referee: ${userId}`);
 
     res.json({
       success: true,

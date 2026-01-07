@@ -221,17 +221,20 @@ router.post(
     }
     await user.save();
 
-    // Generate referral code for new users if they don't have one
-    if (isNewUser && !user.referral_code) {
+    // Generate referral code for users if they don't have one (both new and existing)
+    // This ensures every user has a consistent referral code based on their ID
+    if (!user.referral_code) {
       try {
         const Referral = mongoose.model("Referral");
         const referralCode = Referral.generateReferralCode(user._id);
         user.referral_code = referralCode;
         await user.save();
-        log("Generated referral code for new user:", referralCode);
+        log(`✅ Generated referral code for ${isNewUser ? 'new' : 'existing'} user:`, referralCode);
       } catch (err) {
-        log("Note: Could not generate referral code:", err.message);
+        log("⚠️ Note: Could not generate referral code:", err.message);
       }
+    } else {
+      log(`✅ User already has referral code:`, user.referral_code);
     }
 
     const token = generateToken(user._id);
@@ -291,6 +294,19 @@ router.post("/save-user", async (req, res) => {
     await user.save();
     log("User saved/updated:", user.phone);
 
+    // Generate referral code if user doesn't have one
+    if (!user.referral_code) {
+      try {
+        const Referral = mongoose.model("Referral");
+        const referralCode = Referral.generateReferralCode(user._id);
+        user.referral_code = referralCode;
+        await user.save();
+        log(`✅ Generated referral code for user:`, referralCode);
+      } catch (err) {
+        log("⚠️ Note: Could not generate referral code:", err.message);
+      }
+    }
+
     res.setHeader("Content-Type", "application/json");
     res.status(200).json({
       success: true,
@@ -301,6 +317,7 @@ router.post("/save-user", async (req, res) => {
         name: user.name,
         email: user.email,
         isVerified: user.isVerified,
+        referral_code: user.referral_code,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
@@ -363,17 +380,20 @@ router.post("/register", async (req, res) => {
     await user.save();
     log("User registered/updated:", user.phone);
 
-    // Generate referral code for new users if they don't have one
-    if (isNewUser && !user.referral_code) {
+    // Generate referral code for users if they don't have one (both new and existing)
+    // This ensures every user has a consistent referral code based on their ID
+    if (!user.referral_code) {
       try {
         const Referral = mongoose.model("Referral");
         const referralCode = Referral.generateReferralCode(user._id);
         user.referral_code = referralCode;
         await user.save();
-        log("Generated referral code for new user:", referralCode);
+        log(`✅ Generated referral code for ${isNewUser ? 'new' : 'existing'} user:`, referralCode);
       } catch (err) {
-        log("Note: Could not generate referral code:", err.message);
+        log("⚠️ Note: Could not generate referral code:", err.message);
       }
+    } else {
+      log(`✅ User already has referral code:`, user.referral_code);
     }
 
     // Apply referral code if provided

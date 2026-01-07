@@ -50,7 +50,8 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
     discount?: number;
     referrerName?: string;
     message?: string;
-  }>({ isValid: null });
+    isValidating?: boolean;
+  }>({ isValid: null, isValidating: false });
   const isMobile = useIsMobile();
 
   const [formData, setFormData] = useState({
@@ -131,7 +132,7 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
     });
     setError("");
     setSuccess("");
-    setReferralValidation({ isValid: null });
+    setReferralValidation({ isValid: null, isValidating: false });
     setCurrentStep("phone");
   };
 
@@ -142,29 +143,44 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
 
   const validateReferralCode = async (code: string) => {
     if (!code || code.trim().length === 0) {
-      setReferralValidation({ isValid: null });
+      setReferralValidation({ isValid: null, isValidating: false });
       return;
     }
+
+    setReferralValidation(prev => ({ ...prev, isValidating: true }));
 
     try {
       const response = await apiClient.validateReferralCode(code.trim());
       if (response.data && response.data.success) {
         setReferralValidation({
           isValid: true,
+          isValidating: false,
           discount: response.data.referral.discount_percentage,
           referrerName: response.data.referral.referrer_name,
-          message: `Valid! You'll get ${response.data.referral.discount_percentage}% off`,
+          message: `Valid! You'll get ${response.data.referral.discount_percentage}% off your first order`,
         });
+        console.log('✅ Referral code validated successfully:', code);
       } else {
+        const errorMessage = response.data?.message || "Invalid referral code";
         setReferralValidation({
           isValid: false,
-          message: response.data?.message || "Invalid referral code",
+          isValidating: false,
+          message: errorMessage,
         });
+        console.warn('⚠️ Referral code validation failed:', errorMessage);
       }
     } catch (error: any) {
+      console.error('❌ Error validating referral code:', error);
+      const errorMessage = error?.message?.includes('timeout')
+        ? "Network timeout - check your connection"
+        : error?.message?.includes('404')
+          ? "Referral code not found"
+          : "Unable to validate referral code - please try again";
+
       setReferralValidation({
         isValid: false,
-        message: "Unable to validate referral code",
+        isValidating: false,
+        message: errorMessage,
       });
     }
   };
@@ -387,7 +403,7 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
                           if (code.length >= 3) {
                             validateReferralCode(code);
                           } else {
-                            setReferralValidation({ isValid: null });
+                            setReferralValidation({ isValid: null, isValidating: false });
                           }
                         }}
                         className={`pl-10 ${
@@ -399,19 +415,25 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
                         }`}
                       />
                     </div>
+                    {referralValidation.isValidating && (
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <span className="inline-block w-1 h-1 bg-gray-400 rounded-full animate-pulse"></span>
+                        Validating code...
+                      </p>
+                    )}
                     {referralValidation.isValid === true && (
-                      <p className="text-xs text-laundrify-blue mt-1">
-                        ✓ {referralValidation.message}
+                      <p className="text-xs text-laundrify-blue mt-1 font-medium">
+                        ✓ {referralValidation.message} {referralValidation.referrerName && `from ${referralValidation.referrerName}`}
                       </p>
                     )}
                     {referralValidation.isValid === false && (
-                      <p className="text-xs text-red-600 mt-1">
+                      <p className="text-xs text-red-600 mt-1 font-medium">
                         ✗ {referralValidation.message}
                       </p>
                     )}
-                    {referralValidation.isValid === null && (
+                    {referralValidation.isValid === null && !referralValidation.isValidating && (
                       <p className="text-xs text-gray-500 mt-1">
-                        Get 50% off on your first order with a valid referral
+                        Get 30% off on your first order with a valid referral
                         code
                       </p>
                     )}
@@ -629,7 +651,7 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
                       if (code.length >= 3) {
                         validateReferralCode(code);
                       } else {
-                        setReferralValidation({ isValid: null });
+                        setReferralValidation({ isValid: null, isValidating: false });
                       }
                     }}
                     className={`pl-10 ${
@@ -641,17 +663,23 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
                     }`}
                   />
                 </div>
+                {referralValidation.isValidating && (
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-gray-400 rounded-full animate-pulse"></span>
+                    Validating code...
+                  </p>
+                )}
                 {referralValidation.isValid === true && (
-                  <p className="text-xs text-laundrify-blue">
-                    ✓ {referralValidation.message}
+                  <p className="text-xs text-laundrify-blue font-medium">
+                    ✓ {referralValidation.message} {referralValidation.referrerName && `from ${referralValidation.referrerName}`}
                   </p>
                 )}
                 {referralValidation.isValid === false && (
-                  <p className="text-xs text-red-600">
+                  <p className="text-xs text-red-600 font-medium">
                     ✗ {referralValidation.message}
                   </p>
                 )}
-                {referralValidation.isValid === null && (
+                {referralValidation.isValid === null && !referralValidation.isValidating && (
                   <p className="text-xs text-gray-500">
                     Get 30% off on your first order with a valid referral code
                   </p>
