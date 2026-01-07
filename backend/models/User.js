@@ -240,8 +240,13 @@ userSchema.pre("save", async function (next) {
   }
 });
 
-// Sync name and full_name fields
+// Normalize phone number and sync name/full_name fields
 userSchema.pre("save", function (next) {
+  // Normalize phone number: remove non-digits
+  if (this.phone) {
+    this.phone = this.phone.replace(/\D/g, "");
+  }
+
   // If name is provided but full_name is not, copy name to full_name
   if (this.name && !this.full_name) {
     this.full_name = this.name;
