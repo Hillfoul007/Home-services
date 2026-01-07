@@ -215,6 +215,8 @@ const LaundryIndex = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentLocation, setCurrentLocation] = useState<string>("");
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const authService = DVHostingSmsService.getInstance();
