@@ -363,6 +363,73 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
         console.error("⚠️  Failed to update wallet for completed booking:", walletError);
         // Don't fail the booking update if wallet update fails
       }
+
+      // Handle referral rewards
+      try {
+        const Referral = require("../models/Referral");
+        const customer = await require("../models/User").findById(booking.customer_id);
+
+        if (customer) {
+          // Check if this is customer's first order
+          const previousCompletedBookings = await Booking.countDocuments({
+            customer_id: booking.customer_id,
+            status: "completed",
+            _id: { $ne: booking._id }
+          });
+
+          const isFirstOrder = previousCompletedBookings === 0;
+
+          if (isFirstOrder && customer.referred_by) {
+            console.log("🎁 Processing referral rewards for first-time order...");
+
+            // Find referral record
+            const referral = await Referral.findOne({
+              referee_id: booking.customer_id,
+              referrer_id: customer.referred_by,
+              status: "pending"
+            });
+
+            if (referral && !referral.referrer_reward_credited) {
+              // Get referrer
+              const referrer = await require("../models/User").findById(customer.referred_by);
+
+              if (referrer) {
+                // Credit referrer with ₹100
+                referrer.wallet_balance = (referrer.wallet_balance || 0) + referral.referrer_reward;
+                referrer.wallet_transactions.push({
+                  type: "credit",
+                  amount: referral.referrer_reward,
+                  description: `Referral reward for ${customer.name}'s first order`,
+                  booking_id: booking._id,
+                  created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+                });
+                referrer.referral_stats.completed_referrals += 1;
+                referrer.referral_stats.earned_amount += referral.referrer_reward;
+
+                await referrer.save();
+                console.log(`💰 Credited ₹${referral.referrer_reward} referral reward to referrer ${referrer.phone}`);
+              }
+
+              // Mark customer first order as completed
+              customer.has_completed_first_order = true;
+              await customer.save();
+
+              // Update referral status
+              referral.status = "completed";
+              referral.first_order_booking_id = booking._id;
+              referral.first_order_date = new Date(indianTime);
+              referral.referrer_reward_credited = true;
+              referral.referee_reward_credited = true;
+
+              await referral.save();
+              console.log("✅ Referral completed and rewards credited");
+            }
+          }
+        }
+      } catch (referralError) {
+        console.error("⚠️ Error processing referral rewards:", referralError);
+        // Don't fail the booking update if referral processing fails
+      }
     }
 
     console.log("✅ Booking updated by admin:", booking._id);
