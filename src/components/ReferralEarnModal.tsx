@@ -92,7 +92,11 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
 
     try {
       setLoading(true);
-      const userId = currentUser._id || currentUser.phone;
+      // Sanitize userId - remove any `:1` suffix or other malformed parts
+      let userId = currentUser._id || currentUser.phone;
+      if (userId && typeof userId === "string") {
+        userId = userId.split(":")[0]; // Remove `:1` or similar suffixes
+      }
 
       // Try to get referral code from user object first
       let code = currentUser.referral_code;
