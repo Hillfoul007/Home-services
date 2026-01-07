@@ -50,7 +50,8 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
     discount?: number;
     referrerName?: string;
     message?: string;
-  }>({ isValid: null });
+    isValidating?: boolean;
+  }>({ isValid: null, isValidating: false });
   const isMobile = useIsMobile();
 
   const [formData, setFormData] = useState({
