@@ -39,6 +39,7 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  referralCode,
 }) => {
   // All hooks must be declared at the top before any early returns
   const [hasError, setHasError] = React.useState(false);
