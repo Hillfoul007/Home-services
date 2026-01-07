@@ -143,29 +143,44 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
 
   const validateReferralCode = async (code: string) => {
     if (!code || code.trim().length === 0) {
-      setReferralValidation({ isValid: null });
+      setReferralValidation({ isValid: null, isValidating: false });
       return;
     }
+
+    setReferralValidation(prev => ({ ...prev, isValidating: true }));
 
     try {
       const response = await apiClient.validateReferralCode(code.trim());
       if (response.data && response.data.success) {
         setReferralValidation({
           isValid: true,
+          isValidating: false,
           discount: response.data.referral.discount_percentage,
           referrerName: response.data.referral.referrer_name,
-          message: `Valid! You'll get ${response.data.referral.discount_percentage}% off`,
+          message: `Valid! You'll get ${response.data.referral.discount_percentage}% off your first order`,
         });
+        console.log('✅ Referral code validated successfully:', code);
       } else {
+        const errorMessage = response.data?.message || "Invalid referral code";
         setReferralValidation({
           isValid: false,
-          message: response.data?.message || "Invalid referral code",
+          isValidating: false,
+          message: errorMessage,
         });
+        console.warn('⚠️ Referral code validation failed:', errorMessage);
       }
     } catch (error: any) {
+      console.error('❌ Error validating referral code:', error);
+      const errorMessage = error?.message?.includes('timeout')
+        ? "Network timeout - check your connection"
+        : error?.message?.includes('404')
+          ? "Referral code not found"
+          : "Unable to validate referral code - please try again";
+
       setReferralValidation({
         isValid: false,
-        message: "Unable to validate referral code",
+        isValidating: false,
+        message: errorMessage,
       });
     }
   };
