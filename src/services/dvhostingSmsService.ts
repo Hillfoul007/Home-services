@@ -816,7 +816,7 @@ export class DVHostingSmsService {
   /**
    * Save user to MongoDB backend for persistence across sessions
    */
-  async saveUserToBackend(user: any): Promise<boolean> {
+  async saveUserToBackend(user: any, referralCode?: string): Promise<boolean> {
     try {
       // Check if backend is available first
       const isHostedEnv =
@@ -837,7 +837,7 @@ export class DVHostingSmsService {
       const cleanedPhone = this.cleanPhone(user.phone);
 
       // Prepare user data for backend
-      const userData = {
+      const userData: any = {
         phone: cleanedPhone,
         full_name: user.name || `User ${cleanedPhone.slice(-4)}`,
         email: user.email || "",
@@ -846,6 +846,12 @@ export class DVHostingSmsService {
         phone_verified: true,
         preferences: user.preferences || {},
       };
+
+      // Add referral code if provided
+      if (referralCode) {
+        userData.referral_code = referralCode;
+        this.log("📝 Including referral code in registration:", referralCode);
+      }
 
       this.log("📤 Saving user to backend:", userData);
 
