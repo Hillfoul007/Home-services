@@ -32,6 +32,7 @@ interface PhoneOtpAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: any) => void;
+  referralCode?: string;
 }
 
 const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
