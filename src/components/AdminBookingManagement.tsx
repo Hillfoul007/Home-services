@@ -1785,9 +1785,15 @@ const AdminBookingManagement: React.FC = () => {
                 {filteredCompletedOrders.length > 0 ? (
                   filteredCompletedOrders.map((booking) => (
                     <div key={booking._id} className="flex items-center justify-between rounded-md border p-3 hover:bg-gray-50">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <span className="font-medium">#{booking.custom_order_id}</span>
                         <span className="text-sm text-gray-600">{booking.name}</span>
+                        {booking.address && (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5 text-red-500" />
+                            <span className="text-sm text-gray-700 truncate max-w-xs" title={booking.address}>{booking.address}</span>
+                          </div>
+                        )}
                         <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
                           {getStatusLabel(booking.status)}
                         </Badge>
