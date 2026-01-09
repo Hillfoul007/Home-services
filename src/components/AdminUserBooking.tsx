@@ -490,6 +490,8 @@ const AdminUserBooking: React.FC = () => {
           special_instructions: "",
           is_quick_pickup: false,
           assignedVendor: "",
+          mapsLink: "",
+          coordinates: null,
         });
       } else {
         toast.error(`Failed to create booking: ${response.error || "Unknown error"}`);
