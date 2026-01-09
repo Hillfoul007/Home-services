@@ -24,6 +24,7 @@ import { apiClient } from "@/lib/apiClient";
 import { vendorService } from "@/services/vendorService";
 import { X } from "lucide-react";
 import { parseGoogleMapsLink, isGoogleMapsUrl } from "@/utils/mapsLinkParser";
+import { locationService } from "@/services/locationService";
 
 interface User {
   _id: string;
