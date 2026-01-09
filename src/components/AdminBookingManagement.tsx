@@ -340,9 +340,9 @@ const generateDeliveryReminder = (booking: Booking): string => {
   };
 
   const address = booking.address || "N/A";
-  const mapsLink = address && address !== "N/A"
+  const mapsLink = booking.mapsLink || (address && address !== "N/A"
     ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
-    : "";
+    : "");
 
   const message = `Order Delivery 🚚
 
