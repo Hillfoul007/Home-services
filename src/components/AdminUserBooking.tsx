@@ -815,13 +815,87 @@ const AdminUserBooking: React.FC = () => {
                 onChange={(e) => {
                   const newAddress = e.target.value;
                   setBookingData({ ...bookingData, address: newAddress });
-                  // Fetch vendors when address changes
+                  // Fetch vendors when address changes (use existing coordinates if available)
                   if (newAddress.trim().length > 5) {
-                    fetchVendorsForAddress(newAddress);
+                    fetchVendorsForAddress(newAddress, bookingData.coordinates);
                   }
                 }}
                 rows={3}
               />
+              <p className="text-xs text-gray-500 mt-1">💡 Tip: You can also paste a Google Maps link below for precise location coordinates</p>
+            </div>
+
+            {/* Google Maps Link for Precise Location */}
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-3">
+              <div>
+                <Label htmlFor="maps-link" className="text-blue-900 font-semibold flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Google Maps Link (For Precise Location)
+                </Label>
+                <Input
+                  id="maps-link"
+                  placeholder="Paste Google Maps link here (e.g., https://maps.google.com/...)"
+                  value={bookingData.mapsLink}
+                  onChange={(e) => {
+                    const newLink = e.target.value;
+                    setBookingData(prev => ({ ...prev, mapsLink: newLink }));
+                  }}
+                  onBlur={(e) => {
+                    const mapsLink = e.target.value.trim();
+                    if (mapsLink && isGoogleMapsUrl(mapsLink)) {
+                      const parsed = parseGoogleMapsLink(mapsLink);
+
+                      if (parsed.coordinates) {
+                        setBookingData(prev => ({
+                          ...prev,
+                          coordinates: parsed.coordinates,
+                        }));
+                        toast.success("✅ Coordinates extracted from maps link!");
+
+                        // Refetch vendors with the new coordinates
+                        if (bookingData.address.trim().length > 5) {
+                          fetchVendorsForAddress(bookingData.address, parsed.coordinates);
+                        }
+                      } else if (parsed.error) {
+                        toast.error(`❌ ${parsed.error}`);
+                        setBookingData(prev => ({ ...prev, coordinates: null }));
+                      }
+                    } else if (mapsLink.length > 0) {
+                      toast.error("❌ Invalid Google Maps link. Please paste a valid maps URL or coordinates.");
+                      setBookingData(prev => ({ ...prev, coordinates: null }));
+                    }
+                  }}
+                  className="mt-2"
+                />
+                <p className="text-xs text-gray-600 mt-2">
+                  Supports Google Maps URLs with coordinates (e.g., @12.9716,77.5946) for accurate distance calculation
+                </p>
+              </div>
+
+              {bookingData.coordinates && (
+                <div className="bg-white p-3 rounded border border-green-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-green-700">
+                      ✅ Location Coordinates Extracted
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setBookingData(prev => ({ ...prev, coordinates: null, mapsLink: "" }));
+                        toast.info("Coordinates cleared");
+                      }}
+                      className="text-red-600 hover:text-red-700 h-7 w-7 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="text-xs text-gray-700 space-y-1">
+                    <div>📍 Latitude: <span className="font-mono font-semibold">{bookingData.coordinates.lat.toFixed(6)}</span></div>
+                    <div>📍 Longitude: <span className="font-mono font-semibold">{bookingData.coordinates.lng.toFixed(6)}</span></div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Vendor Selection */}
