@@ -414,7 +414,7 @@ const AdminUserBooking: React.FC = () => {
         return;
       }
 
-      const bookingPayload = {
+      const bookingPayload: any = {
         customer_id: finalCustomerId,
         name: finalUserName,
         phone: finalUserPhone,
@@ -450,6 +450,12 @@ const AdminUserBooking: React.FC = () => {
           estimatedTime: selectedVendor.estimatedTime,
         } : undefined,
       };
+
+      // Include coordinates if extracted from Google Maps link
+      if (bookingData.coordinates) {
+        bookingPayload.coordinates = bookingData.coordinates;
+        bookingPayload.mapsLink = bookingData.mapsLink;
+      }
 
       console.log("🔍 Submitting booking with services:", {
         services: bookingPayload.services,
