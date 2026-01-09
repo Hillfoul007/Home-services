@@ -849,7 +849,7 @@ const AdminUserBooking: React.FC = () => {
                     const newLink = e.target.value;
                     setBookingData(prev => ({ ...prev, mapsLink: newLink }));
                   }}
-                  onBlur={(e) => {
+                  onBlur={async (e) => {
                     const mapsLink = e.target.value.trim();
                     if (mapsLink && isGoogleMapsUrl(mapsLink)) {
                       const parsed = parseGoogleMapsLink(mapsLink);
@@ -859,11 +859,37 @@ const AdminUserBooking: React.FC = () => {
                           ...prev,
                           coordinates: parsed.coordinates,
                         }));
-                        toast.success("✅ Coordinates extracted from maps link!");
 
-                        // Refetch vendors with the new coordinates
-                        if (bookingData.address.trim().length > 5) {
-                          fetchVendorsForAddress(bookingData.address, parsed.coordinates);
+                        // Reverse geocode to get human-readable address
+                        try {
+                          const reversedAddress = await locationService.reverseGeocode({
+                            lat: parsed.coordinates.lat,
+                            lng: parsed.coordinates.lng,
+                          });
+
+                          // Auto-fill the address field
+                          setBookingData(prev => ({
+                            ...prev,
+                            address: reversedAddress || prev.address,
+                          }));
+
+                          toast.success("✅ Location coordinates and address extracted!");
+
+                          // Refetch vendors with both address and coordinates
+                          if (reversedAddress && reversedAddress.trim().length > 5) {
+                            await fetchVendorsForAddress(reversedAddress, parsed.coordinates);
+                          } else if (bookingData.address.trim().length > 5) {
+                            // Use existing address if reverse geocoding fails
+                            await fetchVendorsForAddress(bookingData.address, parsed.coordinates);
+                          }
+                        } catch (error) {
+                          console.error("Reverse geocoding error:", error);
+                          toast.warning("✅ Coordinates extracted but could not auto-fill address. You can enter it manually.");
+
+                          // Still refetch vendors with coordinates even if address lookup fails
+                          if (bookingData.address.trim().length > 5) {
+                            await fetchVendorsForAddress(bookingData.address, parsed.coordinates);
+                          }
                         }
                       } else if (parsed.error) {
                         toast.error(`❌ ${parsed.error}`);
