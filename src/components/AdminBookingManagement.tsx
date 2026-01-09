@@ -94,6 +94,7 @@ interface Booking {
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
   coordinates?: { lat: number; lng: number };
+  mapsLink?: string;
   distance_to_vendor?: number;
   assignedVendor?: string;
   assignedVendorId?: string;
