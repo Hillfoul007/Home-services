@@ -911,7 +911,8 @@ const AdminUserBooking: React.FC = () => {
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200 space-y-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <Label className="text-green-900 font-semibold text-sm block mb-2">✅ Location Coordinates Extracted</Label>
+                      <Label className="text-green-900 font-semibold text-sm block mb-2">✅ Location Data Extracted</Label>
+                      <p className="text-xs text-green-700 mb-2">The address field above has been auto-filled with the coordinates from your Maps link</p>
                       <div className="space-y-1">
                         <p className="text-sm text-gray-700">
                           <span className="font-medium">Latitude:</span> <span className="font-mono font-semibold">{bookingData.coordinates.lat.toFixed(6)}</span>
