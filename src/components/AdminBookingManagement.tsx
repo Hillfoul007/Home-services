@@ -34,6 +34,7 @@ import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
 import ReminderModal from "@/components/ReminderModal";
+import { parseGoogleMapsLink, isGoogleMapsUrl } from "@/utils/mapsLinkParser";
 
 interface ItemPrice {
   service_name?: string;
