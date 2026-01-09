@@ -2112,6 +2112,90 @@ const AdminBookingManagement: React.FC = () => {
 
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Location Details
+                </h4>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="google-maps-link">Google Maps Link (or paste address)</Label>
+                    <Input
+                      id="google-maps-link"
+                      placeholder="Paste Google Maps link or enter address (e.g., https://maps.google.com/@12.9716,77.5946,17z or 12.9716,77.5946)"
+                      defaultValue=""
+                      onBlur={(e) => {
+                        const mapsLink = e.target.value.trim();
+                        if (mapsLink && isGoogleMapsUrl(mapsLink)) {
+                          const parsed = parseGoogleMapsLink(mapsLink);
+                          if (parsed.coordinates && !parsed.error) {
+                            setEditingBooking((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    coordinates: parsed.coordinates,
+                                  }
+                                : prev,
+                            );
+                            toast.success(`Location extracted: ${parsed.coordinates.lat.toFixed(4)}, ${parsed.coordinates.lng.toFixed(4)}`);
+                            e.target.value = "";
+                          } else if (parsed.error) {
+                            toast.error(parsed.error);
+                            e.target.value = "";
+                          }
+                        } else if (mapsLink && mapsLink.length > 0) {
+                          toast.error("Please enter a valid Google Maps link or coordinates");
+                          e.target.value = "";
+                        }
+                      }}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Paste a Google Maps link or direct coordinates. The location will be extracted and saved for precise delivery tracking.
+                    </p>
+                  </div>
+
+                  {editingBooking.coordinates && (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <Label className="text-green-900 text-sm font-semibold">Current Location</Label>
+                          <p className="text-sm text-green-700 mt-2">
+                            <span className="font-mono">{editingBooking.coordinates.lat.toFixed(4)}, {editingBooking.coordinates.lng.toFixed(4)}</span>
+                          </p>
+                          <a
+                            href={`https://maps.google.com/@${editingBooking.coordinates.lat},${editingBooking.coordinates.lng},17z`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-green-600 hover:text-green-700 underline mt-1 inline-block"
+                          >
+                            Open in Google Maps →
+                          </a>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingBooking((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    coordinates: undefined,
+                                  }
+                                : prev,
+                            );
+                            toast.info("Location cleared");
+                          }}
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <Package className="h-4 w-4" />
                   Edit Cart / Items ({editingBooking.item_prices?.length || 0} items)
                 </h4>
