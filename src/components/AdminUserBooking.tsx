@@ -831,7 +831,7 @@ const AdminUserBooking: React.FC = () => {
                 }}
                 rows={3}
               />
-              <p className="text-xs text-gray-500 mt-1">💡 Tip: You can also paste a Google Maps link below for precise location coordinates</p>
+              <p className="text-xs text-gray-500 mt-1">💡 Tip: Paste a Google Maps link below to auto-fill this address with precise coordinates</p>
             </div>
 
             {/* Google Maps Link for Precise Location */}
