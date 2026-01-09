@@ -73,6 +73,8 @@ const AdminUserBooking: React.FC = () => {
     special_instructions: "",
     is_quick_pickup: false,
     assignedVendor: "",
+    mapsLink: "",
+    coordinates: null as { lat: number; lng: number } | null,
   });
 
   // Vendor management state
