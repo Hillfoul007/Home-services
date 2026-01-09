@@ -450,6 +450,7 @@ const AdminUserBooking: React.FC = () => {
           distance: selectedVendor.distance,
           estimatedTime: selectedVendor.estimatedTime,
         } : undefined,
+        status: selectedVendor ? "vendor_assigned" : "created",
       };
 
       // Include coordinates if extracted from Google Maps link
