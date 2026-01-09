@@ -659,7 +659,7 @@ const AdminUserBooking: React.FC = () => {
                           setSelectedUser(null);
                           setVendors([]);
                           setSelectedVendor(null);
-                          setBookingData(prev => ({ ...prev, address: "", assignedVendor: "" }));
+                          setBookingData(prev => ({ ...prev, address: "", assignedVendor: "", mapsLink: "", coordinates: null }));
                         }}
                       >
                         Change User
