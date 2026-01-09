@@ -881,26 +881,38 @@ const AdminUserBooking: React.FC = () => {
               </div>
 
               {bookingData.coordinates && (
-                <div className="bg-white p-3 rounded border border-green-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium text-green-700">
-                      ✅ Location Coordinates Extracted
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <Label className="text-green-900 font-semibold text-sm block mb-2">✅ Location Coordinates Extracted</Label>
+                      <div className="space-y-1">
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Latitude:</span> <span className="font-mono font-semibold">{bookingData.coordinates.lat.toFixed(6)}</span>
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Longitude:</span> <span className="font-mono font-semibold">{bookingData.coordinates.lng.toFixed(6)}</span>
+                        </p>
+                      </div>
+                      <a
+                        href={`https://maps.google.com/@${bookingData.coordinates.lat},${bookingData.coordinates.lng},17z`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-600 hover:text-green-700 underline mt-2 inline-block"
+                      >
+                        Open in Google Maps →
+                      </a>
                     </div>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => {
                         setBookingData(prev => ({ ...prev, coordinates: null, mapsLink: "" }));
-                        toast.info("Coordinates cleared");
+                        toast.info("Location cleared");
                       }}
-                      className="text-red-600 hover:text-red-700 h-7 w-7 p-0"
+                      className="text-red-600 border-red-300 hover:bg-red-50"
                     >
-                      <X className="h-4 w-4" />
+                      Clear
                     </Button>
-                  </div>
-                  <div className="text-xs text-gray-700 space-y-1">
-                    <div>📍 Latitude: <span className="font-mono font-semibold">{bookingData.coordinates.lat.toFixed(6)}</span></div>
-                    <div>📍 Longitude: <span className="font-mono font-semibold">{bookingData.coordinates.lng.toFixed(6)}</span></div>
                   </div>
                 </div>
               )}
