@@ -903,7 +903,7 @@ const AdminUserBooking: React.FC = () => {
                   className="mt-2"
                 />
                 <p className="text-xs text-gray-600 mt-2">
-                  Supports Google Maps URLs with coordinates (e.g., @12.9716,77.5946) for accurate distance calculation
+                  Paste a Google Maps link and we'll automatically extract coordinates and fill the address field. You can edit the address afterward if needed.
                 </p>
               </div>
 
