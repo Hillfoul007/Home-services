@@ -311,9 +311,9 @@ const AdminUserBooking: React.FC = () => {
 
         if (finalAddress) {
           console.log("✅ Autofilling address:", finalAddress);
-          setBookingData((prev) => ({ ...prev, address: finalAddress }));
+          setBookingData((prev) => ({ ...prev, address: finalAddress, mapsLink: "", coordinates: null }));
           // Fetch vendors for this address
-          await fetchVendorsForAddress(finalAddress);
+          await fetchVendorsForAddress(finalAddress, null);
         } else {
           console.warn("⚠️ No address found for user. Please enter address manually.");
           setVendors([]);
