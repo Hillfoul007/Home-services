@@ -162,8 +162,8 @@ const AdminUserBooking: React.FC = () => {
     }));
   };
 
-  // Fetch vendors based on address
-  const fetchVendorsForAddress = async (address: string) => {
+  // Fetch vendors based on address, with optional coordinates from Google Maps link
+  const fetchVendorsForAddress = async (address: string, coordinates?: { lat: number; lng: number } | null) => {
     if (!address.trim()) {
       setVendors([]);
       setSelectedVendor(null);
@@ -194,7 +194,11 @@ const AdminUserBooking: React.FC = () => {
         );
 
         // Get vendor recommendations with distance using vendorService
-        const vendorsWithDistance = await vendorService.getVendorRecommendations(address);
+        // If coordinates are provided from Google Maps link, use them for more accurate distance calculation
+        const vendorsWithDistance = await vendorService.getVendorRecommendations(
+          address,
+          coordinates // Pass coordinates if available for precise location
+        );
 
         // Convert to component format with all needed info
         const enrichedVendors = vendorsWithDistance.map((vendor) => ({
