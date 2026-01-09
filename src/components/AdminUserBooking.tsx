@@ -839,7 +839,7 @@ const AdminUserBooking: React.FC = () => {
               <div>
                 <Label htmlFor="maps-link" className="text-blue-900 font-semibold flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  Google Maps Link (For Precise Location)
+                  Google Maps Link (Extracts Coordinates & Auto-Fills Address)
                 </Label>
                 <Input
                   id="maps-link"
