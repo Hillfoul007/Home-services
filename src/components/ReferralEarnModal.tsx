@@ -72,33 +72,54 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
     }
   }, [isOpen, currentUser?.phone]);
 
-  const loadReferralData = async () => {
+  const generateReferralCode = (user: any): string => {
+    // Generate a referral code from phone number: last 6 digits + random suffix
+    let code = "REF";
+    if (user.phone) {
+      // Extract last 6 digits of phone
+      const phoneDigits = user.phone.replace(/\D/g, "").slice(-6);
+      code += phoneDigits;
+    } else if (user._id) {
+      code += user._id.slice(-6).toUpperCase();
+    } else {
+      code += Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+    return code;
+  };
+
+  const loadReferralData = () => {
     if (!currentUser) return;
 
     try {
       setLoading(true);
-      const userId = currentUser._id || currentUser.phone;
 
-      // Fetch referral code
-      const codeResponse = await fetch(`/api/referral/my-code/${userId}`);
-      const codeData = await codeResponse.json();
-      if (codeData.success) {
-        setReferralCode(codeData.referral_code);
-      }
+      // Generate referral code from user data
+      const code = currentUser.referral_code || generateReferralCode(currentUser);
+      setReferralCode(code);
 
-      // Fetch referral stats
-      const statsResponse = await fetch(`/api/referral/stats/${userId}`);
-      const statsData = await statsResponse.json();
-      if (statsData.success) {
-        setStats(statsData);
-      }
+      // Set default stats (no API call needed)
+      setStats({
+        total_referrals: 0,
+        completed_referrals: 0,
+        pending_referrals: 0,
+        earnings: 0,
+        referrals: [],
+      });
 
-      // Fetch share link
-      const linkResponse = await fetch(`/api/referral/share-link/${userId}`);
-      const linkData = await linkResponse.json();
-      if (linkData.success) {
-        setShareLink(linkData);
-      }
+      // Generate share link locally
+      const appUrl = window.location.origin;
+      const shareText = `Hey! 🎉 Join me on Laundrify! Use my referral code *${code}* to get ₹50 bonus on your first order. I'll also earn ₹100 when you complete your first order! 💰`;
+      const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText + `\n\nOpen: ${appUrl}?ref=${code}`)}`;
+      const appLink = `${appUrl}?ref=${code}`;
+      const copyText = `${shareText}\n\n${appLink}`;
+
+      setShareLink({
+        referral_code: code,
+        share_text: shareText,
+        whatsapp_link: whatsappLink,
+        app_link: appLink,
+        copy_text: copyText,
+      });
     } catch (error) {
       console.error("Error loading referral data:", error);
       toast.error("Failed to load referral data");
@@ -108,10 +129,14 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
   };
 
   const handleCopyCode = async () => {
+    if (!referralCode) {
+      toast.error("Referral code not available");
+      return;
+    }
     try {
       setCopying(true);
       await navigator.clipboard.writeText(referralCode);
-      toast.success("Referral code copied to clipboard!");
+      toast.success("Referral code copied! 📋");
     } catch (error) {
       toast.error("Failed to copy code");
     } finally {
@@ -120,28 +145,40 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
   };
 
   const handleWhatsAppShare = () => {
+    if (!referralCode) {
+      toast.error("Referral code not available");
+      return;
+    }
+
     if (shareLink?.whatsapp_link) {
       window.open(shareLink.whatsapp_link, "_blank");
+      toast.success("Opening WhatsApp... 📱");
+    } else {
+      toast.error("Unable to open WhatsApp");
     }
   };
 
   const handleShareLink = () => {
-    if (shareLink?.app_link) {
-      try {
-        if (navigator.share) {
-          navigator.share({
-            title: "Join Laundrify",
-            text: shareLink.share_text,
-            url: shareLink.app_link,
-          });
-        } else {
-          // Fallback: copy to clipboard
-          navigator.clipboard.writeText(shareLink.app_link);
-          toast.success("Share link copied to clipboard!");
-        }
-      } catch (error) {
-        console.error("Error sharing:", error);
+    if (!referralCode || !shareLink?.app_link) {
+      toast.error("Share link not available");
+      return;
+    }
+
+    try {
+      if (navigator.share) {
+        navigator.share({
+          title: "Join Laundrify",
+          text: shareLink.share_text,
+          url: shareLink.app_link,
+        });
+      } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(shareLink.copy_text || shareLink.app_link);
+        toast.success("Share link copied to clipboard! 📋");
       }
+    } catch (error) {
+      console.error("Error sharing:", error);
+      toast.error("Unable to share");
     }
   };
 

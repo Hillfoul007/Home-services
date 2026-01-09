@@ -34,6 +34,7 @@ import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
 import ReminderModal from "@/components/ReminderModal";
+import { parseGoogleMapsLink, isGoogleMapsUrl } from "@/utils/mapsLinkParser";
 
 interface ItemPrice {
   service_name?: string;
@@ -1437,6 +1438,12 @@ const AdminBookingManagement: React.FC = () => {
                           <Phone className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.phone}</span>
                         </div>
+                        {booking.address && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-red-500" />
+                            <span className="text-sm text-gray-700 truncate" title={booking.address}>{booking.address}</span>
+                          </div>
+                        )}
                         {booking.assignedVendor && (
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4 text-gray-400" />
@@ -1605,6 +1612,12 @@ const AdminBookingManagement: React.FC = () => {
                           <User className="h-4 w-4 text-gray-400" />
                           <span className="text-sm">{booking.name}</span>
                         </div>
+                        {booking.address && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-red-500" />
+                            <span className="text-sm text-gray-700 truncate" title={booking.address}>{booking.address}</span>
+                          </div>
+                        )}
                         {booking.assignedVendor && (
                           <div className="flex items-center gap-2 mt-1">
                             <Store className="h-4 w-4 text-gray-400" />
@@ -1773,9 +1786,15 @@ const AdminBookingManagement: React.FC = () => {
                 {filteredCompletedOrders.length > 0 ? (
                   filteredCompletedOrders.map((booking) => (
                     <div key={booking._id} className="flex items-center justify-between rounded-md border p-3 hover:bg-gray-50">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <span className="font-medium">#{booking.custom_order_id}</span>
                         <span className="text-sm text-gray-600">{booking.name}</span>
+                        {booking.address && (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5 text-red-500" />
+                            <span className="text-sm text-gray-700 truncate max-w-xs" title={booking.address}>{booking.address}</span>
+                          </div>
+                        )}
                         <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
                           {getStatusLabel(booking.status)}
                         </Badge>
@@ -2089,6 +2108,90 @@ const AdminBookingManagement: React.FC = () => {
                     <div className="text-lg font-bold text-blue-700 mt-2">{editingBooking.distance_to_vendor.toFixed(2)} km</div>
                   </div>
                 ) : null}
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Location Details
+                </h4>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="google-maps-link">Google Maps Link (or paste address)</Label>
+                    <Input
+                      id="google-maps-link"
+                      placeholder="Paste Google Maps link or enter address (e.g., https://maps.google.com/@12.9716,77.5946,17z or 12.9716,77.5946)"
+                      defaultValue=""
+                      onBlur={(e) => {
+                        const mapsLink = e.target.value.trim();
+                        if (mapsLink && isGoogleMapsUrl(mapsLink)) {
+                          const parsed = parseGoogleMapsLink(mapsLink);
+                          if (parsed.coordinates && !parsed.error) {
+                            setEditingBooking((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    coordinates: parsed.coordinates,
+                                  }
+                                : prev,
+                            );
+                            toast.success(`Location extracted: ${parsed.coordinates.lat.toFixed(4)}, ${parsed.coordinates.lng.toFixed(4)}`);
+                            e.target.value = "";
+                          } else if (parsed.error) {
+                            toast.error(parsed.error);
+                            e.target.value = "";
+                          }
+                        } else if (mapsLink && mapsLink.length > 0) {
+                          toast.error("Please enter a valid Google Maps link or coordinates");
+                          e.target.value = "";
+                        }
+                      }}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Paste a Google Maps link or direct coordinates. The location will be extracted and saved for precise delivery tracking.
+                    </p>
+                  </div>
+
+                  {editingBooking.coordinates && (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <Label className="text-green-900 text-sm font-semibold">Current Location</Label>
+                          <p className="text-sm text-green-700 mt-2">
+                            <span className="font-mono">{editingBooking.coordinates.lat.toFixed(4)}, {editingBooking.coordinates.lng.toFixed(4)}</span>
+                          </p>
+                          <a
+                            href={`https://maps.google.com/@${editingBooking.coordinates.lat},${editingBooking.coordinates.lng},17z`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-green-600 hover:text-green-700 underline mt-1 inline-block"
+                          >
+                            Open in Google Maps →
+                          </a>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingBooking((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    coordinates: undefined,
+                                  }
+                                : prev,
+                            );
+                            toast.info("Location cleared");
+                          }}
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="border-t pt-4">
