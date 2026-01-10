@@ -666,28 +666,28 @@ const AdminBookingManagement: React.FC = () => {
                   {/* Charges Breakdown */}
                   {viewingBooking.charges_breakdown && (
                     <div className="border-t pt-2 mt-2">
-                      {viewingBooking.charges_breakdown.base_price > 0 && (
+                      {((viewingBooking.charges_breakdown as any)?.base_price || 0) > 0 && (
                         <div className="flex justify-between text-sm">
                           <span>Base Price:</span>
-                          <span>₹{viewingBooking.charges_breakdown.base_price}</span>
+                          <span>₹{(viewingBooking.charges_breakdown as any).base_price}</span>
                         </div>
                       )}
-                      {viewingBooking.charges_breakdown.tax_amount > 0 && (
+                      {((viewingBooking.charges_breakdown as any)?.tax_amount || 0) > 0 && (
                         <div className="flex justify-between text-sm">
                           <span>Tax:</span>
-                          <span>₹{viewingBooking.charges_breakdown.tax_amount}</span>
+                          <span>₹{(viewingBooking.charges_breakdown as any).tax_amount}</span>
                         </div>
                       )}
-                      {viewingBooking.charges_breakdown.service_fee > 0 && (
+                      {((viewingBooking.charges_breakdown as any)?.service_fee || 0) > 0 && (
                         <div className="flex justify-between text-sm">
                           <span>Service Fee:</span>
-                          <span>₹{viewingBooking.charges_breakdown.service_fee}</span>
+                          <span>₹{(viewingBooking.charges_breakdown as any).service_fee}</span>
                         </div>
                       )}
-                      {viewingBooking.charges_breakdown.delivery_fee > 0 && (
+                      {((viewingBooking.charges_breakdown as any)?.delivery_fee || 0) > 0 && (
                         <div className="flex justify-between text-sm">
                           <span>Delivery Fee:</span>
-                          <span>₹{viewingBooking.charges_breakdown.delivery_fee}</span>
+                          <span>₹{(viewingBooking.charges_breakdown as any).delivery_fee}</span>
                         </div>
                       )}
                     </div>
