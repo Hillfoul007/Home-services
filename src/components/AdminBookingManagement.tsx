@@ -2072,7 +2072,9 @@ const AdminBookingManagement: React.FC = () => {
                             let distance = Infinity;
                             const vendorData = vendorFullData[vendor.name];
 
-                            if (bookingAddressCoords && vendorData && vendorData.coordinates) {
+                            // Only calculate distance if both booking and vendor have coordinates
+                            if (bookingAddressCoords && bookingAddressCoords.lat && bookingAddressCoords.lng &&
+                                vendorData && vendorData.coordinates && vendorData.coordinates.lat && vendorData.coordinates.lng) {
                               try {
                                 const vendorCoords = vendorData.coordinates;
                                 const R = 6371;
