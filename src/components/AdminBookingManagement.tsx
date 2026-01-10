@@ -846,33 +846,62 @@ const AdminBookingManagement: React.FC = () => {
               <div className="border-t pt-4">
                 <h4 className="font-semibold mb-3">Edit Cart / Items</h4>
                 <div className="space-y-2">
-                  {(editingBooking.item_prices && editingBooking.item_prices.length > 0) ? (
-                    (editingBooking.item_prices as any[]).map((item: any, idx: number) => (
-                      <div key={idx} className="grid grid-cols-3 gap-2 items-center">
-                        <Input value={item.service_name || item.name} onChange={(e) => {
-                          const updated = { ...editingBooking } as any;
-                          updated.item_prices[idx].service_name = e.target.value;
-                          setEditingBooking(updated);
-                        }} />
-                        <Input type="number" value={item.quantity} onChange={(e) => {
-                          const q = parseInt(e.target.value) || 0;
-                          const updated = { ...editingBooking } as any;
-                          updated.item_prices[idx].quantity = q;
-                          updated.item_prices[idx].total_price = q * (updated.item_prices[idx].unit_price || updated.item_prices[idx].price || 0);
-                          setEditingBooking(updated);
-                        }} />
-                        <Input type="number" value={item.unit_price || item.price} onChange={(e) => {
-                          const p = parseFloat(e.target.value) || 0;
-                          const updated = { ...editingBooking } as any;
-                          updated.item_prices[idx].unit_price = p;
-                          updated.item_prices[idx].total_price = (updated.item_prices[idx].quantity || 0) * p;
-                          setEditingBooking(updated);
-                        }} />
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-gray-500">No itemized prices available for this order.</div>
-                  )}
+                  {(() => {
+                    // Safely handle item_prices - ensure it exists and has proper structure
+                    const itemPrices = editingBooking.item_prices || [];
+
+                    if (itemPrices.length === 0) {
+                      return <div className="text-sm text-gray-500">No itemized prices available for this order.</div>;
+                    }
+
+                    return itemPrices.map((item: any, idx: number) => {
+                      // Safely extract item properties with fallbacks
+                      const serviceName = item?.service_name || item?.name || '';
+                      const quantity = item?.quantity || 1;
+                      const unitPrice = item?.unit_price || item?.price || 0;
+
+                      return (
+                        <div key={idx} className="grid grid-cols-3 gap-2 items-center">
+                          <Input
+                            value={serviceName}
+                            placeholder="Service name"
+                            onChange={(e) => {
+                              const updated = { ...editingBooking } as any;
+                              if (!updated.item_prices[idx]) updated.item_prices[idx] = {};
+                              updated.item_prices[idx].service_name = e.target.value;
+                              setEditingBooking(updated);
+                            }}
+                          />
+                          <Input
+                            type="number"
+                            value={quantity}
+                            placeholder="Quantity"
+                            onChange={(e) => {
+                              const q = parseInt(e.target.value) || 0;
+                              const updated = { ...editingBooking } as any;
+                              if (!updated.item_prices[idx]) updated.item_prices[idx] = {};
+                              updated.item_prices[idx].quantity = q;
+                              updated.item_prices[idx].total_price = q * (updated.item_prices[idx].unit_price || updated.item_prices[idx].price || 0);
+                              setEditingBooking(updated);
+                            }}
+                          />
+                          <Input
+                            type="number"
+                            value={unitPrice}
+                            placeholder="Unit price"
+                            onChange={(e) => {
+                              const p = parseFloat(e.target.value) || 0;
+                              const updated = { ...editingBooking } as any;
+                              if (!updated.item_prices[idx]) updated.item_prices[idx] = {};
+                              updated.item_prices[idx].unit_price = p;
+                              updated.item_prices[idx].total_price = (updated.item_prices[idx].quantity || 0) * p;
+                              setEditingBooking(updated);
+                            }}
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
               <div className="flex justify-end gap-2">
