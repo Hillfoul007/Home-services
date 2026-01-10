@@ -408,7 +408,12 @@ const AdminBookingManagement: React.FC = () => {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setEditingBooking({ ...booking });
+                        // Ensure item_prices is properly initialized for backward compatibility
+                        const bookingToEdit = {
+                          ...booking,
+                          item_prices: booking.item_prices || [],
+                        };
+                        setEditingBooking(bookingToEdit);
                         setShowEditDialog(true);
                       }}
                     >
