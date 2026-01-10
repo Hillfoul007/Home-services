@@ -460,6 +460,11 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
 
     const services = booking.services && booking.services.length ? booking.services : normalizedItems.map(i => `${i.service_name} x${i.quantity}`);
 
+    // Ensure coordinates is properly initialized (for old orders that may not have this field)
+    const coordinates = booking.coordinates && booking.coordinates.lat && booking.coordinates.lng
+      ? booking.coordinates
+      : undefined;
+
     const normalizedBooking = {
       ...booking,
       item_prices: normalizedItems,
@@ -468,6 +473,7 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       discount_amount: (booking as any).discount_amount || 0,
       discount_percent: (booking as any).discount_percent || 0,
+      coordinates,
     } as Booking;
 
     return normalizedBooking;
