@@ -199,7 +199,17 @@ const AdminBookingManagement: React.FC = () => {
         vendor: editingBooking.vendor,
       };
 
-      if (editingBooking.item_prices) payload.item_prices = editingBooking.item_prices;
+      // Only include item_prices if they exist and have content
+      if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
+        // Validate and clean item_prices to ensure all required fields exist
+        const cleanedItemPrices = editingBooking.item_prices.map((item: any) => ({
+          service_name: item.service_name || item.name || 'Service',
+          quantity: item.quantity || 1,
+          unit_price: item.unit_price || item.price || 0,
+          total_price: item.total_price || ((item.quantity || 1) * (item.unit_price || item.price || 0)),
+        }));
+        payload.item_prices = cleanedItemPrices;
+      }
 
       const response = await apiClient.adminRequest<{booking: Booking}>(`/admin/bookings/${editingBooking._id}`, {
         method: "PUT",
