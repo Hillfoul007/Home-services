@@ -2470,9 +2470,17 @@ const AdminBookingManagement: React.FC = () => {
                         wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.details?.discount || 0,
-                        coordinates: editingBooking.coordinates,
-                        distance_to_vendor: editingBooking.distance_to_vendor,
                       };
+
+                      // Only include coordinates if they exist (for old orders that don't have them)
+                      if (editingBooking.coordinates) {
+                        payload.coordinates = editingBooking.coordinates;
+                      }
+
+                      // Only include distance_to_vendor if it exists
+                      if (editingBooking.distance_to_vendor) {
+                        payload.distance_to_vendor = editingBooking.distance_to_vendor;
+                      }
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
                         payload.item_prices = editingBooking.item_prices
