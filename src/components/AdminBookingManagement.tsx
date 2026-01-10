@@ -2154,7 +2154,7 @@ const AdminBookingManagement: React.FC = () => {
                     </p>
                   </div>
 
-                  {editingBooking.coordinates && (
+                  {editingBooking.coordinates && editingBooking.coordinates.lat && editingBooking.coordinates.lng && (
                     <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                       <div className="flex items-start justify-between">
                         <div>
