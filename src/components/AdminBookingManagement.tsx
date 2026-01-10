@@ -94,6 +94,7 @@ interface Booking {
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
   coordinates?: { lat: number; lng: number };
+  mapsLink?: string;
   distance_to_vendor?: number;
   assignedVendor?: string;
   assignedVendorId?: string;
@@ -289,9 +290,9 @@ const generatePickupReminder = (booking: Booking): string => {
   };
 
   const address = booking.address || "N/A";
-  const mapsLink = address && address !== "N/A"
+  const mapsLink = booking.mapsLink || (address && address !== "N/A"
     ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
-    : "";
+    : "");
 
   const message = `Order Pickup 🧺
 
@@ -340,9 +341,9 @@ const generateDeliveryReminder = (booking: Booking): string => {
   };
 
   const address = booking.address || "N/A";
-  const mapsLink = address && address !== "N/A"
+  const mapsLink = booking.mapsLink || (address && address !== "N/A"
     ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
-    : "";
+    : "");
 
   const message = `Order Delivery 🚚
 
@@ -400,7 +401,7 @@ const getStatusColor = (status: string) => {
     case "created":
       return "bg-yellow-100 text-yellow-800";
     case "vendor_assigned":
-      return "bg-orange-100 text-orange-800";
+      return "bg-green-100 text-green-800";
     case "pickup_completed":
       return "bg-purple-100 text-purple-800";
     case "ready_for_delivery":
