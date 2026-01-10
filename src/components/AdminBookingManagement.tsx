@@ -955,21 +955,31 @@ const AdminBookingManagement: React.FC = () => {
   }, [readySearchTerm, readyStatusFilter, bucketB]);
 
   // Geocode booking address and calculate vendor distances
+  // Prioritize existing coordinates from Google Maps, then geocode the address
   useEffect(() => {
-    if (editingBooking?.address && showEditDialog) {
-      const geocodeAndCalculate = async () => {
-        try {
-          const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
-          if (coords) {
-            setBookingAddressCoords(coords);
+    if (showEditDialog && editingBooking) {
+      const setCoords = async () => {
+        // If booking already has valid coordinates (from Google Maps feature), use those
+        if (editingBooking.coordinates && editingBooking.coordinates.lat && editingBooking.coordinates.lng) {
+          setBookingAddressCoords(editingBooking.coordinates);
+          return;
+        }
+
+        // Otherwise, try to geocode the address
+        if (editingBooking.address) {
+          try {
+            const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+            if (coords) {
+              setBookingAddressCoords(coords);
+            }
+          } catch (error) {
+            console.warn('Failed to geocode address:', error);
           }
-        } catch (error) {
-          console.warn('Failed to geocode address:', error);
         }
       };
-      geocodeAndCalculate();
+      setCoords();
     }
-  }, [editingBooking?.address, showEditDialog]);
+  }, [editingBooking, showEditDialog]);
 
   // Load user's wallet balance when editing booking
   useEffect(() => {
