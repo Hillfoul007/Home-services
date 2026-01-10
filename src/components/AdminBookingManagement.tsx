@@ -650,7 +650,7 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Total Price:</span>
                     <span className="font-medium">₹{viewingBooking.total_price}</span>
                   </div>
-                  {viewingBooking.discount_amount > 0 && (
+                  {(viewingBooking.discount_amount || 0) > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
                       <span>-₹{viewingBooking.discount_amount}</span>
