@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Vehicle = require("../models/Vehicle");
 const Booking = require("../models/Booking");
 const User = require("../models/User");
+const Vendor = require("../models/Vendor");
 
 // Helper: Calculate distance between two coordinates (Haversine formula)
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
