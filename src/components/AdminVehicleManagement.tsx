@@ -393,6 +393,49 @@ const AdminVehicleManagement: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Orders Section */}
+                  {vehicle.assigned_vendor_id && (
+                    <div className="mt-4 pt-4 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => fetchVehicleOrders(vehicle._id)}
+                        className="text-blue-600 hover:text-blue-700 gap-2"
+                      >
+                        <Package className="h-4 w-4" />
+                        View Orders ({vehicle.current_orders_count})
+                      </Button>
+
+                      {expandedVehicleId === vehicle._id && (
+                        <div className="mt-3 space-y-2">
+                          {loadingOrders ? (
+                            <div className="text-sm text-gray-600">Loading orders...</div>
+                          ) : vehicleOrders[vehicle._id]?.length === 0 ? (
+                            <div className="text-sm text-gray-600">No orders assigned</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {vehicleOrders[vehicle._id]?.map((order: any) => (
+                                <div key={order._id} className="bg-gray-50 rounded p-3 text-sm border">
+                                  <div className="font-medium text-gray-900">{order.custom_order_id}</div>
+                                  <div className="text-gray-600 text-xs mt-1">
+                                    <div>👤 {order.name} ({order.phone})</div>
+                                    <div>📍 {order.address}</div>
+                                    <div>🕐 Pickup: {order.scheduled_time} | Delivery: {order.delivery_time}</div>
+                                    <div className="mt-1">
+                                      <Badge variant="outline" className="text-xs">
+                                        {order.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
