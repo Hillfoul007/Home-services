@@ -305,6 +305,18 @@ const bookingSchema = new mongoose.Schema(
     completed_at: {
       type: Date,
     },
+
+    // VEHICLE ROUTING
+    assigned_vehicle_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vehicle",
+      default: null,
+    },
+    vehicle_time_slot: {
+      type: String, // "09:00", "09:30", etc.
+      default: null,
+    },
+
     created_at: {
       type: Date,
       default: () => new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
