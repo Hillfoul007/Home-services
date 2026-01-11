@@ -410,6 +410,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminVendorManagement />
           </TabsContent>
 
+          <TabsContent value="order-allocation">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Order Allocation:</strong> Manage vehicle allocation for orders. Filter orders by vendor, check vehicle availability and time slots, and allocate orders to vehicles for optimized delivery.</p>
+            </div>
+            <AdminOrderAllocation />
+          </TabsContent>
+
           <TabsContent value="users">
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
               <p className="text-purple-900 text-sm"><strong>✓ Users Management:</strong> View all customer accounts and delete users if needed. Deleting a user will also remove all associated bookings.</p>
