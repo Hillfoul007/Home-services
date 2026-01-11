@@ -34,13 +34,14 @@ import AdminWalletManagement from "./AdminWalletManagement";
 import AdminPGManagement from "./AdminPGManagement";
 import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
 import AdminUsersManagement from "./AdminUsersManagement";
+import AdminOrderAllocation from "./AdminOrderAllocation";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "wallet";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "wallet" | "order-allocation";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
