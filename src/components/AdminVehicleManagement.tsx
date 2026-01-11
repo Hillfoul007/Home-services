@@ -188,6 +188,36 @@ const AdminVehicleManagement: React.FC = () => {
     }
   };
 
+  const fetchVehicleOrders = async (vehicleId: string) => {
+    try {
+      setLoadingOrders(true);
+      // If already cached, use cached data
+      if (vehicleOrders[vehicleId]) {
+        setExpandedVehicleId(expandedVehicleId === vehicleId ? null : vehicleId);
+        return;
+      }
+
+      const response = await apiClient.adminRequest<{ vehicle: Vehicle }>(
+        `/admin/vehicles/${vehicleId}`
+      );
+
+      if (response.data?.vehicle) {
+        const vehicle = response.data.vehicle;
+        // Store the orders in state
+        setVehicleOrders((prev) => ({
+          ...prev,
+          [vehicleId]: vehicle.today_orders || [],
+        }));
+        setExpandedVehicleId(expandedVehicleId === vehicleId ? null : vehicleId);
+      }
+    } catch (error) {
+      console.error("Error fetching vehicle orders:", error);
+      toast.error("Failed to fetch vehicle orders");
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "available":
