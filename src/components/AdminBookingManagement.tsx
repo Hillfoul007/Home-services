@@ -2184,7 +2184,7 @@ const AdminBookingManagement: React.FC = () => {
                   {editingBooking.coordinates && editingBooking.coordinates.lat && editingBooking.coordinates.lng && (
                     <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                       <div className="flex items-start justify-between">
-                        <div>
+                        <div className="flex-1">
                           <Label className="text-green-900 text-sm font-semibold">Current Location</Label>
                           <p className="text-sm text-green-700 mt-2">
                             <span className="font-mono">{editingBooking.coordinates.lat.toFixed(4)}, {editingBooking.coordinates.lng.toFixed(4)}</span>
@@ -2215,6 +2215,40 @@ const AdminBookingManagement: React.FC = () => {
                           className="text-red-600 border-red-300 hover:bg-red-50"
                         >
                           Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {editingBooking.mapsLink && (
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <Label className="text-blue-900 text-sm font-semibold">📍 Maps Link for Reminders</Label>
+                          <p className="text-sm text-blue-700 mt-2 break-all">
+                            <span className="font-mono text-xs">{editingBooking.mapsLink}</span>
+                          </p>
+                          <p className="text-xs text-blue-600 mt-2">
+                            ✓ This link will be included in pickup & delivery reminder messages
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingBooking((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    mapsLink: undefined,
+                                  }
+                                : prev,
+                            );
+                            toast.info("Maps link removed");
+                          }}
+                          className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                        >
+                          Remove
                         </Button>
                       </div>
                     </div>
