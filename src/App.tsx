@@ -26,6 +26,8 @@ import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
 import MainWebsite from "@/pages/MainWebsite";
 import PGBooking from "@/pages/PGBooking";
+import AdminVehicleManagement from "@/components/AdminVehicleManagement";
+import VehicleDashboard from "@/components/VehicleDashboard";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -104,6 +106,8 @@ function App() {
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
               <Route path="/pg-booking" element={<PGBooking />} />
+              <Route path="/admin/vehicles" element={<AdminVehicleManagement />} />
+              <Route path="/driver/dashboard" element={<VehicleDashboard />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />

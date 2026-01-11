@@ -460,6 +460,11 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
 
     const services = booking.services && booking.services.length ? booking.services : normalizedItems.map(i => `${i.service_name} x${i.quantity}`);
 
+    // Ensure coordinates is properly initialized (for old orders that may not have this field)
+    const coordinates = booking.coordinates && booking.coordinates.lat && booking.coordinates.lng
+      ? booking.coordinates
+      : undefined;
+
     const normalizedBooking = {
       ...booking,
       item_prices: normalizedItems,
@@ -468,6 +473,7 @@ const normalizeBookingForEdit = (booking: Booking): Booking => {
       total_price: typeof booking.total_price === 'number' ? booking.total_price : (normalizedItems.reduce((s, it) => s + (it.total_price || 0), 0)),
       discount_amount: (booking as any).discount_amount || 0,
       discount_percent: (booking as any).discount_percent || 0,
+      coordinates,
     } as Booking;
 
     return normalizedBooking;
@@ -949,21 +955,31 @@ const AdminBookingManagement: React.FC = () => {
   }, [readySearchTerm, readyStatusFilter, bucketB]);
 
   // Geocode booking address and calculate vendor distances
+  // Prioritize existing coordinates from Google Maps, then geocode the address
   useEffect(() => {
-    if (editingBooking?.address && showEditDialog) {
-      const geocodeAndCalculate = async () => {
-        try {
-          const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
-          if (coords) {
-            setBookingAddressCoords(coords);
+    if (showEditDialog && editingBooking) {
+      const setCoords = async () => {
+        // If booking already has valid coordinates (from Google Maps feature), use those
+        if (editingBooking.coordinates && editingBooking.coordinates.lat && editingBooking.coordinates.lng) {
+          setBookingAddressCoords(editingBooking.coordinates);
+          return;
+        }
+
+        // Otherwise, try to geocode the address
+        if (editingBooking.address) {
+          try {
+            const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+            if (coords) {
+              setBookingAddressCoords(coords);
+            }
+          } catch (error) {
+            console.warn('Failed to geocode address:', error);
           }
-        } catch (error) {
-          console.warn('Failed to geocode address:', error);
         }
       };
-      geocodeAndCalculate();
+      setCoords();
     }
-  }, [editingBooking?.address, showEditDialog]);
+  }, [editingBooking, showEditDialog]);
 
   // Load user's wallet balance when editing booking
   useEffect(() => {
@@ -2066,7 +2082,9 @@ const AdminBookingManagement: React.FC = () => {
                             let distance = Infinity;
                             const vendorData = vendorFullData[vendor.name];
 
-                            if (bookingAddressCoords && vendorData && vendorData.coordinates) {
+                            // Only calculate distance if both booking and vendor have coordinates
+                            if (bookingAddressCoords && bookingAddressCoords.lat && bookingAddressCoords.lng &&
+                                vendorData && vendorData.coordinates && vendorData.coordinates.lat && vendorData.coordinates.lng) {
                               try {
                                 const vendorCoords = vendorData.coordinates;
                                 const R = 6371;
@@ -2154,7 +2172,7 @@ const AdminBookingManagement: React.FC = () => {
                     </p>
                   </div>
 
-                  {editingBooking.coordinates && (
+                  {editingBooking.coordinates && editingBooking.coordinates.lat && editingBooking.coordinates.lng && (
                     <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                       <div className="flex items-start justify-between">
                         <div>
@@ -2470,9 +2488,17 @@ const AdminBookingManagement: React.FC = () => {
                         wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.details?.discount || 0,
-                        coordinates: editingBooking.coordinates,
-                        distance_to_vendor: editingBooking.distance_to_vendor,
                       };
+
+                      // Only include coordinates if they exist (for old orders that don't have them)
+                      if (editingBooking.coordinates) {
+                        payload.coordinates = editingBooking.coordinates;
+                      }
+
+                      // Only include distance_to_vendor if it exists
+                      if (editingBooking.distance_to_vendor) {
+                        payload.distance_to_vendor = editingBooking.distance_to_vendor;
+                      }
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
                         payload.item_prices = editingBooking.item_prices
