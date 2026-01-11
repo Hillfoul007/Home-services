@@ -63,6 +63,9 @@ const AdminVehicleManagement: React.FC = () => {
   const [showVendorDialog, setShowVendorDialog] = useState(false);
   const [showRouteDialog, setShowRouteDialog] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [expandedVehicleId, setExpandedVehicleId] = useState<string | null>(null);
+  const [vehicleOrders, setVehicleOrders] = useState<{ [key: string]: any[] }>({});
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
