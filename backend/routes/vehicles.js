@@ -142,7 +142,14 @@ router.post("/vehicles/:vehicleId/assign-vendor", async (req, res) => {
       return res.status(400).json({ error: "Invalid IDs" });
     }
 
-    const vendor = await User.findById(vendor_id);
+    // First try to find vendor in Vendor (laundry) collection
+    let vendor = await Vendor.findById(vendor_id);
+
+    // Fall back to User collection if not found
+    if (!vendor) {
+      vendor = await User.findById(vendor_id);
+    }
+
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
     }
