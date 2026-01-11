@@ -475,6 +475,15 @@ try {
   console.error("❌ Failed to load PG routes:", error.message);
 }
 
+// Vehicle Routing routes
+try {
+  const vehicleRoutes = require("./routes/vehicles");
+  app.use("/api/vehicles", vehicleRoutes);
+  console.log("🔗 Vehicle routing routes registered at /api/vehicles");
+} catch (error) {
+  console.error("❌ Failed to load Vehicle routes:", error.message);
+}
+
 // Google Sheets integration removed
 
 // Push notification endpoints
