@@ -106,6 +106,8 @@ function App() {
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
               <Route path="/pg-booking" element={<PGBooking />} />
+              <Route path="/admin/vehicles" element={<AdminVehicleManagement />} />
+              <Route path="/driver/dashboard" element={<VehicleDashboard />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
