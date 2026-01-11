@@ -25,7 +25,7 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
 // ============================================================================
 
 // GET all vehicles with details
-router.get("/admin/vehicles", async (req, res) => {
+router.get("/vehicles", async (req, res) => {
   try {
     const vehicles = await Vehicle.find()
       .populate("assigned_vendor_id", "name phone email")
@@ -39,7 +39,7 @@ router.get("/admin/vehicles", async (req, res) => {
 });
 
 // GET single vehicle with today's orders
-router.get("/admin/vehicles/:vehicleId", async (req, res) => {
+router.get("/vehicles/:vehicleId", async (req, res) => {
   try {
     const { vehicleId } = req.params;
 
@@ -67,7 +67,7 @@ router.get("/admin/vehicles/:vehicleId", async (req, res) => {
 });
 
 // CREATE new vehicle
-router.post("/admin/vehicles", async (req, res) => {
+router.post("/vehicles", async (req, res) => {
   try {
     const { name, number_plate, vehicle_type, driver_name, driver_phone } = req.body;
 
@@ -99,7 +99,7 @@ router.post("/admin/vehicles", async (req, res) => {
 });
 
 // UPDATE vehicle
-router.put("/admin/vehicles/:vehicleId", async (req, res) => {
+router.put("/vehicles/:vehicleId", async (req, res) => {
   try {
     const { vehicleId } = req.params;
     const { name, vehicle_type, driver_name, driver_phone, is_active } = req.body;
@@ -132,7 +132,7 @@ router.put("/admin/vehicles/:vehicleId", async (req, res) => {
 });
 
 // ASSIGN vendor to vehicle
-router.post("/admin/vehicles/:vehicleId/assign-vendor", async (req, res) => {
+router.post("/vehicles/:vehicleId/assign-vendor", async (req, res) => {
   try {
     const { vehicleId } = req.params;
     const { vendor_id } = req.body;
@@ -167,7 +167,7 @@ router.post("/admin/vehicles/:vehicleId/assign-vendor", async (req, res) => {
 });
 
 // UNASSIGN vendor from vehicle
-router.post("/admin/vehicles/:vehicleId/unassign-vendor", async (req, res) => {
+router.post("/vehicles/:vehicleId/unassign-vendor", async (req, res) => {
   try {
     const { vehicleId } = req.params;
 
@@ -196,7 +196,7 @@ router.post("/admin/vehicles/:vehicleId/unassign-vendor", async (req, res) => {
 });
 
 // ADD order to vehicle for specific date and slot
-router.post("/admin/vehicles/:vehicleId/add-order", async (req, res) => {
+router.post("/vehicles/:vehicleId/add-order", async (req, res) => {
   try {
     const { vehicleId } = req.params;
     const { booking_id, slot_start_time } = req.body;
@@ -251,7 +251,7 @@ router.post("/admin/vehicles/:vehicleId/add-order", async (req, res) => {
 });
 
 // REMOVE order from vehicle
-router.post("/admin/vehicles/:vehicleId/remove-order", async (req, res) => {
+router.post("/vehicles/:vehicleId/remove-order", async (req, res) => {
   try {
     const { vehicleId } = req.params;
     const { booking_id, slot_start_time } = req.body;
