@@ -97,12 +97,21 @@ const AdminVehicleManagement: React.FC = () => {
 
   const fetchVendors = async () => {
     try {
-      const response = await apiClient.adminRequest<{ users: VendorOption[] }>("/admin/users");
-      if (response.data?.users) {
-        setVendors(response.data.users.filter((u: any) => u.user_type === "vendor" || u.user_type === "laundry"));
+      // Fetch laundry vendors from the admin vendor management
+      const response = await apiClient.adminRequest<{ vendors: VendorOption[] }>("/admin/laundry-vendors");
+      if (response.data?.vendors) {
+        // Map vendor data to match VendorOption interface
+        const formattedVendors = response.data.vendors.map((vendor: any) => ({
+          _id: vendor._id,
+          name: vendor.name,
+          phone: vendor.phone,
+          email: vendor.email,
+        }));
+        setVendors(formattedVendors);
       }
     } catch (error) {
       console.error("Error fetching vendors:", error);
+      toast.error("Failed to fetch vendors");
     }
   };
 
