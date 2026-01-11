@@ -63,6 +63,9 @@ const AdminVehicleManagement: React.FC = () => {
   const [showVendorDialog, setShowVendorDialog] = useState(false);
   const [showRouteDialog, setShowRouteDialog] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [expandedVehicleId, setExpandedVehicleId] = useState<string | null>(null);
+  const [vehicleOrders, setVehicleOrders] = useState<{ [key: string]: any[] }>({});
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -97,12 +100,21 @@ const AdminVehicleManagement: React.FC = () => {
 
   const fetchVendors = async () => {
     try {
-      const response = await apiClient.adminRequest<{ users: VendorOption[] }>("/admin/users");
-      if (response.data?.users) {
-        setVendors(response.data.users.filter((u: any) => u.user_type === "vendor" || u.user_type === "laundry"));
+      // Fetch laundry vendors from the admin vendor management
+      const response = await apiClient.adminRequest<{ vendors: VendorOption[] }>("/admin/laundry-vendors");
+      if (response.data?.vendors) {
+        // Map vendor data to match VendorOption interface
+        const formattedVendors = response.data.vendors.map((vendor: any) => ({
+          _id: vendor._id,
+          name: vendor.name,
+          phone: vendor.phone,
+          email: vendor.email,
+        }));
+        setVendors(formattedVendors);
       }
     } catch (error) {
       console.error("Error fetching vendors:", error);
+      toast.error("Failed to fetch vendors");
     }
   };
 
@@ -173,6 +185,36 @@ const AdminVehicleManagement: React.FC = () => {
     } catch (error) {
       console.error("Error unassigning vendor:", error);
       toast.error("Failed to unassign vendor");
+    }
+  };
+
+  const fetchVehicleOrders = async (vehicleId: string) => {
+    try {
+      setLoadingOrders(true);
+      // If already cached, use cached data
+      if (vehicleOrders[vehicleId]) {
+        setExpandedVehicleId(expandedVehicleId === vehicleId ? null : vehicleId);
+        return;
+      }
+
+      const response = await apiClient.adminRequest<{ vehicle: Vehicle }>(
+        `/admin/vehicles/${vehicleId}`
+      );
+
+      if (response.data?.vehicle) {
+        const vehicle = response.data.vehicle;
+        // Store the orders in state
+        setVehicleOrders((prev) => ({
+          ...prev,
+          [vehicleId]: vehicle.today_orders || [],
+        }));
+        setExpandedVehicleId(expandedVehicleId === vehicleId ? null : vehicleId);
+      }
+    } catch (error) {
+      console.error("Error fetching vehicle orders:", error);
+      toast.error("Failed to fetch vehicle orders");
+    } finally {
+      setLoadingOrders(false);
     }
   };
 
@@ -349,6 +391,49 @@ const AdminVehicleManagement: React.FC = () => {
                           Updated: {new Date(vehicle.current_location.last_updated_at).toLocaleTimeString()}
                         </span>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Orders Section */}
+                  {vehicle.assigned_vendor_id && (
+                    <div className="mt-4 pt-4 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => fetchVehicleOrders(vehicle._id)}
+                        className="text-blue-600 hover:text-blue-700 gap-2"
+                      >
+                        <Package className="h-4 w-4" />
+                        View Orders ({vehicle.current_orders_count})
+                      </Button>
+
+                      {expandedVehicleId === vehicle._id && (
+                        <div className="mt-3 space-y-2">
+                          {loadingOrders ? (
+                            <div className="text-sm text-gray-600">Loading orders...</div>
+                          ) : vehicleOrders[vehicle._id]?.length === 0 ? (
+                            <div className="text-sm text-gray-600">No orders assigned</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {vehicleOrders[vehicle._id]?.map((order: any) => (
+                                <div key={order._id} className="bg-gray-50 rounded p-3 text-sm border">
+                                  <div className="font-medium text-gray-900">{order.custom_order_id}</div>
+                                  <div className="text-gray-600 text-xs mt-1">
+                                    <div>👤 {order.name} ({order.phone})</div>
+                                    <div>📍 {order.address}</div>
+                                    <div>🕐 Pickup: {order.scheduled_time} | Delivery: {order.delivery_time}</div>
+                                    <div className="mt-1">
+                                      <Badge variant="outline" className="text-xs">
+                                        {order.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -2281,4 +2281,25 @@ router.delete("/pgs/:pgId", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// Get vendor's orders (for time slot availability)
+router.get("/vendors/:vendorId/orders", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    console.log(`📋 Fetching orders for vendor: ${vendorId}`);
+
+    const Booking = require("../models/Booking");
+
+    // Find all orders assigned to this vendor
+    const orders = await Booking.find({
+      assignedVendor: vendorId,
+    }).select("_id custom_order_id name phone address scheduled_time delivery_time status coordinates");
+
+    console.log(`✅ Found ${orders.length} orders for vendor`);
+    res.json({ success: true, orders });
+  } catch (error) {
+    console.error("❌ Error fetching vendor orders:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;
