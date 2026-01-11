@@ -2136,11 +2136,22 @@ const AdminBookingManagement: React.FC = () => {
                 </h4>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="google-maps-link">Google Maps Link (or paste address)</Label>
+                    <Label htmlFor="google-maps-link">Google Maps Link (for reminders)</Label>
                     <Input
                       id="google-maps-link"
-                      placeholder="Paste Google Maps link or enter address (e.g., https://maps.google.com/@12.9716,77.5946,17z or 12.9716,77.5946)"
-                      defaultValue=""
+                      placeholder="Paste Google Maps link (e.g., https://maps.google.com/@12.9716,77.5946,17z)"
+                      value={editingBooking.mapsLink || ""}
+                      onChange={(e) => {
+                        const mapsLink = e.target.value.trim();
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                mapsLink: mapsLink || undefined,
+                              }
+                            : prev,
+                        );
+                      }}
                       onBlur={(e) => {
                         const mapsLink = e.target.value.trim();
                         if (mapsLink && isGoogleMapsUrl(mapsLink)) {
@@ -2151,24 +2162,22 @@ const AdminBookingManagement: React.FC = () => {
                                 ? {
                                     ...prev,
                                     coordinates: parsed.coordinates,
+                                    mapsLink: mapsLink,
                                   }
                                 : prev,
                             );
-                            toast.success(`Location extracted: ${parsed.coordinates.lat.toFixed(4)}, ${parsed.coordinates.lng.toFixed(4)}`);
-                            e.target.value = "";
+                            toast.success(`✅ Maps link saved & location extracted: ${parsed.coordinates.lat.toFixed(4)}, ${parsed.coordinates.lng.toFixed(4)}`);
                           } else if (parsed.error) {
                             toast.error(parsed.error);
-                            e.target.value = "";
                           }
                         } else if (mapsLink && mapsLink.length > 0) {
-                          toast.error("Please enter a valid Google Maps link or coordinates");
-                          e.target.value = "";
+                          toast.error("Please enter a valid Google Maps link (starts with https://maps.google.com)");
                         }
                       }}
                       className="mt-1"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Paste a Google Maps link or direct coordinates. The location will be extracted and saved for precise delivery tracking.
+                      Paste a Google Maps link. This will be included in pickup & delivery reminders sent to vendors.
                     </p>
                   </div>
 
