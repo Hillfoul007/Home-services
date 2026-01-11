@@ -2538,6 +2538,11 @@ const AdminBookingManagement: React.FC = () => {
                         payload.coordinates = editingBooking.coordinates;
                       }
 
+                      // Include mapsLink for reminders
+                      if (editingBooking.mapsLink) {
+                        payload.mapsLink = editingBooking.mapsLink;
+                      }
+
                       // Only include distance_to_vendor if it exists
                       if (editingBooking.distance_to_vendor) {
                         payload.distance_to_vendor = editingBooking.distance_to_vendor;
