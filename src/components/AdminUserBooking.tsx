@@ -727,83 +727,161 @@ const AdminUserBooking: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="pickup-date">Pickup Date</Label>
-                <Input
-                  id="pickup-date"
-                  type="date"
-                  value={bookingData.scheduled_date}
-                  onChange={(e) =>
-                    setBookingData({ ...bookingData, scheduled_date: e.target.value })
-                  }
-                  min={new Date().toISOString().split("T")[0]}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="pickup-time">Pickup Time</Label>
-                <Select
-                  value={bookingData.scheduled_time}
-                  onValueChange={(value) =>
-                    setBookingData({ ...bookingData, scheduled_time: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="09:00">09:00 AM</SelectItem>
-                    <SelectItem value="10:00">10:00 AM</SelectItem>
-                    <SelectItem value="11:00">11:00 AM</SelectItem>
-                    <SelectItem value="12:00">12:00 PM</SelectItem>
-                    <SelectItem value="13:00">01:00 PM</SelectItem>
-                    <SelectItem value="14:00">02:00 PM</SelectItem>
-                    <SelectItem value="15:00">03:00 PM</SelectItem>
-                    <SelectItem value="16:00">04:00 PM</SelectItem>
-                    <SelectItem value="17:00">05:00 PM</SelectItem>
-                    <SelectItem value="18:00">06:00 PM</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {selectedVendor ? (
+                <>
+                  {/* Pickup Time Slot Selector (Only if vendor is selected) */}
+                  <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="pickup-date" className="mb-2 block">Pickup Date</Label>
+                        <Input
+                          id="pickup-date"
+                          type="date"
+                          value={bookingData.scheduled_date}
+                          onChange={(e) => {
+                            const newDate = e.target.value;
+                            setBookingData({ ...bookingData, scheduled_date: newDate });
+                            setSelectedPickupSlot(null);
+                          }}
+                          min={new Date().toISOString().split("T")[0]}
+                        />
+                      </div>
+                    </div>
 
-              <div>
-                <Label htmlFor="delivery-date">Delivery Date (Optional)</Label>
-                <Input
-                  id="delivery-date"
-                  type="date"
-                  value={bookingData.delivery_date}
-                  onChange={(e) =>
-                    setBookingData({ ...bookingData, delivery_date: e.target.value })
-                  }
-                  min={bookingData.scheduled_date || new Date().toISOString().split("T")[0]}
-                />
-              </div>
+                    {bookingData.scheduled_date && (
+                      <div className="mt-4">
+                        <VendorTimeSlotSelector
+                          vendorId={selectedVendor._id || selectedVendor.id}
+                          selectedDate={new Date(bookingData.scheduled_date)}
+                          onSlotSelected={(slot) => {
+                            setSelectedPickupSlot(slot);
+                            setBookingData({
+                              ...bookingData,
+                              scheduled_time: slot.start_time,
+                            });
+                          }}
+                          slotType="pickup"
+                        />
+                      </div>
+                    )}
+                  </div>
 
-              <div>
-                <Label htmlFor="delivery-time">Delivery Time (Optional)</Label>
-                <Select
-                  value={bookingData.delivery_time}
-                  onValueChange={(value) =>
-                    setBookingData({ ...bookingData, delivery_time: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="09:00">09:00 AM</SelectItem>
-                    <SelectItem value="10:00">10:00 AM</SelectItem>
-                    <SelectItem value="11:00">11:00 AM</SelectItem>
-                    <SelectItem value="12:00">12:00 PM</SelectItem>
-                    <SelectItem value="13:00">01:00 PM</SelectItem>
-                    <SelectItem value="14:00">02:00 PM</SelectItem>
-                    <SelectItem value="15:00">03:00 PM</SelectItem>
-                    <SelectItem value="16:00">04:00 PM</SelectItem>
-                    <SelectItem value="17:00">05:00 PM</SelectItem>
-                    <SelectItem value="18:00">06:00 PM</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  {/* Delivery Time Slot Selector (Optional) */}
+                  {bookingData.delivery_date && (
+                    <div className="md:col-span-2">
+                      <VendorTimeSlotSelector
+                        vendorId={selectedVendor._id || selectedVendor.id}
+                        selectedDate={new Date(bookingData.delivery_date)}
+                        onSlotSelected={(slot) => {
+                          setSelectedDeliverySlot(slot);
+                          setBookingData({
+                            ...bookingData,
+                            delivery_time: slot.start_time,
+                          });
+                        }}
+                        slotType="delivery"
+                      />
+                    </div>
+                  )}
+
+                  {/* Delivery Date Input */}
+                  <div className="md:col-span-2">
+                    <Label htmlFor="delivery-date">Delivery Date (Optional)</Label>
+                    <Input
+                      id="delivery-date"
+                      type="date"
+                      value={bookingData.delivery_date}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setBookingData({ ...bookingData, delivery_date: newDate });
+                        setSelectedDeliverySlot(null);
+                      }}
+                      min={bookingData.scheduled_date || new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Fallback to basic time selection if no vendor is selected */}
+                  <div>
+                    <Label htmlFor="pickup-date">Pickup Date</Label>
+                    <Input
+                      id="pickup-date"
+                      type="date"
+                      value={bookingData.scheduled_date}
+                      onChange={(e) =>
+                        setBookingData({ ...bookingData, scheduled_date: e.target.value })
+                      }
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="pickup-time">Pickup Time</Label>
+                    <Select
+                      value={bookingData.scheduled_time}
+                      onValueChange={(value) =>
+                        setBookingData({ ...bookingData, scheduled_time: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="09:00">09:00 AM</SelectItem>
+                        <SelectItem value="10:00">10:00 AM</SelectItem>
+                        <SelectItem value="11:00">11:00 AM</SelectItem>
+                        <SelectItem value="12:00">12:00 PM</SelectItem>
+                        <SelectItem value="13:00">01:00 PM</SelectItem>
+                        <SelectItem value="14:00">02:00 PM</SelectItem>
+                        <SelectItem value="15:00">03:00 PM</SelectItem>
+                        <SelectItem value="16:00">04:00 PM</SelectItem>
+                        <SelectItem value="17:00">05:00 PM</SelectItem>
+                        <SelectItem value="18:00">06:00 PM</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="delivery-date">Delivery Date (Optional)</Label>
+                    <Input
+                      id="delivery-date"
+                      type="date"
+                      value={bookingData.delivery_date}
+                      onChange={(e) =>
+                        setBookingData({ ...bookingData, delivery_date: e.target.value })
+                      }
+                      min={bookingData.scheduled_date || new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="delivery-time">Delivery Time (Optional)</Label>
+                    <Select
+                      value={bookingData.delivery_time}
+                      onValueChange={(value) =>
+                        setBookingData({ ...bookingData, delivery_time: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="09:00">09:00 AM</SelectItem>
+                        <SelectItem value="10:00">10:00 AM</SelectItem>
+                        <SelectItem value="11:00">11:00 AM</SelectItem>
+                        <SelectItem value="12:00">12:00 PM</SelectItem>
+                        <SelectItem value="13:00">01:00 PM</SelectItem>
+                        <SelectItem value="14:00">02:00 PM</SelectItem>
+                        <SelectItem value="15:00">03:00 PM</SelectItem>
+                        <SelectItem value="16:00">04:00 PM</SelectItem>
+                        <SelectItem value="17:00">05:00 PM</SelectItem>
+                        <SelectItem value="18:00">06:00 PM</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
 
 
               <div className="md:col-span-2 flex items-center gap-2">
