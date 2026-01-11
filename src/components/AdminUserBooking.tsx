@@ -88,6 +88,10 @@ const AdminUserBooking: React.FC = () => {
   const [newUserName, setNewUserName] = useState("");
   const [newUserAddress, setNewUserAddress] = useState("");
 
+  // Time slot selection state
+  const [selectedPickupSlot, setSelectedPickupSlot] = useState<any>(null);
+  const [selectedDeliverySlot, setSelectedDeliverySlot] = useState<any>(null);
+
   // Service selection state
   const [availableServices] = useState<ServiceItem[]>([
     { id: "1", name: "Regular Iron", category: "Ironing", quantity: 1, price: 20, unit: "PC" },
