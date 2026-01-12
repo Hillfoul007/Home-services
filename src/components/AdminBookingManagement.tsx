@@ -1223,6 +1223,37 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
+  const handleVehicleAllocation = async (bookingId: string, vehicleId: string, allocationFor: 'pickup' | 'delivery') => {
+    if (!selectedAllocationVehicle) {
+      toast.error("Please select a vehicle");
+      return;
+    }
+
+    try {
+      const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
+        method: "POST",
+        body: {
+          booking_id: bookingId,
+          vehicle_id: vehicleId,
+          slot_start_time: selectedAllocationSlot || null,
+        },
+      });
+
+      if (response.data?.success) {
+        toast.success(`✅ Order allocated to vehicle for ${allocationFor}`);
+        setShowVehicleAllocationModal(false);
+        setSelectedAllocationVehicle('');
+        setSelectedAllocationSlot('');
+        await fetchBookings();
+      } else {
+        toast.error(response.data?.error || "Failed to allocate vehicle");
+      }
+    } catch (error) {
+      console.error("Error allocating vehicle:", error);
+      toast.error("Failed to allocate vehicle");
+    }
+  };
+
   const handleAssignmentChange = (booking: Booking, field: "rider" | "vendor", value: string) => {
     const formattedValue = value === "__unassigned__" ? null : value;
 
