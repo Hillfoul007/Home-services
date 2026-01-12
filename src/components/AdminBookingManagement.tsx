@@ -2720,6 +2720,162 @@ const AdminBookingManagement: React.FC = () => {
         vendorGroupLink={reminderVendorGroupLink}
         reminderType={reminderType}
       />
+
+      {/* Vehicle Allocation Modal */}
+      <Dialog open={showVehicleAllocationModal} onOpenChange={setShowVehicleAllocationModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {vehicleAllocationFor === 'pickup' ? '🚗 Allocate Pickup Vehicle' : '🚚 Allocate Delivery Vehicle'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {vehicleAllocationBooking && (
+            <div className="space-y-6">
+              {/* Order Details */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2">Order Details</h3>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Order ID:</span>
+                    <span className="font-mono font-semibold">{vehicleAllocationBooking.custom_order_id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Customer:</span>
+                    <span>{vehicleAllocationBooking.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Vendor:</span>
+                    <span>{vehicleAllocationBooking.assignedVendor || 'Not assigned'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {vehicleAllocationFor === 'pickup' ? 'Pickup' : 'Delivery'} Date & Time:
+                    </span>
+                    <span>
+                      {vehicleAllocationFor === 'pickup'
+                        ? `${vehicleAllocationBooking.scheduled_date} at ${vehicleAllocationBooking.scheduled_time}`
+                        : `${vehicleAllocationBooking.delivery_date} at ${vehicleAllocationBooking.delivery_time}`
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Address:</span>
+                    <span className="text-right">{vehicleAllocationBooking.address}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Select Vehicle */}
+              <div className="space-y-2">
+                <Label htmlFor="vehicle-select">Select Vehicle for {vehicleAllocationFor === 'pickup' ? 'Pickup' : 'Delivery'}</Label>
+                {loadingVehicles ? (
+                  <div className="p-4 text-center text-gray-600">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
+                    <p>Loading vehicles...</p>
+                  </div>
+                ) : availableVehicles.length === 0 ? (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-yellow-800 text-sm">
+                      ⚠️ No active vehicles found for this vendor. Please ensure vehicles are assigned to the vendor.
+                    </p>
+                  </div>
+                ) : (
+                  <Select value={selectedAllocationVehicle} onValueChange={setSelectedAllocationVehicle}>
+                    <SelectTrigger id="vehicle-select">
+                      <SelectValue placeholder="Select a vehicle..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableVehicles.map((vehicle) => (
+                        <SelectItem key={vehicle._id} value={vehicle._id}>
+                          <div className="flex items-center gap-2">
+                            <Truck className="w-3 h-3" />
+                            <span>
+                              {vehicle.name} ({vehicle.number_plate}) - {vehicle.current_orders_count}/{vehicle.max_orders_per_trip}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {/* Select Time Slot */}
+              {selectedAllocationVehicle && availableVehicles.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
+                  {(() => {
+                    const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
+                    if (!vehicle?.availability_slots) return null;
+
+                    return (
+                      <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
+                        <SelectTrigger id="slot-select">
+                          <SelectValue placeholder="Leave empty for no specific slot..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">No Specific Slot</SelectItem>
+                          {vehicle.availability_slots.map((slot) => (
+                            <SelectItem
+                              key={slot.start_time}
+                              value={slot.start_time}
+                              disabled={!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3 h-3" />
+                                <span>
+                                  {slot.start_time} - {slot.end_time} ({slot.assigned_orders_count}/{vehicle.max_orders_per_trip})
+                                </span>
+                                {!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip ? (
+                                  <span className="text-red-600 text-xs ml-2">Full</span>
+                                ) : null}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Vehicle Summary */}
+              {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
+                const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
+                return vehicle ? (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicle.name} ({vehicle.number_plate})</p>
+                    <p className="text-sm"><span className="font-semibold">Capacity:</span> {vehicle.current_orders_count}/{vehicle.max_orders_per_trip} orders</p>
+                    {selectedAllocationSlot && (
+                      <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={() => handleVehicleAllocation(vehicleAllocationBooking._id, selectedAllocationVehicle, vehicleAllocationFor)}
+                  disabled={!selectedAllocationVehicle}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Allocate to Vehicle
+                </Button>
+                <Button
+                  onClick={() => setShowVehicleAllocationModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
