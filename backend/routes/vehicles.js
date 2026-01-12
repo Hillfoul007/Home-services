@@ -324,7 +324,7 @@ router.get("/vehicle/route/:vehicleId", async (req, res) => {
         path: "today_orders",
         model: "Booking",
         select:
-          "custom_order_id name phone address coordinates scheduled_time delivery_time status special_instructions",
+          "custom_order_id name phone address coordinates scheduled_time delivery_time status special_instructions scheduled_date",
       })
       .populate("assigned_vendor_id", "name phone email");
 
@@ -332,8 +332,15 @@ router.get("/vehicle/route/:vehicleId", async (req, res) => {
       return res.status(404).json({ error: "Vehicle not found" });
     }
 
+    // Filter orders to show only today's orders
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const todaysOrders = vehicle.today_orders.filter(order => {
+      const orderDate = order.scheduled_date ? order.scheduled_date.substring(0, 10) : null;
+      return orderDate === today;
+    });
+
     // Optimize route: Sort orders by distance from current location
-    const orders = vehicle.today_orders;
+    const orders = todaysOrders;
     let optimizedOrders = [...orders];
 
     if (vehicle.current_location && vehicle.current_location.lat && vehicle.current_location.lng) {
