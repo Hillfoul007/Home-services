@@ -25,10 +25,17 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
 // ADMIN ROUTES - VEHICLE MANAGEMENT
 // ============================================================================
 
-// GET all vehicles with details
+// GET all vehicles with details (optionally filtered by vendor_id)
 router.get("/vehicles", async (req, res) => {
   try {
-    const vehicles = await Vehicle.find()
+    const { vendor_id } = req.query;
+
+    let query = {};
+    if (vendor_id) {
+      query.assigned_vendor_id = vendor_id;
+    }
+
+    const vehicles = await Vehicle.find(query)
       .populate("assigned_vendor_id", "name phone email")
       .sort({ created_at: -1 });
 
