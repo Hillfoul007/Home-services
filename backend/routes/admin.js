@@ -2306,6 +2306,245 @@ router.get("/vendors/:vendorId/orders", verifyAdminAccess, async (req, res) => {
 // VEHICLE ALLOCATION MANAGEMENT
 // ============================================================================
 
+// Helper: Calculate distance between two coordinates
+const calculateDistanceForAllocation = (lat1, lng1, lat2, lng2) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// POST: Get auto-allocation suggestions (preview before executing)
+router.post("/order-allocation/auto-suggest", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendor_id } = req.body;
+
+    console.log(`🤖 Getting auto-allocation suggestions for vendor: ${vendor_id}`);
+
+    const Vehicle = require("../models/Vehicle");
+
+    // Get unallocated orders for this vendor
+    const unallocatedOrders = await Booking.find({
+      status: "vendor_assigned",
+      assigned_vehicle_id: { $in: [null, undefined] },
+      assignedVendor: vendor_id,
+    })
+      .select("_id custom_order_id name phone address scheduled_date scheduled_time coordinates");
+
+    // Get available vehicles for this vendor
+    const vehicles = await Vehicle.find({
+      assigned_vendor_id: vendor_id,
+      is_active: true,
+    });
+
+    if (unallocatedOrders.length === 0) {
+      return res.json({
+        success: true,
+        suggestions: [],
+        message: "No unallocated orders found for this vendor",
+        orders: [],
+        vehicles: []
+      });
+    }
+
+    if (vehicles.length === 0) {
+      return res.json({
+        success: true,
+        suggestions: [],
+        message: "No vehicles available for this vendor",
+        orders: unallocatedOrders,
+        vehicles: []
+      });
+    }
+
+    const suggestions = [];
+    const vehicleUtilization = {};
+
+    // For each unallocated order, find the best matching vehicle
+    for (const order of unallocatedOrders) {
+      let bestMatch = null;
+      let bestDistance = Infinity;
+      let bestSlot = null;
+
+      // Try to find best vehicle for this order
+      for (const vehicle of vehicles) {
+        // Skip if vehicle is at capacity
+        if (vehicle.today_orders.length >= vehicle.max_orders_per_trip) {
+          continue;
+        }
+
+        // Calculate distance (use vendor location as fallback if no coordinates)
+        let distance = Infinity;
+        if (order.coordinates && order.coordinates.lat && order.coordinates.lng) {
+          if (vehicle.current_location && vehicle.current_location.lat && vehicle.current_location.lng) {
+            distance = calculateDistanceForAllocation(
+              vehicle.current_location.lat,
+              vehicle.current_location.lng,
+              order.coordinates.lat,
+              order.coordinates.lng
+            );
+          }
+        }
+
+        // Find available time slot
+        let availableSlot = null;
+        if (vehicle.availability_slots && vehicle.availability_slots.length > 0) {
+          availableSlot = vehicle.availability_slots.find(
+            slot => slot.is_available && slot.assigned_orders_count < vehicle.max_orders_per_trip
+          );
+        }
+
+        // If this is a better match, update best match
+        if (distance < bestDistance) {
+          bestMatch = vehicle;
+          bestDistance = distance;
+          bestSlot = availableSlot ? availableSlot.start_time : null;
+        }
+      }
+
+      if (bestMatch) {
+        suggestions.push({
+          order_id: order._id,
+          order_name: order.custom_order_id,
+          customer: order.name,
+          phone: order.phone,
+          address: order.address,
+          scheduled_time: order.scheduled_time,
+          vehicle_id: bestMatch._id,
+          vehicle_name: bestMatch.name,
+          vehicle_plate: bestMatch.number_plate,
+          distance_km: bestDistance.toFixed(2),
+          suggested_slot: bestSlot,
+          confidence: bestDistance < 5 ? 'high' : bestDistance < 10 ? 'medium' : 'low',
+        });
+
+        // Track vehicle utilization after this allocation
+        vehicleUtilization[bestMatch._id] = (vehicleUtilization[bestMatch._id] || 0) + 1;
+      }
+    }
+
+    console.log(`✅ Generated ${suggestions.length} auto-allocation suggestions`);
+
+    res.json({
+      success: true,
+      suggestions,
+      stats: {
+        total_unallocated: unallocatedOrders.length,
+        suggestions_count: suggestions.length,
+        success_rate: ((suggestions.length / unallocatedOrders.length) * 100).toFixed(1) + '%',
+        vehicles_used: Object.keys(vehicleUtilization).length,
+      },
+      orders: unallocatedOrders,
+      vehicles: vehicles
+    });
+  } catch (error) {
+    console.error("❌ Error getting auto-allocation suggestions:", error);
+    res.status(500).json({ success: false, error: "Failed to generate suggestions" });
+  }
+});
+
+// POST: Execute auto-allocation (apply the suggestions)
+router.post("/order-allocation/auto-execute", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendor_id, suggestions } = req.body;
+
+    console.log(`🤖 Executing auto-allocation for vendor: ${vendor_id}`);
+
+    const Vehicle = require("../models/Vehicle");
+
+    const results = {
+      successful: [],
+      failed: [],
+    };
+
+    // Execute each suggestion
+    for (const suggestion of suggestions) {
+      try {
+        const booking = await Booking.findById(suggestion.order_id);
+        const vehicle = await Vehicle.findById(suggestion.vehicle_id);
+
+        if (!booking || !vehicle) {
+          results.failed.push({
+            order_id: suggestion.order_id,
+            reason: "Booking or vehicle not found",
+          });
+          continue;
+        }
+
+        // Check if already allocated
+        if (booking.assigned_vehicle_id) {
+          results.failed.push({
+            order_id: suggestion.order_id,
+            reason: "Order already allocated",
+          });
+          continue;
+        }
+
+        // Check capacity
+        if (vehicle.today_orders.length >= vehicle.max_orders_per_trip) {
+          results.failed.push({
+            order_id: suggestion.order_id,
+            reason: "Vehicle capacity full",
+          });
+          continue;
+        }
+
+        // Assign to slot if suggested
+        if (suggestion.suggested_slot) {
+          vehicle.assignOrderToSlot(suggestion.suggested_slot);
+        }
+
+        // Add order to vehicle
+        vehicle.today_orders.push(booking._id);
+        vehicle.current_orders_count = vehicle.today_orders.length;
+
+        // Update booking
+        booking.assigned_vehicle_id = vehicle._id;
+        booking.vehicle_time_slot = suggestion.suggested_slot || null;
+
+        await vehicle.save();
+        await booking.save();
+
+        results.successful.push({
+          order_id: suggestion.order_id,
+          vehicle_id: vehicle._id,
+          vehicle_name: vehicle.name,
+          slot: suggestion.suggested_slot,
+        });
+      } catch (err) {
+        console.error(`Error allocating order ${suggestion.order_id}:`, err);
+        results.failed.push({
+          order_id: suggestion.order_id,
+          reason: err.message,
+        });
+      }
+    }
+
+    console.log(`✅ Auto-allocation completed: ${results.successful.length} successful, ${results.failed.length} failed`);
+
+    res.json({
+      success: true,
+      message: `Auto-allocation completed: ${results.successful.length} orders allocated, ${results.failed.length} failed`,
+      results,
+      summary: {
+        total_allocated: results.successful.length,
+        total_failed: results.failed.length,
+        success_rate: ((results.successful.length / (results.successful.length + results.failed.length)) * 100).toFixed(1) + '%',
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error executing auto-allocation:", error);
+    res.status(500).json({ success: false, error: "Failed to execute auto-allocation" });
+  }
+});
+
 // GET orders ready for vehicle allocation (vendor_assigned status) with available vehicles
 router.get("/order-allocation", verifyAdminAccess, async (req, res) => {
   try {
