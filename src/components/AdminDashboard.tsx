@@ -24,6 +24,7 @@ import {
   Building,
   Package,
   Home,
+  Truck,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
@@ -34,13 +35,14 @@ import AdminWalletManagement from "./AdminWalletManagement";
 import AdminPGManagement from "./AdminPGManagement";
 import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
 import AdminUsersManagement from "./AdminUsersManagement";
+import AdminOrderAllocation from "./AdminOrderAllocation";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "wallet";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "wallet" | "order-allocation";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -336,6 +338,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Vendors</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("order-allocation")}
+              variant={activeTab === "order-allocation" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Truck className="h-4 w-4" />
+              <span className="hidden sm:inline">Allocate Orders</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("users")}
               variant={activeTab === "users" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -398,6 +408,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-blue-900 text-sm"><strong>✓ Vendor Management:</strong> Create and manage vendor accounts. Each vendor gets auto-generated login credentials (ID & password) for portal access.</p>
             </div>
             <AdminVendorManagement />
+          </TabsContent>
+
+          <TabsContent value="order-allocation">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Order Allocation:</strong> Manage vehicle allocation for orders. Filter orders by vendor, check vehicle availability and time slots, and allocate orders to vehicles for optimized delivery.</p>
+            </div>
+            <AdminOrderAllocation />
           </TabsContent>
 
           <TabsContent value="users">

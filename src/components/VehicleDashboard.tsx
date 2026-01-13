@@ -332,10 +332,15 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicleId: propVehi
             {/* Orders List */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Today's Orders ({route.route.total_orders})
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Today's Orders ({route.route.total_orders})
+                  </CardTitle>
+                  <div className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold">
+                    📅 {new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {route.route.orders.length === 0 ? (

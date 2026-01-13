@@ -25,6 +25,7 @@ import {
   AlertCircle,
   Store,
   MessageCircle,
+  Truck,
 } from "lucide-react";
 import { vendorService } from "@/services/vendorService";
 import { walletService } from "@/services/walletService";
@@ -665,6 +666,25 @@ const AdminBookingManagement: React.FC = () => {
   const [reminderMessage, setReminderMessage] = useState('');
   const [reminderVendorGroupLink, setReminderVendorGroupLink] = useState<string | undefined>();
 
+  // Vehicle allocation modal state
+  const [showVehicleAllocationModal, setShowVehicleAllocationModal] = useState(false);
+  const [vehicleAllocationFor, setVehicleAllocationFor] = useState<'pickup' | 'delivery'>('pickup');
+  const [vehicleAllocationBooking, setVehicleAllocationBooking] = useState<Booking | null>(null);
+  const [availableVehicles, setAvailableVehicles] = useState<any[]>([]);
+  const [selectedAllocationVehicle, setSelectedAllocationVehicle] = useState<string>('');
+  const [selectedAllocationSlot, setSelectedAllocationSlot] = useState<string>('');
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+
+  // Auto-allocation state
+  const [showAutoAllocationModal, setShowAutoAllocationModal] = useState(false);
+  const [autoAllocationVendor, setAutoAllocationVendor] = useState<string>('');
+  const [autoAllocSuggestions, setAutoAllocSuggestions] = useState<any[]>([]);
+  const [autoAllocStats, setAutoAllocStats] = useState<any>(null);
+  const [loadingAutoAlloc, setLoadingAutoAlloc] = useState(false);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
+  const [executingAutoAlloc, setExecutingAutoAlloc] = useState(false);
+  const [autoAllocResults, setAutoAllocResults] = useState<any>(null);
+
 
   const fetchVendors = async () => {
     try {
@@ -703,6 +723,24 @@ const AdminBookingManagement: React.FC = () => {
       console.warn('Failed to fetch vendors:', error);
       setVendors([]);
       setVendorFullData({});
+    }
+  };
+
+  const fetchAvailableVehicles = async (vendorId: string) => {
+    try {
+      setLoadingVehicles(true);
+      const response = await apiClient.adminRequest<{ vehicles: any[] }>('/vehicles', {
+        query: { vendor_id: vendorId }
+      });
+      if (response.data?.vehicles) {
+        setAvailableVehicles(response.data.vehicles);
+      }
+    } catch (error) {
+      console.error("Error fetching vehicles:", error);
+      toast.error("Failed to fetch available vehicles");
+      setAvailableVehicles([]);
+    } finally {
+      setLoadingVehicles(false);
     }
   };
 
@@ -1196,6 +1234,109 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
+  const handleVehicleAllocation = async (bookingId: string, vehicleId: string, allocationFor: 'pickup' | 'delivery') => {
+    if (!selectedAllocationVehicle) {
+      toast.error("Please select a vehicle");
+      return;
+    }
+
+    try {
+      const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
+        method: "POST",
+        body: {
+          booking_id: bookingId,
+          vehicle_id: vehicleId,
+          slot_start_time: selectedAllocationSlot || null,
+        },
+      });
+
+      if (response.data?.success) {
+        toast.success(`✅ Order allocated to vehicle for ${allocationFor}`);
+        setShowVehicleAllocationModal(false);
+        setSelectedAllocationVehicle('');
+        setSelectedAllocationSlot('');
+        await fetchBookings();
+      } else {
+        toast.error(response.data?.error || "Failed to allocate vehicle");
+      }
+    } catch (error) {
+      console.error("Error allocating vehicle:", error);
+      toast.error("Failed to allocate vehicle");
+    }
+  };
+
+  const getAutoAllocationSuggestions = async (vendorId: string) => {
+    if (!vendorId) {
+      toast.error("Please select a vendor first");
+      return;
+    }
+
+    try {
+      setLoadingAutoAlloc(true);
+      const response = await apiClient.adminRequest<any>("/admin/order-allocation/auto-suggest", {
+        method: "POST",
+        body: { vendor_id: vendorId },
+      });
+
+      if (response.data?.success) {
+        setAutoAllocSuggestions(response.data.suggestions || []);
+        setAutoAllocStats(response.data.stats || null);
+        setSelectedSuggestions(new Set(response.data.suggestions?.map((s: any) => s.order_id) || []));
+        setAutoAllocationVendor(vendorId);
+        setShowAutoAllocationModal(true);
+
+        if (response.data.suggestions?.length === 0) {
+          toast.info("No unallocated orders found for this vendor");
+        }
+      } else {
+        toast.error(response.data?.error || "Failed to get suggestions");
+      }
+    } catch (error) {
+      console.error("Error getting auto-allocation suggestions:", error);
+      toast.error("Failed to get suggestions");
+    } finally {
+      setLoadingAutoAlloc(false);
+    }
+  };
+
+  const executeAutoAllocation = async () => {
+    if (selectedSuggestions.size === 0) {
+      toast.error("Please select at least one suggestion");
+      return;
+    }
+
+    try {
+      setExecutingAutoAlloc(true);
+      const suggestionsToExecute = autoAllocSuggestions.filter(s => selectedSuggestions.has(s.order_id));
+
+      const response = await apiClient.adminRequest<any>("/admin/order-allocation/auto-execute", {
+        method: "POST",
+        body: {
+          vendor_id: autoAllocationVendor,
+          suggestions: suggestionsToExecute,
+        },
+      });
+
+      if (response.data?.success) {
+        toast.success(`✅ ${response.data.results.successful.length} orders allocated successfully!`);
+        setAutoAllocResults(response.data.results);
+        await fetchBookings();
+        setTimeout(() => {
+          setShowAutoAllocationModal(false);
+          setAutoAllocResults(null);
+          setSelectedSuggestions(new Set());
+        }, 2000);
+      } else {
+        toast.error(response.data?.error || "Failed to execute allocation");
+      }
+    } catch (error) {
+      console.error("Error executing auto-allocation:", error);
+      toast.error("Failed to execute allocation");
+    } finally {
+      setExecutingAutoAlloc(false);
+    }
+  };
+
   const handleAssignmentChange = (booking: Booking, field: "rider" | "vendor", value: string) => {
     const formattedValue = value === "__unassigned__" ? null : value;
 
@@ -1434,6 +1575,21 @@ const AdminBookingManagement: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-end gap-2">
+              <Button
+                onClick={() => {
+                  setAutoAllocationVendor('');
+                  setAutoAllocSuggestions([]);
+                  setAutoAllocStats(null);
+                  setSelectedSuggestions(new Set());
+                  setShowAutoAllocationModal(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Truck className="h-4 w-4 mr-2" />
+                Smart Auto-Allocate
+              </Button>
+            </div>
           </div>
 
           <div className="mt-3 space-y-4">
@@ -1534,9 +1690,26 @@ const AdminBookingManagement: React.FC = () => {
                             📤 Pickup Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
-                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
-                              Mark Pickup Complete
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                                onClick={() => {
+                                  setVehicleAllocationBooking(booking);
+                                  setVehicleAllocationFor('pickup');
+                                  setSelectedAllocationVehicle('');
+                                  setSelectedAllocationSlot('');
+                                  fetchAvailableVehicles(booking.assignedVendor || '');
+                                  setShowVehicleAllocationModal(true);
+                                }}
+                              >
+                                <Truck className="h-4 w-4 mr-1" />
+                                Allocate Pickup Vehicle
+                              </Button>
+                              <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                                Mark Pickup Complete
+                              </Button>
+                            </>
                           )}
                           {normalizeStatus(booking.status) === 'pickup_completed' && (
                             <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
@@ -1544,9 +1717,26 @@ const AdminBookingManagement: React.FC = () => {
                             </Button>
                           )}
                           {normalizeStatus(booking.status) === 'ready_for_delivery' && (
-                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
-                              Mark Delivered
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                                onClick={() => {
+                                  setVehicleAllocationBooking(booking);
+                                  setVehicleAllocationFor('delivery');
+                                  setSelectedAllocationVehicle('');
+                                  setSelectedAllocationSlot('');
+                                  fetchAvailableVehicles(booking.assignedVendor || '');
+                                  setShowVehicleAllocationModal(true);
+                                }}
+                              >
+                                <Truck className="h-4 w-4 mr-1" />
+                                Allocate Delivery Vehicle
+                              </Button>
+                              <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                                Mark Delivered
+                              </Button>
+                            </>
                           )}
                           {normalizeStatus(booking.status) === 'delivered' && (
                             <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
@@ -1611,6 +1801,21 @@ const AdminBookingManagement: React.FC = () => {
                   <SelectItem value="delivered">Delivered</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-end gap-2">
+              <Button
+                onClick={() => {
+                  setAutoAllocationVendor('');
+                  setAutoAllocSuggestions([]);
+                  setAutoAllocStats(null);
+                  setSelectedSuggestions(new Set());
+                  setShowAutoAllocationModal(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Truck className="h-4 w-4 mr-2" />
+                Smart Auto-Allocate
+              </Button>
             </div>
           </div>
 
@@ -1708,9 +1913,26 @@ const AdminBookingManagement: React.FC = () => {
                             🚚 Delivery Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
-                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
-                              Mark Pickup Complete
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                                onClick={() => {
+                                  setVehicleAllocationBooking(booking);
+                                  setVehicleAllocationFor('pickup');
+                                  setSelectedAllocationVehicle('');
+                                  setSelectedAllocationSlot('');
+                                  fetchAvailableVehicles(booking.assignedVendor || '');
+                                  setShowVehicleAllocationModal(true);
+                                }}
+                              >
+                                <Truck className="h-4 w-4 mr-1" />
+                                Allocate Pickup Vehicle
+                              </Button>
+                              <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                                Mark Pickup Complete
+                              </Button>
+                            </>
                           )}
                           {normalizeStatus(booking.status) === 'pickup_completed' && (
                             <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
@@ -1718,9 +1940,26 @@ const AdminBookingManagement: React.FC = () => {
                             </Button>
                           )}
                           {normalizeStatus(booking.status) === 'ready_for_delivery' && (
-                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
-                              Mark Delivered
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                                onClick={() => {
+                                  setVehicleAllocationBooking(booking);
+                                  setVehicleAllocationFor('delivery');
+                                  setSelectedAllocationVehicle('');
+                                  setSelectedAllocationSlot('');
+                                  fetchAvailableVehicles(booking.assignedVendor || '');
+                                  setShowVehicleAllocationModal(true);
+                                }}
+                              >
+                                <Truck className="h-4 w-4 mr-1" />
+                                Allocate Delivery Vehicle
+                              </Button>
+                              <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                                Mark Delivered
+                              </Button>
+                            </>
                           )}
                           {normalizeStatus(booking.status) === 'delivered' && (
                             <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
@@ -2136,11 +2375,22 @@ const AdminBookingManagement: React.FC = () => {
                 </h4>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="google-maps-link">Google Maps Link (or paste address)</Label>
+                    <Label htmlFor="google-maps-link">Google Maps Link (for reminders)</Label>
                     <Input
                       id="google-maps-link"
-                      placeholder="Paste Google Maps link or enter address (e.g., https://maps.google.com/@12.9716,77.5946,17z or 12.9716,77.5946)"
-                      defaultValue=""
+                      placeholder="Paste Google Maps link (e.g., https://maps.google.com/@12.9716,77.5946,17z)"
+                      value={editingBooking.mapsLink || ""}
+                      onChange={(e) => {
+                        const mapsLink = e.target.value.trim();
+                        setEditingBooking((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                mapsLink: mapsLink || undefined,
+                              }
+                            : prev,
+                        );
+                      }}
                       onBlur={(e) => {
                         const mapsLink = e.target.value.trim();
                         if (mapsLink && isGoogleMapsUrl(mapsLink)) {
@@ -2151,31 +2401,29 @@ const AdminBookingManagement: React.FC = () => {
                                 ? {
                                     ...prev,
                                     coordinates: parsed.coordinates,
+                                    mapsLink: mapsLink,
                                   }
                                 : prev,
                             );
-                            toast.success(`Location extracted: ${parsed.coordinates.lat.toFixed(4)}, ${parsed.coordinates.lng.toFixed(4)}`);
-                            e.target.value = "";
+                            toast.success(`✅ Maps link saved & location extracted: ${parsed.coordinates.lat.toFixed(4)}, ${parsed.coordinates.lng.toFixed(4)}`);
                           } else if (parsed.error) {
                             toast.error(parsed.error);
-                            e.target.value = "";
                           }
                         } else if (mapsLink && mapsLink.length > 0) {
-                          toast.error("Please enter a valid Google Maps link or coordinates");
-                          e.target.value = "";
+                          toast.error("Please enter a valid Google Maps link (starts with https://maps.google.com)");
                         }
                       }}
                       className="mt-1"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Paste a Google Maps link or direct coordinates. The location will be extracted and saved for precise delivery tracking.
+                      Paste a Google Maps link. This will be included in pickup & delivery reminders sent to vendors.
                     </p>
                   </div>
 
                   {editingBooking.coordinates && editingBooking.coordinates.lat && editingBooking.coordinates.lng && (
                     <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                       <div className="flex items-start justify-between">
-                        <div>
+                        <div className="flex-1">
                           <Label className="text-green-900 text-sm font-semibold">Current Location</Label>
                           <p className="text-sm text-green-700 mt-2">
                             <span className="font-mono">{editingBooking.coordinates.lat.toFixed(4)}, {editingBooking.coordinates.lng.toFixed(4)}</span>
@@ -2206,6 +2454,40 @@ const AdminBookingManagement: React.FC = () => {
                           className="text-red-600 border-red-300 hover:bg-red-50"
                         >
                           Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {editingBooking.mapsLink && (
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <Label className="text-blue-900 text-sm font-semibold">📍 Maps Link for Reminders</Label>
+                          <p className="text-sm text-blue-700 mt-2 break-all">
+                            <span className="font-mono text-xs">{editingBooking.mapsLink}</span>
+                          </p>
+                          <p className="text-xs text-blue-600 mt-2">
+                            ✓ This link will be included in pickup & delivery reminder messages
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingBooking((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    mapsLink: undefined,
+                                  }
+                                : prev,
+                            );
+                            toast.info("Maps link removed");
+                          }}
+                          className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                        >
+                          Remove
                         </Button>
                       </div>
                     </div>
@@ -2495,6 +2777,11 @@ const AdminBookingManagement: React.FC = () => {
                         payload.coordinates = editingBooking.coordinates;
                       }
 
+                      // Include mapsLink for reminders
+                      if (editingBooking.mapsLink) {
+                        payload.mapsLink = editingBooking.mapsLink;
+                      }
+
                       // Only include distance_to_vendor if it exists
                       if (editingBooking.distance_to_vendor) {
                         payload.distance_to_vendor = editingBooking.distance_to_vendor;
@@ -2545,6 +2832,392 @@ const AdminBookingManagement: React.FC = () => {
         vendorGroupLink={reminderVendorGroupLink}
         reminderType={reminderType}
       />
+
+      {/* Auto-Allocation Modal */}
+      <Dialog open={showAutoAllocationModal} onOpenChange={setShowAutoAllocationModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>🤖 Smart Auto-Allocate Orders</DialogTitle>
+          </DialogHeader>
+
+          {autoAllocResults === null ? (
+            <div className="space-y-6">
+              {/* Vendor Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="auto-alloc-vendor">Select Vendor</Label>
+                <Select value={autoAllocationVendor} onValueChange={(vendorId) => {
+                  setAutoAllocationVendor(vendorId);
+                  if (autoAllocSuggestions.length === 0) {
+                    getAutoAllocationSuggestions(vendorId);
+                  }
+                }}>
+                  <SelectTrigger id="auto-alloc-vendor">
+                    <SelectValue placeholder="Choose a vendor to allocate orders..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor.id} value={vendor.id}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Loading State */}
+              {loadingAutoAlloc && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="mr-3 inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <p className="text-gray-600">Getting allocation suggestions...</p>
+                </div>
+              )}
+
+              {/* Statistics */}
+              {autoAllocStats && !loadingAutoAlloc && (
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-blue-900 mb-3">📊 Allocation Statistics</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-white rounded p-3 border border-blue-100">
+                      <div className="text-xs text-blue-600 font-semibold">Unallocated Orders</div>
+                      <div className="text-2xl font-bold text-blue-900">{autoAllocStats.unallocated_orders || 0}</div>
+                    </div>
+                    <div className="bg-white rounded p-3 border border-green-100">
+                      <div className="text-xs text-green-600 font-semibold">Available Vehicles</div>
+                      <div className="text-2xl font-bold text-green-900">{autoAllocStats.available_vehicles || 0}</div>
+                    </div>
+                    <div className="bg-white rounded p-3 border border-purple-100">
+                      <div className="text-xs text-purple-600 font-semibold">Possible Allocations</div>
+                      <div className="text-2xl font-bold text-purple-900">{autoAllocSuggestions.length}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Suggestions Table */}
+              {autoAllocSuggestions.length > 0 && !loadingAutoAlloc && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900">💡 Suggested Allocations</h3>
+                    <div className="text-xs text-gray-500">
+                      {selectedSuggestions.size} of {autoAllocSuggestions.length} selected
+                    </div>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 sticky top-0">
+                            <th className="py-3 px-3 text-left">
+                              <input
+                                type="checkbox"
+                                checked={selectedSuggestions.size === autoAllocSuggestions.length}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedSuggestions(new Set(autoAllocSuggestions.map(s => s.order_id)));
+                                  } else {
+                                    setSelectedSuggestions(new Set());
+                                  }
+                                }}
+                              />
+                            </th>
+                            <th className="py-3 px-3 text-left font-semibold text-gray-700">Order ID</th>
+                            <th className="py-3 px-3 text-left font-semibold text-gray-700">Customer</th>
+                            <th className="py-3 px-3 text-left font-semibold text-gray-700">Vehicle</th>
+                            <th className="py-3 px-3 text-left font-semibold text-gray-700">Distance</th>
+                            <th className="py-3 px-3 text-center font-semibold text-gray-700">Confidence</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {autoAllocSuggestions.map((suggestion) => (
+                            <tr key={suggestion.order_id} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-3">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSuggestions.has(suggestion.order_id)}
+                                  onChange={(e) => {
+                                    const newSet = new Set(selectedSuggestions);
+                                    if (e.target.checked) {
+                                      newSet.add(suggestion.order_id);
+                                    } else {
+                                      newSet.delete(suggestion.order_id);
+                                    }
+                                    setSelectedSuggestions(newSet);
+                                  }}
+                                />
+                              </td>
+                              <td className="py-3 px-3 font-mono font-semibold text-blue-600">#{suggestion.order_id.substring(0, 8)}</td>
+                              <td className="py-3 px-3 text-gray-700">{suggestion.customer_name}</td>
+                              <td className="py-3 px-3">
+                                <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                                  {suggestion.vehicle_name}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-gray-600">
+                                {(suggestion.distance_km || 0).toFixed(1)} km
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <span className={clsx(
+                                  'inline-block px-2 py-1 rounded text-xs font-semibold',
+                                  suggestion.confidence === 'high' && 'bg-green-100 text-green-700',
+                                  suggestion.confidence === 'medium' && 'bg-yellow-100 text-yellow-700',
+                                  suggestion.confidence === 'low' && 'bg-orange-100 text-orange-700'
+                                )}>
+                                  {suggestion.confidence?.toUpperCase() || 'MEDIUM'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loadingAutoAlloc && autoAllocSuggestions.length === 0 && autoAllocationVendor && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                  <AlertCircle className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+                  <p className="text-yellow-800 font-medium">No allocation suggestions available</p>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    All orders are already allocated or no suitable vehicles are available.
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={() => executeAutoAllocation()}
+                  disabled={selectedSuggestions.size === 0 || executingAutoAlloc}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  {executingAutoAlloc ? (
+                    <>
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Allocating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Allocate Selected ({selectedSuggestions.size})
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setShowAutoAllocationModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 className="font-semibold text-green-900 mb-2">✅ Allocation Completed</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-green-700">Successfully Allocated:</span>
+                    <span className="font-bold text-green-900">{autoAllocResults.successful?.length || 0}</span>
+                  </div>
+                  {autoAllocResults.failed && autoAllocResults.failed.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-orange-700">Failed:</span>
+                      <span className="font-bold text-orange-900">{autoAllocResults.failed.length}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {autoAllocResults.failed && autoAllocResults.failed.length > 0 && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-orange-900 mb-2">⚠️ Failed Allocations</h4>
+                  <ul className="text-sm text-orange-700 space-y-1">
+                    {autoAllocResults.failed.slice(0, 5).map((fail) => (
+                      <li key={fail.order_id} className="flex justify-between">
+                        <span>#{fail.order_id.substring(0, 8)}</span>
+                        <span className="text-xs">{fail.reason || 'Unknown error'}</span>
+                      </li>
+                    ))}
+                    {autoAllocResults.failed.length > 5 && (
+                      <li className="text-xs italic text-orange-600">... and {autoAllocResults.failed.length - 5} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              <Button
+                onClick={() => {
+                  setShowAutoAllocationModal(false);
+                  setAutoAllocResults(null);
+                  setAutoAllocSuggestions([]);
+                }}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Vehicle Allocation Modal */}
+      <Dialog open={showVehicleAllocationModal} onOpenChange={setShowVehicleAllocationModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {vehicleAllocationFor === 'pickup' ? '🚗 Allocate Pickup Vehicle' : '🚚 Allocate Delivery Vehicle'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {vehicleAllocationBooking && (
+            <div className="space-y-6">
+              {/* Order Details */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2">Order Details</h3>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Order ID:</span>
+                    <span className="font-mono font-semibold">{vehicleAllocationBooking.custom_order_id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Customer:</span>
+                    <span>{vehicleAllocationBooking.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Vendor:</span>
+                    <span>{vehicleAllocationBooking.assignedVendor || 'Not assigned'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {vehicleAllocationFor === 'pickup' ? 'Pickup' : 'Delivery'} Date & Time:
+                    </span>
+                    <span>
+                      {vehicleAllocationFor === 'pickup'
+                        ? `${vehicleAllocationBooking.scheduled_date} at ${vehicleAllocationBooking.scheduled_time}`
+                        : `${vehicleAllocationBooking.delivery_date} at ${vehicleAllocationBooking.delivery_time}`
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Address:</span>
+                    <span className="text-right">{vehicleAllocationBooking.address}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Select Vehicle */}
+              <div className="space-y-2">
+                <Label htmlFor="vehicle-select">Select Vehicle for {vehicleAllocationFor === 'pickup' ? 'Pickup' : 'Delivery'}</Label>
+                {loadingVehicles ? (
+                  <div className="p-4 text-center text-gray-600">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
+                    <p>Loading vehicles...</p>
+                  </div>
+                ) : availableVehicles.length === 0 ? (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-yellow-800 text-sm">
+                      ⚠️ No active vehicles found for this vendor. Please ensure vehicles are assigned to the vendor.
+                    </p>
+                  </div>
+                ) : (
+                  <Select value={selectedAllocationVehicle} onValueChange={setSelectedAllocationVehicle}>
+                    <SelectTrigger id="vehicle-select">
+                      <SelectValue placeholder="Select a vehicle..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableVehicles.map((vehicle) => (
+                        <SelectItem key={vehicle._id} value={vehicle._id}>
+                          <div className="flex items-center gap-2">
+                            <Truck className="w-3 h-3" />
+                            <span>
+                              {vehicle.name} ({vehicle.number_plate}) - {vehicle.current_orders_count}/{vehicle.max_orders_per_trip}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {/* Select Time Slot */}
+              {selectedAllocationVehicle && availableVehicles.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
+                  {(() => {
+                    const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
+                    if (!vehicle?.availability_slots) return null;
+
+                    return (
+                      <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
+                        <SelectTrigger id="slot-select">
+                          <SelectValue placeholder="Leave empty for no specific slot..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">No Specific Slot</SelectItem>
+                          {vehicle.availability_slots.map((slot) => (
+                            <SelectItem
+                              key={slot.start_time}
+                              value={slot.start_time}
+                              disabled={!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3 h-3" />
+                                <span>
+                                  {slot.start_time} - {slot.end_time} ({slot.assigned_orders_count}/{vehicle.max_orders_per_trip})
+                                </span>
+                                {!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip ? (
+                                  <span className="text-red-600 text-xs ml-2">Full</span>
+                                ) : null}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Vehicle Summary */}
+              {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
+                const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
+                return vehicle ? (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicle.name} ({vehicle.number_plate})</p>
+                    <p className="text-sm"><span className="font-semibold">Capacity:</span> {vehicle.current_orders_count}/{vehicle.max_orders_per_trip} orders</p>
+                    {selectedAllocationSlot && (
+                      <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={() => handleVehicleAllocation(vehicleAllocationBooking._id, selectedAllocationVehicle, vehicleAllocationFor)}
+                  disabled={!selectedAllocationVehicle}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Allocate to Vehicle
+                </Button>
+                <Button
+                  onClick={() => setShowVehicleAllocationModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
