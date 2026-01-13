@@ -2624,8 +2624,8 @@ router.get("/order-allocation", verifyAdminAccess, async (req, res) => {
       success: true,
       unallocatedOrders,
       allocatedOrders,
-      vendorVehicles, // Map of vendorId -> vehicles
-      vendors: uniqueVendors,
+      vendorVehicles, // Map of vendor name -> vehicles
+      vendors: uniqueVendorNames,
     });
   } catch (error) {
     console.error("❌ Error fetching order allocation data:", error);
