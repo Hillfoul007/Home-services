@@ -163,7 +163,7 @@ const AdminOrderAllocation: React.FC = () => {
   };
 
   const getAvailableVehicles = () => {
-    if (!selectedVendor) return [];
+    if (!selectedVendor || selectedVendor === "__all__") return [];
     return allocationData.vendorVehicles[selectedVendor] || [];
   };
 
