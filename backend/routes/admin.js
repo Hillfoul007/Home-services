@@ -2585,20 +2585,37 @@ router.get("/order-allocation", verifyAdminAccess, async (req, res) => {
       .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
       .select("_id custom_order_id name phone address scheduled_date scheduled_time status assignedVendor assigned_vehicle_id vehicle_time_slot created_at");
 
-    // Get unique vendors from orders
-    const uniqueVendors = [...new Set(unallocatedOrders.concat(allocatedOrders).map(o => o.assignedVendor))].filter(Boolean);
+    // Get unique vendor names from orders
+    const uniqueVendorNames = [...new Set(unallocatedOrders.concat(allocatedOrders).map(o => o.assignedVendor))].filter(Boolean);
+
+    // Look up vendor ObjectIds from vendor names
+    const Vendor = require("../models/Vendor");
+    const vendorNameToIdMap = {};
+    const vendorDocuments = await Vendor.find({ name: { $in: uniqueVendorNames } }).select("_id name");
+
+    for (const vendor of vendorDocuments) {
+      vendorNameToIdMap[vendor.name] = vendor._id;
+    }
 
     // For each vendor, get their available vehicles with slots
     const vendorVehicles = {};
-    for (const vendorId of uniqueVendors) {
+    for (const vendorName of uniqueVendorNames) {
+      const vendorObjectId = vendorNameToIdMap[vendorName];
+
+      if (!vendorObjectId) {
+        console.warn(`⚠️ Vendor "${vendorName}" not found in database`);
+        vendorVehicles[vendorName] = [];
+        continue;
+      }
+
       const vehicles = await Vehicle.find({
-        assigned_vendor_id: vendorId,
+        assigned_vendor_id: vendorObjectId,
         is_active: true,
       })
         .populate("assigned_vendor_id", "name phone email")
         .select("_id name number_plate vehicle_type status current_orders_count max_orders_per_trip availability_slots today_orders assigned_vendor_name assigned_vendor_id");
 
-      vendorVehicles[vendorId] = vehicles;
+      vendorVehicles[vendorName] = vehicles;
     }
 
     console.log(`✅ Found ${unallocatedOrders.length} unallocated orders and ${allocatedOrders.length} allocated orders`);
