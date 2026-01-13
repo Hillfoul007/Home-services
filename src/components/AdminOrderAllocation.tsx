@@ -170,7 +170,7 @@ const AdminOrderAllocation: React.FC = () => {
   const getFilteredUnallocatedOrders = () => {
     let orders = allocationData.unallocatedOrders;
 
-    if (selectedVendor) {
+    if (selectedVendor && selectedVendor !== "__all__") {
       orders = orders.filter(o => o.assignedVendor === selectedVendor);
     }
 
@@ -191,7 +191,7 @@ const AdminOrderAllocation: React.FC = () => {
   const getFilteredAllocatedOrders = () => {
     let orders = allocationData.allocatedOrders;
 
-    if (selectedVendor) {
+    if (selectedVendor && selectedVendor !== "__all__") {
       orders = orders.filter(o => o.assignedVendor === selectedVendor);
     }
 
