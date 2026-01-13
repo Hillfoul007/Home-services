@@ -95,7 +95,7 @@ const AdminOrderAllocation: React.FC = () => {
   const fetchAllocationData = async () => {
     try {
       setLoading(true);
-      const params = selectedVendor ? { vendor_id: selectedVendor } : {};
+      const params = selectedVendor && selectedVendor !== "__all__" ? { vendor_id: selectedVendor } : {};
       const response = await apiClient.adminRequest<AllocationData>(
         "/admin/order-allocation",
         { query: params }
@@ -255,7 +255,7 @@ const AdminOrderAllocation: React.FC = () => {
                   <SelectValue placeholder="Select a vendor..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Vendors</SelectItem>
+                  <SelectItem value="__all__">All Vendors</SelectItem>
                   {allocationData.vendors.map(vendor => (
                     <SelectItem key={vendor} value={vendor}>
                       {vendor || "Unknown"}
@@ -491,7 +491,7 @@ const AdminOrderAllocation: React.FC = () => {
                       <SelectValue placeholder="Select a slot or leave empty..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Specific Slot</SelectItem>
+                      <SelectItem value="__none__">No Specific Slot</SelectItem>
                       {selectedVehicle.availability_slots.map(slot => (
                         <SelectItem
                           key={slot.start_time}
