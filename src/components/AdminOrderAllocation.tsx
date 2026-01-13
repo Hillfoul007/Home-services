@@ -125,7 +125,7 @@ const AdminOrderAllocation: React.FC = () => {
         body: {
           booking_id: selectedOrder._id,
           vehicle_id: selectedVehicle._id,
-          slot_start_time: selectedSlot || null,
+          slot_start_time: selectedSlot && selectedSlot !== "__none__" ? selectedSlot : null,
         },
       });
 
