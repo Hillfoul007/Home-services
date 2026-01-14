@@ -580,18 +580,42 @@ const AdminOrderAllocation: React.FC = () => {
               )}
 
               {selectedVehicle && (
-                <div className="bg-gray-50 rounded-lg p-3 text-sm">
-                  <p className="text-muted-foreground">
-                    <span className="font-semibold">Selected Vehicle:</span> {selectedVehicle.name} ({selectedVehicle.number_plate})
-                  </p>
-                  <p className="text-muted-foreground">
-                    <span className="font-semibold">Current Capacity:</span> {selectedVehicle.current_orders_count}/
-                    {selectedVehicle.max_orders_per_trip}
-                  </p>
-                  {selectedSlot && (
-                    <p className="text-muted-foreground">
-                      <span className="font-semibold">Time Slot:</span> {selectedSlot}
-                    </p>
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-2">📍 Vehicle Summary</h4>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p>
+                        <span className="font-semibold">Vehicle:</span> {selectedVehicle.name} ({selectedVehicle.number_plate})
+                      </p>
+                      <p>
+                        <span className="font-semibold">Vendor:</span> {selectedVehicle.assigned_vendor_name || "Not assigned"}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Current Capacity:</span>
+                        <span className={selectedVehicle.current_orders_count >= selectedVehicle.max_orders_per_trip ? "text-red-600 font-bold" : ""}>
+                          {" "}{selectedVehicle.current_orders_count}/{selectedVehicle.max_orders_per_trip}
+                        </span>
+                      </p>
+                      {selectedSlot && selectedSlot !== "__none__" && (
+                        <p className="bg-green-100 text-green-900 px-2 py-1 rounded mt-2">
+                          ✅ <span className="font-semibold">Slot Selected:</span> {selectedSlot} - {selectedVehicle.availability_slots.find(s => s.start_time === selectedSlot)?.end_time}
+                        </p>
+                      )}
+                      {!selectedSlot || selectedSlot === "__none__" ? (
+                        <p className="bg-yellow-100 text-yellow-900 px-2 py-1 rounded mt-2">
+                          ℹ️ No specific slot selected - order will be added to vehicle generally
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {selectedVehicle.current_orders_count >= selectedVehicle.max_orders_per_trip && (
+                    <Alert className="bg-red-50 border-red-300">
+                      <AlertCircle className="h-4 w-4 text-red-600" />
+                      <AlertDescription className="text-red-800">
+                        ⚠️ This vehicle is at full capacity! Allocation may fail.
+                      </AlertDescription>
+                    </Alert>
                   )}
                 </div>
               )}
