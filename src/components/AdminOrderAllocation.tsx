@@ -96,17 +96,32 @@ const AdminOrderAllocation: React.FC = () => {
     try {
       setLoading(true);
       const params = selectedVendor && selectedVendor !== "__all__" ? { vendor_id: selectedVendor } : {};
+      console.log("🔄 Fetching allocation data with params:", params);
+
       const response = await apiClient.adminRequest<AllocationData>(
         "/admin/order-allocation",
         { query: params }
       );
 
       if (response.data) {
+        console.log("✅ Received allocation data:", {
+          unallocatedOrders: response.data.unallocatedOrders?.length || 0,
+          allocatedOrders: response.data.allocatedOrders?.length || 0,
+          vendors: response.data.vendors?.length || 0,
+          vehiclesByVendor: Object.keys(response.data.vendorVehicles || {}).map(v => ({
+            vendor: v,
+            vehicles: response.data.vendorVehicles[v]?.length || 0
+          }))
+        });
         setAllocationData(response.data);
+      } else {
+        console.warn("⚠️ No data received from allocation endpoint");
+        toast.error("No allocation data received");
       }
     } catch (error) {
-      console.error("Error fetching allocation data:", error);
-      toast.error("Failed to fetch allocation data");
+      const errorMsg = error instanceof Error ? error.message : "Failed to fetch allocation data";
+      console.error("❌ Error fetching allocation data:", error);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
