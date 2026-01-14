@@ -484,36 +484,81 @@ const AdminOrderAllocation: React.FC = () => {
               </div>
 
               {selectedVehicle && (
-                <div className="space-y-2">
-                  <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
-                  <Select value={selectedSlot} onValueChange={setSelectedSlot}>
-                    <SelectTrigger id="slot-select">
-                      <SelectValue placeholder="Select a slot or leave empty..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">No Specific Slot</SelectItem>
-                      {selectedVehicle.availability_slots.map(slot => (
-                        <SelectItem
-                          key={slot.start_time}
-                          value={slot.start_time}
-                          disabled={!slot.is_available || slot.assigned_orders_count >= selectedVehicle.max_orders_per_trip}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3 h-3" />
-                            <span>
-                              {slot.start_time} - {slot.end_time} ({slot.assigned_orders_count}/
-                              {selectedVehicle.max_orders_per_trip})
-                            </span>
-                            {!slot.is_available || slot.assigned_orders_count >= selectedVehicle.max_orders_per_trip ? (
-                              <Badge variant="destructive" className="ml-2">
-                                Full
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="slot-select" className="mb-3 block">
+                      Select Time Slot (Optional)
+                    </Label>
+                    <div className="bg-white border rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSlot("__none__")}
+                        className={`w-full text-left px-3 py-2 rounded transition-colors ${
+                          selectedSlot === "__none__"
+                            ? "bg-blue-100 border border-blue-300"
+                            : "hover:bg-gray-100"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">No Specific Slot</span>
+                        </div>
+                      </button>
+
+                      <div className="border-t pt-2">
+                        {selectedVehicle.availability_slots.map(slot => {
+                          const isAvailable = slot.is_available && slot.assigned_orders_count < selectedVehicle.max_orders_per_trip;
+                          const isFull = slot.assigned_orders_count >= selectedVehicle.max_orders_per_trip;
+
+                          return (
+                            <button
+                              key={slot.start_time}
+                              type="button"
+                              onClick={() => isAvailable && setSelectedSlot(slot.start_time)}
+                              disabled={!isAvailable}
+                              className={`w-full text-left px-3 py-2 rounded transition-colors flex justify-between items-center ${
+                                !isAvailable
+                                  ? "opacity-50 cursor-not-allowed bg-gray-100"
+                                  : selectedSlot === slot.start_time
+                                    ? "bg-blue-100 border border-blue-300"
+                                    : "hover:bg-gray-100"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4" />
+                                <span className="font-medium">
+                                  {slot.start_time} - {slot.end_time}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-semibold ${isFull ? "text-red-600" : "text-green-600"}`}>
+                                  {slot.assigned_orders_count}/{selectedVehicle.max_orders_per_trip}
+                                </span>
+                                {isFull && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    FULL
+                                  </Badge>
+                                )}
+                                {isAvailable && (
+                                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                                    AVAILABLE
+                                  </Badge>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedSlot && selectedSlot !== "__none__" && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-900">
+                        <Clock className="w-4 h-4 inline mr-2" />
+                        <span className="font-semibold">Selected Slot:</span> {selectedSlot} - {selectedVehicle.availability_slots.find(s => s.start_time === selectedSlot)?.end_time}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
