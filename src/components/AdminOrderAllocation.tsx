@@ -463,12 +463,16 @@ const AdminOrderAllocation: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="vehicle-select">Select Vehicle</Label>
                 {availableVehicles.length === 0 ? (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      {selectedVendor
-                        ? "No active vehicles assigned to this vendor"
-                        : "Please select a vendor first"}
+                  <Alert className={`${!selectedVendor ? "bg-yellow-50 border-yellow-300" : "bg-red-50 border-red-300"}`}>
+                    <AlertCircle className={`h-4 w-4 ${!selectedVendor ? "text-yellow-600" : "text-red-600"}`} />
+                    <AlertDescription className={!selectedVendor ? "text-yellow-800" : "text-red-800"}>
+                      {!selectedVendor
+                        ? "⚠️ Please select a vendor first to see their assigned vehicles"
+                        : `❌ No active vehicles found for vendor "${selectedVendor}". Please:
+                           1. Create vehicles for this vendor
+                           2. Ensure they are marked as active
+                           3. Assign them to this vendor`
+                      }
                     </AlertDescription>
                   </Alert>
                 ) : (
