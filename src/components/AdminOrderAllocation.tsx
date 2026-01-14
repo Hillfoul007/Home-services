@@ -118,6 +118,9 @@ const AdminOrderAllocation: React.FC = () => {
       return;
     }
 
+    const slotTime = selectedSlot && selectedSlot !== "__none__" ? selectedSlot : null;
+    console.log(`📍 Allocating order ${selectedOrder.custom_order_id} to vehicle ${selectedVehicle.name} at slot ${slotTime || "NO SPECIFIC SLOT"}`);
+
     try {
       setAllocating(true);
       const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
@@ -125,21 +128,35 @@ const AdminOrderAllocation: React.FC = () => {
         body: {
           booking_id: selectedOrder._id,
           vehicle_id: selectedVehicle._id,
-          slot_start_time: selectedSlot && selectedSlot !== "__none__" ? selectedSlot : null,
+          slot_start_time: slotTime,
         },
       });
 
       if (response.data?.success) {
-        toast.success("Order allocated to vehicle successfully");
+        const slotMsg = slotTime ? ` at ${slotTime}` : " (no specific slot)";
+        toast.success(`✅ Order ${selectedOrder.custom_order_id} allocated to ${selectedVehicle.name}${slotMsg}`);
+        console.log(`✅ Allocation successful:`, response.data);
+
+        // Clear selection
         setShowAllocationDialog(false);
         setSelectedOrder(null);
         setSelectedVehicle(null);
         setSelectedSlot("");
-        await fetchAllocationData();
+
+        // Refresh data after a short delay to ensure backend is updated
+        setTimeout(() => {
+          console.log("🔄 Refreshing allocation data...");
+          fetchAllocationData();
+        }, 500);
+      } else {
+        const errorMsg = response.data?.error || "Failed to allocate order";
+        console.error("Allocation error:", errorMsg);
+        toast.error(errorMsg);
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Failed to allocate order";
       console.error("Error allocating order:", error);
-      toast.error("Failed to allocate order");
+      toast.error(errorMsg);
     } finally {
       setAllocating(false);
     }
