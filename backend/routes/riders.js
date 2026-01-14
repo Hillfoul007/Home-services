@@ -724,16 +724,15 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       // (covers both direct assignment and vehicle-based allocation)
       Booking.find({
         $or: [
-          // Direct rider assignment
+          // Direct rider assignment (traditional method)
           {
             assignedRider: riderId,
-            riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] }
+            riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending', 'unassigned'] }
           },
-          // Vehicle allocation (any allocated order that the rider can pick up)
+          // Vehicle allocation (new method - orders allocated to vehicles)
           {
-            assigned_vehicle_id: { $ne: null },
-            status: 'vehicle_allocated',
-            riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] }
+            assigned_vehicle_id: { $exists: true, $ne: null },
+            riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending', 'unassigned'] }
           }
         ]
       })
@@ -749,7 +748,7 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       .sort({ createdAt: -1 })
     ]);
 
-    console.log(`📦 Found ${regularOrders.length} bookings and ${quickPickups.length} quick pickups for rider`);
+    console.log(`📦 Found ${regularOrders.length} bookings and ${quickPickups.length} quick pickups for rider ${riderId}`);
 
     // Transform regular orders to consistent format
     const transformedRegularOrders = regularOrders.map(order => ({
