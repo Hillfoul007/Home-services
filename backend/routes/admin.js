@@ -2602,19 +2602,28 @@ router.get("/order-allocation", verifyAdminAccess, async (req, res) => {
     for (const vendorName of uniqueVendorNames) {
       const vendorObjectId = vendorNameToIdMap[vendorName];
 
+      console.log(`🔍 Looking for vehicles for vendor: "${vendorName}" (ID: ${vendorObjectId || "NOT FOUND"})`);
+
+      // Query vehicles by vendor name or vendor ObjectId
+      const vehicleQuery = {
+        is_active: true,
+        $or: [
+          { assigned_vendor_id: vendorObjectId }, // By vendor ObjectId
+          { assigned_vendor_name: vendorName },   // By vendor name string
+        ]
+      };
+
+      // Remove the $or if vendor ObjectId is not found (avoid searching with null/undefined)
       if (!vendorObjectId) {
-        console.warn(`⚠️ Vendor "${vendorName}" not found in database`);
-        vendorVehicles[vendorName] = [];
-        continue;
+        delete vehicleQuery.$or;
+        vehicleQuery.assigned_vendor_name = vendorName;
       }
 
-      const vehicles = await Vehicle.find({
-        assigned_vendor_id: vendorObjectId,
-        is_active: true,
-      })
+      const vehicles = await Vehicle.find(vehicleQuery)
         .populate("assigned_vendor_id", "name phone email")
         .select("_id name number_plate vehicle_type status current_orders_count max_orders_per_trip availability_slots today_orders assigned_vendor_name assigned_vendor_id");
 
+      console.log(`📍 Found ${vehicles.length} vehicles for vendor "${vendorName}"`);
       vendorVehicles[vendorName] = vehicles;
     }
 
