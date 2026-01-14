@@ -2758,11 +2758,17 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
       return res.status(400).json({ success: false, error: "Order is not allocated to any vehicle" });
     }
 
-    const vehicle = await Vehicle.findById(booking.assigned_vehicle_id);
+    const vehicleId = booking.assigned_vehicle_id;
+    const slotTime = booking.vehicle_time_slot;
+
+    const vehicle = await Vehicle.findById(vehicleId);
     if (vehicle) {
       // Remove order from slot
-      if (booking.vehicle_time_slot) {
-        vehicle.removeOrderFromSlot(booking.vehicle_time_slot);
+      if (slotTime) {
+        console.log(`📅 Removing order from slot ${slotTime}`);
+        vehicle.removeOrderFromSlot(slotTime);
+        const updatedSlot = vehicle.availability_slots.find(s => s.start_time === slotTime);
+        console.log(`📅 Slot ${slotTime} now has ${updatedSlot?.assigned_orders_count || 0} orders`);
       }
 
       // Remove order from vehicle
@@ -2770,11 +2776,13 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
       vehicle.current_orders_count = vehicle.today_orders.length;
 
       await vehicle.save();
+      console.log(`📊 Vehicle capacity: ${vehicle.current_orders_count}/${vehicle.max_orders_per_trip}`);
     }
 
     // Clear vehicle assignment from booking
     booking.assigned_vehicle_id = null;
     booking.vehicle_time_slot = null;
+    booking.status = "vendor_assigned"; // Revert to vendor_assigned status
     await booking.save();
 
     console.log(`✅ Order deallocation removed successfully`);
@@ -2785,7 +2793,10 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
     });
   } catch (error) {
     console.error("❌ Error removing order allocation:", error);
-    res.status(500).json({ success: false, error: "Failed to remove allocation" });
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to remove allocation"
+    });
   }
 });
 
