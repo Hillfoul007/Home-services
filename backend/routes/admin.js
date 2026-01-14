@@ -2638,7 +2638,7 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
   try {
     const { booking_id, vehicle_id, slot_start_time } = req.body;
 
-    console.log(`🚗 Allocating order ${booking_id} to vehicle ${vehicle_id} at slot ${slot_start_time}`);
+    console.log(`🚗 Allocating order ${booking_id} to vehicle ${vehicle_id} at slot ${slot_start_time || "NO SPECIFIC SLOT"}`);
 
     if (!mongoose.Types.ObjectId.isValid(booking_id) || !mongoose.Types.ObjectId.isValid(vehicle_id)) {
       return res.status(400).json({ success: false, error: "Invalid booking or vehicle ID" });
@@ -2659,24 +2659,36 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
 
     // Check if order is already assigned to a vehicle
     if (booking.assigned_vehicle_id) {
-      return res.status(400).json({ success: false, error: "Order is already allocated to a vehicle" });
+      return res.status(400).json({
+        success: false,
+        error: `Order is already allocated to vehicle ${booking.assigned_vehicle_id}`
+      });
     }
 
     // Check if vehicle has capacity
     if (vehicle.today_orders.length >= vehicle.max_orders_per_trip) {
-      return res.status(400).json({ success: false, error: "Vehicle capacity is full" });
+      return res.status(400).json({
+        success: false,
+        error: `Vehicle is at full capacity (${vehicle.today_orders.length}/${vehicle.max_orders_per_trip})`
+      });
     }
 
     // If slot is provided, check slot availability
     if (slot_start_time) {
       const slot = vehicle.availability_slots.find(s => s.start_time === slot_start_time);
       if (!slot) {
-        return res.status(400).json({ success: false, error: "Slot not found" });
-      }
-      if (!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip) {
-        return res.status(400).json({ success: false, error: "Slot is not available" });
+        return res.status(400).json({ success: false, error: `Slot ${slot_start_time} not found` });
       }
 
+      const slotCapacityReached = slot.assigned_orders_count >= vehicle.max_orders_per_trip;
+      if (!slot.is_available || slotCapacityReached) {
+        return res.status(400).json({
+          success: false,
+          error: `Slot ${slot_start_time} is full (${slot.assigned_orders_count}/${vehicle.max_orders_per_trip} orders)`
+        });
+      }
+
+      console.log(`📅 Assigning order to slot ${slot_start_time}`);
       // Assign order to slot
       vehicle.assignOrderToSlot(slot_start_time);
     }
@@ -2688,6 +2700,7 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
     // Update booking with vehicle assignment
     booking.assigned_vehicle_id = vehicle_id;
     booking.vehicle_time_slot = slot_start_time || null;
+    booking.status = "vehicle_allocated"; // Update booking status
 
     await vehicle.save();
     await booking.save();
@@ -2701,6 +2714,13 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
       });
 
     console.log(`✅ Order allocated successfully to vehicle ${vehicle_id}`);
+    console.log(`📊 Vehicle capacity: ${updatedVehicle.current_orders_count}/${updatedVehicle.max_orders_per_trip}`);
+
+    if (slot_start_time) {
+      const updatedSlot = updatedVehicle.availability_slots.find(s => s.start_time === slot_start_time);
+      console.log(`📅 Slot ${slot_start_time} now has ${updatedSlot?.assigned_orders_count || 0} orders`);
+    }
+
     res.json({
       success: true,
       message: "Order allocated to vehicle successfully",
@@ -2709,7 +2729,10 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
     });
   } catch (error) {
     console.error("❌ Error allocating order to vehicle:", error);
-    res.status(500).json({ success: false, error: "Failed to allocate order" });
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to allocate order"
+    });
   }
 });
 
