@@ -95,18 +95,33 @@ const AdminOrderAllocation: React.FC = () => {
   const fetchAllocationData = async () => {
     try {
       setLoading(true);
-      const params = selectedVendor ? { vendor_id: selectedVendor } : {};
+      const params = selectedVendor && selectedVendor !== "__all__" ? { vendor_id: selectedVendor } : {};
+      console.log("🔄 Fetching allocation data with params:", params);
+
       const response = await apiClient.adminRequest<AllocationData>(
         "/admin/order-allocation",
         { query: params }
       );
 
       if (response.data) {
+        console.log("✅ Received allocation data:", {
+          unallocatedOrders: response.data.unallocatedOrders?.length || 0,
+          allocatedOrders: response.data.allocatedOrders?.length || 0,
+          vendors: response.data.vendors?.length || 0,
+          vehiclesByVendor: Object.keys(response.data.vendorVehicles || {}).map(v => ({
+            vendor: v,
+            vehicles: response.data.vendorVehicles[v]?.length || 0
+          }))
+        });
         setAllocationData(response.data);
+      } else {
+        console.warn("⚠️ No data received from allocation endpoint");
+        toast.error("No allocation data received");
       }
     } catch (error) {
-      console.error("Error fetching allocation data:", error);
-      toast.error("Failed to fetch allocation data");
+      const errorMsg = error instanceof Error ? error.message : "Failed to fetch allocation data";
+      console.error("❌ Error fetching allocation data:", error);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -118,6 +133,9 @@ const AdminOrderAllocation: React.FC = () => {
       return;
     }
 
+    const slotTime = selectedSlot && selectedSlot !== "__none__" ? selectedSlot : null;
+    console.log(`📍 Allocating order ${selectedOrder.custom_order_id} to vehicle ${selectedVehicle.name} at slot ${slotTime || "NO SPECIFIC SLOT"}`);
+
     try {
       setAllocating(true);
       const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
@@ -125,21 +143,35 @@ const AdminOrderAllocation: React.FC = () => {
         body: {
           booking_id: selectedOrder._id,
           vehicle_id: selectedVehicle._id,
-          slot_start_time: selectedSlot || null,
+          slot_start_time: slotTime,
         },
       });
 
       if (response.data?.success) {
-        toast.success("Order allocated to vehicle successfully");
+        const slotMsg = slotTime ? ` at ${slotTime}` : " (no specific slot)";
+        toast.success(`✅ Order ${selectedOrder.custom_order_id} allocated to ${selectedVehicle.name}${slotMsg}`);
+        console.log(`✅ Allocation successful:`, response.data);
+
+        // Clear selection
         setShowAllocationDialog(false);
         setSelectedOrder(null);
         setSelectedVehicle(null);
         setSelectedSlot("");
-        await fetchAllocationData();
+
+        // Refresh data after a short delay to ensure backend is updated
+        setTimeout(() => {
+          console.log("🔄 Refreshing allocation data...");
+          fetchAllocationData();
+        }, 500);
+      } else {
+        const errorMsg = response.data?.error || "Failed to allocate order";
+        console.error("Allocation error:", errorMsg);
+        toast.error(errorMsg);
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Failed to allocate order";
       console.error("Error allocating order:", error);
-      toast.error("Failed to allocate order");
+      toast.error(errorMsg);
     } finally {
       setAllocating(false);
     }
@@ -163,14 +195,14 @@ const AdminOrderAllocation: React.FC = () => {
   };
 
   const getAvailableVehicles = () => {
-    if (!selectedVendor) return [];
+    if (!selectedVendor || selectedVendor === "__all__") return [];
     return allocationData.vendorVehicles[selectedVendor] || [];
   };
 
   const getFilteredUnallocatedOrders = () => {
     let orders = allocationData.unallocatedOrders;
 
-    if (selectedVendor) {
+    if (selectedVendor && selectedVendor !== "__all__") {
       orders = orders.filter(o => o.assignedVendor === selectedVendor);
     }
 
@@ -191,7 +223,7 @@ const AdminOrderAllocation: React.FC = () => {
   const getFilteredAllocatedOrders = () => {
     let orders = allocationData.allocatedOrders;
 
-    if (selectedVendor) {
+    if (selectedVendor && selectedVendor !== "__all__") {
       orders = orders.filter(o => o.assignedVendor === selectedVendor);
     }
 
@@ -255,7 +287,7 @@ const AdminOrderAllocation: React.FC = () => {
                   <SelectValue placeholder="Select a vendor..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Vendors</SelectItem>
+                  <SelectItem value="__all__">All Vendors</SelectItem>
                   {allocationData.vendors.map(vendor => (
                     <SelectItem key={vendor} value={vendor}>
                       {vendor || "Unknown"}
@@ -446,12 +478,16 @@ const AdminOrderAllocation: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="vehicle-select">Select Vehicle</Label>
                 {availableVehicles.length === 0 ? (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      {selectedVendor
-                        ? "No active vehicles assigned to this vendor"
-                        : "Please select a vendor first"}
+                  <Alert className={`${!selectedVendor ? "bg-yellow-50 border-yellow-300" : "bg-red-50 border-red-300"}`}>
+                    <AlertCircle className={`h-4 w-4 ${!selectedVendor ? "text-yellow-600" : "text-red-600"}`} />
+                    <AlertDescription className={!selectedVendor ? "text-yellow-800" : "text-red-800"}>
+                      {!selectedVendor
+                        ? "⚠️ Please select a vendor first to see their assigned vehicles"
+                        : `❌ No active vehicles found for vendor "${selectedVendor}". Please:
+                           1. Create vehicles for this vendor
+                           2. Ensure they are marked as active
+                           3. Assign them to this vendor`
+                      }
                     </AlertDescription>
                   </Alert>
                 ) : (
@@ -484,52 +520,121 @@ const AdminOrderAllocation: React.FC = () => {
               </div>
 
               {selectedVehicle && (
-                <div className="space-y-2">
-                  <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
-                  <Select value={selectedSlot} onValueChange={setSelectedSlot}>
-                    <SelectTrigger id="slot-select">
-                      <SelectValue placeholder="Select a slot or leave empty..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">No Specific Slot</SelectItem>
-                      {selectedVehicle.availability_slots.map(slot => (
-                        <SelectItem
-                          key={slot.start_time}
-                          value={slot.start_time}
-                          disabled={!slot.is_available || slot.assigned_orders_count >= selectedVehicle.max_orders_per_trip}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3 h-3" />
-                            <span>
-                              {slot.start_time} - {slot.end_time} ({slot.assigned_orders_count}/
-                              {selectedVehicle.max_orders_per_trip})
-                            </span>
-                            {!slot.is_available || slot.assigned_orders_count >= selectedVehicle.max_orders_per_trip ? (
-                              <Badge variant="destructive" className="ml-2">
-                                Full
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="slot-select" className="mb-3 block">
+                      Select Time Slot (Optional)
+                    </Label>
+                    <div className="bg-white border rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSlot("__none__")}
+                        className={`w-full text-left px-3 py-2 rounded transition-colors ${
+                          selectedSlot === "__none__"
+                            ? "bg-blue-100 border border-blue-300"
+                            : "hover:bg-gray-100"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">No Specific Slot</span>
+                        </div>
+                      </button>
+
+                      <div className="border-t pt-2">
+                        {selectedVehicle.availability_slots.map(slot => {
+                          const isAvailable = slot.is_available && slot.assigned_orders_count < selectedVehicle.max_orders_per_trip;
+                          const isFull = slot.assigned_orders_count >= selectedVehicle.max_orders_per_trip;
+
+                          return (
+                            <button
+                              key={slot.start_time}
+                              type="button"
+                              onClick={() => isAvailable && setSelectedSlot(slot.start_time)}
+                              disabled={!isAvailable}
+                              className={`w-full text-left px-3 py-2 rounded transition-colors flex justify-between items-center ${
+                                !isAvailable
+                                  ? "opacity-50 cursor-not-allowed bg-gray-100"
+                                  : selectedSlot === slot.start_time
+                                    ? "bg-blue-100 border border-blue-300"
+                                    : "hover:bg-gray-100"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4" />
+                                <span className="font-medium">
+                                  {slot.start_time} - {slot.end_time}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-semibold ${isFull ? "text-red-600" : "text-green-600"}`}>
+                                  {slot.assigned_orders_count}/{selectedVehicle.max_orders_per_trip}
+                                </span>
+                                {isFull && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    FULL
+                                  </Badge>
+                                )}
+                                {isAvailable && (
+                                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                                    AVAILABLE
+                                  </Badge>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedSlot && selectedSlot !== "__none__" && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-900">
+                        <Clock className="w-4 h-4 inline mr-2" />
+                        <span className="font-semibold">Selected Slot:</span> {selectedSlot} - {selectedVehicle.availability_slots.find(s => s.start_time === selectedSlot)?.end_time}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
               {selectedVehicle && (
-                <div className="bg-gray-50 rounded-lg p-3 text-sm">
-                  <p className="text-muted-foreground">
-                    <span className="font-semibold">Selected Vehicle:</span> {selectedVehicle.name} ({selectedVehicle.number_plate})
-                  </p>
-                  <p className="text-muted-foreground">
-                    <span className="font-semibold">Current Capacity:</span> {selectedVehicle.current_orders_count}/
-                    {selectedVehicle.max_orders_per_trip}
-                  </p>
-                  {selectedSlot && (
-                    <p className="text-muted-foreground">
-                      <span className="font-semibold">Time Slot:</span> {selectedSlot}
-                    </p>
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-2">📍 Vehicle Summary</h4>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p>
+                        <span className="font-semibold">Vehicle:</span> {selectedVehicle.name} ({selectedVehicle.number_plate})
+                      </p>
+                      <p>
+                        <span className="font-semibold">Vendor:</span> {selectedVehicle.assigned_vendor_name || "Not assigned"}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Current Capacity:</span>
+                        <span className={selectedVehicle.current_orders_count >= selectedVehicle.max_orders_per_trip ? "text-red-600 font-bold" : ""}>
+                          {" "}{selectedVehicle.current_orders_count}/{selectedVehicle.max_orders_per_trip}
+                        </span>
+                      </p>
+                      {selectedSlot && selectedSlot !== "__none__" && (
+                        <p className="bg-green-100 text-green-900 px-2 py-1 rounded mt-2">
+                          ✅ <span className="font-semibold">Slot Selected:</span> {selectedSlot} - {selectedVehicle.availability_slots.find(s => s.start_time === selectedSlot)?.end_time}
+                        </p>
+                      )}
+                      {!selectedSlot || selectedSlot === "__none__" ? (
+                        <p className="bg-yellow-100 text-yellow-900 px-2 py-1 rounded mt-2">
+                          ℹ️ No specific slot selected - order will be added to vehicle generally
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {selectedVehicle.current_orders_count >= selectedVehicle.max_orders_per_trip && (
+                    <Alert className="bg-red-50 border-red-300">
+                      <AlertCircle className="h-4 w-4 text-red-600" />
+                      <AlertDescription className="text-red-800">
+                        ⚠️ This vehicle is at full capacity! Allocation may fail.
+                      </AlertDescription>
+                    </Alert>
                   )}
                 </div>
               )}

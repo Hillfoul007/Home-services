@@ -2585,20 +2585,46 @@ router.get("/order-allocation", verifyAdminAccess, async (req, res) => {
       .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
       .select("_id custom_order_id name phone address scheduled_date scheduled_time status assignedVendor assigned_vehicle_id vehicle_time_slot created_at");
 
-    // Get unique vendors from orders
-    const uniqueVendors = [...new Set(unallocatedOrders.concat(allocatedOrders).map(o => o.assignedVendor))].filter(Boolean);
+    // Get unique vendor names from orders
+    const uniqueVendorNames = [...new Set(unallocatedOrders.concat(allocatedOrders).map(o => o.assignedVendor))].filter(Boolean);
+
+    // Look up vendor ObjectIds from vendor names
+    const Vendor = require("../models/Vendor");
+    const vendorNameToIdMap = {};
+    const vendorDocuments = await Vendor.find({ name: { $in: uniqueVendorNames } }).select("_id name");
+
+    for (const vendor of vendorDocuments) {
+      vendorNameToIdMap[vendor.name] = vendor._id;
+    }
 
     // For each vendor, get their available vehicles with slots
     const vendorVehicles = {};
-    for (const vendorId of uniqueVendors) {
-      const vehicles = await Vehicle.find({
-        assigned_vendor_id: vendorId,
+    for (const vendorName of uniqueVendorNames) {
+      const vendorObjectId = vendorNameToIdMap[vendorName];
+
+      console.log(`🔍 Looking for vehicles for vendor: "${vendorName}" (ID: ${vendorObjectId || "NOT FOUND"})`);
+
+      // Query vehicles by vendor name or vendor ObjectId
+      const vehicleQuery = {
         is_active: true,
-      })
+        $or: [
+          { assigned_vendor_id: vendorObjectId }, // By vendor ObjectId
+          { assigned_vendor_name: vendorName },   // By vendor name string
+        ]
+      };
+
+      // Remove the $or if vendor ObjectId is not found (avoid searching with null/undefined)
+      if (!vendorObjectId) {
+        delete vehicleQuery.$or;
+        vehicleQuery.assigned_vendor_name = vendorName;
+      }
+
+      const vehicles = await Vehicle.find(vehicleQuery)
         .populate("assigned_vendor_id", "name phone email")
         .select("_id name number_plate vehicle_type status current_orders_count max_orders_per_trip availability_slots today_orders assigned_vendor_name assigned_vendor_id");
 
-      vendorVehicles[vendorId] = vehicles;
+      console.log(`📍 Found ${vehicles.length} vehicles for vendor "${vendorName}"`);
+      vendorVehicles[vendorName] = vehicles;
     }
 
     console.log(`✅ Found ${unallocatedOrders.length} unallocated orders and ${allocatedOrders.length} allocated orders`);
@@ -2607,8 +2633,8 @@ router.get("/order-allocation", verifyAdminAccess, async (req, res) => {
       success: true,
       unallocatedOrders,
       allocatedOrders,
-      vendorVehicles, // Map of vendorId -> vehicles
-      vendors: uniqueVendors,
+      vendorVehicles, // Map of vendor name -> vehicles
+      vendors: uniqueVendorNames,
     });
   } catch (error) {
     console.error("❌ Error fetching order allocation data:", error);
@@ -2621,7 +2647,7 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
   try {
     const { booking_id, vehicle_id, slot_start_time } = req.body;
 
-    console.log(`🚗 Allocating order ${booking_id} to vehicle ${vehicle_id} at slot ${slot_start_time}`);
+    console.log(`🚗 Allocating order ${booking_id} to vehicle ${vehicle_id} at slot ${slot_start_time || "NO SPECIFIC SLOT"}`);
 
     if (!mongoose.Types.ObjectId.isValid(booking_id) || !mongoose.Types.ObjectId.isValid(vehicle_id)) {
       return res.status(400).json({ success: false, error: "Invalid booking or vehicle ID" });
@@ -2642,24 +2668,36 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
 
     // Check if order is already assigned to a vehicle
     if (booking.assigned_vehicle_id) {
-      return res.status(400).json({ success: false, error: "Order is already allocated to a vehicle" });
+      return res.status(400).json({
+        success: false,
+        error: `Order is already allocated to vehicle ${booking.assigned_vehicle_id}`
+      });
     }
 
     // Check if vehicle has capacity
     if (vehicle.today_orders.length >= vehicle.max_orders_per_trip) {
-      return res.status(400).json({ success: false, error: "Vehicle capacity is full" });
+      return res.status(400).json({
+        success: false,
+        error: `Vehicle is at full capacity (${vehicle.today_orders.length}/${vehicle.max_orders_per_trip})`
+      });
     }
 
     // If slot is provided, check slot availability
     if (slot_start_time) {
       const slot = vehicle.availability_slots.find(s => s.start_time === slot_start_time);
       if (!slot) {
-        return res.status(400).json({ success: false, error: "Slot not found" });
-      }
-      if (!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip) {
-        return res.status(400).json({ success: false, error: "Slot is not available" });
+        return res.status(400).json({ success: false, error: `Slot ${slot_start_time} not found` });
       }
 
+      const slotCapacityReached = slot.assigned_orders_count >= vehicle.max_orders_per_trip;
+      if (!slot.is_available || slotCapacityReached) {
+        return res.status(400).json({
+          success: false,
+          error: `Slot ${slot_start_time} is full (${slot.assigned_orders_count}/${vehicle.max_orders_per_trip} orders)`
+        });
+      }
+
+      console.log(`📅 Assigning order to slot ${slot_start_time}`);
       // Assign order to slot
       vehicle.assignOrderToSlot(slot_start_time);
     }
@@ -2671,6 +2709,7 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
     // Update booking with vehicle assignment
     booking.assigned_vehicle_id = vehicle_id;
     booking.vehicle_time_slot = slot_start_time || null;
+    booking.status = "vehicle_allocated"; // Update booking status
 
     await vehicle.save();
     await booking.save();
@@ -2684,6 +2723,13 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
       });
 
     console.log(`✅ Order allocated successfully to vehicle ${vehicle_id}`);
+    console.log(`📊 Vehicle capacity: ${updatedVehicle.current_orders_count}/${updatedVehicle.max_orders_per_trip}`);
+
+    if (slot_start_time) {
+      const updatedSlot = updatedVehicle.availability_slots.find(s => s.start_time === slot_start_time);
+      console.log(`📅 Slot ${slot_start_time} now has ${updatedSlot?.assigned_orders_count || 0} orders`);
+    }
+
     res.json({
       success: true,
       message: "Order allocated to vehicle successfully",
@@ -2692,7 +2738,10 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
     });
   } catch (error) {
     console.error("❌ Error allocating order to vehicle:", error);
-    res.status(500).json({ success: false, error: "Failed to allocate order" });
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to allocate order"
+    });
   }
 });
 
@@ -2718,11 +2767,17 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
       return res.status(400).json({ success: false, error: "Order is not allocated to any vehicle" });
     }
 
-    const vehicle = await Vehicle.findById(booking.assigned_vehicle_id);
+    const vehicleId = booking.assigned_vehicle_id;
+    const slotTime = booking.vehicle_time_slot;
+
+    const vehicle = await Vehicle.findById(vehicleId);
     if (vehicle) {
       // Remove order from slot
-      if (booking.vehicle_time_slot) {
-        vehicle.removeOrderFromSlot(booking.vehicle_time_slot);
+      if (slotTime) {
+        console.log(`📅 Removing order from slot ${slotTime}`);
+        vehicle.removeOrderFromSlot(slotTime);
+        const updatedSlot = vehicle.availability_slots.find(s => s.start_time === slotTime);
+        console.log(`📅 Slot ${slotTime} now has ${updatedSlot?.assigned_orders_count || 0} orders`);
       }
 
       // Remove order from vehicle
@@ -2730,11 +2785,13 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
       vehicle.current_orders_count = vehicle.today_orders.length;
 
       await vehicle.save();
+      console.log(`📊 Vehicle capacity: ${vehicle.current_orders_count}/${vehicle.max_orders_per_trip}`);
     }
 
     // Clear vehicle assignment from booking
     booking.assigned_vehicle_id = null;
     booking.vehicle_time_slot = null;
+    booking.status = "vendor_assigned"; // Revert to vendor_assigned status
     await booking.save();
 
     console.log(`✅ Order deallocation removed successfully`);
@@ -2745,7 +2802,10 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
     });
   } catch (error) {
     console.error("❌ Error removing order allocation:", error);
-    res.status(500).json({ success: false, error: "Failed to remove allocation" });
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to remove allocation"
+    });
   }
 });
 
