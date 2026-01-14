@@ -720,29 +720,18 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
     console.log(`👤 Rider ID: ${riderId}`);
 
     const [regularOrders, quickPickups] = await Promise.all([
-      // Regular bookings assigned to this rider OR allocated to a vehicle
-      // (covers both direct assignment and vehicle-based allocation)
+      // Regular bookings assigned to this rider
       Booking.find({
-        $or: [
-          // Direct rider assignment (traditional method)
-          {
-            assignedRider: riderId,
-            riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending', 'unassigned'] }
-          },
-          // Vehicle allocation (new method - orders allocated to vehicles)
-          {
-            assigned_vehicle_id: { $exists: true, $ne: null },
-            riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending', 'unassigned'] }
-          }
-        ]
+        assignedRider: riderId,
+        riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] }
       })
       .populate('customer_id', 'name phone')
-      .sort({ assignedAt: -1, created_at: -1 }),
+      .sort({ assignedAt: -1 }),
 
       // Quick pickups assigned to this rider
       QuickPickup.find({
         rider_id: riderId,
-        status: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] }
+        status: { $in: ['assigned', 'accepted', 'picked_up'] }
       })
       .populate('customer_id', 'name phone')
       .sort({ createdAt: -1 })
