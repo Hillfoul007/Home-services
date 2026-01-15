@@ -730,9 +730,35 @@ const AdminBookingManagement: React.FC = () => {
     try {
       setLoadingVehicles(true);
       const endpoint = `/admin/vehicles?vendor_id=${encodeURIComponent(vendorId)}`;
+      console.log('🚗 Fetching vehicles from:', endpoint);
+
       const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
-      if (response.data?.vehicles) {
-        setAvailableVehicles(response.data.vehicles);
+      console.log('🚗 Vehicles response:', response);
+
+      if (response.data?.vehicles && Array.isArray(response.data.vehicles)) {
+        // Validate and sanitize vehicle data
+        const validatedVehicles = response.data.vehicles.filter(vehicle => {
+          if (!vehicle._id) {
+            console.warn('⚠️ Vehicle missing _id:', vehicle);
+            return false;
+          }
+          if (!vehicle.name || !vehicle.number_plate) {
+            console.warn('⚠️ Vehicle missing name or number_plate:', vehicle);
+            return false;
+          }
+          if (vehicle.max_orders_per_trip === undefined || vehicle.current_orders_count === undefined) {
+            console.warn('⚠️ Vehicle missing capacity info:', vehicle);
+            return false;
+          }
+          return true;
+        });
+
+        console.log(`✅ Validated ${validatedVehicles.length} out of ${response.data.vehicles.length} vehicles`);
+        setAvailableVehicles(validatedVehicles);
+      } else {
+        console.error('❌ Invalid response structure:', response);
+        toast.error("Invalid vehicle data received from server");
+        setAvailableVehicles([]);
       }
     } catch (error) {
       console.error("Error fetching vehicles:", error);
