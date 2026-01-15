@@ -6,6 +6,13 @@ const Booking = require("../models/Booking");
 const User = require("../models/User");
 const Vendor = require("../models/Vendor");
 
+// Simple admin authentication middleware (allows demo access)
+const verifyAdminAccess = (req, res, next) => {
+  // For demo/development purposes, allow access
+  // In production, implement proper admin authentication
+  next();
+};
+
 // Helper: Calculate distance between two coordinates (Haversine formula)
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
   const R = 6371; // Earth's radius in km
@@ -26,7 +33,7 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
 // ============================================================================
 
 // GET all vehicles with details (optionally filtered by vendor_id)
-router.get("/vehicles", async (req, res) => {
+router.get("/vehicles", verifyAdminAccess, async (req, res) => {
   try {
     const { vendor_id } = req.query;
 
