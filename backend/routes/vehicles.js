@@ -36,15 +36,18 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
 router.get("/vehicles", verifyAdminAccess, async (req, res) => {
   try {
     const { vendor_id } = req.query;
+    console.log(`🚗 Fetching vehicles with vendor_id filter: ${vendor_id || 'none'}`);
 
     let query = {};
     if (vendor_id) {
       // Check if vendor_id looks like a MongoDB ObjectId
       if (mongoose.Types.ObjectId.isValid(vendor_id)) {
         // Try to match by ObjectId first
+        console.log(`🔍 Treating vendor_id as ObjectId: ${vendor_id}`);
         query.assigned_vendor_id = vendor_id;
       } else {
         // If it's not an ObjectId, treat it as a vendor name (string)
+        console.log(`🔍 Treating vendor_id as vendor name: ${vendor_id}`);
         query.assigned_vendor_name = vendor_id;
       }
     }
@@ -53,10 +56,27 @@ router.get("/vehicles", verifyAdminAccess, async (req, res) => {
       .populate("assigned_vendor_id", "name phone email")
       .sort({ created_at: -1 });
 
-    res.json({ vehicles });
+    // Validate response data
+    const validatedVehicles = vehicles.map(vehicle => ({
+      _id: vehicle._id,
+      name: vehicle.name,
+      number_plate: vehicle.number_plate,
+      vehicle_type: vehicle.vehicle_type,
+      current_orders_count: vehicle.current_orders_count || 0,
+      max_orders_per_trip: vehicle.max_orders_per_trip || 10,
+      status: vehicle.status,
+      is_active: vehicle.is_active,
+      assigned_vendor_id: vehicle.assigned_vendor_id,
+      assigned_vendor_name: vehicle.assigned_vendor_name,
+      availability_slots: vehicle.availability_slots || [],
+      today_orders: vehicle.today_orders || [],
+    }));
+
+    console.log(`✅ Found ${validatedVehicles.length} vehicles for vendor: ${vendor_id || 'all'}`);
+    res.json({ vehicles: validatedVehicles });
   } catch (error) {
-    console.error("Error fetching vehicles:", error);
-    res.status(500).json({ error: "Failed to fetch vehicles" });
+    console.error("❌ Error fetching vehicles:", error);
+    res.status(500).json({ error: "Failed to fetch vehicles", details: error.message });
   }
 });
 
