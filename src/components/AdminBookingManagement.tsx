@@ -3184,8 +3184,10 @@ const AdminBookingManagement: React.FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
                   {(() => {
-                    const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                    if (!vehicle?.availability_slots) return null;
+                    const vehicle = availableVehicles.find(v => String(v._id) === String(selectedAllocationVehicle));
+                    if (!vehicle?.availability_slots || !Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
+                      return null;
+                    }
 
                     return (
                       <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
