@@ -3220,8 +3220,8 @@ const AdminBookingManagement: React.FC = () => {
 
               {/* Vehicle Summary */}
               {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
-                const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                return vehicle ? (
+                const vehicle = availableVehicles.find(v => String(v._id) === String(selectedAllocationVehicle));
+                return vehicle && vehicle.name && vehicle.number_plate ? (
                   <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicle.name} ({vehicle.number_plate})</p>
                     <p className="text-sm"><span className="font-semibold">Capacity:</span> {vehicle.current_orders_count}/{vehicle.max_orders_per_trip} orders</p>
