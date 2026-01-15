@@ -32,7 +32,14 @@ router.get("/vehicles", async (req, res) => {
 
     let query = {};
     if (vendor_id) {
-      query.assigned_vendor_id = vendor_id;
+      // Check if vendor_id looks like a MongoDB ObjectId
+      if (mongoose.Types.ObjectId.isValid(vendor_id)) {
+        // Try to match by ObjectId first
+        query.assigned_vendor_id = vendor_id;
+      } else {
+        // If it's not an ObjectId, treat it as a vendor name (string)
+        query.assigned_vendor_name = vendor_id;
+      }
     }
 
     const vehicles = await Vehicle.find(query)
