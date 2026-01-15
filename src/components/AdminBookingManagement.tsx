@@ -1260,20 +1260,28 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleVehicleAllocation = async (bookingId: string, vehicleId: string, allocationFor: 'pickup' | 'delivery') => {
-    if (!selectedAllocationVehicle) {
-      toast.error("Please select a vehicle");
+    if (!selectedAllocationVehicle || !bookingId || !vehicleId) {
+      toast.error("Please select a vehicle and ensure booking is valid");
       return;
     }
 
     try {
+      // Ensure IDs are strings
+      const bookingIdStr = String(bookingId);
+      const vehicleIdStr = String(vehicleId);
+
+      console.log(`🚗 Allocating order ${bookingIdStr} to vehicle ${vehicleIdStr} for ${allocationFor}`);
+
       const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
         method: "POST",
         body: {
-          booking_id: bookingId,
-          vehicle_id: vehicleId,
+          booking_id: bookingIdStr,
+          vehicle_id: vehicleIdStr,
           slot_start_time: selectedAllocationSlot || null,
         },
       });
+
+      console.log('🚗 Allocation response:', response);
 
       if (response.data?.success) {
         toast.success(`✅ Order allocated to vehicle for ${allocationFor}`);
