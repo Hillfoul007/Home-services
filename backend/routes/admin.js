@@ -2709,7 +2709,7 @@ router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) =>
     // Update booking with vehicle assignment
     booking.assigned_vehicle_id = vehicle_id;
     booking.vehicle_time_slot = slot_start_time || null;
-    booking.status = "vehicle_allocated"; // Update booking status
+    // Note: Do not update status here - allocation is an operational detail, not a workflow state change
 
     await vehicle.save();
     await booking.save();
