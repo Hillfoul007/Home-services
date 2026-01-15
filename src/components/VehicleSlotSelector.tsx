@@ -53,15 +53,13 @@ const VehicleSlotSelector: React.FC<VehicleSlotSelectorProps> = ({ timeSlot, onS
 
     try {
       setLoading(true);
-      const response = await apiClient.adminRequest<{ vehicles: Vehicle[] }>(`/vehicles/available-slots`, {
+      const response = await apiClient.adminRequest<{ vehicles: Vehicle[] }>(`/admin/vehicles/available-slots`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
       });
 
-      // Note: The backend endpoint expects query parameters, not body
-      // This needs to be adjusted in the apiClient or backend route
       if (response.data?.vehicles) {
         setAvailableVehicles(response.data.vehicles);
       }
