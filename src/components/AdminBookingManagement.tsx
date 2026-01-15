@@ -3153,16 +3153,27 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableVehicles.map((vehicle) => (
-                        <SelectItem key={vehicle._id} value={vehicle._id}>
-                          <div className="flex items-center gap-2">
-                            <Truck className="w-3 h-3" />
-                            <span>
-                              {vehicle.name} ({vehicle.number_plate}) - {vehicle.current_orders_count}/{vehicle.max_orders_per_trip}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {availableVehicles.map((vehicle) => {
+                        // Defensive check to ensure vehicle has required properties
+                        if (!vehicle?._id || !vehicle?.name || !vehicle?.number_plate ||
+                            vehicle?.max_orders_per_trip === undefined ||
+                            vehicle?.current_orders_count === undefined) {
+                          console.warn('⚠️ Skipping invalid vehicle in SelectItem:', vehicle);
+                          return null;
+                        }
+
+                        const vehicleId = String(vehicle._id);
+                        return (
+                          <SelectItem key={vehicleId} value={vehicleId}>
+                            <div className="flex items-center gap-2">
+                              <Truck className="w-3 h-3" />
+                              <span>
+                                {vehicle.name} ({vehicle.number_plate}) - {vehicle.current_orders_count}/{vehicle.max_orders_per_trip}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 )}
