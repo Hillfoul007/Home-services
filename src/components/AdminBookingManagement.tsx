@@ -729,9 +729,8 @@ const AdminBookingManagement: React.FC = () => {
   const fetchAvailableVehicles = async (vendorId: string) => {
     try {
       setLoadingVehicles(true);
-      const response = await apiClient.adminRequest<{ vehicles: any[] }>('/vehicles', {
-        query: { vendor_id: vendorId }
-      });
+      const endpoint = `/admin/vehicles?vendor_id=${encodeURIComponent(vendorId)}`;
+      const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
       if (response.data?.vehicles) {
         setAvailableVehicles(response.data.vehicles);
       }
