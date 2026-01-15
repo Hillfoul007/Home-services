@@ -3161,27 +3161,24 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableVehicles.map((vehicle) => {
-                        // Defensive check to ensure vehicle has required properties
-                        if (!vehicle?._id || !vehicle?.name || !vehicle?.number_plate ||
-                            vehicle?.max_orders_per_trip === undefined ||
-                            vehicle?.current_orders_count === undefined) {
-                          console.warn('⚠️ Skipping invalid vehicle in SelectItem:', vehicle);
-                          return null;
-                        }
-
-                        const vehicleId = String(vehicle._id);
-                        return (
-                          <SelectItem key={vehicleId} value={vehicleId}>
-                            <div className="flex items-center gap-2">
-                              <Truck className="w-3 h-3" />
-                              <span>
-                                {vehicle.name} ({vehicle.number_plate}) - {vehicle.current_orders_count}/{vehicle.max_orders_per_trip}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
+                      {availableVehicles
+                        .filter((vehicle) => {
+                          // Filter out invalid vehicles before mapping
+                          if (!vehicle?._id || !vehicle?.name || !vehicle?.number_plate) {
+                            console.warn('⚠️ Skipping invalid vehicle:', vehicle);
+                            return false;
+                          }
+                          return true;
+                        })
+                        .map((vehicle) => {
+                          const vehicleId = String(vehicle._id);
+                          const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${vehicle.current_orders_count || 0}/${vehicle.max_orders_per_trip || 10}`;
+                          return (
+                            <SelectItem key={vehicleId} value={vehicleId}>
+                              {vehicleLabel}
+                            </SelectItem>
+                          );
+                        })}
                     </SelectContent>
                   </Select>
                 )}
