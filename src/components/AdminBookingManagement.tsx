@@ -1437,6 +1437,106 @@ const AdminBookingManagement: React.FC = () => {
     };
   };
 
+  // Helper functions for vehicle allocation modal - with defensive programming
+  const getSelectedVehicle = () => {
+    if (!selectedAllocationVehicle || !Array.isArray(availableVehicles)) {
+      return null;
+    }
+    const vehicle = availableVehicles.find(v => v && v._id === selectedAllocationVehicle);
+    return vehicle || null;
+  };
+
+  const renderTimeSlotSelect = () => {
+    try {
+      const vehicle = getSelectedVehicle();
+
+      // Defensive checks
+      if (!vehicle) {
+        return null;
+      }
+
+      if (!Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
+        return null;
+      }
+
+      return (
+        <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
+          <SelectTrigger id="slot-select">
+            <SelectValue placeholder="Leave empty for no specific slot..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">No Specific Slot</SelectItem>
+            {vehicle.availability_slots.map((slot) => {
+              // Defensive property access
+              const startTime = slot?.start_time ?? '';
+              const endTime = slot?.end_time ?? '';
+              const isAvailable = slot?.is_available ?? false;
+              const assignedCount = slot?.assigned_orders_count ?? 0;
+              const maxOrders = vehicle?.max_orders_per_trip ?? 0;
+              const isFull = !isAvailable || assignedCount >= maxOrders;
+
+              return (
+                <SelectItem
+                  key={startTime}
+                  value={startTime}
+                  disabled={isFull}
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-3 h-3" />
+                    <span>
+                      {startTime} - {endTime} ({assignedCount}/{maxOrders})
+                    </span>
+                    {isFull && (
+                      <span className="text-red-600 text-xs ml-2">Full</span>
+                    )}
+                  </div>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      );
+    } catch (error) {
+      console.error("Error rendering time slot select:", error);
+      return null;
+    }
+  };
+
+  const renderVehicleSummary = () => {
+    try {
+      const vehicle = getSelectedVehicle();
+
+      if (!vehicle) {
+        return null;
+      }
+
+      // Defensive property access with fallbacks
+      const vehicleName = vehicle?.name ?? 'Unknown Vehicle';
+      const plateNumber = vehicle?.number_plate ?? 'N/A';
+      const currentOrders = vehicle?.current_orders_count ?? 0;
+      const maxOrders = vehicle?.max_orders_per_trip ?? 0;
+
+      return (
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <p className="text-sm">
+            <span className="font-semibold">Vehicle:</span> {vehicleName} ({plateNumber})
+          </p>
+          <p className="text-sm">
+            <span className="font-semibold">Capacity:</span> {currentOrders}/{maxOrders} orders
+          </p>
+          {selectedAllocationSlot && (
+            <p className="text-sm">
+              <span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}
+            </p>
+          )}
+        </div>
+      );
+    } catch (error) {
+      console.error("Error rendering vehicle summary:", error);
+      return null;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
