@@ -3413,13 +3413,32 @@ const AdminBookingManagement: React.FC = () => {
       </Dialog>
 
       {/* Vehicle Allocation Modal */}
-      <Dialog open={showVehicleAllocationModal} onOpenChange={setShowVehicleAllocationModal}>
+      <Dialog
+        open={showVehicleAllocationModal}
+        onOpenChange={(isOpen) => {
+          console.log("🔓 [VEHICLE MODAL] Modal open state changed", {
+            isOpen,
+            hasBooking: !!vehicleAllocationBooking,
+            allocationFor: vehicleAllocationFor,
+            vehiclesLoaded: availableVehicles.length,
+            timestamp: new Date().toISOString()
+          });
+          setShowVehicleAllocationModal(isOpen);
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {vehicleAllocationFor === 'pickup' ? '🚗 Allocate Pickup Vehicle' : '🚚 Allocate Delivery Vehicle'}
             </DialogTitle>
           </DialogHeader>
+
+          {console.log("📋 [VEHICLE MODAL] Modal content rendering", {
+            hasBooking: !!vehicleAllocationBooking,
+            bookingId: vehicleAllocationBooking?._id,
+            bookingType: typeof vehicleAllocationBooking,
+            timestamp: new Date().toISOString()
+          }) || null}
 
           {vehicleAllocationBooking && typeof vehicleAllocationBooking === 'object' && (
             <div className="space-y-6">
