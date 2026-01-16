@@ -3310,27 +3310,93 @@ const AdminBookingManagement: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <Select value={selectedAllocationVehicle} onValueChange={setSelectedAllocationVehicle}>
+                  <Select
+                    value={selectedAllocationVehicle}
+                    onValueChange={(value) => {
+                      console.log("🚗 [VEHICLE DROPDOWN] Selection changed", {
+                        selectedValue: value,
+                        previousValue: selectedAllocationVehicle,
+                        availableVehiclesCount: availableVehicles.length,
+                        timestamp: new Date().toISOString()
+                      });
+
+                      try {
+                        // Find the selected vehicle in availableVehicles
+                        const foundVehicle = availableVehicles.find(v => v && typeof v === 'object' && v._id === value);
+                        console.log("🔍 [VEHICLE DROPDOWN] Found vehicle details", {
+                          vehicleId: value,
+                          foundVehicle: foundVehicle,
+                          vehicleKeys: foundVehicle ? Object.keys(foundVehicle) : [],
+                          timestamp: new Date().toISOString()
+                        });
+
+                        // Update the state
+                        setSelectedAllocationVehicle(value);
+                        console.log("✅ [VEHICLE DROPDOWN] State updated successfully", {
+                          newValue: value,
+                          timestamp: new Date().toISOString()
+                        });
+                      } catch (err) {
+                        console.error("❌ [VEHICLE DROPDOWN] Error during selection", {
+                          error: err,
+                          errorMessage: err instanceof Error ? err.message : String(err),
+                          errorStack: err instanceof Error ? err.stack : undefined,
+                          selectedValue: value,
+                          timestamp: new Date().toISOString()
+                        });
+                      }
+                    }}
+                  >
                     <SelectTrigger id="vehicle-select">
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
                       {availableVehicles
-                        .filter((vehicle) => {
+                        .filter((vehicle, index) => {
                           try {
-                            return vehicle && typeof vehicle === 'object' && vehicle._id;
-                          } catch {
+                            console.log(`🔍 [VEHICLE FILTER] Checking vehicle ${index}`, {
+                              index,
+                              hasId: !!vehicle?._id,
+                              vehicleId: vehicle?._id,
+                              vehicleType: typeof vehicle,
+                              isObject: typeof vehicle === 'object'
+                            });
+
+                            const isValid = vehicle && typeof vehicle === 'object' && vehicle._id;
+                            if (!isValid) {
+                              console.warn(`⚠️ [VEHICLE FILTER] Invalid vehicle at index ${index}`, vehicle);
+                            }
+                            return isValid;
+                          } catch (filterError) {
+                            console.error(`❌ [VEHICLE FILTER] Error filtering vehicle at index ${index}`, {
+                              error: filterError,
+                              vehicle
+                            });
                             return false;
                           }
                         })
-                        .map((vehicle) => {
+                        .map((vehicle, mapIndex) => {
                           try {
+                            console.log(`🎨 [VEHICLE RENDER] Rendering vehicle ${mapIndex}`, {
+                              mapIndex,
+                              vehicleId: vehicle._id
+                            });
+
                             // Defensive property access for vehicle options
                             const vehicleId = String(vehicle._id ?? '');
                             const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
                             const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
                             const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
                             const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+
+                            console.log(`📋 [VEHICLE RENDER] Vehicle details extracted`, {
+                              vehicleId,
+                              vehicleName,
+                              plateNumber,
+                              currentCount,
+                              maxCount,
+                              timestamp: new Date().toISOString()
+                            });
 
                             return (
                               <SelectItem key={vehicleId} value={vehicleId}>
@@ -3343,7 +3409,14 @@ const AdminBookingManagement: React.FC = () => {
                               </SelectItem>
                             );
                           } catch (error) {
-                            console.warn("Error rendering vehicle option:", error, vehicle);
+                            console.error(`❌ [VEHICLE RENDER] Error rendering vehicle option at index ${mapIndex}`, {
+                              error,
+                              errorMessage: error instanceof Error ? error.message : String(error),
+                              errorStack: error instanceof Error ? error.stack : undefined,
+                              vehicle,
+                              vehicleId: vehicle?._id,
+                              timestamp: new Date().toISOString()
+                            });
                             return null;
                           }
                         })}
