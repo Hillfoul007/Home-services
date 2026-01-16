@@ -387,6 +387,24 @@ try {
   console.error("❌ Full admin routes error:", error);
 }
 
+// PG Management routes (admin)
+try {
+  const pgManagementRoutes = require("./routes/pg-management");
+  app.use("/api/admin/pg", pgManagementRoutes);
+  console.log("🔗 PG Management routes registered at /api/admin/pg");
+} catch (error) {
+  console.error("❌ Failed to load PG Management routes:", error.message);
+}
+
+// PG Orders routes (user)
+try {
+  const pgOrderRoutes = require("./routes/pg-orders");
+  app.use("/api/pg", pgOrderRoutes);
+  console.log("🔗 PG Order routes registered at /api/pg");
+} catch (error) {
+  console.error("❌ Failed to load PG Order routes:", error.message);
+}
+
 // Quick Pickup routes (new)
 try {
   const quickPickupRoutes = require("./routes/quick-pickup");

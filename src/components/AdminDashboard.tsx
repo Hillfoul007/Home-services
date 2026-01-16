@@ -30,13 +30,14 @@ import AdminUserBooking from "./AdminUserBooking";
 import AdminServiceLocations from "./AdminServiceLocations";
 import AdminVendorManagement from "./AdminVendorManagement";
 import AdminWalletManagement from "./AdminWalletManagement";
+import AdminPGManagement from "./AdminPGManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics" | "wallet";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "analytics" | "wallet" | "pg";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -290,7 +291,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       {/* Main Content */}
       <main className="p-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
-          <TabsList className="grid w-full grid-cols-8 mb-6">
+          <TabsList className="grid w-full grid-cols-9 mb-6">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Overview
@@ -310,6 +311,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <TabsTrigger value="vendors" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
               Vendors
+            </TabsTrigger>
+            <TabsTrigger value="pg" className="flex items-center gap-2">
+              <Building className="h-4 w-4" />
+              PG Orders
             </TabsTrigger>
             <TabsTrigger value="wallet" className="flex items-center gap-2">
               <span>💰</span>
@@ -346,6 +351,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
           <TabsContent value="wallet">
             <AdminWalletManagement />
+          </TabsContent>
+
+          <TabsContent value="pg">
+            <AdminPGManagement />
           </TabsContent>
 
           <TabsContent value="analytics">

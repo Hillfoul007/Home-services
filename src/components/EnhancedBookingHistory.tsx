@@ -68,6 +68,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
   React.memo(({ currentUser, onBack, onLoginRequired }) => {
     const { addNotification } = useNotifications();
   const [bookings, setBookings] = useState([]);
+  const [pgOrders, setPGOrders] = useState<any[]>([]);
   const [quickPickups, setQuickPickups] = useState<QuickPickupDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -210,6 +211,33 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
       }
     };
 
+    const loadPGOrders = async () => {
+      if (!currentUser?.id && !currentUser?._id && !currentUser?.phone) {
+        console.log("No user ID found for loading PG orders");
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/pg/user/orders", {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("authToken") || ""}`,
+            "x-user-id": currentUser?.id || currentUser?._id || currentUser?.phone,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setPGOrders(data.data || []);
+        } else {
+          console.log("Failed to fetch PG orders, using empty list");
+          setPGOrders([]);
+        }
+      } catch (error) {
+        console.error("Error loading PG orders:", error);
+        setPGOrders([]);
+      }
+    };
+
     const refreshBookings = async () => {
       setRefreshing(true);
       try {
@@ -217,6 +245,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         console.log("��� Refreshing bookings while preserving local data...");
 
         await loadBookings(true);
+        await loadPGOrders();
         addNotification(
           createSuccessNotification(
             "Refreshed",
@@ -238,6 +267,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
     useEffect(() => {
       loadBookings();
+      loadPGOrders();
     }, [currentUser]);
 
     // Listen for booking refresh events

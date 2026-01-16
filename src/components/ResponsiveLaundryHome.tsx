@@ -24,6 +24,7 @@ import {
   Gift,
   AlertTriangle,
   Zap,
+  Building2,
 } from "lucide-react";
 import {
   laundryServices,
@@ -57,6 +58,7 @@ import NotificationBell from "./NotificationBell";
 import QuickPickupModal from "./QuickPickupModal";
 import CustomerVerificationPopup from "./CustomerVerificationPopup";
 import OrderStatusBar from "@/components/OrderStatusBar";
+import PGOrderCreate from "@/components/PGOrderCreate";
 import { BookingService } from "@/services/bookingService";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
@@ -101,6 +103,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
+  const [showPGOrders, setShowPGOrders] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
@@ -1049,6 +1052,20 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 All
               </Button>
 
+              <Button
+                onClick={() => {
+                  if (!currentUser?.phone) {
+                    setShowAuthModal(true);
+                  } else {
+                    setShowPGOrders(true);
+                  }
+                }}
+                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium shadow-md border bg-gradient-to-r from-laundrify-purple to-laundrify-pink text-white border-transparent hover:shadow-lg hover:scale-105 transition-all"
+              >
+                <Building2 className="h-3 w-3 mr-1" />
+                <span className="whitespace-nowrap">PG</span>
+              </Button>
+
               {(useStaticFallback
                 ? (serviceCategories || []).slice(1)
                 : dynamicServices || []
@@ -1568,6 +1585,20 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
               All Services
             </Button>
 
+            <Button
+              onClick={() => {
+                if (!currentUser?.phone) {
+                  setShowAuthModal(true);
+                } else {
+                  setShowPGOrders(true);
+                }
+              }}
+              className="flex-shrink-0 rounded-xl font-medium shadow-md border bg-gradient-to-r from-laundrify-purple to-laundrify-pink text-white border-transparent hover:shadow-lg hover:scale-105 transition-all"
+            >
+              <Building2 className="h-4 w-4 mr-2" />
+              PG Orders
+            </Button>
+
             {(useStaticFallback
               ? (serviceCategories || []).slice(1)
               : dynamicServices || []
@@ -1831,6 +1862,19 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
+        {/* PG Orders Modal */}
+        {showPGOrders && (
+          <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+            <PGOrderCreate
+              currentUser={currentUser}
+              onOrderCreated={() => {
+                setShowPGOrders(false);
+                handleViewBookings();
+              }}
+              onBack={() => setShowPGOrders(false)}
+            />
+          </div>
+        )}
     </div>
       </div>
   );
