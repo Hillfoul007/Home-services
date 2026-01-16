@@ -205,6 +205,9 @@ const AdminBannerManagement: React.FC = () => {
       redirectUrl: banner.redirectUrl,
       duration: banner.duration,
     });
+    if (banner.imageUrl) {
+      setImagePreview(banner.imageUrl);
+    }
     setIsDialogOpen(true);
   };
 
