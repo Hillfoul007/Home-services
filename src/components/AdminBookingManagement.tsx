@@ -3176,17 +3176,28 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableVehicles
-                        .filter((vehicle) => vehicle?._id && vehicle?.name && vehicle?.number_plate)
-                        .map((vehicle) => {
-                          const vehicleId = String(vehicle._id);
-                          const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${vehicle.current_orders_count || 0}/${vehicle.max_orders_per_trip || 10}`;
-                          return (
-                            <SelectItem key={vehicleId} value={vehicleId}>
-                              {vehicleLabel}
-                            </SelectItem>
-                          );
-                        })}
+                      {availableVehicles.length > 0 && (
+                        <>
+                          {(() => {
+                            console.log('🚗 Rendering vehicles. Total:', availableVehicles.length);
+                            availableVehicles.forEach((v, idx) => {
+                              console.log(`  Vehicle ${idx}:`, { _id: v._id, name: v.name, plate: v.number_plate });
+                            });
+                          })()}
+                          {availableVehicles
+                            .filter((vehicle) => vehicle?._id && vehicle?.name && vehicle?.number_plate)
+                            .map((vehicle) => {
+                              const vehicleId = String(vehicle._id);
+                              const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${vehicle.current_orders_count || 0}/${vehicle.max_orders_per_trip || 10}`;
+                              console.log(`📝 Creating SelectItem for:`, vehicleId, vehicleLabel);
+                              return (
+                                <SelectItem key={vehicleId} value={vehicleId}>
+                                  {vehicleLabel}
+                                </SelectItem>
+                              );
+                            })}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 )}
