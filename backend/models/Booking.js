@@ -159,6 +159,18 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Discount amount must be non-negative"],
     },
+    // Cashback applied to this booking (deducted from user's wallet)
+    cashback: {
+      type: Number,
+      default: 0,
+      min: [0, "Cashback must be non-negative"],
+    },
+    // Wallet cashback to be credited to user after order completes
+    wallet_cashback: {
+      type: Number,
+      default: 0,
+      min: [0, "Wallet cashback must be non-negative"],
+    },
     coupon_code: {
       type: String,
       default: null,

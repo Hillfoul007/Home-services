@@ -9,6 +9,31 @@ const riderNotificationService = require("../services/riderNotificationService")
 
 const router = express.Router();
 
+// ============= DISTANCE CALCULATION HELPER =============
+// Calculate distance between two coordinates using Haversine formula (in km)
+const calculateDistance = (coord1, coord2) => {
+  if (!coord1 || !coord2 || coord1.lat === undefined || coord1.lng === undefined || coord2.lat === undefined || coord2.lng === undefined) {
+    return null;
+  }
+
+  const R = 6371; // Earth's radius in kilometers
+  const lat1 = (coord1.lat * Math.PI) / 180;
+  const lat2 = (coord2.lat * Math.PI) / 180;
+  const dLat = ((coord2.lat - coord1.lat) * Math.PI) / 180;
+  const dLng = ((coord2.lng - coord1.lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+
+  return Math.round(distance * 100) / 100; // Round to 2 decimal places
+};
+
 // Middleware to verify admin access (simple for now)
 const verifyAdminAccess = (req, res, next) => {
   // In a production environment, you would implement proper admin authentication
@@ -240,6 +265,16 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
         total_price: Math.max(0, Number(item.total_price) || (Math.max(1, Number(item.quantity) || 1) * (Number(item.unit_price || item.price) || 0)))
       }));
 
+      // Populate services array from item_prices
+      updateData.services = updateData.item_prices.map(item =>
+        `${item.service_name} x${item.quantity} (₹${item.unit_price}/${item.quantity > 1 ? 'SET' : 'PC'})`
+      );
+
+      // Set the main service field to the first service
+      if (updateData.services.length > 0) {
+        updateData.service = updateData.item_prices[0].service_name || 'Service';
+      }
+
       const computedTotal = updateData.item_prices.reduce((sum, item) => {
         const qty = Math.max(1, Number(item.quantity) || 1);
         const unitPrice = Math.max(0, Number(item.unit_price) || 0);
@@ -258,6 +293,7 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
 
       console.log(`📊 Computed totals from ${updateData.item_prices.length} items: total_price=${updateData.total_price}, final_amount=${updateData.final_amount}`);
       console.log(`📝 Normalized item_prices:`, updateData.item_prices.map(it => ({ service_name: it.service_name, qty: it.quantity, price: it.unit_price, total: it.total_price })));
+      console.log(`📝 Updated services array:`, updateData.services);
     }
 
     // Add admin update timestamp in IST (Asia/Kolkata) timezone
@@ -265,6 +301,10 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
     updateData.updated_at = new Date(indianTime);
     updateData.updated_by_admin = true;
+
+    // Get the old booking to check status change
+    const oldBooking = await Booking.findById(bookingId);
+    const oldStatus = oldBooking?.status;
 
     const booking = await Booking.findByIdAndUpdate(
       bookingId,
@@ -274,6 +314,55 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // Handle wallet transactions when booking status changes to completed
+    if (booking.customer_id && oldStatus !== "completed" && booking.status === "completed") {
+      try {
+        const User = require("../models/User");
+        const user = await User.findById(booking.customer_id);
+
+        if (user) {
+          // Debit wallet if cashback was used
+          if (booking.cashback && booking.cashback > 0) {
+            user.wallet_balance = Math.max(0, (user.wallet_balance || 0) - booking.cashback);
+            user.wallet_transactions.push({
+              type: "debit",
+              amount: booking.cashback,
+              description: "Cashback used in booking",
+              booking_id: booking._id,
+              created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+            });
+            console.log(`💰 Debited ���${booking.cashback} from wallet for booking ${booking._id}`);
+          }
+
+          // Credit wallet_cashback (wallet_cashback is now a percentage, calculate actual amount)
+          if (booking.wallet_cashback && booking.wallet_cashback > 0) {
+            // wallet_cashback is stored as percentage (0-100)
+            // Calculate actual cashback amount based on final_amount
+            const cashbackPercentage = parseFloat(booking.wallet_cashback) || 0;
+            const finalAmount = parseFloat(booking.final_amount) || 0;
+            const cashbackAmount = (finalAmount * cashbackPercentage) / 100;
+
+            if (cashbackAmount > 0) {
+              user.wallet_balance = (user.wallet_balance || 0) + cashbackAmount;
+              user.wallet_transactions.push({
+                type: "credit",
+                amount: cashbackAmount,
+                description: `Wallet cashback ${cashbackPercentage}% from completed booking`,
+                booking_id: booking._id,
+                created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+              });
+              console.log(`💰 Credited ₹${cashbackAmount.toFixed(2)} (${cashbackPercentage}% of ₹${finalAmount}) to wallet for booking ${booking._id}`);
+            }
+          }
+
+          await user.save();
+        }
+      } catch (walletError) {
+        console.error("⚠️  Failed to update wallet for completed booking:", walletError);
+        // Don't fail the booking update if wallet update fails
+      }
     }
 
     console.log("✅ Booking updated by admin:", booking._id);
@@ -1132,7 +1221,7 @@ router.post("/quick-pickups/assign", verifyAdminAccess, async (req, res) => {
   try {
     const { orderId, riderId } = req.body;
 
-    console.log('��� Assigning quick pickup:', { orderId, riderId });
+    console.log('���� Assigning quick pickup:', { orderId, riderId });
 
     if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(riderId)) {
       return res.json({
@@ -1318,9 +1407,9 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
 // Assign vendor to order
 router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
   try {
-    const { orderId, vendorData, orderType } = req.body;
+    const { orderId, vendorData, orderType, bookingCoordinates } = req.body;
 
-    console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType });
+    console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType, bookingCoordinates });
 
     // Vendor options with enhanced data
     const vendors = {
@@ -1349,11 +1438,18 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
       return res.status(400).json({ message: 'Invalid vendor selection' });
     }
 
-    // Merge vendor data with distance/time information from frontend
+    // Calculate distance if coordinates are provided
+    let calculatedDistance = vendorData.distance || 0;
+    if (bookingCoordinates && bookingCoordinates.lat && bookingCoordinates.lng && selectedVendor.coordinates) {
+      calculatedDistance = calculateDistance(bookingCoordinates, selectedVendor.coordinates);
+      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor`);
+    }
+
+    // Merge vendor data with distance/time information
     const vendorWithDistanceData = {
       ...selectedVendor,
-      distance: vendorData.distance || 0,
-      estimatedTime: vendorData.estimatedTime || 60
+      distance: calculatedDistance || 0,
+      estimatedTime: vendorData.estimatedTime || Math.ceil((calculatedDistance || 1) * 2) // ~2 min per km as estimate
     };
 
     // For development/mock mode, just return success
@@ -1534,7 +1630,7 @@ router.post("/customer-verifications/:verificationId/respond", verifyAdminAccess
           riderNotified = true;
           console.log(`📧 Rider ${riderId} notified about verification response`);
         } else {
-          console.log('⚠️ No rider found for order:', orderId);
+          console.log('���️ No rider found for order:', orderId);
         }
       }
     } catch (notificationError) {
@@ -1610,11 +1706,11 @@ router.post("/customer-verifications", verifyAdminAccess, async (req, res) => {
 // Get all vendors
 router.get("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    console.log("📋 Fetching all vendors");
+    console.log("���� Fetching all vendors");
 
     const vendors = await Vendor.find().sort({ created_at: -1 });
 
-    console.log(`��� Found ${vendors.length} vendors`);
+    console.log(`���� Found ${vendors.length} vendors`);
     res.json({ success: true, vendors });
   } catch (error) {
     console.error("❌ Error fetching vendors:", error);
@@ -1646,7 +1742,7 @@ router.get("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 // Kept for backward compatibility but redirects to laundry vendor creation
 router.post("/vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, address, phone, email, services, coordinates, contactPhone } = req.body;
+    const { name, address, phone, email, services, coordinates, contactPhone, whatsapp_group_invite_link } = req.body;
 
     console.log("🆕 Creating vendor (redirected to laundry vendor):", { name, address, phone });
 
@@ -1674,6 +1770,7 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
       services: services || [],
       contactPhone: contactPhone || phone || "",
       phone: phone || "",
+      whatsapp_group_invite_link: whatsapp_group_invite_link || "",
       is_active: true,
     });
 
@@ -1691,7 +1788,7 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
 router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive } = req.body;
+    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive, whatsapp_group_invite_link } = req.body;
 
     console.log(`📝 Updating vendor: ${vendorId}`);
 
@@ -1713,6 +1810,7 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
         operatingHours,
         minimumOrderValue,
         deliveryTime,
+        whatsapp_group_invite_link,
         isActive: isActive !== undefined ? isActive : true,
       },
       { new: true, runValidators: true }
@@ -1756,7 +1854,7 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 // Create laundry vendor with auto-generated credentials
 router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, email, phone, address, services } = req.body;
+    const { name, email, phone, address, services, whatsapp_group_invite_link } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({ error: "Name and phone are required" });
@@ -1777,6 +1875,7 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
       phone,
       address,
       services: services || [],
+      whatsapp_group_invite_link: whatsapp_group_invite_link || "",
       is_active: true,
       created_by: req.admin_id,
     });
@@ -1792,6 +1891,7 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
         name,
         email,
         phone,
+        whatsapp_group_invite_link,
         temp_password, // Share only once!
       },
     });
@@ -1882,7 +1982,7 @@ router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req,
 router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, email, phone, address, services, is_active, vendor_id, password } = req.body;
+    const { name, email, phone, address, services, is_active, vendor_id, password, whatsapp_group_invite_link } = req.body;
 
     console.log(`📝 Updating laundry vendor: ${vendorId}`);
 
@@ -1901,6 +2001,7 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     if (services !== undefined) vendor.services = services;
     if (is_active !== undefined) vendor.is_active = is_active;
     if (vendor_id !== undefined) vendor.vendor_id = vendor_id;
+    if (whatsapp_group_invite_link !== undefined) vendor.whatsapp_group_invite_link = whatsapp_group_invite_link;
 
     // Update password if provided
     if (password) {
@@ -1924,6 +2025,7 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
         phone: vendor.phone,
         address: vendor.address,
         services: vendor.services,
+        whatsapp_group_invite_link: vendor.whatsapp_group_invite_link,
         is_active: vendor.is_active,
       },
     });

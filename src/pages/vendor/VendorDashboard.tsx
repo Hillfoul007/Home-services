@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { vendorAuthService } from "@/services/vendorAuthService";
+import { soundNotificationService, SoundNotificationSettings } from "@/services/soundNotificationService";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateOnlyIST } from "@/utils/timeUtils";
 import { toast } from "sonner";
+import { Volume2, VolumeX } from "lucide-react";
 
 interface Order {
   _id: string;
@@ -81,13 +83,35 @@ const VendorDashboard: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [soundSettings, setSoundSettings] = useState<SoundNotificationSettings>(soundNotificationService.getSettings());
+  const [showSoundMenu, setShowSoundMenu] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
       const res = await vendorAuthService.fetchAssignedOrders();
       if (res && res.success && res.orders) {
-        setOrders(res.orders);
+        const newOrders = res.orders;
+
+        // Detect new orders and play notification
+        setOrders(prevOrders => {
+          if (prevOrders.length > 0 && newOrders.length > prevOrders.length) {
+            // Find new orders
+            const prevOrderIds = new Set(prevOrders.map(o => o._id));
+            const newOrderIds = newOrders.filter(o => !prevOrderIds.has(o._id));
+
+            if (newOrderIds.length > 0) {
+              // Play notification for each new order
+              newOrderIds.forEach(async () => {
+                soundNotificationService.playNotification();
+              });
+
+              toast.success(`${newOrderIds.length} new order(s) received! 🎉`);
+            }
+          }
+
+          return newOrders;
+        });
       } else {
         toast.error(res.error || "Failed to fetch orders");
       }
@@ -101,7 +125,20 @@ const VendorDashboard: React.FC = () => {
   useEffect(() => {
     load();
     const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+
+    // Resume audio context on user interaction (browser requirement)
+    const handleInteraction = () => {
+      soundNotificationService.resumeAudioContext();
+    };
+
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
   }, []);
 
   const handleUploadAndMark = async (orderId: string) => {
@@ -154,6 +191,30 @@ const VendorDashboard: React.FC = () => {
   const handleLogout = () => {
     vendorAuthService.logout();
     navigate("/vendor/login");
+  };
+
+  const handleToggleSound = () => {
+    const newEnabled = !soundSettings.enabled;
+    soundNotificationService.toggleEnabled(newEnabled);
+    setSoundSettings(soundNotificationService.getSettings());
+    toast.success(newEnabled ? "Sound notifications enabled" : "Sound notifications disabled");
+  };
+
+  const handleTestSound = async () => {
+    soundNotificationService.resumeAudioContext();
+    await soundNotificationService.playNotification();
+    toast.success("Test sound played!");
+  };
+
+  const handleChangeSoundType = (type: 'beep' | 'bell' | 'chime') => {
+    soundNotificationService.setSoundType(type);
+    setSoundSettings(soundNotificationService.getSettings());
+    toast.success(`Sound type changed to ${type}`);
+  };
+
+  const handleVolumeChange = (volume: number) => {
+    soundNotificationService.setVolume(volume);
+    setSoundSettings(soundNotificationService.getSettings());
   };
 
   const handleCallCustomer = (phone: string) => {
@@ -216,7 +277,82 @@ const VendorDashboard: React.FC = () => {
     <div className="p-3 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl md:text-2xl font-semibold">Vendor Dashboard</h1>
-        <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSoundMenu(!showSoundMenu)}
+              className="flex items-center gap-2"
+              title={soundSettings.enabled ? "Sound notifications enabled" : "Sound notifications disabled"}
+            >
+              {soundSettings.enabled ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
+              <span className="text-xs">Sound</span>
+            </Button>
+
+            {showSoundMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">Notification Sound</label>
+                    <div className="space-y-2">
+                      {['beep', 'bell', 'chime'].map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => handleChangeSoundType(type as 'beep' | 'bell' | 'chime')}
+                          className={`w-full px-3 py-2 rounded text-sm text-left transition-colors ${
+                            soundSettings.soundType === type
+                              ? 'bg-blue-100 text-blue-900'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">Volume</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={soundSettings.volume}
+                      onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="text-xs text-gray-500 mt-1">{soundSettings.volume}%</div>
+                  </div>
+
+                  <button
+                    onClick={handleTestSound}
+                    className="w-full px-3 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    🔊 Test Sound
+                  </button>
+
+                  <button
+                    onClick={handleToggleSound}
+                    className={`w-full px-3 py-2 rounded text-sm font-medium transition-colors ${
+                      soundSettings.enabled
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    {soundSettings.enabled ? 'Disable Notifications' : 'Enable Notifications'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
@@ -262,16 +398,29 @@ const VendorDashboard: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded whitespace-nowrap">{order.status}</span>
-                    {order.items_images && order.items_images.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
-                        className="text-xs whitespace-nowrap"
-                      >
-                        {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
-                      </Button>
-                    )}
+                    <div className="flex gap-1">
+                      {order.address && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleNavigateToAddress(order.address!)}
+                          className="text-xs whitespace-nowrap px-2 py-1 h-auto"
+                          title="Navigate to address"
+                        >
+                          🗺️ Navigate
+                        </Button>
+                      )}
+                      {order.items_images && order.items_images.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
+                          className="text-xs whitespace-nowrap"
+                        >
+                          {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -381,16 +530,30 @@ const VendorDashboard: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded whitespace-nowrap">Ready</span>
-                    {order.items_images && order.items_images.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
-                        className="text-xs whitespace-nowrap"
-                      >
-                        {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
-                      </Button>
-                    )}
+                    <div className="text-sm font-bold text-orange-700">₹{order.final_amount ?? order.total_price}</div>
+                    <div className="flex gap-1">
+                      {order.address && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleNavigateToAddress(order.address!)}
+                          className="text-xs whitespace-nowrap px-2 py-1 h-auto"
+                          title="Navigate to address"
+                        >
+                          🗺️ Navigate
+                        </Button>
+                      )}
+                      {order.items_images && order.items_images.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedOrderId(expandedOrderId === order._id ? null : order._id)}
+                          className="text-xs whitespace-nowrap"
+                        >
+                          {expandedOrderId === order._id ? 'Hide' : `View (${order.items_images.length})`}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

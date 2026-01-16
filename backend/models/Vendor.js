@@ -48,7 +48,13 @@ const vendorSchema = new mongoose.Schema(
     
     // Services offered
     services: [String],
-    
+
+    // WhatsApp Group Integration
+    whatsapp_group_invite_link: {
+      type: String,
+      default: "",
+    },
+
     // Status
     is_active: {
       type: Boolean,

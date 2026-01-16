@@ -3,6 +3,8 @@
  * Handles vendor management and distance calculations
  */
 
+import { locationService } from './locationService';
+
 export interface VendorDetails {
   id: string;
   name: string;
@@ -25,35 +27,8 @@ export interface VendorWithDistance extends VendorDetails {
 export class VendorService {
   private static instance: VendorService;
   
-  // Static vendor data - in production this would come from a database
-  private vendors: VendorDetails[] = [
-    {
-      id: "vendor1",
-      name: "Priya Dry Cleaners",
-      address: "Shop n.155, Spaze corporate park, 1sf, Sector 69, Gurugram, Haryana 122101",
-      coordinates: {
-        lat: 28.3984,
-        lng: 77.0648
-      },
-      services: ["Dry Cleaning", "Laundry", "Ironing", "Stain Removal"],
-      contactPhone: "+91 9876543210",
-      rating: 4.5,
-      isActive: true
-    },
-    {
-      id: "vendor2", 
-      name: "White Tiger Dry Cleaning",
-      address: "Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101",
-      coordinates: {
-        lat: 28.3982,
-        lng: 77.0650
-      },
-      services: ["Dry Cleaning", "Premium Care", "Express Service", "Alterations"],
-      contactPhone: "+91 9876543211",
-      rating: 4.3,
-      isActive: true
-    }
-  ];
+  // Static vendor data - will be populated from API
+  private vendors: VendorDetails[] = [];
 
   public static getInstance(): VendorService {
     if (!VendorService.instance) {
@@ -105,10 +80,17 @@ export class VendorService {
   }
 
   /**
+   * Set vendors from admin API
+   */
+  setVendors(vendors: VendorDetails[]): void {
+    this.vendors = vendors;
+  }
+
+  /**
    * Get all active vendors
    */
   getActiveVendors(): VendorDetails[] {
-    return this.vendors.filter(vendor => vendor.isActive);
+    return this.vendors.filter(vendor => vendor.isActive !== false);
   }
 
   /**
@@ -116,7 +98,7 @@ export class VendorService {
    */
   getVendorsWithDistance(pickupCoordinates: { lat: number; lng: number }): VendorWithDistance[] {
     const activeVendors = this.getActiveVendors();
-    
+
     return activeVendors
       .map(vendor => {
         const distance = this.calculateDistance(
@@ -125,9 +107,9 @@ export class VendorService {
           vendor.coordinates.lat,
           vendor.coordinates.lng
         );
-        
+
         const estimatedTime = this.estimateDeliveryTime(distance);
-        
+
         return {
           ...vendor,
           distance,
@@ -145,12 +127,11 @@ export class VendorService {
   }
 
   /**
-   * Parse address to extract approximate coordinates
-   * This is a simplified implementation - in production, use a geocoding service
+   * Parse address to extract coordinates using Google Maps geocoding
    */
   async getCoordinatesFromAddress(address: string): Promise<{ lat: number; lng: number } | null> {
     try {
-      console.log('🗺️ Extracting coordinates from address:', address);
+      console.log('🗺️ Geocoding address:', address);
 
       // Handle empty or invalid addresses
       if (!address || typeof address !== 'string') {
@@ -158,7 +139,18 @@ export class VendorService {
         return { lat: 28.4595, lng: 77.0266 }; // Default Gurugram coordinates
       }
 
-      // For demo purposes, return coordinates for common Gurugram areas
+      // Try to geocode the address using Google Maps API
+      try {
+        const result = await locationService.geocodeAddress(address);
+        if (result && result.coordinates) {
+          console.log('✅ Geocoded address successfully:', result.coordinates);
+          return result.coordinates;
+        }
+      } catch (geocodeError) {
+        console.warn('⚠️ Geocoding failed, using fallback method:', geocodeError);
+      }
+
+      // Fallback: Use simplified address parsing for common Gurugram areas
       const addressLower = address.toLowerCase();
 
       // Common Gurugram sector coordinates (approximate)
@@ -189,7 +181,7 @@ export class VendorService {
       // Find matching sector/area
       for (const [area, coords] of Object.entries(sectorCoordinates)) {
         if (addressLower.includes(area)) {
-          console.log(`📍 Found coordinates for ${area}:`, coords);
+          console.log(`📍 Found fallback coordinates for ${area}:`, coords);
           return coords;
         }
       }
@@ -198,7 +190,7 @@ export class VendorService {
       const sectorMatch = addressLower.match(/sector[\s\-]*([0-9]+)/);
       if (sectorMatch) {
         const sectorNum = parseInt(sectorMatch[1]);
-        console.log(`📍 Extracting coordinates for Sector ${sectorNum}`);
+        console.log(`📍 Extracting fallback coordinates for Sector ${sectorNum}`);
 
         // Generate approximate coordinates based on sector number
         // Gurugram sectors are roughly arranged in a grid pattern
@@ -219,7 +211,7 @@ export class VendorService {
       // Default coordinates for Gurugram city center
       console.log('📍 Using default Gurugram coordinates for address:', address);
       return { lat: 28.4595, lng: 77.0266 };
-      
+
     } catch (error) {
       console.error('Error getting coordinates from address:', error);
       // Always return default coordinates instead of null to prevent distance calculation failures
@@ -267,7 +259,8 @@ export class VendorService {
         )
       );
       console.log('🔍 Filtered vendors by service type:', serviceTypes, 'Result count:', filtered.length);
-      return filtered;
+      // Return filtered vendors if found, otherwise return all vendors with distance
+      return filtered.length > 0 ? filtered : vendorsWithDistance;
     }
 
     return vendorsWithDistance;

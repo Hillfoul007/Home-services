@@ -182,6 +182,38 @@ const userSchema = new mongoose.Schema(
         default: null,
       },
     }],
+
+    // Wallet System
+    wallet_balance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    wallet_transactions: [{
+      type: {
+        type: String,
+        enum: ["credit", "debit"],
+        required: true,
+      },
+      amount: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+      description: {
+        type: String,
+        required: true,
+      },
+      booking_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Booking",
+        default: null,
+      },
+      created_at: {
+        type: Date,
+        default: () => new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
+      },
+    }],
   },
   {
     timestamps: true,

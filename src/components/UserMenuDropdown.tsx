@@ -19,11 +19,13 @@ import {
   ChevronDown,
   MessageCircle,
   Gift,
+  Wallet,
 } from "lucide-react";
 import ProfileSettingsModal from "./ProfileSettingsModal";
 import SavedAddressesModal from "./SavedAddressesModal";
 import PreferencesModal from "./PreferencesModal";
 import ReferralModal from "./ReferralModal";
+import WalletModal from "./WalletModal";
 
 interface UserMenuDropdownProps {
   currentUser: any;
@@ -43,6 +45,7 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
   const [showAddressesModal, setShowAddressesModal] = useState(false);
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const [clickedItem, setClickedItem] = useState<string | null>(null);
 
   const getInitials = (name: string) => {
@@ -181,7 +184,36 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
               </div>
             </DropdownMenuItem>
 
-
+            <DropdownMenuItem
+              onClick={() =>
+                handleItemClick("wallet", () => {
+                  setIsOpen(false);
+                  setShowWalletModal(true);
+                })
+              }
+              className={`cursor-pointer rounded-xl p-3 hover:bg-green-50 hover:text-green-700 transition-all duration-200 group transform hover:scale-[1.02] ${
+                clickedItem === "wallet"
+                  ? "scale-110 bg-green-100 shadow-lg ring-2 ring-green-300 ring-opacity-50"
+                  : ""
+              }`}
+            >
+              <div className="flex items-center w-full">
+                <div
+                  className={`w-8 h-8 bg-green-100 group-hover:bg-green-200 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+                    clickedItem === "wallet"
+                      ? "animate-pulse bg-green-200 scale-110"
+                      : ""
+                  }`}
+                >
+                  <Wallet
+                    className={`h-4 w-4 text-green-600 transition-all duration-200 ${
+                      clickedItem === "wallet" ? "scale-125" : ""
+                    }`}
+                  />
+                </div>
+                <span className="font-medium">My Wallet</span>
+              </div>
+            </DropdownMenuItem>
 
             <DropdownMenuItem
               onClick={() =>
@@ -308,6 +340,12 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
       <ReferralModal
         isOpen={showReferralModal}
         onClose={() => setShowReferralModal(false)}
+        currentUser={currentUser}
+      />
+
+      <WalletModal
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
         currentUser={currentUser}
       />
     </>

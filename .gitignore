@@ -79,3 +79,20 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+
+# Android signing and keystore (SENSITIVE - Do not commit)
+*.jks
+*.keystore
+*.key
+android/app/src/main/res/values/strings.xml
+
+# Android build artifacts
+android/app/build/
+android/.gradle/
+android/local.properties
+android/*.jks
+android/*.keystore
+
+# Gradle
+.gradle/
+local.properties

@@ -24,12 +24,16 @@ import {
   XCircle,
   AlertCircle,
   Store,
+  MessageCircle,
 } from "lucide-react";
+import { vendorService } from "@/services/vendorService";
+import { walletService } from "@/services/walletService";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
+import ReminderModal from "@/components/ReminderModal";
 
 interface ItemPrice {
   service_name?: string;
@@ -81,9 +85,18 @@ interface Booking {
   service_type?: string;
   discount_amount?: number;
   discount_percent?: number;
+  cashback_amount?: number;
+  cashback?: number;
+  wallet_applied?: number;
+  wallet_cashback?: number;
   coupon_code?: string;
   charges_breakdown?: ChargesBreakdown;
   completed_at?: string;
+  coordinates?: { lat: number; lng: number };
+  distance_to_vendor?: number;
+  assignedVendor?: string;
+  assignedVendorId?: string;
+  vendorGroupLink?: string;
   items_images?: Array<{
     file_id: string;
     filename: string;
@@ -162,6 +175,198 @@ type MutationFlags = {
 };
 
 type MutationKey = keyof MutationFlags;
+
+const generateWhatsAppMessage = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const servicesList = booking.services && booking.services.length > 0
+    ? booking.services.join(", ")
+    : (booking.item_prices && booking.item_prices.length > 0
+        ? booking.item_prices.map(item => item.service_name || item.name).join(", ")
+        : "Laundry Services");
+
+  const walletCashbackAmount = booking.final_amount && booking.wallet_cashback
+    ? ((booking.final_amount * booking.wallet_cashback) / 100).toFixed(2)
+    : "0.00";
+
+  const message = `Order Confirmed! 🎉 Congratulations! Your order has been confirmed and picked up. Please find below the details:
+
+Order ID: ${booking.custom_order_id}
+Tentative delivery date: ${formatDateForMessage(deliveryDate)}
+Tentative delivery time: ${formatTimeForMessage(deliveryTime)}
+Address: ${booking.address || "N/A"}
+Services requested: ${servicesList}
+Total amount to pay: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
+Old Cashback (deducted from wallet): ₹${(booking.cashback || 0).toFixed(2)}
+New Cashback (added to wallet): ₹${walletCashbackAmount}
+
+Thank you for choosing Laundrify! 😊🧺
+
+Dear Customer, Please Download and login to the app with the below link for the bill details:
+
+www.Laundrify.online
+
+Thanks, Team Laundrify!`;
+
+  return message;
+};
+
+const sendWhatsAppMessage = (phoneNumber: string, message: string) => {
+  const encodedMessage = encodeURIComponent(message);
+  const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+  const phoneWithCountryCode = cleanPhoneNumber.length === 10 ? `91${cleanPhoneNumber}` : cleanPhoneNumber;
+
+  const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodedMessage}`;
+  window.open(whatsappUrl, '_blank');
+};
+
+const generatePickupReminder = (booking: Booking): string => {
+  const pickupDate = booking.pickup_date || booking.scheduled_date;
+  const pickupTime = booking.pickup_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const address = booking.address || "N/A";
+  const mapsLink = address && address !== "N/A"
+    ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+    : "";
+
+  const message = `Order Pickup 🧺
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
+Pickup Date & Time: ${formatDateForMessage(pickupDate)}, ${formatTimeForMessage(pickupTime)}`;
+
+  return message;
+};
+
+const generateDeliveryReminder = (booking: Booking): string => {
+  const deliveryDate = booking.delivery_date || booking.scheduled_date;
+  const deliveryTime = booking.delivery_time || booking.scheduled_time || "00:00";
+
+  const formatDateForMessage = (dateStr: string | undefined): string => {
+    if (!dateStr) return "N/A";
+    try {
+      const dateObj = new Date(dateStr);
+      return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatTimeForMessage = (timeStr: string): string => {
+    if (!timeStr || timeStr === "00:00") return "N/A";
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const timeObj = new Date(2000, 0, 1, hours, minutes, 0);
+      return timeObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
+  const address = booking.address || "N/A";
+  const mapsLink = address && address !== "N/A"
+    ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+    : "";
+
+  const message = `Order Delivery 🚚
+
+Order ID: ${booking.custom_order_id}
+Name: ${booking.name}
+Contact: ${booking.phone}
+Address: ${address}${mapsLink ? '\n📍 Location: ' + mapsLink : ''}
+Delivery Date & Time: ${formatDateForMessage(deliveryDate)}, ${formatTimeForMessage(deliveryTime)}
+Amount to Collect: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
+
+Payment: UPI - 7011585587@ptyes`;
+
+  return message;
+};
+
+const sendVendorReminder = (vendorGroupLink: string, message: string) => {
+  if (!vendorGroupLink) {
+    toast.error("Vendor WhatsApp group link not available");
+    return;
+  }
+
+  const encodedMessage = encodeURIComponent(message);
+  const groupUrl = `${vendorGroupLink}?text=${encodedMessage}`;
+  window.open(groupUrl, '_blank');
+};
 
 const normalizeStatus = (status: string) => {
   if (!status) {
@@ -427,6 +632,10 @@ const AdminBookingManagement: React.FC = () => {
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
+  const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
+  const [loadingWallet, setLoadingWallet] = useState(false);
   const [completedOrders, setCompletedOrders] = useState<Booking[]>([]);
   const [completedSearchTerm, setCompletedSearchTerm] = useState("");
   const [completedStatusFilter, setCompletedStatusFilter] = useState("completed");
@@ -442,6 +651,13 @@ const AdminBookingManagement: React.FC = () => {
   const [readyStatusFilter, setReadyStatusFilter] = useState("all");
   const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
 
+  // Reminder modal state
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderType, setReminderType] = useState<'pickup' | 'delivery'>('pickup');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderVendorGroupLink, setReminderVendorGroupLink] = useState<string | undefined>();
+
+
   const fetchVendors = async () => {
     try {
       const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/vendors');
@@ -450,13 +666,38 @@ const AdminBookingManagement: React.FC = () => {
           id: vendor.id || vendor._id,
           name: vendor.name,
         }));
+
+        // Store full vendor data for distance calculations
+        const fullDataMap: Record<string, any> = {};
+        const vendorDetails = [];
+        response.data.vendors.forEach((vendor: any) => {
+          fullDataMap[vendor.name || vendor.id] = vendor;
+          // Also provide to VendorService so other components can use them
+          vendorDetails.push({
+            id: vendor.id || vendor._id,
+            name: vendor.name,
+            address: vendor.address || '',
+            coordinates: vendor.coordinates || { lat: 28.4595, lng: 77.0266 },
+            services: vendor.services || [],
+            contactPhone: vendor.contactPhone,
+            rating: vendor.rating,
+            isActive: vendor.isActive !== false,
+          });
+        });
+
         setVendors(vendorOptions);
+        setVendorFullData(fullDataMap);
+
+        // Sync vendors to VendorService for use in other components
+        vendorService.setVendors(vendorDetails);
       }
     } catch (error) {
       console.warn('Failed to fetch vendors:', error);
       setVendors([]);
+      setVendorFullData({});
     }
   };
+
 
   const fetchCompletedOrders = async () => {
     try {
@@ -519,7 +760,29 @@ const AdminBookingManagement: React.FC = () => {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === pickupStatusFilter);
     }
 
+    filtered.sort((a, b) => {
+      const dateA = getScheduledDateTime(a);
+      const dateB = getScheduledDateTime(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
     setFilteredPickupOrders(filtered);
+  };
+
+  const getDeliveryDateTimeForSort = (booking: Booking): Date => {
+    try {
+      const dateStr = booking.delivery_date || booking.scheduled_date || '';
+      const timeStr = booking.delivery_time || booking.scheduled_time || '00:00';
+
+      if (!dateStr) return new Date(0);
+
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const dateObj = new Date(dateStr);
+      dateObj.setHours(hours || 0, minutes || 0, 0, 0);
+      return dateObj;
+    } catch (e) {
+      return new Date(0);
+    }
   };
 
   const filterReadyOrders = (orders?: Booking[]) => {
@@ -538,6 +801,12 @@ const AdminBookingManagement: React.FC = () => {
     if (readyStatusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
     }
+
+    filtered.sort((a, b) => {
+      const dateA = getDeliveryDateTimeForSort(a);
+      const dateB = getDeliveryDateTimeForSort(b);
+      return dateA.getTime() - dateB.getTime();
+    });
 
     setFilteredReadyOrders(filtered);
   };
@@ -676,6 +945,79 @@ const AdminBookingManagement: React.FC = () => {
   useEffect(() => {
     filterReadyOrders();
   }, [readySearchTerm, readyStatusFilter, bucketB]);
+
+  // Geocode booking address and calculate vendor distances
+  useEffect(() => {
+    if (editingBooking?.address && showEditDialog) {
+      const geocodeAndCalculate = async () => {
+        try {
+          const coords = await vendorService.getCoordinatesFromAddress(editingBooking.address);
+          if (coords) {
+            setBookingAddressCoords(coords);
+          }
+        } catch (error) {
+          console.warn('Failed to geocode address:', error);
+        }
+      };
+      geocodeAndCalculate();
+    }
+  }, [editingBooking?.address, showEditDialog]);
+
+  // Load user's wallet balance when editing booking
+  useEffect(() => {
+    if (editingBooking && showEditDialog) {
+      const loadWalletBalance = async () => {
+        setLoadingWallet(true);
+        try {
+          // Extract string ID from customer_id (could be an object or string)
+          let customerId = editingBooking.customer_id;
+          if (customerId && typeof customerId === 'object') {
+            // If it's an object, try to get the _id or id property
+            customerId = customerId._id || customerId.id || customerId.toString();
+          }
+
+          // Use customer_id if available, otherwise fall back to phone number
+          const userId = customerId || editingBooking.phone;
+
+          console.log('🔍 Attempting wallet lookup with:', {
+            customer_id: editingBooking.customer_id,
+            customer_id_type: typeof editingBooking.customer_id,
+            extracted_id: customerId,
+            phone: editingBooking.phone,
+            userId: userId,
+            booking_id: editingBooking._id,
+            booking_name: editingBooking.name
+          });
+
+          if (!userId) {
+            console.warn('❌ No customer_id or phone available for wallet lookup');
+            setUserWalletBalance(0);
+            return;
+          }
+
+          const result = await walletService.getWalletBalance(userId);
+          console.log('💰 Wallet balance response:', {
+            userId,
+            response: result,
+            wallet_balance: result.wallet_balance
+          });
+
+          if (result.success) {
+            setUserWalletBalance(result.wallet_balance || 0);
+          } else {
+            console.warn('⚠️  Wallet fetch returned success: false', result);
+            setUserWalletBalance(0);
+          }
+        } catch (error) {
+          console.warn('❌ Failed to load wallet balance:', error);
+          setUserWalletBalance(0);
+        } finally {
+          setLoadingWallet(false);
+        }
+      };
+      loadWalletBalance();
+    }
+  }, [editingBooking?._id, showEditDialog]);
 
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
@@ -907,7 +1249,7 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const computeEditingTotals = (bookingData: Booking | null) => {
-    if (!bookingData) return { total: 0, final: 0 };
+    if (!bookingData) return { total: 0, final: 0, details: { subtotal: 0, cashback: 0, afterCashback: 0, discount: 0 } };
     const items = bookingData.item_prices || [];
     const subtotal = items.reduce((s, it) => {
       const qty = Number(it.quantity ?? 0) || 0;
@@ -915,10 +1257,26 @@ const AdminBookingManagement: React.FC = () => {
       const itemTotal = Number(it.total_price) || (qty * unitPrice);
       return s + itemTotal;
     }, 0);
+
+    // Apply cashback first (use new 'cashback' field if available, otherwise fallback to 'cashback_amount')
+    const cashbackAmount = Number((bookingData as any).cashback ?? bookingData.cashback_amount ?? 0) || 0;
+    const afterCashback = subtotal - cashbackAmount;
+
+    // Then apply discount percentage
     const discountPercent = Number(bookingData.discount_percent ?? 0) || 0;
-    const discountAmount = (subtotal * discountPercent) / 100;
-    const finalAmount = subtotal - discountAmount;
-    return { total: +(subtotal).toFixed(2), final: +(finalAmount).toFixed(2) };
+    const discountAmount = (afterCashback * discountPercent) / 100;
+    const finalAmount = afterCashback - discountAmount;
+
+    return {
+      total: +(subtotal).toFixed(2),
+      final: +(finalAmount).toFixed(2),
+      details: {
+        subtotal: +(subtotal).toFixed(2),
+        cashback: +(cashbackAmount).toFixed(2),
+        afterCashback: +(afterCashback).toFixed(2),
+        discount: +(discountAmount).toFixed(2)
+      }
+    };
   };
 
   if (loading) {
@@ -1112,12 +1470,44 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => {
+                              const message = generateWhatsAppMessage(booking);
+                              sendWhatsAppMessage(booking.phone, message);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100"
+                            onClick={() => {
+                              // Handle both vendor name and vendor ID for backward compatibility
+                              let vendorData = vendorFullData[booking.assignedVendor];
+                              if (!vendorData && booking.assignedVendorId) {
+                                // Try to find by ID if name lookup fails
+                                vendorData = Object.values(vendorFullData).find((v: any) => v.id === booking.assignedVendorId || v._id === booking.assignedVendorId);
+                              }
+                              const vendorGroupLink = booking.vendorGroupLink || vendorData?.whatsapp_group_invite_link;
+                              const message = generatePickupReminder(booking);
+                              setReminderMessage(message);
+                              setReminderType('pickup');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
+                            }}
+                          >
+                            📤 Pickup Reminder
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
@@ -1200,110 +1590,120 @@ const AdminBookingManagement: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-3 space-y-6">
+          <div className="mt-3 space-y-4">
             {filteredReadyOrders.length > 0 ? (
-              Object.entries(groupOrdersByVendor(filteredReadyOrders)).map(([vendorName, vendorOrders]) => (
-                <div key={vendorName} className="border rounded-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 border-b border-green-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Store className="h-5 w-5 text-green-700" />
-                        <div>
-                          <h4 className="font-semibold text-green-900">{vendorName}</h4>
-                          <p className="text-xs text-green-700">{vendorOrders.length} order{vendorOrders.length !== 1 ? 's' : ''}</p>
+              filteredReadyOrders.map(booking => (
+                <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{booking.name}</span>
+                        </div>
+                        {booking.assignedVendor && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Store className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          {(booking as any).is_quick_pickup && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-4 w-4" />
+                          {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
                         </div>
                       </div>
-                      <div className="text-right bg-white px-3 py-2 rounded border border-green-200">
-                        <div className="text-xs text-gray-600 font-medium">Vendor Total</div>
-                        <div className="text-xl font-bold text-green-700">₹{calculateTotalPrice(vendorOrders).toLocaleString('en-IN')}</div>
+
+                      <div className="space-y-2">
+                        <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">���{booking.final_amount ?? booking.total_price}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-2 flex-wrap">
+                          <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => {
+                              const message = generateWhatsAppMessage(booking);
+                              sendWhatsAppMessage(booking.phone, message);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100"
+                            onClick={() => {
+                              // Handle both vendor name and vendor ID for backward compatibility
+                              let vendorData = vendorFullData[booking.assignedVendor];
+                              if (!vendorData && booking.assignedVendorId) {
+                                // Try to find by ID if name lookup fails
+                                vendorData = Object.values(vendorFullData).find((v: any) => v.id === booking.assignedVendorId || v._id === booking.assignedVendorId);
+                              }
+                              const vendorGroupLink = booking.vendorGroupLink || vendorData?.whatsapp_group_invite_link;
+                              const message = generateDeliveryReminder(booking);
+                              setReminderMessage(message);
+                              setReminderType('delivery');
+                              setReminderVendorGroupLink(vendorGroupLink);
+                              setShowReminderModal(true);
+                            }}
+                          >
+                            🚚 Delivery Reminder
+                          </Button>
+                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                            <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
+                              Mark Pickup Complete
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'pickup_completed' && (
+                            <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
+                              Mark Ready for Delivery
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'ready_for_delivery' && (
+                            <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
+                              Mark Delivered
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'delivered' && (
+                            <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
+                              Mark Complete
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="space-y-3 p-4">
-                    {vendorOrders.map(booking => (
-                      <Card key={booking._id} className="transition-shadow hover:shadow-md">
-                        <CardContent className="pt-6">
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4 text-blue-600" />
-                                <span className="font-medium">#{booking.custom_order_id}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm">{booking.name}</span>
-                              </div>
-                              {booking.assignedVendor && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Store className="h-4 w-4 text-gray-400" />
-                                  <span className="text-sm text-green-700">{booking.assignedVendor}</span>
-                                </div>
-                              )}
-                            </div>
 
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                                {(booking as any).is_quick_pickup && (
-                                  <Badge className="bg-blue-100 text-blue-800 text-xs">🚀 Quick Pickup</Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Calendar className="h-4 w-4" />
-                                {booking.delivery_date ? formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking) : formatScheduledDateTime(booking)}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                                {getStatusIcon(booking.status)}
-                                <span>{getStatusLabel(booking.status)}</span>
-                              </Badge>
-                              <div className="flex items-center gap-2 text-sm">
-                                <DollarSign className="h-4 w-4 text-green-600" />
-                                <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col gap-3">
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
-                                  <Edit3 className="h-4 w-4" />
-                                </Button>
-                                {normalizeStatus(booking.status) === 'vendor_assigned' && (
-                                  <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
-                                    Mark Pickup Complete
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'pickup_completed' && (
-                                  <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
-                                    Mark Ready for Delivery
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'ready_for_delivery' && (
-                                  <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
-                                    Mark Delivered
-                                  </Button>
-                                )}
-                                {normalizeStatus(booking.status) === 'delivered' && (
-                                  <Button size="sm" className="bg-green-600 text-white" onClick={() => updateBookingStatus(booking._id, 'completed')}>
-                                    Mark Complete
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
+                    <StatusFlowIndicator currentStatus={booking.status} className="mt-6" />
+                  </CardContent>
+                </Card>
               ))
             ) : (
               <Card>
@@ -1382,6 +1782,17 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-sm font-medium">₹{booking.final_amount ?? booking.total_price}</div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                          onClick={() => {
+                            const message = generateWhatsAppMessage(booking);
+                            sendWhatsAppMessage(booking.phone, message);
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -1461,6 +1872,12 @@ const AdminBookingManagement: React.FC = () => {
                     <span>Final Amount:</span>
                     <span>₹{viewingBooking.final_amount}</span>
                   </div>
+                  {viewingBooking.wallet_cashback && viewingBooking.wallet_cashback > 0 && (
+                    <div className="flex justify-between border-t pt-2 text-purple-600">
+                      <span>Wallet Cashback:</span>
+                      <span className="font-medium">{viewingBooking.wallet_cashback}% = ₹{((viewingBooking.final_amount || 0) * viewingBooking.wallet_cashback / 100).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1523,7 +1940,7 @@ const AdminBookingManagement: React.FC = () => {
                       )
                     }
                   />
-                  <p className="text-xs text-gray-500 mt-1">Automatically calculates discount amount</p>
+                  <p className="text-xs text-gray-500 mt-1">Applied after cashback</p>
                 </div>
                 <div>
                   <Label htmlFor="edit-date">Scheduled Date</Label>
@@ -1602,39 +2019,76 @@ const AdminBookingManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <Label>Assign Vendor</Label>
-                <Select
-                  value={editingBooking.vendor ?? "__unassigned__"}
-                  onValueChange={(value) =>
-                    setEditingBooking((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            vendor: value === "__unassigned__" ? null : value,
-                          }
-                        : prev,
-                    )
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                    {vendors.length > 0 ? (
-                      vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.name}>
-                          {vendor.name}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Assign Vendor</Label>
+                  <Select
+                    value={editingBooking.vendor ?? "__unassigned__"}
+                    onValueChange={(value) => {
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              vendor: value === "__unassigned__" ? null : value,
+                            }
+                          : prev,
+                      );
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                      {vendors.length > 0 ? (
+                        vendors
+                          .map((vendor) => {
+                            let distance = Infinity;
+                            const vendorData = vendorFullData[vendor.name];
+
+                            if (bookingAddressCoords && vendorData && vendorData.coordinates) {
+                              try {
+                                const vendorCoords = vendorData.coordinates;
+                                const R = 6371;
+                                const dLat = (vendorCoords.lat - bookingAddressCoords.lat) * (Math.PI / 180);
+                                const dLng = (vendorCoords.lng - bookingAddressCoords.lng) * (Math.PI / 180);
+                                const a =
+                                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                  Math.cos(bookingAddressCoords.lat * (Math.PI / 180)) * Math.cos(vendorCoords.lat * (Math.PI / 180)) *
+                                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                distance = R * c;
+                              } catch (e) {
+                                distance = Infinity;
+                              }
+                            }
+
+                            return { vendor, distance };
+                          })
+                          .sort((a, b) => a.distance - b.distance)
+                          .slice(0, 10)
+                          .map(({ vendor, distance }) => {
+                            const distanceLabel = distance !== Infinity ? ` • ${distance.toFixed(1)} km` : "";
+                            return (
+                              <SelectItem key={vendor.id} value={vendor.name}>
+                                {vendor.name}{distanceLabel}
+                              </SelectItem>
+                            );
+                          })
+                      ) : (
+                        <SelectItem value="no-vendors" disabled>
+                          No vendors available
                         </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="no-vendors" disabled>
-                        No vendors available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editingBooking.distance_to_vendor ? (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <Label className="text-blue-900 text-sm">Distance to Vendor</Label>
+                    <div className="text-lg font-bold text-blue-700 mt-2">{editingBooking.distance_to_vendor.toFixed(2)} km</div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="border-t pt-4">
@@ -1679,7 +2133,15 @@ const AdminBookingManagement: React.FC = () => {
                                       }}
                                     >
                                       <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue placeholder="Select item" />
+                                        <SelectValue placeholder="Select item">
+                                          {item.service_name || item.name ? (
+                                            <>
+                                              {item.service_name || item.name} — ₹{item.unit_price || item.price || 0}
+                                            </>
+                                          ) : (
+                                            "Select item"
+                                          )}
+                                        </SelectValue>
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="__none__">Select item</SelectItem>
@@ -1737,22 +2199,141 @@ const AdminBookingManagement: React.FC = () => {
 
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
+                  💰 Wallet & Cashback
+                </h4>
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 mb-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* User Wallet Balance */}
+                    <div>
+                      <div className="text-sm text-purple-900 font-semibold mb-1">
+                        User's Wallet Balance
+                      </div>
+                      {loadingWallet ? (
+                        <div className="text-lg font-bold text-purple-700">Loading...</div>
+                      ) : (
+                        <div className="text-2xl font-bold text-green-600">
+                          ₹{userWalletBalance.toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cashback Input */}
+                    <div>
+                      <label className="text-sm text-purple-900 font-semibold mb-1 block">
+                        Cashback for This Order (debits wallet)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBooking.cashback || 0}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          if (value <= userWalletBalance) {
+                            setEditingBooking((prev) =>
+                              prev ? { ...prev, cashback: value } : prev
+                            );
+                          } else {
+                            toast.error("Cashback cannot exceed wallet balance");
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                      />
+                      <div className="text-xs text-purple-600 mt-1">
+                        Max: ₹{userWalletBalance.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet Cashback Percentage Input */}
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <label className="text-sm text-purple-900 font-semibold mb-2 block">
+                      Wallet Cashback Percentage (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={editingBooking.wallet_cashback || 0}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setEditingBooking((prev) =>
+                          prev ? { ...prev, wallet_cashback: Math.min(value, 100) } : prev
+                        );
+                      }}
+                      placeholder="0.0"
+                      className="w-full px-3 py-2 border border-purple-300 rounded text-sm"
+                    />
+                    {editingBooking.wallet_cashback && editingBooking.wallet_cashback > 0 && (
+                      <div className="mt-2 p-2 bg-purple-100 rounded border border-purple-300">
+                        <div className="text-sm text-purple-900 font-semibold">
+                          Cashback Amount: ₹{((computeEditingTotals(editingBooking).final * editingBooking.wallet_cashback) / 100).toFixed(2)}
+                        </div>
+                        <div className="text-xs text-purple-600 mt-1">
+                          {editingBooking.wallet_cashback}% of ₹{computeEditingTotals(editingBooking).final.toFixed(2)} = credited to wallet after order completion
+                        </div>
+                      </div>
+                    )}
+                    {(!editingBooking.wallet_cashback || editingBooking.wallet_cashback === 0) && (
+                      <div className="text-xs text-purple-600 mt-1">
+                        Enter a percentage (0-100) to give cashback to user's wallet after order completion
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
                   Pricing Summary
                 </h4>
-                <div className="space-y-2 rounded-lg bg-gray-50 p-4">
+                <div className="space-y-3 rounded-lg bg-gray-50 p-4">
+                  {/* Subtotal */}
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-medium">₹{computeEditingTotals(editingBooking).total.toFixed(2)}</span>
                   </div>
-                  {(editingBooking.discount_percent || 0) > 0 && (
-                    <div className="flex justify-between text-blue-600">
-                      <span>Discount {editingBooking.discount_percent}%:</span>
-                      <span>-₹{(computeEditingTotals(editingBooking).total * (editingBooking.discount_percent || 0) / 100).toFixed(2)}</span>
+
+                  {/* Cashback Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Cashback Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Cashback:</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.cashback || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Discount Box */}
+                  <div className="space-y-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <label className="text-sm font-semibold text-blue-900">Discount Amount</label>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-700">Discount {editingBooking.discount_percent || 0}%:</span>
+                      <span className="text-blue-700 font-medium">-₹{(computeEditingTotals(editingBooking).details?.discount || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* After Cashback */}
+                  {(editingBooking.cashback_amount ?? 0) > 0 && (
+                    <div className="flex justify-between border-t pt-2">
+                      <span>After Cashback:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).details?.afterCashback || 0).toFixed(2)}</span>
                     </div>
                   )}
+
+                  {/* After Discount */}
+                  {(editingBooking.discount_percent ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span>After Discount:</span>
+                      <span className="font-medium">₹{(computeEditingTotals(editingBooking).final || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* Total / Final Amount */}
                   <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                    <span>Final Amount:</span>
+                    <span>Total:</span>
                     <span>₹{computeEditingTotals(editingBooking).final.toFixed(2)}</span>
                   </div>
                 </div>
@@ -1780,8 +2361,13 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_date: editingBooking.delivery_date || "",
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
+                        cashback_amount: editingBooking.cashback_amount || 0,
+                        cashback: editingBooking.cashback || 0,
+                        wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
-                        discount_amount: (totals.total * (editingBooking.discount_percent || 0) / 100) || 0,
+                        discount_amount: totals.details?.discount || 0,
+                        coordinates: editingBooking.coordinates,
+                        distance_to_vendor: editingBooking.distance_to_vendor,
                       };
 
                       if (editingBooking.item_prices && editingBooking.item_prices.length > 0) {
@@ -1820,6 +2406,15 @@ const AdminBookingManagement: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <ReminderModal
+        isOpen={showReminderModal}
+        onClose={() => setShowReminderModal(false)}
+        title={reminderType === 'pickup' ? 'Pickup Reminder' : 'Delivery Reminder'}
+        message={reminderMessage}
+        vendorGroupLink={reminderVendorGroupLink}
+        reminderType={reminderType}
+      />
     </div>
   );
 };

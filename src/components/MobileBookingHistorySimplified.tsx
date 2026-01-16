@@ -585,8 +585,9 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                     </div>
 
                     {/* Price Breakdown */}
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4">
-                      <div className="flex justify-between items-center mb-2">
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4 space-y-3">
+                      {/* Services Total */}
+                      <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">
                           Services Total
                         </span>
@@ -619,37 +620,100 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                         </span>
                       </div>
 
+                      {/* Tax */}
                       {booking.pricing.tax_amount > 0 && (
-                        <div className="flex justify-between items-center mb-2">
+                        <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Tax</span>
                           <span className="font-medium">
-                            ₹{booking.pricing.tax_amount}
+                            +₹{booking.pricing.tax_amount.toFixed(2)}
                           </span>
                         </div>
                       )}
 
-                      {booking.pricing.discount_amount > 0 && (
+                      {/* Discount Section */}
+                      <div className="border-t border-green-300 pt-2">
+                        <h4 className="text-xs font-semibold text-gray-700 mb-2">Discounts & Offers</h4>
+                        {booking.pricing.discount_amount > 0 ? (
+                          <div className="space-y-1 mb-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-green-600">
+                                Discount
+                              </span>
+                              <span className="font-medium text-green-600">
+                                -₹{booking.pricing.discount_amount.toFixed(2)}
+                              </span>
+                            </div>
+                            {booking.coupon_code && (
+                              <div className="text-xs text-green-600 flex justify-end">
+                                Code: {booking.coupon_code}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-500 text-right mb-2">
+                            No discount applied
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Wallet Section */}
+                      <div className="border-t border-blue-300 pt-2">
+                        <h4 className="text-xs font-semibold text-gray-700 mb-2">Wallet Activity</h4>
+
+                        {booking.cashback && booking.cashback > 0 && (
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm text-blue-600">
+                              💳 Debited from Wallet
+                            </span>
+                            <span className="font-medium text-blue-600">
+                              -₹{booking.cashback.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {booking.wallet_applied && booking.wallet_applied > 0 && (
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm text-blue-600">
+                              💳 Wallet Used
+                            </span>
+                            <span className="font-medium text-blue-600">
+                              -₹{booking.wallet_applied.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {booking.wallet_cashback && booking.wallet_cashback > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-purple-600">
+                              ✨ Cashback Credited to Wallet
+                            </span>
+                            <span className="font-medium text-purple-600">
+                              +₹{(booking.wallet_cashback > 0 && booking.wallet_cashback < 100
+                                ? ((booking.pricing.final_amount || booking.pricing.total_price || 0) * booking.wallet_cashback / 100).toFixed(2)
+                                : booking.wallet_cashback).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {!booking.cashback && !booking.wallet_applied && !booking.wallet_cashback && (
+                          <div className="text-xs text-gray-500">
+                            No wallet transactions
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Final Amount */}
+                      <div className="border-t-2 border-green-400 pt-3">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm text-green-600">
-                            Discount
-                          </span>
-                          <span className="font-medium text-green-600">
-                            -₹{booking.pricing.discount_amount}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="border-t border-green-200 pt-2">
-                        <div className="flex justify-between items-center">
                           <span className="font-semibold text-gray-900">
-                            Total Amount
+                            Final Amount
                           </span>
                           <span className="text-xl font-bold text-green-600">
                             ₹
                             {(() => {
                               // Use database final_amount if available
                               if (booking.pricing.final_amount) {
-                                return booking.pricing.final_amount;
+                                return booking.pricing.final_amount.toFixed(2);
                               }
 
                               // Calculate total with local service prices
@@ -673,7 +737,7 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                               const discount =
                                 booking.pricing.discount_amount || 0;
 
-                              return servicesTotal + tax - discount;
+                              return (servicesTotal + tax - discount).toFixed(2);
                             })()}
                             {!booking.pricing.final_amount && (
                               <span className="text-blue-600 text-[10px] ml-1">
@@ -682,12 +746,12 @@ const MobileBookingHistory: React.FC<MobileBookingHistoryProps> = ({
                             )}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center mt-1">
+                        <div className="flex justify-between items-center">
                           <span className="text-xs text-gray-500">
                             Payment Status
                           </span>
                           <span
-                            className={`text-xs px-2 py-1 rounded-full ${
+                            className={`text-xs px-2 py-1 rounded-full font-medium ${
                               booking.payment_status === "paid"
                                 ? "bg-green-100 text-green-800"
                                 : "bg-yellow-100 text-yellow-800"

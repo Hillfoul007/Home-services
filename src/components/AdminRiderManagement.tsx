@@ -216,7 +216,7 @@ export default function AdminRiderManagement() {
 
   // Debug effect to monitor orders state changes
   useEffect(() => {
-    console.log('📊 Orders state updated:', {
+    console.log('�� Orders state updated:', {
       totalOrders: orders.length,
       orderTypes: orders.map(o => ({ id: o._id, type: o.type, assigned: !!(o.assignedRider || o.rider_id) })),
       unassignedCount: orders.filter(o => !o.assignedRider && !o.rider_id).length,
@@ -488,16 +488,6 @@ export default function AdminRiderManagement() {
     setLoadingVendors(true);
 
     try {
-      // Always start with default vendors to ensure something shows
-      const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
-        ...vendor,
-        distance: 0,
-        estimatedTime: 60
-      }));
-
-      console.log('📋 Default vendors loaded:', defaultVendors);
-      setRecommendedVendors(defaultVendors);
-
       // Try to get address and calculate distances
       if (order?.address) {
         const address = typeof order.address === 'string' ? order.address :
@@ -507,15 +497,29 @@ export default function AdminRiderManagement() {
 
         const vendors = await vendorService.getVendorRecommendations(
           address,
-          order.services || []
+          order.service ? [order.service] : order.services || []
         );
 
         console.log('✅ Loaded vendor recommendations with distances:', vendors);
         if (vendors && vendors.length > 0) {
-          setRecommendedVendors(vendors);
+          setRecommendedVendors(vendors.sort((a, b) => a.distance - b.distance));
+        } else {
+          console.warn('⚠️ No vendors returned, using defaults');
+          const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
+            ...vendor,
+            distance: 0,
+            estimatedTime: 60
+          }));
+          setRecommendedVendors(defaultVendors);
         }
       } else {
         console.warn('⚠️ No address found for order, using default vendors');
+        const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
+          ...vendor,
+          distance: 0,
+          estimatedTime: 60
+        }));
+        setRecommendedVendors(defaultVendors);
       }
     } catch (error) {
       console.error('❌ Error loading vendor recommendations:', error);
@@ -535,6 +539,7 @@ export default function AdminRiderManagement() {
     setSelectedOrder(order);
     setVendorModalOpen(true);
     setSelectedVendor('');
+    setLoadingVendors(true);
     loadVendorRecommendations(order);
   };
 
@@ -545,17 +550,9 @@ export default function AdminRiderManagement() {
     setCombinedAssignModalOpen(true);
     setSelectedRider(null);
     setSelectedVendor('');
+    setLoadingVendors(true);
 
-    // Always ensure we have vendors to display
-    const defaultVendors = vendorService.getActiveVendors().map(vendor => ({
-      ...vendor,
-      distance: 0,
-      estimatedTime: 60
-    }));
-    console.log('🏪 Setting default vendors immediately:', defaultVendors);
-    setRecommendedVendors(defaultVendors);
-
-    // Then try to load with distance calculations
+    // Load with distance calculations
     loadVendorRecommendations(order);
   };
 
@@ -1209,7 +1206,7 @@ export default function AdminRiderManagement() {
                                     ) : (
                                       <div className="border rounded-lg p-3 max-h-64 overflow-y-auto">
                                         {recommendedVendors.length > 0 ? (
-                                          recommendedVendors.map((vendor) => (
+                                          recommendedVendors.sort((a, b) => a.distance - b.distance).map((vendor) => (
                                             <div
                                               key={vendor.id}
                                               className={`p-4 border rounded mb-2 cursor-pointer transition-colors ${
@@ -1224,7 +1221,7 @@ export default function AdminRiderManagement() {
                                                 </div>
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                   <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                                    📍 {vendor.distance > 0 ? vendorService.formatDistance(vendor.distance) : 'Calculating...'} from pickup
+                                    📍 {vendor.distance && vendor.distance > 0 ? `${vendor.distance.toFixed(1)}km from pickup` : 'Calculating...'}
                                   </Badge>
                                                   <Badge variant="outline" className="text-xs">
                                                     ⏱️ {vendorService.formatEstimatedTime(vendor.estimatedTime)}
@@ -1270,7 +1267,10 @@ export default function AdminRiderManagement() {
                                           {recommendedVendors.find(v => v.id === selectedVendor)?.name}
                                         </p>
                                         <p className="text-xs text-blue-600">
-                                          📍 {vendorService.formatDistance(recommendedVendors.find(v => v.id === selectedVendor)?.distance || 0)} from pickup location
+                                          📍 {(() => {
+                                            const distance = recommendedVendors.find(v => v.id === selectedVendor)?.distance || 0;
+                                            return distance && distance > 0 ? `${distance.toFixed(1)}km from pickup` : 'Calculating...';
+                                          })()}
                                         </p>
                                       </div>
                                     </div>
@@ -1343,7 +1343,7 @@ export default function AdminRiderManagement() {
                                       </div>
                                     ) : (
                                       <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
-                                        {recommendedVendors.map((vendor) => (
+                                        {recommendedVendors.sort((a, b) => a.distance - b.distance).map((vendor) => (
                                           <div
                                             key={vendor.id}
                                             className={`p-3 border rounded cursor-pointer transition-colors ${
@@ -1358,8 +1358,8 @@ export default function AdminRiderManagement() {
                                                   {vendor.address}
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-2">
-                                                  <Badge variant="secondary" className="text-xs">
-                                                    📍 {vendorService.formatDistance(vendor.distance)}
+                                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                                                    📍 {vendor.distance && vendor.distance > 0 ? `${vendor.distance.toFixed(1)}km from pickup` : 'Calculating...'}
                                                   </Badge>
                                                   <Badge variant="outline" className="text-xs">
                                                     ⏱️ {vendorService.formatEstimatedTime(vendor.estimatedTime)}

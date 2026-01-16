@@ -17,6 +17,7 @@ interface LaundryVendor {
   email?: string;
   address?: string;
   services?: string[];
+  whatsapp_group_invite_link?: string;
   is_active: boolean;
 }
 
@@ -39,6 +40,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
     address: '',
     password: '',
     services: '',
+    whatsapp_group_invite_link: '',
   });
 
   useEffect(() => {
@@ -71,6 +73,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       address: '',
       password: '',
       services: '',
+      whatsapp_group_invite_link: '',
     });
     setShowPassword(false);
   };
@@ -90,6 +93,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
           email: formData.email || undefined,
           address: formData.address || undefined,
           services: formData.services.split(',').map(s => s.trim()).filter(s => s),
+          whatsapp_group_invite_link: formData.whatsapp_group_invite_link || undefined,
         },
       });
 
@@ -128,6 +132,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
         email: formData.email || undefined,
         address: formData.address || undefined,
         services: formData.services.split(',').map(s => s.trim()).filter(s => s),
+        whatsapp_group_invite_link: formData.whatsapp_group_invite_link || undefined,
       };
 
       if (formData.password) {
@@ -185,6 +190,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       address: vendor.address || '',
       password: '',
       services: vendor.services?.join(', ') || '',
+      whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
     });
     setShowPassword(false);
     setIsEditDialogOpen(true);
@@ -273,6 +279,15 @@ const AdminLaundryVendorManagement: React.FC = () => {
                       placeholder="Dry Cleaning, Laundry, Ironing"
                       value={formData.services}
                       onChange={(e) => setFormData({ ...formData, services: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="add-whatsapp">WhatsApp Group Invite Link</Label>
+                    <Input
+                      id="add-whatsapp"
+                      placeholder="https://chat.whatsapp.com/..."
+                      value={formData.whatsapp_group_invite_link}
+                      onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
                     />
                   </div>
                   <div className="flex gap-2 pt-2">
@@ -412,6 +427,15 @@ const AdminLaundryVendorManagement: React.FC = () => {
                                   onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                                 />
                               </div>
+                              <div>
+                                <Label htmlFor="edit-whatsapp">WhatsApp Group Invite Link</Label>
+                                <Input
+                                  id="edit-whatsapp"
+                                  placeholder="https://chat.whatsapp.com/..."
+                                  value={formData.whatsapp_group_invite_link}
+                                  onChange={(e) => setFormData({ ...formData, whatsapp_group_invite_link: e.target.value })}
+                                />
+                              </div>
                               <div className="flex gap-2 pt-2">
                                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
                                 <Button onClick={handleUpdateVendor} className="flex-1">Save</Button>
@@ -451,6 +475,19 @@ const AdminLaundryVendorManagement: React.FC = () => {
                             </Badge>
                           ))}
                         </div>
+                      </div>
+                    )}
+                    {vendor.whatsapp_group_invite_link && (
+                      <div className="col-span-2">
+                        <span className="text-gray-600">WhatsApp Group</span>
+                        <a
+                          href={vendor.whatsapp_group_invite_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm mt-1 block truncate"
+                        >
+                          📱 Join WhatsApp Group
+                        </a>
                       </div>
                     )}
                   </div>

@@ -367,6 +367,16 @@ try {
   console.error("❌ Failed to load Referral routes:", error.message);
 }
 
+// Wallet routes
+try {
+  const walletRoutes = require("./routes/wallet");
+  app.use("/api/wallet", walletRoutes);
+  console.log("🔗 Wallet routes registered at /api/wallet");
+} catch (error) {
+  console.error("❌ Failed to load Wallet routes:", error.message);
+  console.error("❌ Full wallet routes error:", error);
+}
+
 // Admin routes
 try {
   const adminRoutes = require("./routes/admin");
@@ -375,6 +385,24 @@ try {
 } catch (error) {
   console.error("❌ Failed to load Admin routes:", error.message);
   console.error("❌ Full admin routes error:", error);
+}
+
+// PG Management routes (admin)
+try {
+  const pgManagementRoutes = require("./routes/pg-management");
+  app.use("/api/admin/pg", pgManagementRoutes);
+  console.log("🔗 PG Management routes registered at /api/admin/pg");
+} catch (error) {
+  console.error("❌ Failed to load PG Management routes:", error.message);
+}
+
+// PG Orders routes (user)
+try {
+  const pgOrderRoutes = require("./routes/pg-orders");
+  app.use("/api/pg", pgOrderRoutes);
+  console.log("🔗 PG Order routes registered at /api/pg");
+} catch (error) {
+  console.error("❌ Failed to load PG Order routes:", error.message);
 }
 
 // Quick Pickup routes (new)
