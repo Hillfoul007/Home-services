@@ -275,20 +275,30 @@ const AdminBannerManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Banner Management</h2>
           <p className="text-gray-600 mt-1">
             Create and manage banners displayed on your website
           </p>
         </div>
-        <Button
-          onClick={handleOpenNewBannerDialog}
-          className="bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Banner
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleCreateDemoBanners}
+            variant="outline"
+            className="border-laundrify-purple text-laundrify-purple hover:bg-laundrify-purple/5"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Demo Banners
+          </Button>
+          <Button
+            onClick={handleOpenNewBannerDialog}
+            className="bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Banner
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
