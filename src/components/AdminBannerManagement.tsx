@@ -67,6 +67,7 @@ const AdminBannerManagement: React.FC = () => {
     duration: 3000,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string>("");
 
   // Fetch banners
   const fetchBanners = async () => {
