@@ -739,42 +739,71 @@ const AdminBookingManagement: React.FC = () => {
 
       const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
 
-      console.log("📥 [FETCH VEHICLES] Response received", {
-        status: response.status,
+      console.log("📥 [FETCH VEHICLES] Raw response received", {
+        statusCode: response.status,
         hasData: !!response.data,
+        responseType: typeof response.data,
         hasVehicles: !!response.data?.vehicles,
+        vehiclesIsArray: Array.isArray(response.data?.vehicles),
         vehicleCount: Array.isArray(response.data?.vehicles) ? response.data.vehicles.length : 0,
-        firstVehicle: response.data?.vehicles?.[0],
-        allVehicles: response.data?.vehicles,
+        fullResponseData: response.data,
+        error: response.error,
         timestamp: new Date().toISOString()
       });
 
       if (response.data?.vehicles) {
+        console.log("📦 [FETCH VEHICLES] Processing vehicles array", {
+          count: response.data.vehicles.length,
+          isArray: Array.isArray(response.data.vehicles),
+          firstItem: response.data.vehicles[0],
+          firstItemType: typeof response.data.vehicles[0],
+          firstItemKeys: response.data.vehicles[0] ? Object.keys(response.data.vehicles[0]) : [],
+          timestamp: new Date().toISOString()
+        });
+
         console.log("✅ [FETCH VEHICLES] Fetched vehicles successfully", {
           count: response.data.vehicles.length,
-          vehicles: response.data.vehicles.map((v, i) => ({
-            index: i,
-            id: v._id,
-            name: v.name,
-            number_plate: v.number_plate,
-            current_orders_count: v.current_orders_count,
-            max_orders_per_trip: v.max_orders_per_trip,
-            keys: Object.keys(v)
-          })),
+          vehicles: response.data.vehicles.map((v, i) => {
+            try {
+              return {
+                index: i,
+                type: typeof v,
+                isNull: v === null,
+                _id: v?._id,
+                name: v?.name,
+                number_plate: v?.number_plate,
+                current_orders_count: v?.current_orders_count,
+                max_orders_per_trip: v?.max_orders_per_trip,
+                keys: v ? Object.keys(v) : [],
+                rawVehicle: JSON.stringify(v, null, 2)
+              };
+            } catch (mapErr) {
+              console.error(`❌ [FETCH VEHICLES] Error mapping vehicle ${i}`, mapErr);
+              return { index: i, error: 'mapping failed' };
+            }
+          }),
           timestamp: new Date().toISOString()
         });
 
         // Validate vehicles before setting state
         const validVehicles = Array.isArray(response.data.vehicles) ? response.data.vehicles : [];
-        console.log("✨ [FETCH VEHICLES] Setting available vehicles state", {
+        console.log("✨ [FETCH VEHICLES] About to set available vehicles state", {
+          count: validVehicles.length,
+          validVehiclesArray: validVehicles,
+          timestamp: new Date().toISOString()
+        });
+
+        setAvailableVehicles(validVehicles);
+
+        console.log("✨ [FETCH VEHICLES] State set successfully", {
           count: validVehicles.length,
           timestamp: new Date().toISOString()
         });
-        setAvailableVehicles(validVehicles);
       } else {
         console.warn("⚠️ [FETCH VEHICLES] No vehicles in response", {
           responseData: response.data,
           error: response.error,
+          hasVehiclesKey: 'vehicles' in (response.data || {}),
           timestamp: new Date().toISOString()
         });
         setAvailableVehicles([]);
