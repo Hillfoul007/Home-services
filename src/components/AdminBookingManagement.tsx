@@ -3525,45 +3525,122 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
+                      {console.log("🎨 [VEHICLE SELECT CONTENT] Starting to render SelectContent", {
+                        vehiclesCount: availableVehicles.length,
+                        timestamp: new Date().toISOString()
+                      }) || null}
                       {availableVehicles
                         .filter((vehicle, index) => {
                           try {
                             console.log(`🔍 [VEHICLE FILTER] Checking vehicle ${index}`, {
                               index,
-                              hasId: !!vehicle?._id,
-                              vehicleId: vehicle?._id,
-                              vehicleType: typeof vehicle,
-                              isObject: typeof vehicle === 'object'
+                              vehicle: {
+                                raw: vehicle,
+                                type: typeof vehicle,
+                                isNull: vehicle === null,
+                                isUndefined: vehicle === undefined,
+                                keys: vehicle ? Object.keys(vehicle) : [],
+                                _id: vehicle?._id,
+                                name: vehicle?.name
+                              }
                             });
 
                             const isValid = vehicle && typeof vehicle === 'object' && vehicle._id;
                             if (!isValid) {
-                              console.warn(`⚠️ [VEHICLE FILTER] Invalid vehicle at index ${index}`, vehicle);
+                              console.warn(`⚠️ [VEHICLE FILTER] Invalid vehicle at index ${index}`, {
+                                vehicle,
+                                reason: !vehicle ? 'falsy' : (typeof vehicle !== 'object' ? 'not object' : 'no _id')
+                              });
+                            } else {
+                              console.log(`✅ [VEHICLE FILTER] Valid vehicle at index ${index}`, {
+                                vehicleId: vehicle._id
+                              });
                             }
                             return isValid;
                           } catch (filterError) {
                             console.error(`❌ [VEHICLE FILTER] Error filtering vehicle at index ${index}`, {
                               error: filterError,
-                              vehicle
+                              errorMessage: filterError instanceof Error ? filterError.message : String(filterError),
+                              vehicle,
+                              timestamp: new Date().toISOString()
                             });
                             return false;
                           }
                         })
                         .map((vehicle, mapIndex) => {
                           try {
-                            console.log(`🎨 [VEHICLE RENDER] Rendering vehicle ${mapIndex}`, {
+                            console.log(`🎨 [VEHICLE RENDER] About to render vehicle at mapIndex ${mapIndex}`, {
                               mapIndex,
-                              vehicleId: vehicle._id
+                              vehicleId: vehicle?._id,
+                              vehicleName: vehicle?.name
                             });
 
-                            // Defensive property access for vehicle options
-                            const vehicleId = String(vehicle._id ?? '');
-                            const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
-                            const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
-                            const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
-                            const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+                            // CRITICAL: Validate vehicle object before accessing properties
+                            if (!vehicle || typeof vehicle !== 'object') {
+                              console.error(`❌ [VEHICLE RENDER] Vehicle is invalid before rendering at ${mapIndex}`, {
+                                vehicle,
+                                type: typeof vehicle
+                              });
+                              return null;
+                            }
 
-                            console.log(`📋 [VEHICLE RENDER] Vehicle details extracted`, {
+                            // Defensive property access for vehicle options
+                            const vehicleId = (() => {
+                              try {
+                                const id = String(vehicle._id ?? '');
+                                console.log(`[VEHICLE RENDER] vehicleId extracted: ${id}`);
+                                return id;
+                              } catch (e) {
+                                console.error(`❌ [VEHICLE RENDER] Error extracting vehicleId`, e);
+                                return '';
+                              }
+                            })();
+
+                            const vehicleName = (() => {
+                              try {
+                                const name = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
+                                console.log(`[VEHICLE RENDER] vehicleName extracted: ${name}`);
+                                return name;
+                              } catch (e) {
+                                console.error(`❌ [VEHICLE RENDER] Error extracting vehicleName`, e);
+                                return 'Unknown';
+                              }
+                            })();
+
+                            const plateNumber = (() => {
+                              try {
+                                const plate = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
+                                console.log(`[VEHICLE RENDER] plateNumber extracted: ${plate}`);
+                                return plate;
+                              } catch (e) {
+                                console.error(`❌ [VEHICLE RENDER] Error extracting plateNumber`, e);
+                                return 'N/A';
+                              }
+                            })();
+
+                            const currentCount = (() => {
+                              try {
+                                const count = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
+                                console.log(`[VEHICLE RENDER] currentCount extracted: ${count}`);
+                                return count;
+                              } catch (e) {
+                                console.error(`❌ [VEHICLE RENDER] Error extracting currentCount`, e);
+                                return 0;
+                              }
+                            })();
+
+                            const maxCount = (() => {
+                              try {
+                                const count = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+                                console.log(`[VEHICLE RENDER] maxCount extracted: ${count}`);
+                                return count;
+                              } catch (e) {
+                                console.error(`❌ [VEHICLE RENDER] Error extracting maxCount`, e);
+                                return 0;
+                              }
+                            })();
+
+                            console.log(`✅ [VEHICLE RENDER] All properties extracted for vehicle ${mapIndex}`, {
                               vehicleId,
                               vehicleName,
                               plateNumber,
@@ -3583,7 +3660,7 @@ const AdminBookingManagement: React.FC = () => {
                               </SelectItem>
                             );
                           } catch (error) {
-                            console.error(`❌ [VEHICLE RENDER] Error rendering vehicle option at index ${mapIndex}`, {
+                            console.error(`❌ [VEHICLE RENDER] Caught error rendering vehicle option at index ${mapIndex}`, {
                               error,
                               errorMessage: error instanceof Error ? error.message : String(error),
                               errorStack: error instanceof Error ? error.stack : undefined,
