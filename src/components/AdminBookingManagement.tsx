@@ -3326,8 +3326,12 @@ const AdminBookingManagement: React.FC = () => {
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
                 <Button
-                  onClick={() => handleVehicleAllocation(vehicleAllocationBooking._id, selectedAllocationVehicle, vehicleAllocationFor)}
-                  disabled={!selectedAllocationVehicle}
+                  onClick={() => {
+                    if (vehicleAllocationBooking && vehicleAllocationBooking._id) {
+                      handleVehicleAllocation(vehicleAllocationBooking._id, selectedAllocationVehicle, vehicleAllocationFor);
+                    }
+                  }}
+                  disabled={!selectedAllocationVehicle || !vehicleAllocationBooking?._id}
                   className="flex-1 bg-green-600 hover:bg-green-700"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
