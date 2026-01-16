@@ -109,6 +109,35 @@ const AdminBannerManagement: React.FC = () => {
     }
   };
 
+  // Handle image upload
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image size should be less than 2MB");
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const imageUrl = event.target?.result as string;
+      setFormData({
+        ...formData,
+        imageUrl,
+      });
+      setImagePreview(imageUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Reset form
   const resetForm = () => {
     setFormData({
@@ -119,6 +148,7 @@ const AdminBannerManagement: React.FC = () => {
       duration: 3000,
     });
     setEditingBanner(null);
+    setImagePreview("");
   };
 
   // Handle create/edit banner
