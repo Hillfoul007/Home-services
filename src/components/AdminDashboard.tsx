@@ -25,6 +25,7 @@ import {
   Package,
   Home,
   Truck,
+  Image,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
