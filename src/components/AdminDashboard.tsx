@@ -449,6 +449,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminWalletManagement />
           </TabsContent>
 
+          <TabsContent value="banners">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Banner Management:</strong> Create and manage website banners. Set custom display durations, redirect URLs, and track clicks and impressions. Banners rotate automatically on the homepage.</p>
+            </div>
+            <AdminBannerManagement />
+          </TabsContent>
+
           <TabsContent value="analytics">
             <Card>
               <CardHeader>
