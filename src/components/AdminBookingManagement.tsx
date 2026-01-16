@@ -3235,20 +3235,28 @@ const AdminBookingManagement: React.FC = () => {
                         <SelectContent>
                           <SelectItem value="">No Specific Slot</SelectItem>
                           {vehicle.availability_slots
-                            .filter((slot) => slot?.start_time && slot?.end_time)
-                            .map((slot) => {
-                              const isSlotFull = !slot.is_available || (slot.assigned_orders_count || 0) >= (vehicle.max_orders_per_trip || 10);
-                              const slotLabel = `${slot.start_time} - ${slot.end_time} (${slot.assigned_orders_count || 0}/${vehicle.max_orders_per_trip || 10})${isSlotFull ? ' - Full' : ''}`;
-                              return (
-                                <SelectItem
-                                  key={slot.start_time}
-                                  value={slot.start_time}
-                                  disabled={isSlotFull}
-                                >
-                                  {slotLabel}
-                                </SelectItem>
-                              );
-                            })}
+                            .filter(slot => slot?.start_time && slot?.end_time)
+                            .map(slot => {
+                              try {
+                                const assigned = parseInt(String(slot.assigned_orders_count || 0));
+                                const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10));
+                                const isSlotFull = !slot.is_available || assigned >= maxOrders;
+                                const slotLabel = `${slot.start_time} - ${slot.end_time} (${assigned}/${maxOrders})${isSlotFull ? ' - Full' : ''}`;
+                                return (
+                                  <SelectItem
+                                    key={slot.start_time}
+                                    value={slot.start_time}
+                                    disabled={isSlotFull}
+                                  >
+                                    {slotLabel}
+                                  </SelectItem>
+                                );
+                              } catch (err) {
+                                console.error('❌ Error rendering slot:', slot, err);
+                                return null;
+                              }
+                            })
+                            .filter(Boolean)}
                         </SelectContent>
                       </Select>
                     );
