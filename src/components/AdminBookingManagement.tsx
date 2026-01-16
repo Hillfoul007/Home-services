@@ -3460,6 +3460,18 @@ const AdminBookingManagement: React.FC = () => {
               {/* Select Vehicle */}
               <div className="space-y-2">
                 <Label htmlFor="vehicle-select">Select Vehicle for {vehicleAllocationFor === 'pickup' ? 'Pickup' : 'Delivery'}</Label>
+                {console.log("📊 [VEHICLE MODAL] Rendering vehicle section", {
+                  loadingVehicles,
+                  availableVehiclesCount: availableVehicles.length,
+                  availableVehicles: availableVehicles.map((v, i) => ({
+                    index: i,
+                    id: v?._id,
+                    name: v?.name,
+                    type: typeof v,
+                    isObject: typeof v === 'object'
+                  })),
+                  timestamp: new Date().toISOString()
+                }) || null}
                 {loadingVehicles ? (
                   <div className="p-4 text-center text-gray-600">
                     <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
