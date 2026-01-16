@@ -266,6 +266,50 @@ const AdminBannerManagement: React.FC = () => {
     }
   };
 
+  // Create demo banners
+  const handleCreateDemoBanners = async () => {
+    try {
+      setSubmitting(true);
+
+      const demoBanners = [
+        {
+          title: "Follow us on Instagram",
+          description: "Join our community for exclusive offers and updates",
+          redirectUrl: "https://instagram.com/laundrify",
+          duration: 3000,
+          imageUrl:
+            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300'%3E%3Cdefs%3E%3ClinearGradient id='grad1' x1='0%25' y1='0%25' x1='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23833AB4;stop-opacity:1' /%3E%3Cstop offset='50%25' style='stop-color:%23FD1D1D;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23FCAF45;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1200' height='300' fill='url(%23grad1)'/%3E%3Ctext x='600' y='120' font-size='80' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial'%3E📷 Instagram%3C/text%3E%3Ctext x='600' y='200' font-size='40' text-anchor='middle' fill='white' font-family='Arial'%3E@laundrify - Follow for Updates%3C/text%3E%3C/svg%3E",
+        },
+        {
+          title: "Contact us on WhatsApp",
+          description: "Get instant support and exclusive deals via WhatsApp",
+          redirectUrl: "https://wa.me/917011585587?text=Hi%20Laundrify",
+          duration: 3000,
+          imageUrl:
+            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300'%3E%3Crect width='1200' height='300' fill='%2325D366'/%3E%3Ctext x='600' y='120' font-size='80' font-weight='bold' text-anchor='middle' fill='white' font-family='Arial'%3E💬 WhatsApp%3C/text%3E%3Ctext x='600' y='200' font-size='40' text-anchor='middle' fill='white' font-family='Arial'%3E+91 701-158-5587 - Chat Now%3C/text%3E%3C/svg%3E",
+        },
+      ];
+
+      for (const banner of demoBanners) {
+        await fetch("/api/banners", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(banner),
+        });
+      }
+
+      toast.success("Demo banners created successfully!");
+      fetchBanners();
+    } catch (error) {
+      console.error("Error creating demo banners:", error);
+      toast.error("Failed to create demo banners");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Open new banner dialog
   const handleOpenNewBannerDialog = () => {
     resetForm();
