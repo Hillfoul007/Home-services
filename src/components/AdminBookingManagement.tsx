@@ -1665,11 +1665,24 @@ const AdminBookingManagement: React.FC = () => {
 
   const renderVehicleSummary = () => {
     try {
+      console.log("📊 [RENDER SUMMARY] Starting vehicle summary render", {
+        selectedAllocationVehicle,
+        selectedAllocationSlot,
+        timestamp: new Date().toISOString()
+      });
+
       const vehicle = getSelectedVehicle();
 
       if (!vehicle) {
+        console.warn("⚠️ [RENDER SUMMARY] No vehicle selected");
         return null;
       }
+
+      console.log("✅ [RENDER SUMMARY] Vehicle found for summary", {
+        vehicleId: vehicle._id,
+        vehicleKeys: Object.keys(vehicle),
+        timestamp: new Date().toISOString()
+      });
 
       // Defensive property access with strict type conversion
       let vehicleName = 'Unknown Vehicle';
@@ -1682,8 +1695,21 @@ const AdminBookingManagement: React.FC = () => {
         plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
         currentOrders = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
         maxOrders = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+
+        console.log("📝 [RENDER SUMMARY] Vehicle properties extracted", {
+          vehicleName,
+          plateNumber,
+          currentOrders,
+          maxOrders,
+          timestamp: new Date().toISOString()
+        });
       } catch (e) {
-        console.warn("Error parsing vehicle properties:", e);
+        console.error("❌ [RENDER SUMMARY] Error parsing vehicle properties", {
+          error: e,
+          errorMessage: e instanceof Error ? e.message : String(e),
+          vehicle,
+          timestamp: new Date().toISOString()
+        });
       }
 
       return (
@@ -1702,7 +1728,12 @@ const AdminBookingManagement: React.FC = () => {
         </div>
       );
     } catch (error) {
-      console.error("Error rendering vehicle summary:", error);
+      console.error("❌ [RENDER SUMMARY] Error rendering vehicle summary", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return null;
     }
   };
