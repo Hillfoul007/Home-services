@@ -531,28 +531,59 @@ const AdminBannerManagement: React.FC = () => {
               />
             </div>
 
-            {/* Image URL */}
+            {/* Image Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Image URL
+                Banner Image
               </label>
-              <Input
-                name="imageUrl"
-                value={formData.imageUrl}
-                onChange={handleInputChange}
-                placeholder="https://example.com/image.jpg"
-                type="url"
-                className="w-full"
-              />
-              {formData.imageUrl && (
-                <div className="mt-2">
-                  <img
-                    src={formData.imageUrl}
-                    alt="Preview"
-                    className="max-h-32 rounded-lg"
+              <div className="space-y-3">
+                <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="w-full"
                   />
+                  <div className="mt-2 text-xs text-gray-600 space-y-1">
+                    <p><strong>Recommended size:</strong> 1200 x 300 pixels</p>
+                    <p><strong>Format:</strong> JPG, PNG, WebP</p>
+                    <p><strong>Max size:</strong> 2MB</p>
+                    <p><strong>Aspect ratio:</strong> 4:1 (width:height)</p>
+                  </div>
                 </div>
-              )}
+
+                {imagePreview && (
+                  <div className="mt-3">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Preview:
+                    </p>
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="max-h-40 rounded-lg border border-gray-200"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center text-xs text-gray-600">
+                  <span>or</span>
+                  <span className="mx-2">paste image URL:</span>
+                </div>
+
+                <Input
+                  name="imageUrl"
+                  value={formData.imageUrl}
+                  onChange={(e) => {
+                    handleInputChange(e);
+                    if (e.target.value && !imagePreview) {
+                      setImagePreview(e.target.value);
+                    }
+                  }}
+                  placeholder="https://example.com/image.jpg"
+                  type="url"
+                  className="w-full text-xs"
+                />
+              </div>
             </div>
 
             {/* Redirect URL */}
