@@ -729,23 +729,99 @@ const AdminBookingManagement: React.FC = () => {
   const fetchAvailableVehicles = async (vendorId: string) => {
     try {
       setLoadingVehicles(true);
-      console.log("🚗 Fetching vehicles for vendor:", vendorId);
+      console.log("🚗 [FETCH VEHICLES] Starting vehicle fetch", {
+        vendorId,
+        timestamp: new Date().toISOString()
+      });
+
       const endpoint = `/admin/vehicles?vendor_id=${encodeURIComponent(vendorId)}`;
+      console.log("📡 [FETCH VEHICLES] Request endpoint:", endpoint);
+
       const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
+
+      console.log("📥 [FETCH VEHICLES] Raw response received", {
+        statusCode: response.status,
+        hasData: !!response.data,
+        responseType: typeof response.data,
+        hasVehicles: !!response.data?.vehicles,
+        vehiclesIsArray: Array.isArray(response.data?.vehicles),
+        vehicleCount: Array.isArray(response.data?.vehicles) ? response.data.vehicles.length : 0,
+        fullResponseData: response.data,
+        error: response.error,
+        timestamp: new Date().toISOString()
+      });
+
       if (response.data?.vehicles) {
-        console.log("✅ Fetched vehicles:", response.data.vehicles);
+        console.log("📦 [FETCH VEHICLES] Processing vehicles array", {
+          count: response.data.vehicles.length,
+          isArray: Array.isArray(response.data.vehicles),
+          firstItem: response.data.vehicles[0],
+          firstItemType: typeof response.data.vehicles[0],
+          firstItemKeys: response.data.vehicles[0] ? Object.keys(response.data.vehicles[0]) : [],
+          timestamp: new Date().toISOString()
+        });
+
+        console.log("✅ [FETCH VEHICLES] Fetched vehicles successfully", {
+          count: response.data.vehicles.length,
+          vehicles: response.data.vehicles.map((v, i) => {
+            try {
+              return {
+                index: i,
+                type: typeof v,
+                isNull: v === null,
+                _id: v?._id,
+                name: v?.name,
+                number_plate: v?.number_plate,
+                current_orders_count: v?.current_orders_count,
+                max_orders_per_trip: v?.max_orders_per_trip,
+                keys: v ? Object.keys(v) : [],
+                rawVehicle: JSON.stringify(v, null, 2)
+              };
+            } catch (mapErr) {
+              console.error(`❌ [FETCH VEHICLES] Error mapping vehicle ${i}`, mapErr);
+              return { index: i, error: 'mapping failed' };
+            }
+          }),
+          timestamp: new Date().toISOString()
+        });
+
         // Validate vehicles before setting state
         const validVehicles = Array.isArray(response.data.vehicles) ? response.data.vehicles : [];
+        console.log("✨ [FETCH VEHICLES] About to set available vehicles state", {
+          count: validVehicles.length,
+          validVehiclesArray: validVehicles,
+          timestamp: new Date().toISOString()
+        });
+
         setAvailableVehicles(validVehicles);
+
+        console.log("✨ [FETCH VEHICLES] State set successfully", {
+          count: validVehicles.length,
+          timestamp: new Date().toISOString()
+        });
       } else {
-        console.warn("⚠️ No vehicles in response:", response.data);
+        console.warn("⚠️ [FETCH VEHICLES] No vehicles in response", {
+          responseData: response.data,
+          error: response.error,
+          hasVehiclesKey: 'vehicles' in (response.data || {}),
+          timestamp: new Date().toISOString()
+        });
         setAvailableVehicles([]);
       }
     } catch (error) {
-      console.error("❌ Error fetching vehicles:", error);
+      console.error("❌ [FETCH VEHICLES] Error fetching vehicles", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        vendorId,
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to fetch available vehicles");
       setAvailableVehicles([]);
     } finally {
+      console.log("✅ [FETCH VEHICLES] Fetch completed (finally block)", {
+        timestamp: new Date().toISOString()
+      });
       setLoadingVehicles(false);
     }
   };
@@ -1241,32 +1317,61 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleVehicleAllocation = async (bookingId: string, vehicleId: string, allocationFor: 'pickup' | 'delivery') => {
+    console.log("🚗 [VEHICLE ALLOCATION] Starting allocation process", {
+      bookingId,
+      vehicleId,
+      allocationFor,
+      selectedAllocationVehicle,
+      timestamp: new Date().toISOString()
+    });
+
     if (!selectedAllocationVehicle) {
+      console.warn("❌ [VEHICLE ALLOCATION] No vehicle selected");
       toast.error("Please select a vehicle");
       return;
     }
 
     try {
+      const requestBody = {
+        booking_id: bookingId,
+        vehicle_id: vehicleId,
+        slot_start_time: selectedAllocationSlot || null,
+      };
+      console.log("📤 [VEHICLE ALLOCATION] Sending request to backend", requestBody);
+
       const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
         method: "POST",
-        body: {
-          booking_id: bookingId,
-          vehicle_id: vehicleId,
-          slot_start_time: selectedAllocationSlot || null,
-        },
+        body: requestBody,
+      });
+
+      console.log("📥 [VEHICLE ALLOCATION] Received response from backend", {
+        status: response.status,
+        data: response.data,
+        error: response.error,
+        timestamp: new Date().toISOString()
       });
 
       if (response.data?.success) {
+        console.log("✅ [VEHICLE ALLOCATION] Allocation successful");
         toast.success(`✅ Order allocated to vehicle for ${allocationFor}`);
         setShowVehicleAllocationModal(false);
         setSelectedAllocationVehicle('');
         setSelectedAllocationSlot('');
         await fetchBookings();
       } else {
+        console.error("❌ [VEHICLE ALLOCATION] Backend returned error", {
+          error: response.data?.error,
+          data: response.data
+        });
         toast.error(response.data?.error || "Failed to allocate vehicle");
       }
     } catch (error) {
-      console.error("Error allocating vehicle:", error);
+      console.error("❌ [VEHICLE ALLOCATION] Exception caught", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to allocate vehicle");
     }
   };
@@ -1447,55 +1552,139 @@ const AdminBookingManagement: React.FC = () => {
   // Helper functions for vehicle allocation modal - with defensive programming
   const getSelectedVehicle = () => {
     try {
+      console.log("🔍 [GET SELECTED VEHICLE] Looking for selected vehicle", {
+        selectedAllocationVehicle,
+        isString: typeof selectedAllocationVehicle === 'string',
+        availableVehiclesCount: Array.isArray(availableVehicles) ? availableVehicles.length : 0,
+        timestamp: new Date().toISOString()
+      });
+
       if (!selectedAllocationVehicle || typeof selectedAllocationVehicle !== 'string') {
+        console.warn("⚠️ [GET SELECTED VEHICLE] Invalid selectedAllocationVehicle", {
+          selectedAllocationVehicle,
+          type: typeof selectedAllocationVehicle,
+          isEmpty: !selectedAllocationVehicle
+        });
         return null;
       }
 
       if (!Array.isArray(availableVehicles)) {
+        console.warn("⚠️ [GET SELECTED VEHICLE] availableVehicles is not an array", {
+          type: typeof availableVehicles,
+          value: availableVehicles
+        });
         return null;
       }
 
-      const vehicle = availableVehicles.find((v) => {
+      const vehicle = availableVehicles.find((v, index) => {
         try {
-          return v && typeof v === 'object' && v._id === selectedAllocationVehicle;
-        } catch {
+          const matches = v && typeof v === 'object' && v._id === selectedAllocationVehicle;
+          if (matches) {
+            console.log(`✅ [GET SELECTED VEHICLE] Found matching vehicle at index ${index}`, {
+              vehicleId: v._id,
+              vehicleName: v.name,
+              index
+            });
+          }
+          return matches;
+        } catch (findErr) {
+          console.warn(`⚠️ [GET SELECTED VEHICLE] Error checking vehicle at index ${index}`, {
+            error: findErr,
+            vehicle: v
+          });
           return false;
         }
       });
 
-      return vehicle && typeof vehicle === 'object' ? vehicle : null;
+      if (!vehicle) {
+        console.warn("⚠️ [GET SELECTED VEHICLE] No matching vehicle found", {
+          searchedId: selectedAllocationVehicle,
+          availableVehicles: availableVehicles.map(v => ({ id: v?._id, name: v?.name })),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const result = vehicle && typeof vehicle === 'object' ? vehicle : null;
+      console.log("🎯 [GET SELECTED VEHICLE] Returning vehicle", {
+        found: !!result,
+        vehicleId: result?._id,
+        vehicleName: result?.name,
+        timestamp: new Date().toISOString()
+      });
+      return result;
     } catch (error) {
-      console.error("Error getting selected vehicle:", error);
+      console.error("❌ [GET SELECTED VEHICLE] Error getting selected vehicle", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        selectedAllocationVehicle,
+        timestamp: new Date().toISOString()
+      });
       return null;
     }
   };
 
   const renderTimeSlotSelect = () => {
     try {
+      console.log("⏰ [RENDER TIME SLOT] Starting time slot render", {
+        selectedAllocationVehicle,
+        timestamp: new Date().toISOString()
+      });
+
       const vehicle = getSelectedVehicle();
 
       // Defensive checks
       if (!vehicle) {
-        console.debug("No vehicle selected for time slot render");
+        console.warn("⚠️ [RENDER TIME SLOT] No vehicle selected for time slot render");
         return null;
       }
 
+      console.log("✅ [RENDER TIME SLOT] Vehicle found", {
+        vehicleId: vehicle._id,
+        vehicleName: vehicle.name,
+        hasSlots: !!vehicle.availability_slots,
+        slotsCount: Array.isArray(vehicle.availability_slots) ? vehicle.availability_slots.length : 0,
+        timestamp: new Date().toISOString()
+      });
+
       if (!Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
-        console.debug("Vehicle has no availability slots");
+        console.debug("⚠️ [RENDER TIME SLOT] Vehicle has no availability slots", {
+          hasSlots: !!vehicle.availability_slots,
+          slotsType: typeof vehicle.availability_slots,
+          timestamp: new Date().toISOString()
+        });
         return null;
       }
 
       // Filter out invalid slots before mapping
-      const validSlots = vehicle.availability_slots.filter((slot) => {
+      const validSlots = vehicle.availability_slots.filter((slot, slotIndex) => {
         try {
-          return slot && typeof slot === 'object' && (slot.start_time || slot.start_time === '');
-        } catch {
+          const isValid = slot && typeof slot === 'object' && (slot.start_time || slot.start_time === '');
+          if (!isValid) {
+            console.warn(`⚠️ [RENDER TIME SLOT] Invalid slot at index ${slotIndex}`, {
+              slot,
+              hasObject: slot && typeof slot === 'object',
+              hasStartTime: slot?.start_time !== undefined
+            });
+          }
+          return isValid;
+        } catch (filterErr) {
+          console.error(`❌ [RENDER TIME SLOT] Error filtering slot at index ${slotIndex}`, {
+            error: filterErr,
+            slot
+          });
           return false;
         }
       });
 
+      console.log("📋 [RENDER TIME SLOT] Slots filtered", {
+        originalCount: vehicle.availability_slots.length,
+        validCount: validSlots.length,
+        timestamp: new Date().toISOString()
+      });
+
       if (validSlots.length === 0) {
-        console.debug("No valid slots found after filtering");
+        console.debug("⚠️ [RENDER TIME SLOT] No valid slots found after filtering");
         return null;
       }
 
@@ -1552,13 +1741,209 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
+  const renderVehicleSelect = () => {
+    try {
+      console.log("🛠️ [RENDER VEHICLE SELECT] Starting vehicle select render", {
+        availableVehiclesCount: availableVehicles.length,
+        selectedVehicle: selectedAllocationVehicle,
+        loadingVehicles,
+        timestamp: new Date().toISOString()
+      });
+
+      if (loadingVehicles) {
+        return (
+          <div className="p-4 text-center text-gray-600">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
+            <p>Loading vehicles...</p>
+          </div>
+        );
+      }
+
+      if (availableVehicles.length === 0) {
+        return (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm">
+              ⚠️ No active vehicles found for this vendor. Please ensure vehicles are assigned to the vendor.
+            </p>
+          </div>
+        );
+      }
+
+      console.log("🎨 [RENDER VEHICLE SELECT] About to create Select component", {
+        vehicleCount: availableVehicles.length,
+        selectedValue: selectedAllocationVehicle,
+        timestamp: new Date().toISOString()
+      });
+
+      // Create filtered and mapped items separately for debugging
+      const filteredVehicles: any[] = [];
+      try {
+        console.log("🔍 [RENDER VEHICLE SELECT] Starting filter operation");
+        for (let i = 0; i < availableVehicles.length; i++) {
+          const vehicle = availableVehicles[i];
+          console.log(`🔍 [RENDER VEHICLE SELECT] Checking vehicle ${i}`, {
+            index: i,
+            vehicleId: vehicle?._id,
+            isValid: vehicle && typeof vehicle === 'object' && vehicle._id
+          });
+
+          if (vehicle && typeof vehicle === 'object' && vehicle._id) {
+            filteredVehicles.push(vehicle);
+            console.log(`✅ [RENDER VEHICLE SELECT] Added vehicle ${i} to filtered list`, {
+              vehicleId: vehicle._id
+            });
+          }
+        }
+        console.log(`📊 [RENDER VEHICLE SELECT] Filter complete`, {
+          originalCount: availableVehicles.length,
+          filteredCount: filteredVehicles.length,
+          timestamp: new Date().toISOString()
+        });
+      } catch (filterErr) {
+        console.error("❌ [RENDER VEHICLE SELECT] Error during filter", {
+          error: filterErr,
+          errorMessage: filterErr instanceof Error ? filterErr.message : String(filterErr)
+        });
+      }
+
+      return (
+        <Select
+          value={selectedAllocationVehicle}
+          onValueChange={(value) => {
+            console.log("🚗 [VEHICLE DROPDOWN] Selection changed", {
+              selectedValue: value,
+              previousValue: selectedAllocationVehicle,
+              availableVehiclesCount: availableVehicles.length,
+              timestamp: new Date().toISOString()
+            });
+
+            try {
+              const foundVehicle = availableVehicles.find(v => v && typeof v === 'object' && v._id === value);
+              console.log("🔍 [VEHICLE DROPDOWN] Found vehicle details", {
+                vehicleId: value,
+                foundVehicle: foundVehicle,
+                vehicleKeys: foundVehicle ? Object.keys(foundVehicle) : [],
+                timestamp: new Date().toISOString()
+              });
+
+              setSelectedAllocationVehicle(value);
+              console.log("✅ [VEHICLE DROPDOWN] State updated successfully", {
+                newValue: value,
+                timestamp: new Date().toISOString()
+              });
+            } catch (err) {
+              console.error("❌ [VEHICLE DROPDOWN] Error during selection", {
+                error: err,
+                errorMessage: err instanceof Error ? err.message : String(err),
+                errorStack: err instanceof Error ? err.stack : undefined,
+                selectedValue: value,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }}
+        >
+          <SelectTrigger id="vehicle-select">
+            <SelectValue placeholder="Select a vehicle..." />
+          </SelectTrigger>
+          <SelectContent>
+            {console.log("🎨 [VEHICLE SELECT CONTENT] Starting SelectContent render", {
+              filteredVehiclesCount: filteredVehicles.length,
+              timestamp: new Date().toISOString()
+            }) || null}
+            {filteredVehicles.map((vehicle, mapIndex) => {
+              try {
+                console.log(`🎨 [VEHICLE RENDER] Rendering vehicle at mapIndex ${mapIndex}`, {
+                  mapIndex,
+                  vehicleId: vehicle?._id,
+                  vehicleName: vehicle?.name
+                });
+
+                if (!vehicle || typeof vehicle !== 'object') {
+                  console.error(`❌ [VEHICLE RENDER] Vehicle is invalid at ${mapIndex}`, {
+                    vehicle,
+                    type: typeof vehicle
+                  });
+                  return null;
+                }
+
+                const vehicleId = String(vehicle._id ?? '');
+                const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
+                const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
+                const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
+                const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+
+                console.log(`✅ [VEHICLE RENDER] Vehicle ${mapIndex} properties extracted`, {
+                  vehicleId,
+                  vehicleName,
+                  plateNumber,
+                  currentCount,
+                  maxCount,
+                  timestamp: new Date().toISOString()
+                });
+
+                return (
+                  <SelectItem key={vehicleId} value={vehicleId}>
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-3 h-3" />
+                      <span>
+                        {vehicleName} ({plateNumber}) - {currentCount}/{maxCount}
+                      </span>
+                    </div>
+                  </SelectItem>
+                );
+              } catch (error) {
+                console.error(`❌ [VEHICLE RENDER] Error rendering vehicle at ${mapIndex}`, {
+                  error,
+                  errorMessage: error instanceof Error ? error.message : String(error),
+                  errorStack: error instanceof Error ? error.stack : undefined,
+                  vehicle,
+                  vehicleId: vehicle?._id,
+                  timestamp: new Date().toISOString()
+                });
+                return null;
+              }
+            })}
+          </SelectContent>
+        </Select>
+      );
+    } catch (error) {
+      console.error("❌ [RENDER VEHICLE SELECT] Fatal error in renderVehicleSelect", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+      return (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800 text-sm font-semibold">⚠️ Error rendering vehicle select</p>
+          <p className="text-red-700 text-xs mt-1">
+            {error instanceof Error ? error.message : String(error)}
+          </p>
+        </div>
+      );
+    }
+  };
+
   const renderVehicleSummary = () => {
     try {
+      console.log("📊 [RENDER SUMMARY] Starting vehicle summary render", {
+        selectedAllocationVehicle,
+        selectedAllocationSlot,
+        timestamp: new Date().toISOString()
+      });
+
       const vehicle = getSelectedVehicle();
 
       if (!vehicle) {
+        console.warn("⚠️ [RENDER SUMMARY] No vehicle selected");
         return null;
       }
+
+      console.log("✅ [RENDER SUMMARY] Vehicle found for summary", {
+        vehicleId: vehicle._id,
+        vehicleKeys: Object.keys(vehicle),
+        timestamp: new Date().toISOString()
+      });
 
       // Defensive property access with strict type conversion
       let vehicleName = 'Unknown Vehicle';
@@ -1571,8 +1956,21 @@ const AdminBookingManagement: React.FC = () => {
         plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
         currentOrders = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
         maxOrders = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+
+        console.log("📝 [RENDER SUMMARY] Vehicle properties extracted", {
+          vehicleName,
+          plateNumber,
+          currentOrders,
+          maxOrders,
+          timestamp: new Date().toISOString()
+        });
       } catch (e) {
-        console.warn("Error parsing vehicle properties:", e);
+        console.error("❌ [RENDER SUMMARY] Error parsing vehicle properties", {
+          error: e,
+          errorMessage: e instanceof Error ? e.message : String(e),
+          vehicle,
+          timestamp: new Date().toISOString()
+        });
       }
 
       return (
@@ -1591,7 +1989,12 @@ const AdminBookingManagement: React.FC = () => {
         </div>
       );
     } catch (error) {
-      console.error("Error rendering vehicle summary:", error);
+      console.error("❌ [RENDER SUMMARY] Error rendering vehicle summary", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return null;
     }
   };
@@ -1604,6 +2007,14 @@ const AdminBookingManagement: React.FC = () => {
       </div>
     );
   }
+
+  console.log("🎯 [ADMIN BOOKING MANAGEMENT] Component rendering", {
+    loading,
+    showVehicleAllocationModal,
+    availableVehiclesCount: availableVehicles.length,
+    selectedVehicle: selectedAllocationVehicle,
+    timestamp: new Date().toISOString()
+  });
 
   return (
     <div className="min-h-screen h-screen flex flex-col bg-gray-50">
@@ -3222,13 +3633,32 @@ const AdminBookingManagement: React.FC = () => {
       </Dialog>
 
       {/* Vehicle Allocation Modal */}
-      <Dialog open={showVehicleAllocationModal} onOpenChange={setShowVehicleAllocationModal}>
+      <Dialog
+        open={showVehicleAllocationModal}
+        onOpenChange={(isOpen) => {
+          console.log("🔓 [VEHICLE MODAL] Modal open state changed", {
+            isOpen,
+            hasBooking: !!vehicleAllocationBooking,
+            allocationFor: vehicleAllocationFor,
+            vehiclesLoaded: availableVehicles.length,
+            timestamp: new Date().toISOString()
+          });
+          setShowVehicleAllocationModal(isOpen);
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {vehicleAllocationFor === 'pickup' ? '🚗 Allocate Pickup Vehicle' : '🚚 Allocate Delivery Vehicle'}
             </DialogTitle>
           </DialogHeader>
+
+          {console.log("📋 [VEHICLE MODAL] Modal content rendering", {
+            hasBooking: !!vehicleAllocationBooking,
+            bookingId: vehicleAllocationBooking?._id,
+            bookingType: typeof vehicleAllocationBooking,
+            timestamp: new Date().toISOString()
+          }) || null}
 
           {vehicleAllocationBooking && typeof vehicleAllocationBooking === 'object' && (
             <div className="space-y-6">
@@ -3269,58 +3699,7 @@ const AdminBookingManagement: React.FC = () => {
               {/* Select Vehicle */}
               <div className="space-y-2">
                 <Label htmlFor="vehicle-select">Select Vehicle for {vehicleAllocationFor === 'pickup' ? 'Pickup' : 'Delivery'}</Label>
-                {loadingVehicles ? (
-                  <div className="p-4 text-center text-gray-600">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
-                    <p>Loading vehicles...</p>
-                  </div>
-                ) : availableVehicles.length === 0 ? (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-yellow-800 text-sm">
-                      ⚠️ No active vehicles found for this vendor. Please ensure vehicles are assigned to the vendor.
-                    </p>
-                  </div>
-                ) : (
-                  <Select value={selectedAllocationVehicle} onValueChange={setSelectedAllocationVehicle}>
-                    <SelectTrigger id="vehicle-select">
-                      <SelectValue placeholder="Select a vehicle..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableVehicles
-                        .filter((vehicle) => {
-                          try {
-                            return vehicle && typeof vehicle === 'object' && vehicle._id;
-                          } catch {
-                            return false;
-                          }
-                        })
-                        .map((vehicle) => {
-                          try {
-                            // Defensive property access for vehicle options
-                            const vehicleId = String(vehicle._id ?? '');
-                            const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
-                            const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
-                            const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
-                            const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
-
-                            return (
-                              <SelectItem key={vehicleId} value={vehicleId}>
-                                <div className="flex items-center gap-2">
-                                  <Truck className="w-3 h-3" />
-                                  <span>
-                                    {vehicleName} ({plateNumber}) - {currentCount}/{maxCount}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            );
-                          } catch (error) {
-                            console.warn("Error rendering vehicle option:", error, vehicle);
-                            return null;
-                          }
-                        })}
-                    </SelectContent>
-                  </Select>
-                )}
+                {renderVehicleSelect()}
               </div>
 
               {/* Select Time Slot */}
