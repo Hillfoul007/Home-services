@@ -1825,6 +1825,14 @@ const AdminBookingManagement: React.FC = () => {
     );
   }
 
+  console.log("🎯 [ADMIN BOOKING MANAGEMENT] Component rendering", {
+    loading,
+    showVehicleAllocationModal,
+    availableVehiclesCount: availableVehicles.length,
+    selectedVehicle: selectedAllocationVehicle,
+    timestamp: new Date().toISOString()
+  });
+
   return (
     <div className="min-h-screen h-screen flex flex-col bg-gray-50">
       <div className={viewMode === 'both' ? 'flex flex-col gap-4 md:flex-row md:items-center md:justify-between' : 'hidden'}>
