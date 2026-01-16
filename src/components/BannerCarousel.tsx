@@ -153,28 +153,28 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
           </div>
         </div>
 
-        {/* Navigation Arrows */}
+        {/* Navigation Arrows - Small and subtle */}
         {banners.length > 1 && (
           <>
             <button
               onClick={goToPrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-white/30 hover:bg-white/50 text-white p-2 rounded-full transition-all duration-200"
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded-full transition-all duration-200"
             >
-              <ChevronLeft className="h-6 w-6" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
 
             <button
               onClick={goToNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/30 hover:bg-white/50 text-white p-2 rounded-full transition-all duration-200"
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded-full transition-all duration-200"
             >
-              <ChevronRight className="h-6 w-6" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </>
         )}
 
-        {/* Dots Indicator */}
+        {/* Dots Indicator - Small and subtle */}
         {banners.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
             {banners.map((_, index) => (
               <button
                 key={index}
@@ -183,10 +183,10 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
                   setAutoRotateEnabled(false);
                   setTimeout(() => setAutoRotateEnabled(true), 5000);
                 }}
-                className={`h-2 rounded-full transition-all duration-300 ${
+                className={`rounded-full transition-all duration-300 ${
                   index === currentIndex
-                    ? "bg-white w-8"
-                    : "bg-white/50 w-2 hover:bg-white/75"
+                    ? "bg-white w-6 h-1.5"
+                    : "bg-white/40 w-1.5 h-1.5 hover:bg-white/60"
                 }`}
               />
             ))}
