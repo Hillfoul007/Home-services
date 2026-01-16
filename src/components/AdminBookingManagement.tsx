@@ -3215,7 +3215,18 @@ const AdminBookingManagement: React.FC = () => {
                     }
 
                     return (
-                      <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
+                      <Select
+                        value={selectedAllocationSlot}
+                        onValueChange={(value) => {
+                          try {
+                            console.log('📅 Time slot selected:', value);
+                            setSelectedAllocationSlot(value);
+                          } catch (error) {
+                            console.error('❌ Error selecting time slot:', error);
+                            toast.error('Error selecting time slot');
+                          }
+                        }}
+                      >
                         <SelectTrigger id="slot-select">
                           <SelectValue placeholder="Leave empty for no specific slot..." />
                         </SelectTrigger>
@@ -3231,17 +3242,22 @@ const AdminBookingManagement: React.FC = () => {
                               return true;
                             })
                             .map((slot) => {
-                              const isSlotFull = !slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip;
-                              const slotLabel = `${slot.start_time} - ${slot.end_time} (${slot.assigned_orders_count}/${vehicle.max_orders_per_trip})${isSlotFull ? ' - Full' : ''}`;
-                              return (
-                                <SelectItem
-                                  key={slot.start_time}
-                                  value={slot.start_time}
-                                  disabled={isSlotFull}
-                                >
-                                  {slotLabel}
-                                </SelectItem>
-                              );
+                              try {
+                                const isSlotFull = !slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip;
+                                const slotLabel = `${slot.start_time} - ${slot.end_time} (${slot.assigned_orders_count}/${vehicle.max_orders_per_trip})${isSlotFull ? ' - Full' : ''}`;
+                                return (
+                                  <SelectItem
+                                    key={slot.start_time}
+                                    value={slot.start_time}
+                                    disabled={isSlotFull}
+                                  >
+                                    {slotLabel}
+                                  </SelectItem>
+                                );
+                              } catch (err) {
+                                console.error('❌ Error rendering slot item:', slot, err);
+                                return null;
+                              }
                             })}
                         </SelectContent>
                       </Select>
