@@ -125,11 +125,13 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
       {/* Banner Carousel */}
       <div className="relative w-full mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-laundrify-purple to-laundrify-pink">
         <div
-          className="relative w-full h-48 md:h-64 cursor-pointer flex items-center justify-center bg-cover bg-center transition-all duration-500"
+          className="relative w-full h-40 md:h-56 cursor-pointer flex items-center justify-center bg-cover bg-center bg-no-repeat transition-all duration-500"
           style={{
             backgroundImage: currentBanner.imageUrl
               ? `url(${currentBanner.imageUrl})`
               : undefined,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
           onClick={() => handleBannerClick(currentBanner)}
         >
