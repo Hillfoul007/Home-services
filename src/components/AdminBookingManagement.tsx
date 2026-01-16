@@ -1741,6 +1741,189 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
+  const renderVehicleSelect = () => {
+    try {
+      console.log("🛠️ [RENDER VEHICLE SELECT] Starting vehicle select render", {
+        availableVehiclesCount: availableVehicles.length,
+        selectedVehicle: selectedAllocationVehicle,
+        loadingVehicles,
+        timestamp: new Date().toISOString()
+      });
+
+      if (loadingVehicles) {
+        return (
+          <div className="p-4 text-center text-gray-600">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
+            <p>Loading vehicles...</p>
+          </div>
+        );
+      }
+
+      if (availableVehicles.length === 0) {
+        return (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm">
+              ⚠️ No active vehicles found for this vendor. Please ensure vehicles are assigned to the vendor.
+            </p>
+          </div>
+        );
+      }
+
+      console.log("🎨 [RENDER VEHICLE SELECT] About to create Select component", {
+        vehicleCount: availableVehicles.length,
+        selectedValue: selectedAllocationVehicle,
+        timestamp: new Date().toISOString()
+      });
+
+      // Create filtered and mapped items separately for debugging
+      const filteredVehicles: any[] = [];
+      try {
+        console.log("🔍 [RENDER VEHICLE SELECT] Starting filter operation");
+        for (let i = 0; i < availableVehicles.length; i++) {
+          const vehicle = availableVehicles[i];
+          console.log(`🔍 [RENDER VEHICLE SELECT] Checking vehicle ${i}`, {
+            index: i,
+            vehicleId: vehicle?._id,
+            isValid: vehicle && typeof vehicle === 'object' && vehicle._id
+          });
+
+          if (vehicle && typeof vehicle === 'object' && vehicle._id) {
+            filteredVehicles.push(vehicle);
+            console.log(`✅ [RENDER VEHICLE SELECT] Added vehicle ${i} to filtered list`, {
+              vehicleId: vehicle._id
+            });
+          }
+        }
+        console.log(`📊 [RENDER VEHICLE SELECT] Filter complete`, {
+          originalCount: availableVehicles.length,
+          filteredCount: filteredVehicles.length,
+          timestamp: new Date().toISOString()
+        });
+      } catch (filterErr) {
+        console.error("❌ [RENDER VEHICLE SELECT] Error during filter", {
+          error: filterErr,
+          errorMessage: filterErr instanceof Error ? filterErr.message : String(filterErr)
+        });
+      }
+
+      return (
+        <Select
+          value={selectedAllocationVehicle}
+          onValueChange={(value) => {
+            console.log("🚗 [VEHICLE DROPDOWN] Selection changed", {
+              selectedValue: value,
+              previousValue: selectedAllocationVehicle,
+              availableVehiclesCount: availableVehicles.length,
+              timestamp: new Date().toISOString()
+            });
+
+            try {
+              const foundVehicle = availableVehicles.find(v => v && typeof v === 'object' && v._id === value);
+              console.log("🔍 [VEHICLE DROPDOWN] Found vehicle details", {
+                vehicleId: value,
+                foundVehicle: foundVehicle,
+                vehicleKeys: foundVehicle ? Object.keys(foundVehicle) : [],
+                timestamp: new Date().toISOString()
+              });
+
+              setSelectedAllocationVehicle(value);
+              console.log("✅ [VEHICLE DROPDOWN] State updated successfully", {
+                newValue: value,
+                timestamp: new Date().toISOString()
+              });
+            } catch (err) {
+              console.error("❌ [VEHICLE DROPDOWN] Error during selection", {
+                error: err,
+                errorMessage: err instanceof Error ? err.message : String(err),
+                errorStack: err instanceof Error ? err.stack : undefined,
+                selectedValue: value,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }}
+        >
+          <SelectTrigger id="vehicle-select">
+            <SelectValue placeholder="Select a vehicle..." />
+          </SelectTrigger>
+          <SelectContent>
+            {console.log("🎨 [VEHICLE SELECT CONTENT] Starting SelectContent render", {
+              filteredVehiclesCount: filteredVehicles.length,
+              timestamp: new Date().toISOString()
+            }) || null}
+            {filteredVehicles.map((vehicle, mapIndex) => {
+              try {
+                console.log(`🎨 [VEHICLE RENDER] Rendering vehicle at mapIndex ${mapIndex}`, {
+                  mapIndex,
+                  vehicleId: vehicle?._id,
+                  vehicleName: vehicle?.name
+                });
+
+                if (!vehicle || typeof vehicle !== 'object') {
+                  console.error(`❌ [VEHICLE RENDER] Vehicle is invalid at ${mapIndex}`, {
+                    vehicle,
+                    type: typeof vehicle
+                  });
+                  return null;
+                }
+
+                const vehicleId = String(vehicle._id ?? '');
+                const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
+                const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
+                const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
+                const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+
+                console.log(`✅ [VEHICLE RENDER] Vehicle ${mapIndex} properties extracted`, {
+                  vehicleId,
+                  vehicleName,
+                  plateNumber,
+                  currentCount,
+                  maxCount,
+                  timestamp: new Date().toISOString()
+                });
+
+                return (
+                  <SelectItem key={vehicleId} value={vehicleId}>
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-3 h-3" />
+                      <span>
+                        {vehicleName} ({plateNumber}) - {currentCount}/{maxCount}
+                      </span>
+                    </div>
+                  </SelectItem>
+                );
+              } catch (error) {
+                console.error(`❌ [VEHICLE RENDER] Error rendering vehicle at ${mapIndex}`, {
+                  error,
+                  errorMessage: error instanceof Error ? error.message : String(error),
+                  errorStack: error instanceof Error ? error.stack : undefined,
+                  vehicle,
+                  vehicleId: vehicle?._id,
+                  timestamp: new Date().toISOString()
+                });
+                return null;
+              }
+            })}
+          </SelectContent>
+        </Select>
+      );
+    } catch (error) {
+      console.error("❌ [RENDER VEHICLE SELECT] Fatal error in renderVehicleSelect", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+      return (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800 text-sm font-semibold">⚠️ Error rendering vehicle select</p>
+          <p className="text-red-700 text-xs mt-1">
+            {error instanceof Error ? error.message : String(error)}
+          </p>
+        </div>
+      );
+    }
+  };
+
   const renderVehicleSummary = () => {
     try {
       console.log("📊 [RENDER SUMMARY] Starting vehicle summary render", {
