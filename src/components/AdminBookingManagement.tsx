@@ -3176,21 +3176,17 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {(() => {
-                        const validVehicles = availableVehicles.filter(
-                          (vehicle) => vehicle?._id && vehicle?.name && vehicle?.number_plate
-                        );
-                        console.log(`📋 Rendering ${validVehicles.length} valid vehicles for selection`);
-                        return validVehicles.map((vehicle, index) => {
+                      {availableVehicles
+                        .filter((vehicle) => vehicle?._id && vehicle?.name && vehicle?.number_plate)
+                        .map((vehicle) => {
                           const vehicleId = String(vehicle._id);
                           const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${vehicle.current_orders_count || 0}/${vehicle.max_orders_per_trip || 10}`;
                           return (
-                            <SelectItem key={`vehicle-${index}-${vehicleId}`} value={vehicleId}>
+                            <SelectItem key={vehicleId} value={vehicleId}>
                               {vehicleLabel}
                             </SelectItem>
                           );
-                        });
-                      })()}
+                        })}
                     </SelectContent>
                   </Select>
                 )}
