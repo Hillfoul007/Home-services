@@ -133,22 +133,22 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
           }}
           onClick={() => handleBannerClick(currentBanner)}
         >
-          {/* Overlay */}
-          <div className="absolute inset-0 bg-black/20"></div>
+          {/* Overlay - Subtle to show background */}
+          <div className="absolute inset-0 bg-black/10"></div>
 
-          {/* Content */}
-          <div className="relative z-10 text-center text-white px-6 py-8">
-            <h3 className="text-2xl md:text-3xl font-bold mb-2">
+          {/* Content - Minimal, positioned at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 z-10 text-center text-white px-4 py-3 bg-gradient-to-t from-black/40 to-transparent">
+            <h3 className="text-lg md:text-xl font-bold mb-1">
               {currentBanner.title}
             </h3>
             {currentBanner.description && (
-              <p className="text-white/90 text-sm md:text-base mb-4">
+              <p className="text-white/90 text-xs md:text-sm mb-2 line-clamp-1">
                 {currentBanner.description}
               </p>
             )}
-            <button className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all duration-200 text-white font-medium">
+            <button className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-md transition-all duration-200 text-white text-xs font-medium">
               Explore
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink className="h-3 w-3" />
             </button>
           </div>
         </div>
