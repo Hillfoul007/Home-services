@@ -1439,11 +1439,28 @@ const AdminBookingManagement: React.FC = () => {
 
   // Helper functions for vehicle allocation modal - with defensive programming
   const getSelectedVehicle = () => {
-    if (!selectedAllocationVehicle || !Array.isArray(availableVehicles)) {
+    try {
+      if (!selectedAllocationVehicle || typeof selectedAllocationVehicle !== 'string') {
+        return null;
+      }
+
+      if (!Array.isArray(availableVehicles)) {
+        return null;
+      }
+
+      const vehicle = availableVehicles.find((v) => {
+        try {
+          return v && typeof v === 'object' && v._id === selectedAllocationVehicle;
+        } catch {
+          return false;
+        }
+      });
+
+      return vehicle && typeof vehicle === 'object' ? vehicle : null;
+    } catch (error) {
+      console.error("Error getting selected vehicle:", error);
       return null;
     }
-    const vehicle = availableVehicles.find(v => v && v._id === selectedAllocationVehicle);
-    return vehicle || null;
   };
 
   const renderTimeSlotSelect = () => {
