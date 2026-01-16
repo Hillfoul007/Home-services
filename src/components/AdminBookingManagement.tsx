@@ -1548,30 +1548,65 @@ const AdminBookingManagement: React.FC = () => {
 
   const renderTimeSlotSelect = () => {
     try {
+      console.log("⏰ [RENDER TIME SLOT] Starting time slot render", {
+        selectedAllocationVehicle,
+        timestamp: new Date().toISOString()
+      });
+
       const vehicle = getSelectedVehicle();
 
       // Defensive checks
       if (!vehicle) {
-        console.debug("No vehicle selected for time slot render");
+        console.warn("⚠️ [RENDER TIME SLOT] No vehicle selected for time slot render");
         return null;
       }
 
+      console.log("✅ [RENDER TIME SLOT] Vehicle found", {
+        vehicleId: vehicle._id,
+        vehicleName: vehicle.name,
+        hasSlots: !!vehicle.availability_slots,
+        slotsCount: Array.isArray(vehicle.availability_slots) ? vehicle.availability_slots.length : 0,
+        timestamp: new Date().toISOString()
+      });
+
       if (!Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
-        console.debug("Vehicle has no availability slots");
+        console.debug("⚠️ [RENDER TIME SLOT] Vehicle has no availability slots", {
+          hasSlots: !!vehicle.availability_slots,
+          slotsType: typeof vehicle.availability_slots,
+          timestamp: new Date().toISOString()
+        });
         return null;
       }
 
       // Filter out invalid slots before mapping
-      const validSlots = vehicle.availability_slots.filter((slot) => {
+      const validSlots = vehicle.availability_slots.filter((slot, slotIndex) => {
         try {
-          return slot && typeof slot === 'object' && (slot.start_time || slot.start_time === '');
-        } catch {
+          const isValid = slot && typeof slot === 'object' && (slot.start_time || slot.start_time === '');
+          if (!isValid) {
+            console.warn(`⚠️ [RENDER TIME SLOT] Invalid slot at index ${slotIndex}`, {
+              slot,
+              hasObject: slot && typeof slot === 'object',
+              hasStartTime: slot?.start_time !== undefined
+            });
+          }
+          return isValid;
+        } catch (filterErr) {
+          console.error(`❌ [RENDER TIME SLOT] Error filtering slot at index ${slotIndex}`, {
+            error: filterErr,
+            slot
+          });
           return false;
         }
       });
 
+      console.log("📋 [RENDER TIME SLOT] Slots filtered", {
+        originalCount: vehicle.availability_slots.length,
+        validCount: validSlots.length,
+        timestamp: new Date().toISOString()
+      });
+
       if (validSlots.length === 0) {
-        console.debug("No valid slots found after filtering");
+        console.debug("⚠️ [RENDER TIME SLOT] No valid slots found after filtering");
         return null;
       }
 
