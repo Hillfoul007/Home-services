@@ -3207,22 +3207,35 @@ const AdminBookingManagement: React.FC = () => {
               </div>
 
               {/* Select Time Slot */}
-              {selectedAllocationVehicle && availableVehicles.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
-                  {(() => {
-                    const vehicle = availableVehicles.find(v => String(v._id) === String(selectedAllocationVehicle));
-                    if (!vehicle?.availability_slots || !Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
-                      return null;
+              {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
+                try {
+                  const vehicle = availableVehicles.find(v => {
+                    try {
+                      return String(v?._id || '') === String(selectedAllocationVehicle || '');
+                    } catch (e) {
+                      console.warn('❌ Error comparing vehicle IDs:', e);
+                      return false;
                     }
+                  });
 
-                    return (
+                  if (!vehicle) {
+                    console.warn('⚠️ Vehicle not found for ID:', selectedAllocationVehicle);
+                    return null;
+                  }
+
+                  if (!vehicle.availability_slots || !Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
                       <Select
                         value={selectedAllocationSlot}
                         onValueChange={(value) => {
                           try {
                             console.log('📅 Time slot selected:', value);
-                            setSelectedAllocationSlot(value);
+                            setSelectedAllocationSlot(value || '');
                           } catch (error) {
                             console.error('❌ Error selecting time slot:', error);
                             toast.error('Error selecting time slot');
@@ -3234,17 +3247,17 @@ const AdminBookingManagement: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">No Specific Slot</SelectItem>
-                          {vehicle.availability_slots
+                          {(vehicle.availability_slots || [])
                             .filter(slot => slot?.start_time && slot?.end_time)
                             .map(slot => {
                               try {
-                                const assigned = parseInt(String(slot.assigned_orders_count || 0));
-                                const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10));
+                                const assigned = parseInt(String(slot.assigned_orders_count || 0)) || 0;
+                                const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10)) || 10;
                                 const isSlotFull = !slot.is_available || assigned >= maxOrders;
                                 const slotLabel = `${slot.start_time} - ${slot.end_time} (${assigned}/${maxOrders})${isSlotFull ? ' - Full' : ''}`;
                                 return (
                                   <SelectItem
-                                    key={slot.start_time}
+                                    key={`slot-${slot.start_time}`}
                                     value={slot.start_time}
                                     disabled={isSlotFull}
                                   >
@@ -3259,10 +3272,13 @@ const AdminBookingManagement: React.FC = () => {
                             .filter(Boolean)}
                         </SelectContent>
                       </Select>
-                    );
-                  })()}
-                </div>
-              )}
+                    </div>
+                  );
+                } catch (error) {
+                  console.error('❌ Error in time slot section:', error);
+                  return null;
+                }
+              })()}
 
               {/* Vehicle Summary */}
               {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
