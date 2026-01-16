@@ -3279,34 +3279,38 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableVehicles.map((vehicle) => {
-                        try {
-                          // Defensive property access for vehicle options
-                          const vehicleId = vehicle?._id || '';
-                          const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
-                          const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
-                          const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
-                          const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+                      {availableVehicles
+                        .filter((vehicle) => {
+                          try {
+                            return vehicle && typeof vehicle === 'object' && vehicle._id;
+                          } catch {
+                            return false;
+                          }
+                        })
+                        .map((vehicle) => {
+                          try {
+                            // Defensive property access for vehicle options
+                            const vehicleId = String(vehicle._id ?? '');
+                            const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
+                            const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
+                            const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
+                            const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
 
-                          if (!vehicleId) {
+                            return (
+                              <SelectItem key={vehicleId} value={vehicleId}>
+                                <div className="flex items-center gap-2">
+                                  <Truck className="w-3 h-3" />
+                                  <span>
+                                    {vehicleName} ({plateNumber}) - {currentCount}/{maxCount}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            );
+                          } catch (error) {
+                            console.warn("Error rendering vehicle option:", error, vehicle);
                             return null;
                           }
-
-                          return (
-                            <SelectItem key={vehicleId} value={vehicleId}>
-                              <div className="flex items-center gap-2">
-                                <Truck className="w-3 h-3" />
-                                <span>
-                                  {vehicleName} ({plateNumber}) - {currentCount}/{maxCount}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          );
-                        } catch (error) {
-                          console.warn("Error rendering vehicle option:", error);
-                          return null;
-                        }
-                      })}
+                        })}
                     </SelectContent>
                   </Select>
                 )}
