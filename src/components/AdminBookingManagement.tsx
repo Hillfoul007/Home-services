@@ -729,13 +729,20 @@ const AdminBookingManagement: React.FC = () => {
   const fetchAvailableVehicles = async (vendorId: string) => {
     try {
       setLoadingVehicles(true);
+      console.log("🚗 Fetching vehicles for vendor:", vendorId);
       const endpoint = `/admin/vehicles?vendor_id=${encodeURIComponent(vendorId)}`;
       const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
       if (response.data?.vehicles) {
-        setAvailableVehicles(response.data.vehicles);
+        console.log("✅ Fetched vehicles:", response.data.vehicles);
+        // Validate vehicles before setting state
+        const validVehicles = Array.isArray(response.data.vehicles) ? response.data.vehicles : [];
+        setAvailableVehicles(validVehicles);
+      } else {
+        console.warn("⚠️ No vehicles in response:", response.data);
+        setAvailableVehicles([]);
       }
     } catch (error) {
-      console.error("Error fetching vehicles:", error);
+      console.error("❌ Error fetching vehicles:", error);
       toast.error("Failed to fetch available vehicles");
       setAvailableVehicles([]);
     } finally {
@@ -1435,6 +1442,158 @@ const AdminBookingManagement: React.FC = () => {
         discount: +(discountAmount).toFixed(2)
       }
     };
+  };
+
+  // Helper functions for vehicle allocation modal - with defensive programming
+  const getSelectedVehicle = () => {
+    try {
+      if (!selectedAllocationVehicle || typeof selectedAllocationVehicle !== 'string') {
+        return null;
+      }
+
+      if (!Array.isArray(availableVehicles)) {
+        return null;
+      }
+
+      const vehicle = availableVehicles.find((v) => {
+        try {
+          return v && typeof v === 'object' && v._id === selectedAllocationVehicle;
+        } catch {
+          return false;
+        }
+      });
+
+      return vehicle && typeof vehicle === 'object' ? vehicle : null;
+    } catch (error) {
+      console.error("Error getting selected vehicle:", error);
+      return null;
+    }
+  };
+
+  const renderTimeSlotSelect = () => {
+    try {
+      const vehicle = getSelectedVehicle();
+
+      // Defensive checks
+      if (!vehicle) {
+        console.debug("No vehicle selected for time slot render");
+        return null;
+      }
+
+      if (!Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
+        console.debug("Vehicle has no availability slots");
+        return null;
+      }
+
+      // Filter out invalid slots before mapping
+      const validSlots = vehicle.availability_slots.filter((slot) => {
+        try {
+          return slot && typeof slot === 'object' && (slot.start_time || slot.start_time === '');
+        } catch {
+          return false;
+        }
+      });
+
+      if (validSlots.length === 0) {
+        console.debug("No valid slots found after filtering");
+        return null;
+      }
+
+      return (
+        <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
+          <SelectTrigger id="slot-select">
+            <SelectValue placeholder="Leave empty for no specific slot..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">No Specific Slot</SelectItem>
+            {validSlots.map((slot, slotIndex) => {
+              try {
+                // Defensive property access with strict type checking
+                const startTime = String(slot?.start_time ?? '') || '';
+                const endTime = String(slot?.end_time ?? '') || '';
+                const isAvailable = slot?.is_available !== false; // default to true if not specified
+                const assignedCount = Math.max(0, Number(slot?.assigned_orders_count ?? 0) || 0);
+                const maxOrders = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+                const isFull = !isAvailable || assignedCount >= maxOrders;
+
+                // Skip rendering if no start time
+                if (!startTime) {
+                  return null;
+                }
+
+                return (
+                  <SelectItem
+                    key={`slot-${slotIndex}-${startTime}`}
+                    value={startTime}
+                    disabled={isFull}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3 h-3" />
+                      <span>
+                        {startTime} - {endTime} ({assignedCount}/{maxOrders})
+                      </span>
+                      {isFull && (
+                        <span className="text-red-600 text-xs ml-2">Full</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                );
+              } catch (slotError) {
+                console.warn("Error parsing slot at index", slotIndex, slotError);
+                return null;
+              }
+            })}
+          </SelectContent>
+        </Select>
+      );
+    } catch (error) {
+      console.error("Error rendering time slot select:", error);
+      return null;
+    }
+  };
+
+  const renderVehicleSummary = () => {
+    try {
+      const vehicle = getSelectedVehicle();
+
+      if (!vehicle) {
+        return null;
+      }
+
+      // Defensive property access with strict type conversion
+      let vehicleName = 'Unknown Vehicle';
+      let plateNumber = 'N/A';
+      let currentOrders = 0;
+      let maxOrders = 0;
+
+      try {
+        vehicleName = String(vehicle?.name ?? 'Unknown Vehicle').trim() || 'Unknown Vehicle';
+        plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
+        currentOrders = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
+        maxOrders = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+      } catch (e) {
+        console.warn("Error parsing vehicle properties:", e);
+      }
+
+      return (
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <p className="text-sm">
+            <span className="font-semibold">Vehicle:</span> {vehicleName} ({plateNumber})
+          </p>
+          <p className="text-sm">
+            <span className="font-semibold">Capacity:</span> {currentOrders}/{maxOrders} orders
+          </p>
+          {selectedAllocationSlot && (
+            <p className="text-sm">
+              <span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}
+            </p>
+          )}
+        </div>
+      );
+    } catch (error) {
+      console.error("Error rendering vehicle summary:", error);
+      return null;
+    }
   };
 
   if (loading) {
@@ -3071,7 +3230,7 @@ const AdminBookingManagement: React.FC = () => {
             </DialogTitle>
           </DialogHeader>
 
-          {vehicleAllocationBooking && (
+          {vehicleAllocationBooking && typeof vehicleAllocationBooking === 'object' && (
             <div className="space-y-6">
               {/* Order Details */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -3079,15 +3238,15 @@ const AdminBookingManagement: React.FC = () => {
                 <div className="grid gap-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Order ID:</span>
-                    <span className="font-mono font-semibold">{vehicleAllocationBooking.custom_order_id}</span>
+                    <span className="font-mono font-semibold">{String(vehicleAllocationBooking?.custom_order_id ?? 'N/A')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Customer:</span>
-                    <span>{vehicleAllocationBooking.name}</span>
+                    <span>{String(vehicleAllocationBooking?.name ?? 'Unknown')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Vendor:</span>
-                    <span>{vehicleAllocationBooking.assignedVendor || 'Not assigned'}</span>
+                    <span>{String(vehicleAllocationBooking?.assignedVendor ?? 'Not assigned')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
@@ -3095,14 +3254,14 @@ const AdminBookingManagement: React.FC = () => {
                     </span>
                     <span>
                       {vehicleAllocationFor === 'pickup'
-                        ? `${vehicleAllocationBooking.scheduled_date} at ${vehicleAllocationBooking.scheduled_time}`
-                        : `${vehicleAllocationBooking.delivery_date} at ${vehicleAllocationBooking.delivery_time}`
+                        ? `${String(vehicleAllocationBooking?.scheduled_date ?? 'N/A')} at ${String(vehicleAllocationBooking?.scheduled_time ?? 'N/A')}`
+                        : `${String(vehicleAllocationBooking?.delivery_date ?? 'N/A')} at ${String(vehicleAllocationBooking?.delivery_time ?? 'N/A')}`
                       }
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Address:</span>
-                    <span className="text-right">{vehicleAllocationBooking.address}</span>
+                    <span className="text-right">{String(vehicleAllocationBooking?.address ?? 'N/A')}</span>
                   </div>
                 </div>
               </div>
@@ -3127,16 +3286,38 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableVehicles.map((vehicle) => (
-                        <SelectItem key={vehicle._id} value={vehicle._id}>
-                          <div className="flex items-center gap-2">
-                            <Truck className="w-3 h-3" />
-                            <span>
-                              {vehicle.name} ({vehicle.number_plate}) - {vehicle.current_orders_count}/{vehicle.max_orders_per_trip}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {availableVehicles
+                        .filter((vehicle) => {
+                          try {
+                            return vehicle && typeof vehicle === 'object' && vehicle._id;
+                          } catch {
+                            return false;
+                          }
+                        })
+                        .map((vehicle) => {
+                          try {
+                            // Defensive property access for vehicle options
+                            const vehicleId = String(vehicle._id ?? '');
+                            const vehicleName = String(vehicle?.name ?? 'Unknown').trim() || 'Unknown';
+                            const plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
+                            const currentCount = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
+                            const maxCount = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+
+                            return (
+                              <SelectItem key={vehicleId} value={vehicleId}>
+                                <div className="flex items-center gap-2">
+                                  <Truck className="w-3 h-3" />
+                                  <span>
+                                    {vehicleName} ({plateNumber}) - {currentCount}/{maxCount}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            );
+                          } catch (error) {
+                            console.warn("Error rendering vehicle option:", error, vehicle);
+                            return null;
+                          }
+                        })}
                     </SelectContent>
                   </Select>
                 )}
@@ -3146,60 +3327,22 @@ const AdminBookingManagement: React.FC = () => {
               {selectedAllocationVehicle && availableVehicles.length > 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
-                  {(() => {
-                    const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                    if (!vehicle?.availability_slots) return null;
-
-                    return (
-                      <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
-                        <SelectTrigger id="slot-select">
-                          <SelectValue placeholder="Leave empty for no specific slot..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">No Specific Slot</SelectItem>
-                          {vehicle.availability_slots.map((slot) => (
-                            <SelectItem
-                              key={slot.start_time}
-                              value={slot.start_time}
-                              disabled={!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  {slot.start_time} - {slot.end_time} ({slot.assigned_orders_count}/{vehicle.max_orders_per_trip})
-                                </span>
-                                {!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip ? (
-                                  <span className="text-red-600 text-xs ml-2">Full</span>
-                                ) : null}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  })()}
+                  {renderTimeSlotSelect()}
                 </div>
               )}
 
               {/* Vehicle Summary */}
-              {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
-                const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                return vehicle ? (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicle.name} ({vehicle.number_plate})</p>
-                    <p className="text-sm"><span className="font-semibold">Capacity:</span> {vehicle.current_orders_count}/{vehicle.max_orders_per_trip} orders</p>
-                    {selectedAllocationSlot && (
-                      <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
-                    )}
-                  </div>
-                ) : null;
-              })()}
+              {selectedAllocationVehicle && availableVehicles.length > 0 && renderVehicleSummary()}
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
                 <Button
-                  onClick={() => handleVehicleAllocation(vehicleAllocationBooking._id, selectedAllocationVehicle, vehicleAllocationFor)}
-                  disabled={!selectedAllocationVehicle}
+                  onClick={() => {
+                    if (vehicleAllocationBooking && vehicleAllocationBooking._id) {
+                      handleVehicleAllocation(vehicleAllocationBooking._id, selectedAllocationVehicle, vehicleAllocationFor);
+                    }
+                  }}
+                  disabled={!selectedAllocationVehicle || !vehicleAllocationBooking?._id}
                   className="flex-1 bg-green-600 hover:bg-green-700"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
