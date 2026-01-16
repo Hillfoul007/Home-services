@@ -3176,28 +3176,31 @@ const AdminBookingManagement: React.FC = () => {
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableVehicles.length > 0 && (
-                        <>
-                          {(() => {
-                            console.log('🚗 Rendering vehicles. Total:', availableVehicles.length);
-                            availableVehicles.forEach((v, idx) => {
-                              console.log(`  Vehicle ${idx}:`, { _id: v._id, name: v.name, plate: v.number_plate });
-                            });
-                          })()}
-                          {availableVehicles
-                            .filter((vehicle) => vehicle?._id && vehicle?.name && vehicle?.number_plate)
-                            .map((vehicle) => {
-                              const vehicleId = String(vehicle._id);
-                              const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${vehicle.current_orders_count || 0}/${vehicle.max_orders_per_trip || 10}`;
-                              console.log(`📝 Creating SelectItem for:`, vehicleId, vehicleLabel);
-                              return (
-                                <SelectItem key={vehicleId} value={vehicleId}>
-                                  {vehicleLabel}
-                                </SelectItem>
-                              );
-                            })}
-                        </>
-                      )}
+                      {availableVehicles
+                        .filter(vehicle => {
+                          const valid = vehicle?._id && vehicle?.name && vehicle?.number_plate;
+                          if (!valid) {
+                            console.warn('⚠️ Skipping invalid vehicle:', vehicle);
+                          }
+                          return valid;
+                        })
+                        .map(vehicle => {
+                          try {
+                            const vehicleId = String(vehicle._id);
+                            const currentOrders = parseInt(String(vehicle.current_orders_count || 0));
+                            const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10));
+                            const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${currentOrders}/${maxOrders}`;
+                            return (
+                              <SelectItem key={vehicleId} value={vehicleId}>
+                                {vehicleLabel}
+                              </SelectItem>
+                            );
+                          } catch (err) {
+                            console.error('❌ Error rendering vehicle:', vehicle, err);
+                            return null;
+                          }
+                        })
+                        .filter(Boolean)}
                     </SelectContent>
                   </Select>
                 )}
