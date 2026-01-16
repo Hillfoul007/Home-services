@@ -3220,25 +3220,21 @@ const AdminBookingManagement: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">No Specific Slot</SelectItem>
-                          {(() => {
-                            const validSlots = vehicle.availability_slots.filter(
-                              (slot) => slot?.start_time && slot?.end_time
-                            );
-                            console.log(`📅 Rendering ${validSlots.length} valid slots for selection`);
-                            return validSlots.map((slot, index) => {
+                          {vehicle.availability_slots
+                            .filter((slot) => slot?.start_time && slot?.end_time)
+                            .map((slot) => {
                               const isSlotFull = !slot.is_available || (slot.assigned_orders_count || 0) >= (vehicle.max_orders_per_trip || 10);
                               const slotLabel = `${slot.start_time} - ${slot.end_time} (${slot.assigned_orders_count || 0}/${vehicle.max_orders_per_trip || 10})${isSlotFull ? ' - Full' : ''}`;
                               return (
                                 <SelectItem
-                                  key={`slot-${index}-${slot.start_time}`}
+                                  key={slot.start_time}
                                   value={slot.start_time}
                                   disabled={isSlotFull}
                                 >
                                   {slotLabel}
                                 </SelectItem>
                               );
-                            });
-                          })()}
+                            })}
                         </SelectContent>
                       </Select>
                     );
