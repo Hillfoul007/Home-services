@@ -3224,33 +3224,25 @@ const AdminBookingManagement: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">No Specific Slot</SelectItem>
-                          {vehicle.availability_slots
-                            .filter((slot) => {
-                              // Filter out invalid slots before mapping
-                              if (!slot?.start_time || !slot?.end_time) {
-                                console.warn('⚠️ Invalid slot data:', slot);
-                                return false;
-                              }
-                              return true;
-                            })
-                            .map((slot) => {
-                              try {
-                                const isSlotFull = !slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip;
-                                const slotLabel = `${slot.start_time} - ${slot.end_time} (${slot.assigned_orders_count}/${vehicle.max_orders_per_trip})${isSlotFull ? ' - Full' : ''}`;
-                                return (
-                                  <SelectItem
-                                    key={slot.start_time}
-                                    value={slot.start_time}
-                                    disabled={isSlotFull}
-                                  >
-                                    {slotLabel}
-                                  </SelectItem>
-                                );
-                              } catch (err) {
-                                console.error('❌ Error rendering slot item:', slot, err);
-                                return null;
-                              }
-                            })}
+                          {(() => {
+                            const validSlots = vehicle.availability_slots.filter(
+                              (slot) => slot?.start_time && slot?.end_time
+                            );
+                            console.log(`📅 Rendering ${validSlots.length} valid slots for selection`);
+                            return validSlots.map((slot, index) => {
+                              const isSlotFull = !slot.is_available || (slot.assigned_orders_count || 0) >= (vehicle.max_orders_per_trip || 10);
+                              const slotLabel = `${slot.start_time} - ${slot.end_time} (${slot.assigned_orders_count || 0}/${vehicle.max_orders_per_trip || 10})${isSlotFull ? ' - Full' : ''}`;
+                              return (
+                                <SelectItem
+                                  key={`slot-${index}-${slot.start_time}`}
+                                  value={slot.start_time}
+                                  disabled={isSlotFull}
+                                >
+                                  {slotLabel}
+                                </SelectItem>
+                              );
+                            });
+                          })()}
                         </SelectContent>
                       </Select>
                     );
