@@ -1241,32 +1241,61 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleVehicleAllocation = async (bookingId: string, vehicleId: string, allocationFor: 'pickup' | 'delivery') => {
+    console.log("🚗 [VEHICLE ALLOCATION] Starting allocation process", {
+      bookingId,
+      vehicleId,
+      allocationFor,
+      selectedAllocationVehicle,
+      timestamp: new Date().toISOString()
+    });
+
     if (!selectedAllocationVehicle) {
+      console.warn("❌ [VEHICLE ALLOCATION] No vehicle selected");
       toast.error("Please select a vehicle");
       return;
     }
 
     try {
+      const requestBody = {
+        booking_id: bookingId,
+        vehicle_id: vehicleId,
+        slot_start_time: selectedAllocationSlot || null,
+      };
+      console.log("📤 [VEHICLE ALLOCATION] Sending request to backend", requestBody);
+
       const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
         method: "POST",
-        body: {
-          booking_id: bookingId,
-          vehicle_id: vehicleId,
-          slot_start_time: selectedAllocationSlot || null,
-        },
+        body: requestBody,
+      });
+
+      console.log("📥 [VEHICLE ALLOCATION] Received response from backend", {
+        status: response.status,
+        data: response.data,
+        error: response.error,
+        timestamp: new Date().toISOString()
       });
 
       if (response.data?.success) {
+        console.log("✅ [VEHICLE ALLOCATION] Allocation successful");
         toast.success(`✅ Order allocated to vehicle for ${allocationFor}`);
         setShowVehicleAllocationModal(false);
         setSelectedAllocationVehicle('');
         setSelectedAllocationSlot('');
         await fetchBookings();
       } else {
+        console.error("❌ [VEHICLE ALLOCATION] Backend returned error", {
+          error: response.data?.error,
+          data: response.data
+        });
         toast.error(response.data?.error || "Failed to allocate vehicle");
       }
     } catch (error) {
-      console.error("Error allocating vehicle:", error);
+      console.error("❌ [VEHICLE ALLOCATION] Exception caught", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to allocate vehicle");
     }
   };
