@@ -29,6 +29,9 @@ try {
 const app = express();
 const PORT = process.env.PORT || productionConfig.PORT || 3001;
 
+// Trust proxy - important for rate limiting behind proxies (Render, AWS, etc)
+app.set("trust proxy", 1);
+
 // Security middleware
 app.use(
   helmet({
