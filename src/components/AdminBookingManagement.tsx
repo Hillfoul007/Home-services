@@ -729,13 +729,20 @@ const AdminBookingManagement: React.FC = () => {
   const fetchAvailableVehicles = async (vendorId: string) => {
     try {
       setLoadingVehicles(true);
+      console.log("🚗 Fetching vehicles for vendor:", vendorId);
       const endpoint = `/admin/vehicles?vendor_id=${encodeURIComponent(vendorId)}`;
       const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
       if (response.data?.vehicles) {
-        setAvailableVehicles(response.data.vehicles);
+        console.log("✅ Fetched vehicles:", response.data.vehicles);
+        // Validate vehicles before setting state
+        const validVehicles = Array.isArray(response.data.vehicles) ? response.data.vehicles : [];
+        setAvailableVehicles(validVehicles);
+      } else {
+        console.warn("⚠️ No vehicles in response:", response.data);
+        setAvailableVehicles([]);
       }
     } catch (error) {
-      console.error("Error fetching vehicles:", error);
+      console.error("❌ Error fetching vehicles:", error);
       toast.error("Failed to fetch available vehicles");
       setAvailableVehicles([]);
     } finally {
