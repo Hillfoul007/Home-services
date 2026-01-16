@@ -1538,11 +1538,20 @@ const AdminBookingManagement: React.FC = () => {
         return null;
       }
 
-      // Defensive property access with fallbacks
-      const vehicleName = vehicle?.name ?? 'Unknown Vehicle';
-      const plateNumber = vehicle?.number_plate ?? 'N/A';
-      const currentOrders = vehicle?.current_orders_count ?? 0;
-      const maxOrders = vehicle?.max_orders_per_trip ?? 0;
+      // Defensive property access with strict type conversion
+      let vehicleName = 'Unknown Vehicle';
+      let plateNumber = 'N/A';
+      let currentOrders = 0;
+      let maxOrders = 0;
+
+      try {
+        vehicleName = String(vehicle?.name ?? 'Unknown Vehicle').trim() || 'Unknown Vehicle';
+        plateNumber = String(vehicle?.number_plate ?? 'N/A').trim() || 'N/A';
+        currentOrders = Math.max(0, Number(vehicle?.current_orders_count ?? 0) || 0);
+        maxOrders = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+      } catch (e) {
+        console.warn("Error parsing vehicle properties:", e);
+      }
 
       return (
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
