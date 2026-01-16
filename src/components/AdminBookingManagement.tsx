@@ -3246,38 +3246,7 @@ const AdminBookingManagement: React.FC = () => {
               {selectedAllocationVehicle && availableVehicles.length > 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
-                  {(() => {
-                    const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                    if (!vehicle?.availability_slots) return null;
-
-                    return (
-                      <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
-                        <SelectTrigger id="slot-select">
-                          <SelectValue placeholder="Leave empty for no specific slot..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">No Specific Slot</SelectItem>
-                          {vehicle.availability_slots.map((slot) => (
-                            <SelectItem
-                              key={slot.start_time}
-                              value={slot.start_time}
-                              disabled={!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  {slot.start_time} - {slot.end_time} ({slot.assigned_orders_count}/{vehicle.max_orders_per_trip})
-                                </span>
-                                {!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip ? (
-                                  <span className="text-red-600 text-xs ml-2">Full</span>
-                                ) : null}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  })()}
+                  {renderTimeSlotSelect()}
                 </div>
               )}
 
