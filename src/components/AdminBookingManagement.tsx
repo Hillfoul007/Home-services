@@ -3223,7 +3223,7 @@ const AdminBookingManagement: React.FC = () => {
             </DialogTitle>
           </DialogHeader>
 
-          {vehicleAllocationBooking && (
+          {vehicleAllocationBooking && typeof vehicleAllocationBooking === 'object' && (
             <div className="space-y-6">
               {/* Order Details */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -3231,15 +3231,15 @@ const AdminBookingManagement: React.FC = () => {
                 <div className="grid gap-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Order ID:</span>
-                    <span className="font-mono font-semibold">{vehicleAllocationBooking.custom_order_id}</span>
+                    <span className="font-mono font-semibold">{String(vehicleAllocationBooking?.custom_order_id ?? 'N/A')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Customer:</span>
-                    <span>{vehicleAllocationBooking.name}</span>
+                    <span>{String(vehicleAllocationBooking?.name ?? 'Unknown')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Vendor:</span>
-                    <span>{vehicleAllocationBooking.assignedVendor || 'Not assigned'}</span>
+                    <span>{String(vehicleAllocationBooking?.assignedVendor ?? 'Not assigned')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
@@ -3247,14 +3247,14 @@ const AdminBookingManagement: React.FC = () => {
                     </span>
                     <span>
                       {vehicleAllocationFor === 'pickup'
-                        ? `${vehicleAllocationBooking.scheduled_date} at ${vehicleAllocationBooking.scheduled_time}`
-                        : `${vehicleAllocationBooking.delivery_date} at ${vehicleAllocationBooking.delivery_time}`
+                        ? `${String(vehicleAllocationBooking?.scheduled_date ?? 'N/A')} at ${String(vehicleAllocationBooking?.scheduled_time ?? 'N/A')}`
+                        : `${String(vehicleAllocationBooking?.delivery_date ?? 'N/A')} at ${String(vehicleAllocationBooking?.delivery_time ?? 'N/A')}`
                       }
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Address:</span>
-                    <span className="text-right">{vehicleAllocationBooking.address}</span>
+                    <span className="text-right">{String(vehicleAllocationBooking?.address ?? 'N/A')}</span>
                   </div>
                 </div>
               </div>
