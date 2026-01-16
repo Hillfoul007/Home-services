@@ -1523,25 +1523,74 @@ const AdminBookingManagement: React.FC = () => {
   // Helper functions for vehicle allocation modal - with defensive programming
   const getSelectedVehicle = () => {
     try {
+      console.log("🔍 [GET SELECTED VEHICLE] Looking for selected vehicle", {
+        selectedAllocationVehicle,
+        isString: typeof selectedAllocationVehicle === 'string',
+        availableVehiclesCount: Array.isArray(availableVehicles) ? availableVehicles.length : 0,
+        timestamp: new Date().toISOString()
+      });
+
       if (!selectedAllocationVehicle || typeof selectedAllocationVehicle !== 'string') {
+        console.warn("⚠️ [GET SELECTED VEHICLE] Invalid selectedAllocationVehicle", {
+          selectedAllocationVehicle,
+          type: typeof selectedAllocationVehicle,
+          isEmpty: !selectedAllocationVehicle
+        });
         return null;
       }
 
       if (!Array.isArray(availableVehicles)) {
+        console.warn("⚠️ [GET SELECTED VEHICLE] availableVehicles is not an array", {
+          type: typeof availableVehicles,
+          value: availableVehicles
+        });
         return null;
       }
 
-      const vehicle = availableVehicles.find((v) => {
+      const vehicle = availableVehicles.find((v, index) => {
         try {
-          return v && typeof v === 'object' && v._id === selectedAllocationVehicle;
-        } catch {
+          const matches = v && typeof v === 'object' && v._id === selectedAllocationVehicle;
+          if (matches) {
+            console.log(`✅ [GET SELECTED VEHICLE] Found matching vehicle at index ${index}`, {
+              vehicleId: v._id,
+              vehicleName: v.name,
+              index
+            });
+          }
+          return matches;
+        } catch (findErr) {
+          console.warn(`⚠️ [GET SELECTED VEHICLE] Error checking vehicle at index ${index}`, {
+            error: findErr,
+            vehicle: v
+          });
           return false;
         }
       });
 
-      return vehicle && typeof vehicle === 'object' ? vehicle : null;
+      if (!vehicle) {
+        console.warn("⚠️ [GET SELECTED VEHICLE] No matching vehicle found", {
+          searchedId: selectedAllocationVehicle,
+          availableVehicles: availableVehicles.map(v => ({ id: v?._id, name: v?.name })),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const result = vehicle && typeof vehicle === 'object' ? vehicle : null;
+      console.log("🎯 [GET SELECTED VEHICLE] Returning vehicle", {
+        found: !!result,
+        vehicleId: result?._id,
+        vehicleName: result?.name,
+        timestamp: new Date().toISOString()
+      });
+      return result;
     } catch (error) {
-      console.error("Error getting selected vehicle:", error);
+      console.error("❌ [GET SELECTED VEHICLE] Error getting selected vehicle", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        selectedAllocationVehicle,
+        timestamp: new Date().toISOString()
+      });
       return null;
     }
   };
