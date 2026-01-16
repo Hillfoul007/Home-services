@@ -37,6 +37,7 @@ import AdminPGManagement from "./AdminPGManagement";
 import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
 import AdminUsersManagement from "./AdminUsersManagement";
 import AdminOrderAllocation from "./AdminOrderAllocation";
+import AdminBannerManagement from "./AdminBannerManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
