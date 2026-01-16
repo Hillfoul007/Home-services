@@ -34,16 +34,21 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
           const data = await response.json();
           if (data.banners && data.banners.length > 0) {
             setBanners(data.banners);
-            setLoading(false);
           }
+        } else {
+          console.warn("Failed to fetch banners:", response.status);
         }
       } catch (error) {
         console.error("Error fetching banners:", error);
+      } finally {
         setLoading(false);
       }
     };
 
     fetchBanners();
+    // Refresh banners every 5 minutes
+    const interval = setInterval(fetchBanners, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Auto-rotate banners
