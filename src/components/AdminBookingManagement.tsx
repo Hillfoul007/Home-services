@@ -1459,6 +1459,19 @@ const AdminBookingManagement: React.FC = () => {
         return null;
       }
 
+      // Filter out invalid slots before mapping
+      const validSlots = vehicle.availability_slots.filter((slot) => {
+        try {
+          return slot && typeof slot === 'object' && slot.start_time;
+        } catch {
+          return false;
+        }
+      });
+
+      if (validSlots.length === 0) {
+        return null;
+      }
+
       return (
         <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
           <SelectTrigger id="slot-select">
@@ -1466,18 +1479,33 @@ const AdminBookingManagement: React.FC = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">No Specific Slot</SelectItem>
-            {vehicle.availability_slots.map((slot) => {
-              // Defensive property access
-              const startTime = slot?.start_time ?? '';
-              const endTime = slot?.end_time ?? '';
-              const isAvailable = slot?.is_available ?? false;
-              const assignedCount = slot?.assigned_orders_count ?? 0;
-              const maxOrders = vehicle?.max_orders_per_trip ?? 0;
+            {validSlots.map((slot, index) => {
+              // Defensive property access with strict type checking
+              let startTime = '';
+              let endTime = '';
+              let isAvailable = false;
+              let assignedCount = 0;
+
+              try {
+                startTime = String(slot?.start_time ?? '');
+                endTime = String(slot?.end_time ?? '');
+                isAvailable = Boolean(slot?.is_available);
+                assignedCount = Number(slot?.assigned_orders_count ?? 0) || 0;
+              } catch (e) {
+                console.warn("Error parsing slot properties:", e);
+                return null;
+              }
+
+              if (!startTime) {
+                return null;
+              }
+
+              const maxOrders = Number(vehicle?.max_orders_per_trip ?? 0) || 0;
               const isFull = !isAvailable || assignedCount >= maxOrders;
 
               return (
                 <SelectItem
-                  key={startTime}
+                  key={`${startTime}-${index}`}
                   value={startTime}
                   disabled={isFull}
                 >
