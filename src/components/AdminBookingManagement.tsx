@@ -730,9 +730,35 @@ const AdminBookingManagement: React.FC = () => {
     try {
       setLoadingVehicles(true);
       const endpoint = `/admin/vehicles?vendor_id=${encodeURIComponent(vendorId)}`;
+      console.log('🚗 Fetching vehicles from:', endpoint);
+
       const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
-      if (response.data?.vehicles) {
-        setAvailableVehicles(response.data.vehicles);
+      console.log('🚗 Vehicles response:', response);
+
+      if (response.data?.vehicles && Array.isArray(response.data.vehicles)) {
+        // Validate and sanitize vehicle data
+        const validatedVehicles = response.data.vehicles.filter(vehicle => {
+          if (!vehicle._id) {
+            console.warn('⚠️ Vehicle missing _id:', vehicle);
+            return false;
+          }
+          if (!vehicle.name || !vehicle.number_plate) {
+            console.warn('⚠️ Vehicle missing name or number_plate:', vehicle);
+            return false;
+          }
+          if (vehicle.max_orders_per_trip === undefined || vehicle.current_orders_count === undefined) {
+            console.warn('⚠️ Vehicle missing capacity info:', vehicle);
+            return false;
+          }
+          return true;
+        });
+
+        console.log(`✅ Validated ${validatedVehicles.length} out of ${response.data.vehicles.length} vehicles`);
+        setAvailableVehicles(validatedVehicles);
+      } else {
+        console.error('❌ Invalid response structure:', response);
+        toast.error("Invalid vehicle data received from server");
+        setAvailableVehicles([]);
       }
     } catch (error) {
       console.error("Error fetching vehicles:", error);
@@ -1234,20 +1260,28 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const handleVehicleAllocation = async (bookingId: string, vehicleId: string, allocationFor: 'pickup' | 'delivery') => {
-    if (!selectedAllocationVehicle) {
-      toast.error("Please select a vehicle");
+    if (!selectedAllocationVehicle || !bookingId || !vehicleId) {
+      toast.error("Please select a vehicle and ensure booking is valid");
       return;
     }
 
     try {
+      // Ensure IDs are strings
+      const bookingIdStr = String(bookingId);
+      const vehicleIdStr = String(vehicleId);
+
+      console.log(`🚗 Allocating order ${bookingIdStr} to vehicle ${vehicleIdStr} for ${allocationFor}`);
+
       const response = await apiClient.adminRequest("/admin/order-allocation/allocate", {
         method: "POST",
         body: {
-          booking_id: bookingId,
-          vehicle_id: vehicleId,
+          booking_id: bookingIdStr,
+          vehicle_id: vehicleIdStr,
           slot_start_time: selectedAllocationSlot || null,
         },
       });
+
+      console.log('🚗 Allocation response:', response);
 
       if (response.data?.success) {
         toast.success(`✅ Order allocated to vehicle for ${allocationFor}`);
@@ -3122,77 +3156,190 @@ const AdminBookingManagement: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <Select value={selectedAllocationVehicle} onValueChange={setSelectedAllocationVehicle}>
+                  <Select
+                    value={selectedAllocationVehicle || ''}
+                    onValueChange={(value) => {
+                      try {
+                        console.log('🚗 Vehicle selected:', value);
+                        if (!value || value.trim() === '') {
+                          console.warn('⚠️ Empty vehicle value selected');
+                          return;
+                        }
+
+                        // Verify vehicle exists in list before setting state
+                        const vehicleExists = availableVehicles.some(v => String(v?._id || '') === String(value || ''));
+                        if (!vehicleExists) {
+                          console.error('❌ Vehicle not found in available list:', value);
+                          toast.error('Invalid vehicle selected');
+                          return;
+                        }
+
+                        setSelectedAllocationVehicle(value);
+                      } catch (error) {
+                        console.error('❌ Error selecting vehicle:', error);
+                        toast.error('Error selecting vehicle');
+                      }
+                    }}
+                  >
                     <SelectTrigger id="vehicle-select">
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableVehicles.map((vehicle) => (
-                        <SelectItem key={vehicle._id} value={vehicle._id}>
-                          <div className="flex items-center gap-2">
-                            <Truck className="w-3 h-3" />
-                            <span>
-                              {vehicle.name} ({vehicle.number_plate}) - {vehicle.current_orders_count}/{vehicle.max_orders_per_trip}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {availableVehicles
+                        .filter(vehicle => {
+                          try {
+                            const valid = vehicle?._id && vehicle?.name && vehicle?.number_plate;
+                            if (!valid) {
+                              console.warn('⚠️ Skipping invalid vehicle:', vehicle);
+                            }
+                            return valid;
+                          } catch (e) {
+                            console.warn('⚠️ Error filtering vehicle:', vehicle, e);
+                            return false;
+                          }
+                        })
+                        .map(vehicle => {
+                          try {
+                            const vehicleId = String(vehicle._id || '');
+                            if (!vehicleId) {
+                              console.warn('⚠️ Vehicle has no _id:', vehicle);
+                              return null;
+                            }
+
+                            const currentOrders = parseInt(String(vehicle.current_orders_count || 0)) || 0;
+                            const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10)) || 10;
+                            const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${currentOrders}/${maxOrders}`;
+
+                            return (
+                              <SelectItem key={vehicleId} value={vehicleId}>
+                                {vehicleLabel}
+                              </SelectItem>
+                            );
+                          } catch (err) {
+                            console.error('❌ Error rendering vehicle:', vehicle, err);
+                            return null;
+                          }
+                        })
+                        .filter(Boolean)}
                     </SelectContent>
                   </Select>
                 )}
               </div>
 
               {/* Select Time Slot */}
-              {selectedAllocationVehicle && availableVehicles.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
-                  {(() => {
-                    const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                    if (!vehicle?.availability_slots) return null;
+              {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
+                try {
+                  const vehicle = availableVehicles.find(v => {
+                    try {
+                      return String(v?._id || '') === String(selectedAllocationVehicle || '');
+                    } catch (e) {
+                      console.warn('❌ Error comparing vehicle IDs:', e);
+                      return false;
+                    }
+                  });
 
-                    return (
-                      <Select value={selectedAllocationSlot} onValueChange={setSelectedAllocationSlot}>
+                  if (!vehicle) {
+                    console.warn('⚠️ Vehicle not found for ID:', selectedAllocationVehicle);
+                    return null;
+                  }
+
+                  if (!vehicle.availability_slots || !Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      <Label htmlFor="slot-select">Select Time Slot (Optional)</Label>
+                      <Select
+                        value={selectedAllocationSlot}
+                        onValueChange={(value) => {
+                          try {
+                            console.log('📅 Time slot selected:', value);
+                            setSelectedAllocationSlot(value || '');
+                          } catch (error) {
+                            console.error('❌ Error selecting time slot:', error);
+                            toast.error('Error selecting time slot');
+                          }
+                        }}
+                      >
                         <SelectTrigger id="slot-select">
                           <SelectValue placeholder="Leave empty for no specific slot..." />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">No Specific Slot</SelectItem>
-                          {vehicle.availability_slots.map((slot) => (
-                            <SelectItem
-                              key={slot.start_time}
-                              value={slot.start_time}
-                              disabled={!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  {slot.start_time} - {slot.end_time} ({slot.assigned_orders_count}/{vehicle.max_orders_per_trip})
-                                </span>
-                                {!slot.is_available || slot.assigned_orders_count >= vehicle.max_orders_per_trip ? (
-                                  <span className="text-red-600 text-xs ml-2">Full</span>
-                                ) : null}
-                              </div>
-                            </SelectItem>
-                          ))}
+                          {(vehicle.availability_slots || [])
+                            .filter(slot => slot?.start_time && slot?.end_time)
+                            .map(slot => {
+                              try {
+                                const assigned = parseInt(String(slot.assigned_orders_count || 0)) || 0;
+                                const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10)) || 10;
+                                const isSlotFull = !slot.is_available || assigned >= maxOrders;
+                                const slotLabel = `${slot.start_time} - ${slot.end_time} (${assigned}/${maxOrders})${isSlotFull ? ' - Full' : ''}`;
+                                return (
+                                  <SelectItem
+                                    key={`slot-${slot.start_time}`}
+                                    value={slot.start_time}
+                                    disabled={isSlotFull}
+                                  >
+                                    {slotLabel}
+                                  </SelectItem>
+                                );
+                              } catch (err) {
+                                console.error('❌ Error rendering slot:', slot, err);
+                                return null;
+                              }
+                            })
+                            .filter(Boolean)}
                         </SelectContent>
                       </Select>
-                    );
-                  })()}
-                </div>
-              )}
+                    </div>
+                  );
+                } catch (error) {
+                  console.error('❌ Error in time slot section:', error);
+                  return null;
+                }
+              })()}
 
               {/* Vehicle Summary */}
               {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
-                const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                return vehicle ? (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicle.name} ({vehicle.number_plate})</p>
-                    <p className="text-sm"><span className="font-semibold">Capacity:</span> {vehicle.current_orders_count}/{vehicle.max_orders_per_trip} orders</p>
-                    {selectedAllocationSlot && (
-                      <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
-                    )}
-                  </div>
-                ) : null;
+                try {
+                  const vehicle = availableVehicles.find(v => {
+                    try {
+                      return String(v?._id || '') === String(selectedAllocationVehicle || '');
+                    } catch (e) {
+                      console.warn('❌ Error comparing vehicle IDs in summary:', e);
+                      return false;
+                    }
+                  });
+
+                  if (!vehicle) {
+                    console.warn('⚠️ Vehicle not found for summary, ID:', selectedAllocationVehicle);
+                    return null;
+                  }
+
+                  const vehicleName = vehicle.name || 'Unknown Vehicle';
+                  const vehiclePlate = vehicle.number_plate || 'N/A';
+                  const currentOrders = parseInt(String(vehicle.current_orders_count || 0)) || 0;
+                  const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10)) || 10;
+
+                  if (!vehicleName || vehicleName === 'Unknown Vehicle') {
+                    console.warn('⚠️ Vehicle missing required fields:', vehicle);
+                    return null;
+                  }
+
+                  return (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicleName} ({vehiclePlate})</p>
+                      <p className="text-sm"><span className="font-semibold">Capacity:</span> {currentOrders}/{maxOrders} orders</p>
+                      {selectedAllocationSlot && (
+                        <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
+                      )}
+                    </div>
+                  );
+                } catch (error) {
+                  console.error('❌ Error in vehicle summary section:', error);
+                  return null;
+                }
               })()}
 
               {/* Action Buttons */}
