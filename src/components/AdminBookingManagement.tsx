@@ -1469,23 +1469,26 @@ const AdminBookingManagement: React.FC = () => {
 
       // Defensive checks
       if (!vehicle) {
+        console.debug("No vehicle selected for time slot render");
         return null;
       }
 
       if (!Array.isArray(vehicle.availability_slots) || vehicle.availability_slots.length === 0) {
+        console.debug("Vehicle has no availability slots");
         return null;
       }
 
       // Filter out invalid slots before mapping
       const validSlots = vehicle.availability_slots.filter((slot) => {
         try {
-          return slot && typeof slot === 'object' && slot.start_time;
+          return slot && typeof slot === 'object' && (slot.start_time || slot.start_time === '');
         } catch {
           return false;
         }
       });
 
       if (validSlots.length === 0) {
+        console.debug("No valid slots found after filtering");
         return null;
       }
 
@@ -1496,47 +1499,42 @@ const AdminBookingManagement: React.FC = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">No Specific Slot</SelectItem>
-            {validSlots.map((slot, index) => {
-              // Defensive property access with strict type checking
-              let startTime = '';
-              let endTime = '';
-              let isAvailable = false;
-              let assignedCount = 0;
-
+            {validSlots.map((slot, slotIndex) => {
               try {
-                startTime = String(slot?.start_time ?? '');
-                endTime = String(slot?.end_time ?? '');
-                isAvailable = Boolean(slot?.is_available);
-                assignedCount = Number(slot?.assigned_orders_count ?? 0) || 0;
-              } catch (e) {
-                console.warn("Error parsing slot properties:", e);
+                // Defensive property access with strict type checking
+                const startTime = String(slot?.start_time ?? '') || '';
+                const endTime = String(slot?.end_time ?? '') || '';
+                const isAvailable = slot?.is_available !== false; // default to true if not specified
+                const assignedCount = Math.max(0, Number(slot?.assigned_orders_count ?? 0) || 0);
+                const maxOrders = Math.max(0, Number(vehicle?.max_orders_per_trip ?? 0) || 0);
+                const isFull = !isAvailable || assignedCount >= maxOrders;
+
+                // Skip rendering if no start time
+                if (!startTime) {
+                  return null;
+                }
+
+                return (
+                  <SelectItem
+                    key={`slot-${slotIndex}-${startTime}`}
+                    value={startTime}
+                    disabled={isFull}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3 h-3" />
+                      <span>
+                        {startTime} - {endTime} ({assignedCount}/{maxOrders})
+                      </span>
+                      {isFull && (
+                        <span className="text-red-600 text-xs ml-2">Full</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                );
+              } catch (slotError) {
+                console.warn("Error parsing slot at index", slotIndex, slotError);
                 return null;
               }
-
-              if (!startTime) {
-                return null;
-              }
-
-              const maxOrders = Number(vehicle?.max_orders_per_trip ?? 0) || 0;
-              const isFull = !isAvailable || assignedCount >= maxOrders;
-
-              return (
-                <SelectItem
-                  key={`${startTime}-${index}`}
-                  value={startTime}
-                  disabled={isFull}
-                >
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      {startTime} - {endTime} ({assignedCount}/{maxOrders})
-                    </span>
-                    {isFull && (
-                      <span className="text-red-600 text-xs ml-2">Full</span>
-                    )}
-                  </div>
-                </SelectItem>
-              );
             })}
           </SelectContent>
         </Select>
