@@ -1014,6 +1014,11 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         </div>
 
+        {/* Banner Carousel */}
+        <div className="px-4 py-2">
+          <BannerCarousel />
+        </div>
+
         {/* Sticky Search and Categories Only */}
         <div className="sticky top-0 bg-gradient-to-b from-laundrify-purple to-laundrify-pink z-40 shadow-lg">
           <div className="px-4 pt-4 pb-2 space-y-3 sm:mt-0 -mt-1 sm:pl-4 pl-4">
