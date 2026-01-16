@@ -3282,16 +3282,44 @@ const AdminBookingManagement: React.FC = () => {
 
               {/* Vehicle Summary */}
               {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
-                const vehicle = availableVehicles.find(v => String(v._id) === String(selectedAllocationVehicle));
-                return vehicle && vehicle.name && vehicle.number_plate ? (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicle.name} ({vehicle.number_plate})</p>
-                    <p className="text-sm"><span className="font-semibold">Capacity:</span> {vehicle.current_orders_count}/{vehicle.max_orders_per_trip} orders</p>
-                    {selectedAllocationSlot && (
-                      <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
-                    )}
-                  </div>
-                ) : null;
+                try {
+                  const vehicle = availableVehicles.find(v => {
+                    try {
+                      return String(v?._id || '') === String(selectedAllocationVehicle || '');
+                    } catch (e) {
+                      console.warn('❌ Error comparing vehicle IDs in summary:', e);
+                      return false;
+                    }
+                  });
+
+                  if (!vehicle) {
+                    console.warn('⚠️ Vehicle not found for summary, ID:', selectedAllocationVehicle);
+                    return null;
+                  }
+
+                  const vehicleName = vehicle.name || 'Unknown Vehicle';
+                  const vehiclePlate = vehicle.number_plate || 'N/A';
+                  const currentOrders = parseInt(String(vehicle.current_orders_count || 0)) || 0;
+                  const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10)) || 10;
+
+                  if (!vehicleName || vehicleName === 'Unknown Vehicle') {
+                    console.warn('⚠️ Vehicle missing required fields:', vehicle);
+                    return null;
+                  }
+
+                  return (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicleName} ({vehiclePlate})</p>
+                      <p className="text-sm"><span className="font-semibold">Capacity:</span> {currentOrders}/{maxOrders} orders</p>
+                      {selectedAllocationSlot && (
+                        <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
+                      )}
+                    </div>
+                  );
+                } catch (error) {
+                  console.error('❌ Error in vehicle summary section:', error);
+                  return null;
+                }
               })()}
 
               {/* Action Buttons */}
