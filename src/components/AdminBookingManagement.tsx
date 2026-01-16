@@ -3157,14 +3157,23 @@ const AdminBookingManagement: React.FC = () => {
                   </div>
                 ) : (
                   <Select
-                    value={selectedAllocationVehicle}
+                    value={selectedAllocationVehicle || ''}
                     onValueChange={(value) => {
                       try {
                         console.log('🚗 Vehicle selected:', value);
-                        if (!value) {
+                        if (!value || value.trim() === '') {
                           console.warn('⚠️ Empty vehicle value selected');
                           return;
                         }
+
+                        // Verify vehicle exists in list before setting state
+                        const vehicleExists = availableVehicles.some(v => String(v?._id || '') === String(value || ''));
+                        if (!vehicleExists) {
+                          console.error('❌ Vehicle not found in available list:', value);
+                          toast.error('Invalid vehicle selected');
+                          return;
+                        }
+
                         setSelectedAllocationVehicle(value);
                       } catch (error) {
                         console.error('❌ Error selecting vehicle:', error);
@@ -3178,18 +3187,29 @@ const AdminBookingManagement: React.FC = () => {
                     <SelectContent>
                       {availableVehicles
                         .filter(vehicle => {
-                          const valid = vehicle?._id && vehicle?.name && vehicle?.number_plate;
-                          if (!valid) {
-                            console.warn('⚠️ Skipping invalid vehicle:', vehicle);
+                          try {
+                            const valid = vehicle?._id && vehicle?.name && vehicle?.number_plate;
+                            if (!valid) {
+                              console.warn('⚠️ Skipping invalid vehicle:', vehicle);
+                            }
+                            return valid;
+                          } catch (e) {
+                            console.warn('⚠️ Error filtering vehicle:', vehicle, e);
+                            return false;
                           }
-                          return valid;
                         })
                         .map(vehicle => {
                           try {
-                            const vehicleId = String(vehicle._id);
-                            const currentOrders = parseInt(String(vehicle.current_orders_count || 0));
-                            const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10));
+                            const vehicleId = String(vehicle._id || '');
+                            if (!vehicleId) {
+                              console.warn('⚠️ Vehicle has no _id:', vehicle);
+                              return null;
+                            }
+
+                            const currentOrders = parseInt(String(vehicle.current_orders_count || 0)) || 0;
+                            const maxOrders = parseInt(String(vehicle.max_orders_per_trip || 10)) || 10;
                             const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${currentOrders}/${maxOrders}`;
+
                             return (
                               <SelectItem key={vehicleId} value={vehicleId}>
                                 {vehicleLabel}
