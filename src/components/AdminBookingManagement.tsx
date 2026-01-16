@@ -3251,18 +3251,7 @@ const AdminBookingManagement: React.FC = () => {
               )}
 
               {/* Vehicle Summary */}
-              {selectedAllocationVehicle && availableVehicles.length > 0 && (() => {
-                const vehicle = availableVehicles.find(v => v._id === selectedAllocationVehicle);
-                return vehicle ? (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-sm"><span className="font-semibold">Vehicle:</span> {vehicle.name} ({vehicle.number_plate})</p>
-                    <p className="text-sm"><span className="font-semibold">Capacity:</span> {vehicle.current_orders_count}/{vehicle.max_orders_per_trip} orders</p>
-                    {selectedAllocationSlot && (
-                      <p className="text-sm"><span className="font-semibold">Time Slot:</span> {selectedAllocationSlot}</p>
-                    )}
-                  </div>
-                ) : null;
-              })()}
+              {selectedAllocationVehicle && availableVehicles.length > 0 && renderVehicleSummary()}
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
