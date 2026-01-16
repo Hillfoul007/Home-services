@@ -3156,7 +3156,22 @@ const AdminBookingManagement: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <Select value={selectedAllocationVehicle} onValueChange={setSelectedAllocationVehicle}>
+                  <Select
+                    value={selectedAllocationVehicle}
+                    onValueChange={(value) => {
+                      try {
+                        console.log('🚗 Vehicle selected:', value);
+                        if (!value) {
+                          console.warn('⚠️ Empty vehicle value selected');
+                          return;
+                        }
+                        setSelectedAllocationVehicle(value);
+                      } catch (error) {
+                        console.error('❌ Error selecting vehicle:', error);
+                        toast.error('Error selecting vehicle');
+                      }
+                    }}
+                  >
                     <SelectTrigger id="vehicle-select">
                       <SelectValue placeholder="Select a vehicle..." />
                     </SelectTrigger>
@@ -3171,13 +3186,18 @@ const AdminBookingManagement: React.FC = () => {
                           return true;
                         })
                         .map((vehicle) => {
-                          const vehicleId = String(vehicle._id);
-                          const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${vehicle.current_orders_count || 0}/${vehicle.max_orders_per_trip || 10}`;
-                          return (
-                            <SelectItem key={vehicleId} value={vehicleId}>
-                              {vehicleLabel}
-                            </SelectItem>
-                          );
+                          try {
+                            const vehicleId = String(vehicle._id);
+                            const vehicleLabel = `${vehicle.name} (${vehicle.number_plate}) - ${vehicle.current_orders_count || 0}/${vehicle.max_orders_per_trip || 10}`;
+                            return (
+                              <SelectItem key={vehicleId} value={vehicleId}>
+                                {vehicleLabel}
+                              </SelectItem>
+                            );
+                          } catch (err) {
+                            console.error('❌ Error rendering vehicle item:', vehicle, err);
+                            return null;
+                          }
                         })}
                     </SelectContent>
                   </Select>
