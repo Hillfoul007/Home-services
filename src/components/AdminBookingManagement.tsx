@@ -729,23 +729,70 @@ const AdminBookingManagement: React.FC = () => {
   const fetchAvailableVehicles = async (vendorId: string) => {
     try {
       setLoadingVehicles(true);
-      console.log("🚗 Fetching vehicles for vendor:", vendorId);
+      console.log("🚗 [FETCH VEHICLES] Starting vehicle fetch", {
+        vendorId,
+        timestamp: new Date().toISOString()
+      });
+
       const endpoint = `/admin/vehicles?vendor_id=${encodeURIComponent(vendorId)}`;
+      console.log("📡 [FETCH VEHICLES] Request endpoint:", endpoint);
+
       const response = await apiClient.adminRequest<{ vehicles: any[] }>(endpoint);
+
+      console.log("📥 [FETCH VEHICLES] Response received", {
+        status: response.status,
+        hasData: !!response.data,
+        hasVehicles: !!response.data?.vehicles,
+        vehicleCount: Array.isArray(response.data?.vehicles) ? response.data.vehicles.length : 0,
+        firstVehicle: response.data?.vehicles?.[0],
+        allVehicles: response.data?.vehicles,
+        timestamp: new Date().toISOString()
+      });
+
       if (response.data?.vehicles) {
-        console.log("✅ Fetched vehicles:", response.data.vehicles);
+        console.log("✅ [FETCH VEHICLES] Fetched vehicles successfully", {
+          count: response.data.vehicles.length,
+          vehicles: response.data.vehicles.map((v, i) => ({
+            index: i,
+            id: v._id,
+            name: v.name,
+            number_plate: v.number_plate,
+            current_orders_count: v.current_orders_count,
+            max_orders_per_trip: v.max_orders_per_trip,
+            keys: Object.keys(v)
+          })),
+          timestamp: new Date().toISOString()
+        });
+
         // Validate vehicles before setting state
         const validVehicles = Array.isArray(response.data.vehicles) ? response.data.vehicles : [];
+        console.log("✨ [FETCH VEHICLES] Setting available vehicles state", {
+          count: validVehicles.length,
+          timestamp: new Date().toISOString()
+        });
         setAvailableVehicles(validVehicles);
       } else {
-        console.warn("⚠️ No vehicles in response:", response.data);
+        console.warn("⚠️ [FETCH VEHICLES] No vehicles in response", {
+          responseData: response.data,
+          error: response.error,
+          timestamp: new Date().toISOString()
+        });
         setAvailableVehicles([]);
       }
     } catch (error) {
-      console.error("❌ Error fetching vehicles:", error);
+      console.error("❌ [FETCH VEHICLES] Error fetching vehicles", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        vendorId,
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to fetch available vehicles");
       setAvailableVehicles([]);
     } finally {
+      console.log("✅ [FETCH VEHICLES] Fetch completed (finally block)", {
+        timestamp: new Date().toISOString()
+      });
       setLoadingVehicles(false);
     }
   };
