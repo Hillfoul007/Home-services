@@ -263,34 +263,50 @@ const AdminMapAnalytics: React.FC = () => {
   useEffect(() => {
     if (!map || polygon.length < 2) return;
 
-    // Remove previous polyline
-    const existingPolyline = (map as any).polyline;
-    if (existingPolyline) existingPolyline.setMap(null);
+    const drawPolygon = async () => {
+      try {
+        const loader = new GoogleLoader({
+          apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+          version: "weekly",
+          libraries: ["places"],
+        });
 
-    const polylineCoords = polygon.map((p) => ({
-      lat: p[1],
-      lng: p[0],
-    }));
+        const google = await loader.load();
 
-    if (polygon.length > 2) {
-      polylineCoords.push({
-        lat: polygon[0][1],
-        lng: polygon[0][0],
-      });
-    }
+        // Remove previous polyline
+        const existingPolyline = (map as any).polyline;
+        if (existingPolyline) existingPolyline.setMap(null);
 
-    const polyline = new (window as any).google.maps.Polyline({
-      path: polylineCoords,
-      geodesic: true,
-      strokeColor: "#9C27B0",
-      strokeOpacity: 0.7,
-      strokeWeight: 2,
-      fillColor: "#9C27B0",
-      fillOpacity: 0.2,
-      map,
-    });
+        const polylineCoords = polygon.map((p) => ({
+          lat: p[1],
+          lng: p[0],
+        }));
 
-    (map as any).polyline = polyline;
+        if (polygon.length > 2) {
+          polylineCoords.push({
+            lat: polygon[0][1],
+            lng: polygon[0][0],
+          });
+        }
+
+        const polyline = new google.maps.Polygon({
+          paths: polylineCoords,
+          geodesic: true,
+          strokeColor: "#9C27B0",
+          strokeOpacity: 0.7,
+          strokeWeight: 2,
+          fillColor: "#9C27B0",
+          fillOpacity: 0.2,
+          map,
+        });
+
+        (map as any).polyline = polyline;
+      } catch (error) {
+        console.error("Error drawing polygon:", error);
+      }
+    };
+
+    drawPolygon();
   }, [polygon, map]);
 
   // Analyze area
