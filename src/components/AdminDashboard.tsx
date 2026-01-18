@@ -466,6 +466,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminBannerManagement />
           </TabsContent>
 
+          <TabsContent value="map-analytics">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Map Analytics:</strong> Visualize all orders on an interactive map. Filter by month and status, draw custom areas to analyze order density and revenue, and get detailed statistics for selected regions.</p>
+            </div>
+            <AdminMapAnalytics />
+          </TabsContent>
+
           <TabsContent value="analytics">
             <Card>
               <CardHeader>
