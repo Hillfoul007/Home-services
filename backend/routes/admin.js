@@ -2816,15 +2816,19 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
 // GET orders with location data for map visualization
 router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
   try {
-    const { month, year, status } = req.query;
+    const { months, year, status } = req.query;
 
-    console.log(`📍 Fetching orders for map analytics: month=${month}, year=${year}, status=${status}`);
+    console.log(`📍 Fetching orders for map analytics: months=${months}, year=${year}, status=${status}`);
 
-    // Build date filter for month
+    // Build date filter for multiple months
     let dateFilter = {};
-    if (month && year) {
-      const startDate = new Date(year, parseInt(month) - 1, 1);
-      const endDate = new Date(year, parseInt(month), 0, 23, 59, 59);
+    if (months && year) {
+      const monthArray = months.split(",").map((m) => parseInt(m.trim()));
+      const startDate = new Date(year, monthArray[0] - 1, 1);
+      const lastMonth = Math.max(...monthArray);
+      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+
+      // For multiple months, we create a date range from the first to the last month
       dateFilter = {
         created_at: {
           $gte: startDate,
