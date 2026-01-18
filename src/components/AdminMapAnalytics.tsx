@@ -339,7 +339,7 @@ const AdminMapAnalytics: React.FC = () => {
         },
         body: JSON.stringify({
           polygon,
-          month: selectedMonth,
+          months: selectedMonths,
           year: selectedYear,
           status: selectedStatus,
         }),
