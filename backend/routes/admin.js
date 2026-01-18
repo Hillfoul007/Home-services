@@ -2887,7 +2887,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
 // POST get area statistics - when user selects a polygon area on map
 router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
   try {
-    const { polygon, month, year, status } = req.body;
+    const { polygon, months, year, status } = req.body;
 
     console.log(`📍 Fetching area statistics for polygon with ${polygon?.length || 0} points`);
 
@@ -2898,11 +2898,14 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
       });
     }
 
-    // Build date filter for month
+    // Build date filter for multiple months
     let dateFilter = {};
-    if (month && year) {
-      const startDate = new Date(year, parseInt(month) - 1, 1);
-      const endDate = new Date(year, parseInt(month), 0, 23, 59, 59);
+    if (months && year) {
+      const monthArray = Array.isArray(months) ? months.map((m) => parseInt(m)) : [parseInt(months)];
+      const startDate = new Date(year, monthArray[0] - 1, 1);
+      const lastMonth = Math.max(...monthArray);
+      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+
       dateFilter = {
         created_at: {
           $gte: startDate,
