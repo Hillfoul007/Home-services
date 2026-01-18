@@ -991,8 +991,9 @@ const AdminBookingManagement: React.FC = () => {
   }, [showEditDialog, lastPollAt]);
 
   useEffect(() => {
+    updateAvailableMonths(bookings);
     filterBookings();
-  }, [searchTerm, statusFilter, bookings]);
+  }, [searchTerm, statusFilter, bookings, selectedMonths]);
 
   useEffect(() => {
     filterCompletedOrders();
@@ -1000,11 +1001,11 @@ const AdminBookingManagement: React.FC = () => {
 
   useEffect(() => {
     filterPickupOrders();
-  }, [pickupSearchTerm, pickupStatusFilter, bucketA]);
+  }, [pickupSearchTerm, pickupStatusFilter, bucketA, selectedMonths]);
 
   useEffect(() => {
     filterReadyOrders();
-  }, [readySearchTerm, readyStatusFilter, bucketB]);
+  }, [readySearchTerm, readyStatusFilter, bucketB, selectedMonths]);
 
   // Geocode booking address and calculate vendor distances
   // Prioritize existing coordinates from Google Maps, then geocode the address
