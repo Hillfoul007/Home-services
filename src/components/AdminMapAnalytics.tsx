@@ -464,6 +464,7 @@ const AdminMapAnalytics: React.FC = () => {
               <Button
                 onClick={toggleDrawingMode}
                 variant={drawingMode ? "default" : "outline"}
+                disabled={mapError !== null || mapLoading}
                 className={
                   drawingMode
                     ? "bg-laundrify-purple text-white"
@@ -498,23 +499,38 @@ const AdminMapAnalytics: React.FC = () => {
             </div>
           </div>
           <p className="text-sm text-gray-600 mt-2">
-            {drawingMode && polygon.length === 0
-              ? "Click on the map to start drawing a polygon..."
-              : drawingMode && polygon.length > 0
-                ? `Polygon points: ${polygon.length} (min 3 required)`
-                : "Showing all orders with location data"}
+            {mapError
+              ? "❌ Failed to load map"
+              : drawingMode && polygon.length === 0
+                ? "Click on the map to start drawing a polygon..."
+                : drawingMode && polygon.length > 0
+                  ? `Polygon points: ${polygon.length} (min 3 required)`
+                  : "Showing all orders with location data"}
           </p>
         </CardHeader>
         <CardContent>
-          <div
-            ref={mapRef}
-            style={{
-              width: "100%",
-              height: "600px",
-              borderRadius: "8px",
-              overflow: "hidden",
-            }}
-          />
+          {mapError ? (
+            <div className="w-full h-96 bg-red-50 border-2 border-red-200 rounded-lg flex items-center justify-center flex-col gap-4">
+              <div className="text-center">
+                <p className="text-red-800 font-semibold mb-2">Map Loading Error</p>
+                <p className="text-red-600 text-sm mb-4">{mapError}</p>
+                <p className="text-gray-600 text-xs">
+                  Please ensure VITE_GOOGLE_MAPS_API_KEY environment variable is set
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={mapRef}
+              style={{
+                width: "100%",
+                height: "600px",
+                borderRadius: "8px",
+                overflow: "hidden",
+                backgroundColor: "#f0f0f0",
+              }}
+            />
+          )}
         </CardContent>
       </Card>
 
