@@ -380,22 +380,73 @@ const AdminMapAnalytics: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Month
+                Months
               </label>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map((month) => (
-                    <SelectItem key={month} value={month + ""}>
-                      {new Date(2024, month - 1).toLocaleString("default", {
-                        month: "long",
+              <div className="relative">
+                <button
+                  onClick={() => setShowMonthSelector(!showMonthSelector)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm font-normal hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-laundrify-purple/50"
+                >
+                  {selectedMonths.length === 1
+                    ? new Date(2024, parseInt(selectedMonths[0]) - 1).toLocaleString("default", {
+                        month: "short",
+                      })
+                    : `${selectedMonths.length} months selected`}
+                </button>
+
+                {showMonthSelector && (
+                  <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-64 overflow-y-auto">
+                    {months.map((month) => (
+                      <label
+                        key={month}
+                        className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedMonths.includes(month + "")}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMonths([...selectedMonths, month + ""]);
+                            } else {
+                              setSelectedMonths(selectedMonths.filter((m) => m !== month + ""));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-laundrify-purple focus:ring-laundrify-purple cursor-pointer"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          {new Date(2024, month - 1).toLocaleString("default", {
+                            month: "long",
+                          })}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected months pills */}
+              {selectedMonths.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedMonths.sort((a, b) => parseInt(a) - parseInt(b)).map((month) => (
+                    <div
+                      key={month}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
+                    >
+                      {new Date(2024, parseInt(month) - 1).toLocaleString("default", {
+                        month: "short",
                       })}
-                    </SelectItem>
+                      <button
+                        onClick={() =>
+                          setSelectedMonths(selectedMonths.filter((m) => m !== month))
+                        }
+                        className="hover:text-laundrify-purple/70"
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
             </div>
 
             <div>
@@ -437,7 +488,7 @@ const AdminMapAnalytics: React.FC = () => {
             <div className="flex items-end">
               <Button
                 onClick={fetchMapOrders}
-                disabled={loading}
+                disabled={loading || selectedMonths.length === 0}
                 className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
               >
                 {loading ? (
