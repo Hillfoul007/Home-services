@@ -283,13 +283,7 @@ const AdminMapAnalytics: React.FC = () => {
 
     const drawPolygon = async () => {
       try {
-        const loader = new GoogleLoader({
-          apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-          version: "weekly",
-          libraries: ["places"],
-        });
-
-        const google = await loader.load();
+        const google = await getGoogleMaps();
 
         // Remove previous polyline
         const existingPolyline = (map as any).polyline;
