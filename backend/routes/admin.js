@@ -2809,4 +2809,179 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
   }
 });
 
+// ============================================================================
+// MAP ANALYTICS
+// ============================================================================
+
+// GET orders with location data for map visualization
+router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
+  try {
+    const { month, year, status } = req.query;
+
+    console.log(`📍 Fetching orders for map analytics: month=${month}, year=${year}, status=${status}`);
+
+    // Build date filter for month
+    let dateFilter = {};
+    if (month && year) {
+      const startDate = new Date(year, parseInt(month) - 1, 1);
+      const endDate = new Date(year, parseInt(month), 0, 23, 59, 59);
+      dateFilter = {
+        created_at: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      };
+    }
+
+    // Build status filter
+    let statusFilter = {};
+    if (status && status !== "all") {
+      statusFilter = { status };
+    }
+
+    // Fetch bookings with location data
+    const bookings = await Booking.find({
+      ...dateFilter,
+      ...statusFilter,
+      "coordinates.lat": { $exists: true },
+      "coordinates.lng": { $exists: true },
+    })
+      .select(
+        "custom_order_id coordinates final_amount status created_at pickup_address delivery_address"
+      )
+      .lean();
+
+    // Transform to map markers
+    const mapMarkers = bookings.map((booking) => ({
+      id: booking._id,
+      orderId: booking.custom_order_id,
+      lat: booking.coordinates.lat,
+      lng: booking.coordinates.lng,
+      amount: booking.final_amount || 0,
+      status: booking.status,
+      date: booking.created_at,
+      address: booking.pickup_address || booking.delivery_address || "Unknown",
+    }));
+
+    console.log(`✅ Found ${mapMarkers.length} orders with location data`);
+
+    res.json({
+      success: true,
+      markers: mapMarkers,
+      total: mapMarkers.length,
+      totalAmount: mapMarkers.reduce((sum, m) => sum + m.amount, 0),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching map analytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch map analytics data",
+    });
+  }
+});
+
+// POST get area statistics - when user selects a polygon area on map
+router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
+  try {
+    const { polygon, month, year, status } = req.body;
+
+    console.log(`📍 Fetching area statistics for polygon with ${polygon?.length || 0} points`);
+
+    if (!polygon || !Array.isArray(polygon) || polygon.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Polygon must have at least 3 points",
+      });
+    }
+
+    // Build date filter for month
+    let dateFilter = {};
+    if (month && year) {
+      const startDate = new Date(year, parseInt(month) - 1, 1);
+      const endDate = new Date(year, parseInt(month), 0, 23, 59, 59);
+      dateFilter = {
+        created_at: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      };
+    }
+
+    // Build status filter
+    let statusFilter = {};
+    if (status && status !== "all") {
+      statusFilter = { status };
+    }
+
+    // Fetch all bookings with location data in the date range
+    const bookings = await Booking.find({
+      ...dateFilter,
+      ...statusFilter,
+      "coordinates.lat": { $exists: true },
+      "coordinates.lng": { $exists: true },
+    })
+      .select(
+        "custom_order_id coordinates final_amount status created_at pickup_address delivery_address"
+      )
+      .lean();
+
+    // Filter bookings that are within the polygon (point-in-polygon algorithm)
+    const bookingsInArea = bookings.filter((booking) => {
+      const point = [booking.coordinates.lng, booking.coordinates.lat];
+      return isPointInPolygon(point, polygon);
+    });
+
+    // Calculate statistics
+    const totalOrders = bookingsInArea.length;
+    const totalAmount = bookingsInArea.reduce((sum, b) => sum + (b.final_amount || 0), 0);
+    const avgAmount = totalOrders > 0 ? totalAmount / totalOrders : 0;
+    const statusBreakdown = {};
+
+    bookingsInArea.forEach((booking) => {
+      statusBreakdown[booking.status] = (statusBreakdown[booking.status] || 0) + 1;
+    });
+
+    console.log(`✅ Area statistics: ${totalOrders} orders, ₹${totalAmount} total`);
+
+    res.json({
+      success: true,
+      areaStats: {
+        totalOrders,
+        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        avgAmount: parseFloat(avgAmount.toFixed(2)),
+        statusBreakdown,
+        orders: bookingsInArea.map((b) => ({
+          id: b._id,
+          orderId: b.custom_order_id,
+          amount: b.final_amount,
+          status: b.status,
+          date: b.created_at,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error fetching area statistics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch area statistics",
+    });
+  }
+});
+
+// Helper function: Check if a point is inside a polygon (Ray casting algorithm)
+function isPointInPolygon(point, polygon) {
+  const [x, y] = point;
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+
+  return inside;
+}
+
 module.exports = router;
