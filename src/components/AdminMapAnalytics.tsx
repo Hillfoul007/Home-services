@@ -40,6 +40,29 @@ interface AreaStats {
   orders: Array<{ id: string; orderId: string; amount: number; status: string; date: string }>;
 }
 
+// Helper to load Google Maps API with caching
+let googleMapsLoaded: any = null;
+const getGoogleMaps = async () => {
+  if (googleMapsLoaded) return googleMapsLoaded;
+
+  const apiKey = PRODUCTION_CONFIG.GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      "Google Maps API key not configured. Please set VITE_GOOGLE_MAPS_API_KEY environment variable."
+    );
+  }
+
+  const loader = new GoogleLoader({
+    apiKey,
+    version: "weekly",
+    libraries: ["places"],
+  });
+
+  googleMapsLoaded = await loader.load();
+  return googleMapsLoaded;
+};
+
 const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
