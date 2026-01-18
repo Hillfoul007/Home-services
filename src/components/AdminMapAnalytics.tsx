@@ -381,6 +381,11 @@ const AdminMapAnalytics: React.FC = () => {
 
     try {
       setLoading(true);
+      const sortedMonths = Array.from(selectedMonths).sort();
+      const yearsSet = new Set(sortedMonths.map((m) => m.split('-')[0]));
+      const years = Array.from(yearsSet);
+      const monthsForApi = sortedMonths.map((m) => m.split('-')[1]);
+
       const response = await fetch("/api/admin/analytics/area-stats", {
         method: "POST",
         headers: {
@@ -388,8 +393,8 @@ const AdminMapAnalytics: React.FC = () => {
         },
         body: JSON.stringify({
           polygon,
-          months: selectedMonths,
-          year: selectedYear,
+          months: monthsForApi,
+          years,
           status: selectedStatus,
         }),
       });
@@ -406,12 +411,6 @@ const AdminMapAnalytics: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // Generate months and years for selects
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const years = Array.from({ length: 5 }, (_, i) =>
-    new Date().getFullYear() - i
-  );
 
   return (
     <div className="space-y-6">
