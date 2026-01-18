@@ -1109,6 +1109,58 @@ const AdminBookingManagement: React.FC = () => {
     }, {} as Record<string, Booking[]>);
   };
 
+  const getMonthYearKey = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    try {
+      const dateObj = new Date(dateStr);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      return `${year}-${month}`;
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const getMonthYearDisplay = (monthYearKey: string): string => {
+    if (!monthYearKey) return "";
+    const [year, month] = monthYearKey.split('-');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthIndex = parseInt(month) - 1;
+    return `${monthNames[monthIndex]} ${year}`;
+  };
+
+  const updateAvailableMonths = (bookingsToProcess: Booking[]) => {
+    const monthSet = new Set<string>();
+    bookingsToProcess.forEach((booking) => {
+      const monthKey = getMonthYearKey(booking.scheduled_date);
+      if (monthKey) {
+        monthSet.add(monthKey);
+      }
+    });
+    const sortedMonths = Array.from(monthSet).sort().reverse();
+    setAvailableMonths(sortedMonths);
+  };
+
+  const toggleMonth = (monthKey: string) => {
+    const newSelectedMonths = new Set(selectedMonths);
+    if (newSelectedMonths.has(monthKey)) {
+      newSelectedMonths.delete(monthKey);
+    } else {
+      newSelectedMonths.add(monthKey);
+    }
+    setSelectedMonths(newSelectedMonths);
+  };
+
+  const filterByMonths = (bookingsToFilter: Booking[]): Booking[] => {
+    if (selectedMonths.size === 0) {
+      return bookingsToFilter;
+    }
+    return bookingsToFilter.filter((booking) => {
+      const monthKey = getMonthYearKey(booking.scheduled_date);
+      return monthKey && selectedMonths.has(monthKey);
+    });
+  };
+
   const filterBookings = () => {
     let filtered = bookings;
 
