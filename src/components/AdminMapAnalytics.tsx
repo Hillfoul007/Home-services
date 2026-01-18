@@ -1,0 +1,604 @@
+import React, { useEffect, useRef, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  MapPin,
+  Download,
+  Filter,
+  TrendingUp,
+  IndianRupee,
+  Package,
+  Loader,
+} from "lucide-react";
+import { toast } from "sonner";
+
+interface MapMarker {
+  id: string;
+  orderId: string;
+  lat: number;
+  lng: number;
+  amount: number;
+  status: string;
+  date: string;
+  address: string;
+}
+
+interface AreaStats {
+  totalOrders: number;
+  totalAmount: number;
+  avgAmount: number;
+  statusBreakdown: Record<string, number>;
+  orders: Array<{ id: string; orderId: string; amount: number; status: string; date: string }>;
+}
+
+const AdminMapAnalytics: React.FC = () => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<any>(null);
+  const [markers, setMarkers] = useState<MapMarker[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    new Date().getMonth() + 1 + ""
+  );
+  const [selectedYear, setSelectedYear] = useState<string>(
+    new Date().getFullYear() + ""
+  );
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [loading, setLoading] = useState(false);
+  const [drawingMode, setDrawingMode] = useState(false);
+  const [polygon, setPolygon] = useState<Array<[number, number]>>([]);
+  const [areaStats, setAreaStats] = useState<AreaStats | null>(null);
+  const [totalStats, setTotalStats] = useState({ total: 0, amount: 0 });
+
+  // Initialize Google Map
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const mapInstance = new (window as any).google.maps.Map(mapRef.current, {
+      zoom: 12,
+      center: { lat: 28.6139, lng: 77.209 }, // Default to Delhi
+      mapTypeId: "roadmap",
+    });
+
+    setMap(mapInstance);
+    fetchMapOrders();
+
+    return () => {
+      // Cleanup
+    };
+  }, []);
+
+  // Fetch orders when filters change
+  useEffect(() => {
+    if (map) {
+      fetchMapOrders();
+      setPolygon([]);
+      setAreaStats(null);
+    }
+  }, [selectedMonth, selectedYear, selectedStatus, map]);
+
+  // Fetch orders with location data
+  const fetchMapOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `/api/admin/analytics/map-orders?month=${selectedMonth}&year=${selectedYear}&status=${selectedStatus}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setMarkers(data.markers || []);
+        setTotalStats({
+          total: data.total || 0,
+          amount: data.totalAmount || 0,
+        });
+
+        // Clear existing markers
+        if (map) {
+          plotMarkers(data.markers || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching map orders:", error);
+      toast.error("Failed to fetch map data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Plot markers on map
+  const plotMarkers = (markersData: MapMarker[]) => {
+    if (!map) return;
+
+    // Clear old markers (simple approach - create new map instance)
+    const infoWindows: any[] = [];
+
+    markersData.forEach((marker) => {
+      const markerColor = getMarkerColor(marker.status);
+
+      const googleMarker = new (window as any).google.maps.Marker({
+        position: { lat: marker.lat, lng: marker.lng },
+        map,
+        title: marker.orderId,
+        icon: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+      });
+
+      // Create info window for each marker
+      const infoWindow = new (window as any).google.maps.InfoWindow({
+        content: `
+          <div style="padding: 10px; font-family: Arial;">
+            <h4 style="margin: 0 0 8px 0; color: #333;">${marker.orderId}</h4>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>₹${marker.amount}</strong></p>
+            <p style="margin: 4px 0; font-size: 12px; color: #666;">${marker.status}</p>
+            <p style="margin: 4px 0; font-size: 12px; color: #666;">${marker.address}</p>
+          </div>
+        `,
+      });
+
+      googleMarker.addListener("click", () => {
+        // Close all other info windows
+        infoWindows.forEach((iw) => iw.close());
+        infoWindow.open(map, googleMarker);
+      });
+
+      infoWindows.push(infoWindow);
+    });
+
+    // Fit bounds to show all markers
+    if (markersData.length > 0) {
+      const bounds = new (window as any).google.maps.LatLngBounds();
+      markersData.forEach((m) => {
+        bounds.extend({ lat: m.lat, lng: m.lng });
+      });
+      map.fitBounds(bounds);
+    }
+  };
+
+  // Get color based on order status
+  const getMarkerColor = (status: string): string => {
+    const colorMap: Record<string, string> = {
+      pending: "red",
+      confirmed: "yellow",
+      picked_up: "blue",
+      in_transit: "orange",
+      delivered: "green",
+      completed: "green",
+      cancelled: "gray",
+    };
+    return colorMap[status] || "blue";
+  };
+
+  // Toggle drawing mode
+  const toggleDrawingMode = () => {
+    setDrawingMode(!drawingMode);
+    setPolygon([]);
+    setAreaStats(null);
+
+    if (map && !drawingMode) {
+      map.setOptions({ draggableCursor: "crosshair" });
+    } else if (map) {
+      map.setOptions({ draggableCursor: "grab" });
+    }
+  };
+
+  // Handle map click when drawing
+  useEffect(() => {
+    if (!map || !drawingMode) return;
+
+    const clickListener = map.addListener("click", (event: any) => {
+      const newPoint: [number, number] = [event.latLng.lng(), event.latLng.lat()];
+      setPolygon([...polygon, newPoint]);
+
+      // Plot the point on map
+      new (window as any).google.maps.Marker({
+        position: { lat: newPoint[1], lng: newPoint[0] },
+        map,
+        title: `Point ${polygon.length + 1}`,
+      });
+    });
+
+    return () => {
+      (window as any).google.maps.event.removeListener(clickListener);
+    };
+  }, [map, drawingMode, polygon]);
+
+  // Draw polygon on map
+  useEffect(() => {
+    if (!map || polygon.length < 2) return;
+
+    // Remove previous polyline
+    const existingPolyline = (map as any).polyline;
+    if (existingPolyline) existingPolyline.setMap(null);
+
+    const polylineCoords = polygon.map((p) => ({
+      lat: p[1],
+      lng: p[0],
+    }));
+
+    if (polygon.length > 2) {
+      polylineCoords.push({
+        lat: polygon[0][1],
+        lng: polygon[0][0],
+      });
+    }
+
+    const polyline = new (window as any).google.maps.Polyline({
+      path: polylineCoords,
+      geodesic: true,
+      strokeColor: "#9C27B0",
+      strokeOpacity: 0.7,
+      strokeWeight: 2,
+      fillColor: "#9C27B0",
+      fillOpacity: 0.2,
+      map,
+    });
+
+    (map as any).polyline = polyline;
+  }, [polygon, map]);
+
+  // Analyze area
+  const analyzeArea = async () => {
+    if (polygon.length < 3) {
+      toast.error("Please draw a polygon with at least 3 points");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch("/api/admin/analytics/area-stats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          polygon,
+          month: selectedMonth,
+          year: selectedYear,
+          status: selectedStatus,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAreaStats(data.areaStats);
+        toast.success(`Found ${data.areaStats.totalOrders} orders in selected area`);
+      }
+    } catch (error) {
+      console.error("Error analyzing area:", error);
+      toast.error("Failed to analyze area");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Generate months and years for selects
+  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const years = Array.from({ length: 5 }, (_, i) =>
+    new Date().getFullYear() - i
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-3xl font-bold text-gray-900">Map Analytics</h2>
+        <p className="text-gray-600 mt-1">
+          Visualize orders on map by location and analyze area performance
+        </p>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Month
+              </label>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((month) => (
+                    <SelectItem key={month} value={month + ""}>
+                      {new Date(2024, month - 1).toLocaleString("default", {
+                        month: "long",
+                      })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Year
+              </label>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((year) => (
+                    <SelectItem key={year} value={year + ""}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                onClick={fetchMapOrders}
+                disabled={loading}
+                className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
+              >
+                {loading ? (
+                  <>
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <Filter className="h-4 w-4 mr-2" />
+                    Apply Filters
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Map Container */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Order Map Visualization</CardTitle>
+            <div className="flex gap-2">
+              <Button
+                onClick={toggleDrawingMode}
+                variant={drawingMode ? "default" : "outline"}
+                className={
+                  drawingMode
+                    ? "bg-laundrify-purple text-white"
+                    : "border-laundrify-purple text-laundrify-purple"
+                }
+              >
+                {drawingMode ? "Drawing..." : "Draw Area"}
+              </Button>
+              {polygon.length > 0 && (
+                <>
+                  <Button
+                    onClick={analyzeArea}
+                    disabled={polygon.length < 3 || loading}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Analyze Area
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setPolygon([]);
+                      setAreaStats(null);
+                      setDrawingMode(false);
+                      if (map) map.setOptions({ draggableCursor: "grab" });
+                    }}
+                    variant="outline"
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    Clear
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 mt-2">
+            {drawingMode && polygon.length === 0
+              ? "Click on the map to start drawing a polygon..."
+              : drawingMode && polygon.length > 0
+                ? `Polygon points: ${polygon.length} (min 3 required)`
+                : "Showing all orders with location data"}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div
+            ref={mapRef}
+            style={{
+              width: "100%",
+              height: "600px",
+              borderRadius: "8px",
+              overflow: "hidden",
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalStats.total}</div>
+            <p className="text-xs text-muted-foreground">
+              {selectedMonth && selectedYear
+                ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString("default", { month: "long", year: "numeric" })}`
+                : "Selected period"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{totalStats.amount.toFixed(0)}</div>
+            <p className="text-xs text-muted-foreground">
+              Revenue
+            </p>
+          </CardContent>
+        </Card>
+
+        {areaStats && (
+          <Card className="border-laundrify-purple">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-laundrify-purple">
+                Area Statistics
+              </CardTitle>
+              <MapPin className="h-4 w-4 text-laundrify-purple" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-laundrify-purple">
+                {areaStats.totalOrders} orders
+              </div>
+              <p className="text-xs text-muted-foreground">
+                ₹{areaStats.totalAmount.toFixed(0)} ({areaStats.avgAmount.toFixed(0)}/order)
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Area Details */}
+      {areaStats && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Selected Area Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Status Breakdown */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Orders by Status</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(areaStats.statusBreakdown).map(([status, count]) => (
+                    <div
+                      key={status}
+                      className="bg-gray-50 rounded-lg p-4 text-center border border-gray-200"
+                    >
+                      <p className="text-2xl font-bold text-laundrify-purple">
+                        {count}
+                      </p>
+                      <p className="text-sm text-gray-600 capitalize">{status}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Orders List */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">
+                  Orders in Selected Area ({areaStats.orders.length})
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">
+                          Order ID
+                        </th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">
+                          Amount
+                        </th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">
+                          Status
+                        </th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-600">
+                          Date
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {areaStats.orders.map((order) => (
+                        <tr key={order.id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4 font-medium text-gray-900">
+                            {order.orderId}
+                          </td>
+                          <td className="py-3 px-4">₹{order.amount}</td>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize">
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-gray-600">
+                            {new Date(order.date).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Color Legend */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Marker Color Legend</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[
+              { status: "Pending", color: "red" },
+              { status: "Confirmed", color: "yellow" },
+              { status: "In Transit", color: "orange" },
+              { status: "Delivered", color: "green" },
+              { status: "Cancelled", color: "gray" },
+            ].map(({ status, color }) => (
+              <div key={status} className="flex items-center gap-2">
+                <div
+                  className="w-4 h-4 rounded-full"
+                  style={{
+                    backgroundColor:
+                      {
+                        red: "#FF0000",
+                        yellow: "#FFFF00",
+                        orange: "#FFA500",
+                        green: "#00AA00",
+                        gray: "#808080",
+                      }[color] || "#0000FF",
+                  }}
+                />
+                <span className="text-sm text-gray-600">{status}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default AdminMapAnalytics;
