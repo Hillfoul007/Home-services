@@ -60,14 +60,31 @@ const AdminMapAnalytics: React.FC = () => {
   useEffect(() => {
     if (!mapRef.current) return;
 
-    const mapInstance = new (window as any).google.maps.Map(mapRef.current, {
-      zoom: 12,
-      center: { lat: 28.6139, lng: 77.209 }, // Default to Delhi
-      mapTypeId: "roadmap",
-    });
+    const initializeMap = async () => {
+      try {
+        const loader = new GoogleLoader({
+          apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+          version: "weekly",
+          libraries: ["places"],
+        });
 
-    setMap(mapInstance);
-    fetchMapOrders();
+        const google = await loader.load();
+
+        const mapInstance = new google.maps.Map(mapRef.current, {
+          zoom: 12,
+          center: { lat: 28.6139, lng: 77.209 }, // Default to Delhi
+          mapTypeId: "roadmap",
+        });
+
+        setMap(mapInstance);
+        fetchMapOrders();
+      } catch (error) {
+        console.error("Error loading Google Maps API:", error);
+        toast.error("Failed to load map. Please check your API key.");
+      }
+    };
+
+    initializeMap();
 
     return () => {
       // Cleanup
