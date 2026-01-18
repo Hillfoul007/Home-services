@@ -660,6 +660,10 @@ const AdminBookingManagement: React.FC = () => {
   const [readyStatusFilter, setReadyStatusFilter] = useState("all");
   const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
 
+  // Month filter state
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set());
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+
   // Reminder modal state
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderType, setReminderType] = useState<'pickup' | 'delivery'>('pickup');
