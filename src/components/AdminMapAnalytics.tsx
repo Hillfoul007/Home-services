@@ -67,11 +67,8 @@ const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([
-    new Date().getMonth() + 1 + ""
-  ]);
-  const [selectedYear, setSelectedYear] = useState<string>(
-    new Date().getFullYear() + ""
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(
+    new Set([`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`])
   );
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [loading, setLoading] = useState(false);
