@@ -88,13 +88,10 @@ const AdminMapAnalytics: React.FC = () => {
 
     const initializeMap = async () => {
       try {
-        const loader = new GoogleLoader({
-          apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-          version: "weekly",
-          libraries: ["places"],
-        });
+        setMapLoading(true);
+        setMapError(null);
 
-        const google = await loader.load();
+        const google = await getGoogleMaps();
 
         const mapInstance = new google.maps.Map(mapRef.current, {
           zoom: 12,
@@ -103,10 +100,17 @@ const AdminMapAnalytics: React.FC = () => {
         });
 
         setMap(mapInstance);
+        setMapLoading(false);
         fetchMapOrders();
       } catch (error) {
         console.error("Error loading Google Maps API:", error);
-        toast.error("Failed to load map. Please check your API key.");
+        const errorMsg =
+          error instanceof Error
+            ? error.message
+            : "Failed to load map. Please check your API key.";
+        setMapError(errorMsg);
+        setMapLoading(false);
+        toast.error(errorMsg);
       }
     };
 
