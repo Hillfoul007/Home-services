@@ -26,6 +26,7 @@ import {
   Home,
   Truck,
   Image,
+  MapPin as MapIcon,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
