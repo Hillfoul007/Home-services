@@ -220,20 +220,42 @@ const AdminMapAnalytics: React.FC = () => {
   useEffect(() => {
     if (!map || !drawingMode) return;
 
-    const clickListener = map.addListener("click", (event: any) => {
-      const newPoint: [number, number] = [event.latLng.lng(), event.latLng.lat()];
-      setPolygon([...polygon, newPoint]);
+    const setupDrawing = async () => {
+      try {
+        const loader = new GoogleLoader({
+          apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+          version: "weekly",
+          libraries: ["places"],
+        });
 
-      // Plot the point on map
-      new (window as any).google.maps.Marker({
-        position: { lat: newPoint[1], lng: newPoint[0] },
-        map,
-        title: `Point ${polygon.length + 1}`,
-      });
-    });
+        const google = await loader.load();
+
+        const clickListener = map.addListener("click", (event: any) => {
+          const newPoint: [number, number] = [event.latLng.lng(), event.latLng.lat()];
+          setPolygon([...polygon, newPoint]);
+
+          // Plot the point on map
+          new google.maps.Marker({
+            position: { lat: newPoint[1], lng: newPoint[0] },
+            map,
+            title: `Point ${polygon.length + 1}`,
+          });
+        });
+
+        // Store listener for cleanup
+        (map as any).__drawingListener = clickListener;
+      } catch (error) {
+        console.error("Error setting up drawing mode:", error);
+      }
+    };
+
+    setupDrawing();
 
     return () => {
-      (window as any).google.maps.event.removeListener(clickListener);
+      const listener = (map as any).__drawingListener;
+      if (listener && window.google?.maps?.event?.removeListener) {
+        window.google.maps.event.removeListener(listener);
+      }
     };
   }, [map, drawingMode, polygon]);
 
