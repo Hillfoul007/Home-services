@@ -164,13 +164,7 @@ const AdminMapAnalytics: React.FC = () => {
     if (!map) return;
 
     try {
-      const loader = new GoogleLoader({
-        apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-        version: "weekly",
-        libraries: ["places"],
-      });
-
-      const google = await loader.load();
+      const google = await getGoogleMaps();
 
       // Clear old markers (simple approach - create new map instance)
       const infoWindows: any[] = [];
