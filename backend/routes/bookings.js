@@ -1286,62 +1286,90 @@ router.put("/:bookingId/status", async (req, res) => {
 
     console.log("✅ Booking status updated successfully:", booking._id);
 
-    // Process referral rewards if booking is completed
-    if (status === "completed") {
+    // Handle referral rewards when booking is completed
+    if (status === "completed" && booking.customer_id) {
       try {
-        console.log("🎁 Processing referral rewards for completed booking:", booking._id);
-
-        // Import Referral model
+        const User = require("../models/User");
         const Referral = require("../models/Referral");
 
-        // Check if this customer used a referral code
-        const customerReferral = await Referral.findOne({
-          referee_id: booking.customer_id._id,
-          status: "pending"
-        }).populate('referrer_id', 'name phone email');
+        const customer = await User.findById(booking.customer_id);
 
-        if (customerReferral) {
-          console.log(`🎉 Found referral for customer ${booking.customer_id.full_name}! Referrer: ${customerReferral.referrer_id.name}`);
-
-          // Mark first order as completed
-          await customerReferral.markFirstOrderCompleted(
-            booking._id,
-            booking.discount_amount || 0
-          );
-
-          // Generate reward coupon for the referrer
-          const rewardCouponCode = Referral.generateRewardCouponCode(customerReferral.referrer_id._id);
-
-          // Mark referrer as rewarded
-          await customerReferral.markReferrerRewarded(rewardCouponCode);
-
-          // Add the reward coupon to the referrer's available coupons
-          await User.findByIdAndUpdate(customerReferral.referrer_id._id, {
-            $push: {
-              available_coupons: {
-                code: rewardCouponCode,
-                type: "referral_reward",
-                discount_percentage: customerReferral.referrer_reward_percentage,
-                max_discount_amount: 500,
-                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
-              }
-            },
-            $inc: {
-              "referral_stats.successful_referrals": 1,
-              "referral_stats.total_rewards_earned": 1
-            }
+        if (customer) {
+          // Check if this is customer's first order
+          const previousCompletedBookings = await Booking.countDocuments({
+            customer_id: booking.customer_id,
+            status: "completed",
+            _id: { $ne: booking._id }
           });
 
-          console.log(`✅ Referral reward processed! Referrer ${customerReferral.referrer_id.name} earned coupon: ${rewardCouponCode}`);
+          const isFirstOrder = previousCompletedBookings === 0;
 
-          // You could trigger a notification here
-          // await sendReferralRewardNotification(customerReferral.referrer_id, rewardCouponCode);
+          if (isFirstOrder && customer.referred_by) {
+            console.log("🎁 Processing referral rewards for first-time order...");
 
-        } else {
-          console.log("ℹ️ No pending referral found for this customer");
+            // Find referral record
+            const referral = await Referral.findOne({
+              referee_id: booking.customer_id,
+              referrer_id: customer.referred_by,
+              status: "pending"
+            });
+
+            if (referral && !referral.referrer_reward_credited) {
+              // Get referrer
+              const referrer = await User.findById(customer.referred_by);
+
+              if (referrer) {
+                // Credit referrer with ₹100
+                referrer.wallet_balance = (referrer.wallet_balance || 0) + referral.referrer_reward;
+                referrer.wallet_transactions.push({
+                  type: "credit",
+                  amount: referral.referrer_reward,
+                  description: `Referral reward for ${customer.name}'s first order`,
+                  booking_id: booking._id,
+                  created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+                });
+                referrer.referral_stats.completed_referrals += 1;
+                referrer.referral_stats.earned_amount += referral.referrer_reward;
+
+                await referrer.save();
+                console.log(`💰 Credited ₹${referral.referrer_reward} referral reward to referrer ${referrer.phone}`);
+              }
+
+              // Mark referee reward as credited
+              if (!referral.referee_reward_credited) {
+                customer.wallet_balance = (customer.wallet_balance || 0) + referral.referee_reward;
+                customer.wallet_transactions.push({
+                  type: "credit",
+                  amount: referral.referee_reward,
+                  description: "Referral bonus for first order completion",
+                  booking_id: booking._id,
+                  created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+                });
+                console.log(`💰 Credited ₹${referral.referee_reward} referral reward to referee ${customer.phone}`);
+              }
+
+              // Mark customer first order as completed
+              customer.has_completed_first_order = true;
+              await customer.save();
+
+              // Update referral status
+              referral.status = "completed";
+              referral.first_order_booking_id = booking._id;
+              referral.first_order_date = indianDate;
+              referral.referrer_reward_credited = true;
+              referral.referee_reward_credited = true;
+
+              await referral.save();
+              console.log("✅ Referral completed and rewards credited");
+            } else if (referral && referral.referrer_reward_credited) {
+              console.log("ℹ️ Referral rewards already credited for this booking");
+            }
+          } else {
+            console.log(isFirstOrder ? "ℹ️ No referrer found for this customer" : "ℹ️ Not customer's first order");
+          }
         }
       } catch (referralError) {
-        console.error("❌ Error processing referral rewards:", referralError);
+        console.error("⚠️ Error processing referral rewards:", referralError);
         // Don't fail the booking update if referral processing fails
       }
     }

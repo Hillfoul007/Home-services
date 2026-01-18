@@ -1,5 +1,4 @@
 const express = require("express");
-const Referral = require("../models/Referral");
 const User = require("../models/User");
 const router = express.Router();
 
@@ -53,48 +52,9 @@ router.post("/validate", async (req, res) => {
       });
     }
 
-    // First check for referral-generated reward coupons
-    let coupon = null;
-    let isReferralRewardCoupon = false;
-
-    // Check if this is a referral reward coupon (starts with REWARD)
-    if (couponCode.toUpperCase().startsWith('REWARD')) {
-      console.log(`🎁 Checking referral reward coupon: ${couponCode}`);
-
-      const referralReward = await Referral.findOne({
-        referrer_reward_coupon_code: couponCode.toUpperCase(),
-        status: 'rewarded'
-      }).populate('referrer_id', 'name');
-
-      if (referralReward) {
-        // Check if this coupon belongs to the user trying to use it
-        if (referralReward.referrer_id._id.toString() === userId) {
-          coupon = {
-            code: couponCode.toUpperCase(),
-            discount: referralReward.referrer_reward_percentage,
-            maxDiscount: 500, // Higher limit for referral rewards
-            description: `${referralReward.referrer_reward_percentage}% off - Referral Reward`,
-            type: "referral_reward",
-            isOneTimeUse: true,
-            isActive: true
-          };
-          isReferralRewardCoupon = true;
-          console.log(`✅ Valid referral reward coupon for user ${userId}`);
-        } else {
-          return res.status(403).json({
-            success: false,
-            message: "This referral reward coupon doesn't belong to you"
-          });
-        }
-      }
-    }
-
-    // If not a referral coupon, check regular coupons
-    if (!coupon) {
-      coupon = mockCoupons.find(
-        (c) => c.code.toLowerCase() === couponCode.toLowerCase()
-      );
-    }
+    let coupon = mockCoupons.find(
+      (c) => c.code.toLowerCase() === couponCode.toLowerCase()
+    );
 
     if (!coupon) {
       return res.status(404).json({
@@ -139,8 +99,7 @@ router.post("/validate", async (req, res) => {
     res.json({
       success: true,
       coupon: coupon,
-      message: isReferralRewardCoupon ? "Valid referral reward coupon!" : "Coupon is valid",
-      isReferralReward: isReferralRewardCoupon
+      message: "Coupon is valid"
     });
   } catch (error) {
     console.error("❌ Error validating coupon:", error);

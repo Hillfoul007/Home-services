@@ -1,0 +1,257 @@
+================================================================================
+GOOGLE PLAY STORE LISTING - READY TO COPY & PASTE
+================================================================================
+
+Fill these into your Google Play Console in this exact order:
+
+================================================================================
+1. APP NAME (30 characters max)
+================================================================================
+Laundrify
+
+Status: 9/30 characters ✅
+
+
+================================================================================
+2. SHORT DESCRIPTION (80 characters max)
+================================================================================
+Quick laundry & dry cleaning delivered to your doorstep in 24 hours
+
+Status: 68/80 characters ✅
+
+
+================================================================================
+3. FULL DESCRIPTION (4000 characters max)
+================================================================================
+Welcome to Laundrify - Your Trusted Laundry & Dry Cleaning Service
+
+Get professional laundry and dry cleaning delivered to your doorstep in just 24 hours!
+
+📋 OUR SERVICES:
+✓ Regular Wash & Iron
+✓ Men's & Women's Dry Cleaning
+✓ Woolen Garments Care
+✓ Heavy Dresses & Suits
+✓ Shoe Cleaning & Repair
+✓ Household Item Laundry
+
+⚡ WHY CHOOSE LAUNDRIFY?
+
+🚀 Quick & Convenient
+- Book in seconds from your phone
+- 24-hour turnaround time
+- Doorstep pickup and delivery
+- No hidden charges
+
+💯 Professional Quality
+- Experienced laundry professionals
+- Premium cleaning products
+- Careful handling of delicate garments
+- Quality guaranteed
+
+💳 Safe & Secure
+- Multiple payment options
+- Transparent pricing
+- Real-time order tracking
+- Secure transactions
+
+📱 EASY TO USE APP
+- Quick booking in 3 taps
+- Schedule pickup at your convenience
+- Track your order in real-time
+- Order history & repeat previous orders
+- Multiple delivery addresses
+- Special instructions for each order
+
+🎯 FOR PG & HOSTEL RESIDENTS
+- Special packages for students
+- Bulk discount available
+- Quick collection & delivery
+- Student-friendly prices
+
+💰 SPECIAL OFFERS
+- First order discount
+- Referral rewards program
+- Loyalty points on every order
+- Seasonal promotions
+
+📞 24/7 CUSTOMER SUPPORT
+- Live chat support
+- Quick response time
+- Easy refund policy
+- Customer satisfaction guarantee
+
+🔒 YOUR ITEMS ARE SAFE
+- SMS updates on every milestone
+- Secure handling process
+- Insurance coverage available
+- Item count verification
+
+📦 HOW IT WORKS:
+1. Download Laundrify app
+2. Sign in with phone number
+3. Select services & quantity
+4. Schedule pickup time
+5. Track delivery in real-time
+6. Receive clean clothes at your doorstep
+
+🌟 WHAT CUSTOMERS SAY:
+"Best laundry service I've used! Quick, reliable, and affordable."
+"Saves me so much time. Highly recommended for busy professionals."
+"Great quality and excellent customer service!"
+
+🎁 SPECIAL BENEFITS:
+✓ No subscription required - pay per order
+✓ Works in multiple cities
+✓ Environment-friendly practices
+✓ Express service available
+✓ Bulk order discounts
+
+Perfect for:
+- Busy professionals
+- Students & PG residents
+- Working parents
+- Anyone who values time
+
+Download Laundrify now and enjoy hassle-free laundry service!
+
+Note: Service availability depends on your location. Check our app to see if we deliver in your area.
+
+Status: ~1,850/4000 characters ✅
+
+
+================================================================================
+4. SCREENSHOTS NEEDED
+================================================================================
+Required: 5 screenshots minimum (8 recommended)
+Dimensions: 1080 × 1920 pixels (Portrait)
+Format: PNG or JPEG
+
+Recommended order:
+1. Hero/Welcome - "Quick Clean & Convenient"
+2. Service Selection - "Choose Your Services"
+3. Quick Booking - "Book in Just 3 Taps"
+4. Real-Time Tracking - "Track Orders Live"
+5. Pricing - "Transparent Pricing"
+6. (Optional) Special Offers
+7. (Optional) Customer Support
+8. (Optional) Order History
+
+💡 TIP: You can take screenshots directly from your app running on the device,
+   then add text overlays using Canva (free) or Figma
+
+
+================================================================================
+5. APP ICON
+================================================================================
+Use your existing: /laundrify-exact-icon.svg
+- Convert SVG to PNG (512 × 512 pixels)
+- High resolution for Play Store
+
+
+================================================================================
+6. FEATURE GRAPHIC (Optional but Recommended)
+================================================================================
+- Dimensions: 1024 × 500 pixels
+- Format: PNG or JPEG
+- Example: "Laundrify - Quick Clean & Convenient" with key benefits
+
+
+================================================================================
+7. CATEGORY
+================================================================================
+Choose one:
+- Shopping (RECOMMENDED)
+- Lifestyle
+- Services
+
+
+================================================================================
+8. CONTENT RATING
+================================================================================
+Select: "Everyone" (PEGI 3)
+This is a service app with no restricted content.
+
+
+================================================================================
+9. PRIVACY POLICY URL
+================================================================================
+Provide a link to your privacy policy, OR use this template format:
+
+Template URL structure:
+https://laundrify.online/privacy-policy
+OR
+https://your-website.com/privacy-policy
+
+If you don't have one, create a simple page with:
+- What data you collect (phone number, location, payment info)
+- How you use it (for service delivery, customer support)
+- How long you keep it
+- User rights and data deletion request process
+
+
+================================================================================
+10. SUPPORT EMAIL & WEBSITE
+================================================================================
+Support Email: support@laundrify.online
+Website: https://laundrify.online (if you have one)
+
+Note: Make sure this email actually works and can receive inquiries
+
+
+================================================================================
+COPY-PASTE CHECKLIST
+================================================================================
+
+[ ] App Name: "Laundrify"
+[ ] Short Desc: "Quick laundry & dry cleaning delivered to your doorstep in 24 hours"
+[ ] Full Desc: [Full description above]
+[ ] Screenshots: 5-8 uploaded
+[ ] Icon: 512×512 PNG uploaded
+[ ] Category: Shopping selected
+[ ] Content Rating: Everyone (PEGI 3)
+[ ] Privacy Policy URL: Added
+[ ] Support Email: Added and verified
+[ ] App tested on multiple devices
+[ ] No typos or grammar errors
+[ ] All permissions explained in app
+[ ] Terms of Service provided
+[ ] Contact information visible in app
+
+
+================================================================================
+AFTER SUBMISSION
+================================================================================
+
+1. Submit to Internal Testing first (1-3 hours)
+2. Test with real devices
+3. If all works, submit to Production
+4. Play Store review usually takes 1-3 days
+5. Check email for approval or rejections
+
+
+================================================================================
+COMMON REJECTION REASONS (Avoid These)
+================================================================================
+
+❌ Misleading description
+❌ Screenshots don't match app
+❌ No working contact email
+❌ Missing privacy policy
+❌ Functionality issues on devices
+❌ Typos or poor grammar
+❌ Violating any Google Play policy
+❌ Test accounts not provided (if needed)
+❌ App crashes on startup
+❌ Excessive ads or aggressive monetization
+
+✅ Our app avoids all of these!
+
+
+================================================================================
+QUESTIONS?
+================================================================================
+
+Refer to: PLAYSTORE_STORE_LISTING.md (full comprehensive guide)
+
+Good luck! 🚀

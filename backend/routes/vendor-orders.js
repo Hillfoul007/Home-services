@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Booking = require("../models/Booking");
+const PGOrder = require("../models/PGOrder");
 const Vendor = require("../models/Vendor");
 const mongoose = require("mongoose");
 const multer = require("multer");
@@ -30,29 +31,82 @@ const verifyVendorToken = (req, res, next) => {
   }
 };
 
-// Get vendor's assigned orders
+// Get vendor's assigned orders (both regular bookings and PG orders)
 router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
   try {
     const { status } = req.query; // Optional filter by status
 
     console.log(`📋 Fetching orders for vendor: ${req.vendor_id_str} (${req.vendor_name})`);
 
-    let query = { assignedVendor: req.vendor_name };
-
+    // Query 1: Get regular Booking orders (assigned by vendor name - string)
+    let bookingQuery = { assignedVendor: req.vendor_name };
     if (status) {
-      query.status = status;
+      bookingQuery.status = status;
     }
 
-    const orders = await Booking.find(query)
+    const bookingOrders = await Booking.find(bookingQuery)
       .sort({ created_at: -1 })
       .select("-special_instructions");
 
-    console.log(`✅ Found ${orders.length} orders for vendor`);
+    console.log(`✅ Found ${bookingOrders.length} regular booking orders for vendor`);
+
+    // Query 2: Get PG orders (assigned by vendor ObjectId)
+    let pgQuery = {};
+
+    // Try matching PG orders with this vendor's ObjectId
+    if (mongoose.Types.ObjectId.isValid(req.vendor_id)) {
+      pgQuery = {
+        $or: [
+          { assignedVendor: new mongoose.Types.ObjectId(req.vendor_id) },
+          { assignedVendor: req.vendor_id }, // Also try as string for compatibility
+        ],
+      };
+    } else {
+      pgQuery = { assignedVendor: req.vendor_id };
+    }
+
+    if (status) {
+      pgQuery.status = status;
+    }
+
+    const pgOrders = await PGOrder.find(pgQuery)
+      .sort({ created_at: -1 });
+
+    console.log(`✅ Found ${pgOrders.length} PG orders for vendor`);
+
+    // Mark PG orders with isPGOrder flag and convert to plain objects
+    const markedPGOrders = pgOrders.map(pgOrder => {
+      const pgOrderObj = pgOrder.toObject ? pgOrder.toObject() : pgOrder;
+      return {
+        ...pgOrderObj,
+        isPGOrder: true,
+      };
+    });
+
+    // Mark regular booking orders explicitly as NOT PG orders
+    const markedBookingOrders = bookingOrders.map(booking => {
+      const bookingObj = booking.toObject ? booking.toObject() : booking;
+      return {
+        ...bookingObj,
+        isPGOrder: false,
+      };
+    });
+
+    // Combine both order types
+    const orders = [...markedBookingOrders, ...markedPGOrders].sort((a, b) => {
+      const dateA = new Date(a.created_at || a.createdAt || 0).getTime();
+      const dateB = new Date(b.created_at || b.createdAt || 0).getTime();
+      return dateB - dateA; // Most recent first
+    });
+
+    console.log(`✅ Total ${orders.length} orders (${bookingOrders.length} booking + ${pgOrders.length} PG)`);
 
     res.json({
       success: true,
       orders,
       total: orders.length,
+      bookingOrders: bookingOrders.length,
+      pgOrders: pgOrders.length,
     });
   } catch (error) {
     console.error("❌ Error fetching vendor orders:", error);

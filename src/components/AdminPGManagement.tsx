@@ -9,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CITIES } from "@/data/cities";
 import {
   Dialog,
   DialogContent,
@@ -95,14 +94,29 @@ const AdminPGManagement: React.FC = () => {
     try {
       setLoading(true);
       const response = await apiClient.adminRequest<any>("/pg-management");
-      if (response.data) {
-        setPGs(response.data);
+
+      if (response.error) {
+        throw new Error(response.error);
       }
-      // Use predefined cities list
-      setCities(CITIES);
+
+      // Handle nested data structure: { data: { success: true, data: [...] } }
+      const pgsData = response.data?.data || response.data || [];
+
+      if (Array.isArray(pgsData)) {
+        setPGs(pgsData);
+        // Extract unique cities from loaded PGs
+        const uniqueCities = [...new Set(pgsData.map((pg: PG) => pg.city))];
+        setCities(uniqueCities.sort());
+      } else {
+        console.warn("Invalid PGs response format:", response.data);
+        setPGs([]);
+        setCities([]);
+      }
     } catch (error) {
       console.error("Error loading PGs:", error);
       toast.error("Failed to load PGs");
+      setPGs([]);
+      setCities([]);
     } finally {
       setLoading(false);
     }
@@ -113,8 +127,17 @@ const AdminPGManagement: React.FC = () => {
       const response = await apiClient.adminRequest<any>(
         "/pg-management/vendors/available"
       );
-      if (response.data) {
-        setVendors(response.data);
+
+      if (response.error) {
+        console.warn("Failed to load vendors:", response.error);
+        return;
+      }
+
+      // Handle nested data structure: { data: { success: true, data: [...] } }
+      const vendorsData = response.data?.data || response.data || [];
+
+      if (Array.isArray(vendorsData)) {
+        setVendors(vendorsData);
       }
     } catch (error) {
       console.error("Error loading vendors:", error);

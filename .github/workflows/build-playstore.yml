@@ -1,0 +1,100 @@
+name: Build APK/AAB for Play Store
+
+on:
+  push:
+    branches: [ neon-landing, main, master ]
+  pull_request:
+    branches: [ neon-landing, main, master ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v3
+        
+      - name: ☕ Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+          
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: 📚 Install dependencies
+        run: npm ci
+        
+      - name: 🏗️ Build web app
+        run: npm run build
+        
+      - name: 📱 Setup Android SDK
+        uses: android-actions/setup-android@v2
+        
+      - name: 🔄 Sync Capacitor to Android
+        run: npx cap sync android
+        
+      - name: 🔑 Create keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          mkdir -p ~/.android
+          echo "Creating keystore..."
+          keytool -genkeypair -v \
+            -keystore ~/laundrify-release-keystore.jks \
+            -alias laundrify-key \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -dname "CN=Laundrify,O=Laundrify,L=India,ST=India,C=IN"
+          cp ~/laundrify-release-keystore.jks android/
+          
+      - name: 🏗️ Build Android AAB
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file=../laundrify-release-keystore.jks \
+            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=laundrify-key \
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+          
+      - name: 📦 Upload AAB as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release.aab
+          path: android/app/release/app-release.aab
+          
+      - name: 📝 Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            android/app/release/app-release.aab
+          body: |
+            ## Laundrify - Play Store Release
+            
+            ### Version: ${{ github.ref_name }}
+            
+            ✅ Built and signed for Play Store
+            
+            📦 **What's included:**
+            - app-release.aab - Upload this to Google Play Console
+            
+            🚀 **Next steps:**
+            1. Go to https://play.google.com/console
+            2. Create new app or select existing
+            3. Go to Testing → Internal Testing
+            4. Upload the app-release.aab file
+            5. Test and submit for review

@@ -80,6 +80,8 @@ const formatScheduledDateTime = (order: Order): string => {
   }
 };
 
+type FilterType = 'all' | 'regular' | 'pg';
+
 const VendorDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -89,53 +91,196 @@ const VendorDashboard: React.FC = () => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [soundSettings, setSoundSettings] = useState<SoundNotificationSettings>(soundNotificationService.getSettings());
   const [showSoundMenu, setShowSoundMenu] = useState(false);
+  const [filterType, setFilterType] = useState<FilterType>('all');
 
   const load = async () => {
     setLoading(true);
     try {
+      // Validate vendor authentication
+      const isValidAuth = await vendorAuthService.validateVendorAuth();
+      if (!isValidAuth) {
+        console.error("❌ Vendor authentication validation failed");
+        toast.error("Session expired or invalid. Please log in again.");
+        navigate("/vendor/login");
+        setLoading(false);
+        return;
+      }
+
+      const vendorAuth = vendorAuthService.getVendorAuth();
+      console.log("✅ Vendor is authenticated:", vendorAuth?.name);
+
       const res = await vendorAuthService.fetchAssignedOrders();
       let allOrders: Order[] = [];
 
       if (res && res.success && res.orders) {
-        allOrders = res.orders;
+        // Ensure all regular orders are explicitly marked as NOT PG orders
+        allOrders = res.orders.map((order: any) => ({
+          ...order,
+          isPGOrder: order.isPGOrder || false, // Explicitly set isPGOrder to false for regular orders
+        }));
+        console.log(`✅ Loaded ${allOrders.length} regular orders`);
       }
 
       // Load PG orders assigned to this vendor
       try {
         const vendorAuth = vendorAuthService.getVendorAuth();
-        if (vendorAuth?.vendor_id) {
+        const rawToken = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
+
+        console.log("🔍 [DEBUG] Token Status:", {
+          hasToken: !!rawToken,
+          tokenType: rawToken ? 'Present' : 'MISSING',
+          tokenLength: rawToken?.length,
+          tokenPreview: rawToken ? rawToken.substring(0, 100) + '...' : 'NO_TOKEN'
+        });
+
+        console.log("🔍 [DEBUG] Vendor Auth from Token:", {
+          authExists: !!vendorAuth,
+          vendor_id: vendorAuth?.vendor_id,
+          vendor_id_str: vendorAuth?.vendor_id_str,
+          name: vendorAuth?.name,
+          allKeys: vendorAuth ? Object.keys(vendorAuth) : 'null'
+        });
+
+        const vendorIdToUse = vendorAuth?.vendor_id || vendorAuth?.vendor_id_str;
+
+        if (vendorIdToUse) {
+          console.log(`📍 [DEBUG] Using vendor ID: "${vendorIdToUse}"`);
+          console.log(`📍 [DEBUG] Fetching PG orders for vendor ID: "${vendorIdToUse}" (type: ${typeof vendorIdToUse})`);
+
           const pgResponse = await apiClient.request<any>(
-            `/pg-orders/vendor/${vendorAuth.vendor_id}`
+            `/pg-orders/vendor/${vendorIdToUse}`
           );
-          if (pgResponse.data && Array.isArray(pgResponse.data)) {
-            const pgOrders: Order[] = pgResponse.data.map((pgOrder: any) => ({
-              _id: pgOrder._id,
-              custom_order_id: pgOrder.custom_order_id,
-              name: pgOrder.name,
-              phone: pgOrder.phone,
-              service: "Laundry and Iron",
-              status: pgOrder.status,
-              scheduled_date: pgOrder.created_at?.split('T')[0],
-              address: `${pgOrder.pg_name}, ${pgOrder.city}`,
-              final_amount: pgOrder.final_amount,
-              total_price: pgOrder.total_price,
-              isPGOrder: true,
-              pg_name: pgOrder.pg_name,
-              no_of_items: pgOrder.no_of_items,
-            }));
-            allOrders = [...allOrders, ...pgOrders];
+          console.log("📦 [DEBUG] Full PG Orders Response:", pgResponse);
+          console.log("📦 [DEBUG] PG Orders Response Structure:", {
+            success: pgResponse?.data?.success,
+            dataType: typeof pgResponse?.data,
+            isArray: Array.isArray(pgResponse?.data),
+            hasDataProperty: 'data' in (pgResponse?.data || {}),
+            dataLength: Array.isArray(pgResponse?.data) ? pgResponse.data.length : (pgResponse?.data?.data?.length || 0),
+            dataArray: Array.isArray(pgResponse?.data) ? pgResponse.data : (pgResponse?.data?.data || []),
+            error: pgResponse?.error,
+            status: pgResponse?.status
+          });
+
+          // Backend returns { success: true, data: [...] }, so extract the actual array
+          const pgOrdersArray = Array.isArray(pgResponse.data)
+            ? pgResponse.data
+            : (pgResponse.data?.data || []);
+
+          console.log(`✅ Found ${pgOrdersArray?.length || 0} PG orders`);
+          if (pgOrdersArray && pgOrdersArray.length > 0) {
+            console.log("✅ PG Orders Details:", pgOrdersArray.map((o: any) => ({
+              id: o.custom_order_id,
+              pg_name: o.pg_name,
+              address: o.address,
+              city: o.city,
+              status: o.status
+            })));
+          } else {
+            console.log("ℹ️ No PG orders found for vendor:", vendorIdToUse, {
+              possibleReasons: [
+                "No PG orders created for this vendor",
+                "PG orders not assigned to this vendor",
+                "Vendor ID mismatch in database"
+              ],
+              debugInfo: {
+                vendorIdUsed: vendorIdToUse,
+                responseData: pgResponse.data
+              }
+            });
           }
+
+          if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
+            const pgOrders: Order[] = pgOrdersArray.map((pgOrder: any) => {
+              // Build address with fallbacks
+              let finalAddress = pgOrder.address || '';
+              if (!finalAddress && pgOrder.pg_name) {
+                finalAddress = pgOrder.pg_name;
+              }
+              if (!finalAddress && pgOrder.city) {
+                finalAddress = pgOrder.city;
+              }
+
+              return {
+                _id: pgOrder._id,
+                custom_order_id: pgOrder.custom_order_id,
+                name: pgOrder.name,
+                phone: pgOrder.phone,
+                service: "Laundry and Iron",
+                status: pgOrder.status,
+                scheduled_date: pgOrder.created_at?.split('T')[0],
+                address: finalAddress,
+                final_amount: pgOrder.final_amount,
+                total_price: pgOrder.total_price,
+                isPGOrder: true,
+                pg_name: pgOrder.pg_name || 'PG Location',
+                no_of_items: pgOrder.no_of_items,
+              };
+            });
+            console.log("✅ PG Orders mapped:", pgOrders.map(o => ({
+              id: o.custom_order_id,
+              pg_name: o.pg_name,
+              address: o.address,
+              status: o.status
+            })));
+            allOrders = [...allOrders, ...pgOrders];
+            console.log("✅ PG Orders merged into allOrders", {
+              regularOrdersCount: allOrders.filter(o => !o.isPGOrder).length,
+              pgOrdersCount: allOrders.filter(o => o.isPGOrder).length,
+              totalCount: allOrders.length,
+              sample_pg: pgOrders.slice(0, 2).map(o => ({
+                id: o.custom_order_id,
+                isPGOrder: o.isPGOrder,
+                pg_name: o.pg_name
+              }))
+            });
+          }
+        } else {
+          const errorDetails = {
+            vendorAuth_exists: !!vendorAuth,
+            vendor_id: vendorAuth?.vendor_id,
+            vendor_id_str: vendorAuth?.vendor_id_str,
+            available_keys: vendorAuth ? Object.keys(vendorAuth) : [],
+            token_exists: !!rawToken,
+            rawToken_length: rawToken?.length,
+            isCustomerToken: rawToken && !rawToken.includes('vendor_id'),
+            recommendation: 'Try logging out and logging back in with valid vendor credentials'
+          };
+          console.error("❌ [DEBUG] No vendor ID found in token!", errorDetails);
+          toast.error("Vendor authentication error: Invalid or expired token. Please log in again.");
+
+          // Redirect to login
+          setTimeout(() => {
+            navigate("/vendor/login");
+          }, 2000);
         }
       } catch (pgError) {
-        console.warn("Could not load PG orders:", pgError);
+        console.error("❌ [DEBUG] Could not load PG orders:", {
+          error: pgError,
+          message: (pgError as any)?.message,
+          stack: (pgError as any)?.stack
+        });
       }
+
+      // Deduplicate orders by _id (remove duplicates)
+      const seenIds = new Set<string>();
+      const uniqueOrders = allOrders.filter(order => {
+        if (seenIds.has(order._id)) {
+          console.log(`🚫 Removing duplicate order: ${order.custom_order_id} (${order._id})`);
+          return false;
+        }
+        seenIds.add(order._id);
+        return true;
+      });
+
+      console.log(`📊 Order deduplication: ${allOrders.length} total → ${uniqueOrders.length} unique orders`);
 
       // Detect new orders and play notification
       setOrders(prevOrders => {
-        if (prevOrders.length > 0 && allOrders.length > prevOrders.length) {
+        if (prevOrders.length > 0 && uniqueOrders.length > prevOrders.length) {
           // Find new orders
           const prevOrderIds = new Set(prevOrders.map(o => o._id));
-          const newOrderIds = allOrders.filter(o => !prevOrderIds.has(o._id));
+          const newOrderIds = uniqueOrders.filter(o => !prevOrderIds.has(o._id));
 
           if (newOrderIds.length > 0) {
             // Play notification for each new order
@@ -147,7 +292,7 @@ const VendorDashboard: React.FC = () => {
           }
         }
 
-        return allOrders;
+        return uniqueOrders;
       });
     } catch (err: any) {
       toast.error(err?.message || "Failed to load orders");
@@ -329,9 +474,59 @@ const VendorDashboard: React.FC = () => {
     });
   };
 
-  const bucketA = sortOrdersByTime(orders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
-  const bucketB = sortOrdersByTime(orders.filter(o => o.status === 'ready_for_delivery'));
-  const completed = sortOrdersByTime(orders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
+  // Apply filter based on filterType
+  const getFilteredOrders = (ordersToFilter: Order[]): Order[] => {
+    if (filterType === 'all') return ordersToFilter;
+    if (filterType === 'regular') {
+      const regularOnly = ordersToFilter.filter(o => !o.isPGOrder);
+      console.log("🔍 Filtering Regular Orders:", {
+        totalInput: ordersToFilter.length,
+        filteredOutput: regularOnly.length,
+        pgOrdersRemoved: ordersToFilter.filter(o => o.isPGOrder).length,
+        hasPGOrders: regularOnly.some(o => o.isPGOrder)
+      });
+      return regularOnly;
+    }
+    if (filterType === 'pg') {
+      const pgOnly = ordersToFilter.filter(o => o.isPGOrder);
+      console.log("🔍 Filtering PG Orders:", {
+        totalInput: ordersToFilter.length,
+        filteredOutput: pgOnly.length,
+        regularOrdersRemoved: ordersToFilter.filter(o => !o.isPGOrder).length,
+        hasRegularOrders: pgOnly.some(o => !o.isPGOrder)
+      });
+      return pgOnly;
+    }
+    return ordersToFilter;
+  };
+
+  const filteredOrders = getFilteredOrders(orders);
+
+  const bucketA = sortOrdersByTime(filteredOrders.filter(o => o.status !== 'ready_for_delivery' && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled'));
+  const bucketB = sortOrdersByTime(filteredOrders.filter(o => o.status === 'ready_for_delivery'));
+  const completed = sortOrdersByTime(filteredOrders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
+
+  // Verify PG and Regular orders are properly separated
+  const allPGOrders = orders.filter(o => o.isPGOrder);
+  const allRegularOrders = orders.filter(o => !o.isPGOrder);
+
+  console.log("📊 [DEBUG] Orders Separation Verification:", {
+    totalOrders: orders.length,
+    pgOrders: allPGOrders.length,
+    regularOrders: allRegularOrders.length,
+    sumMatches: allPGOrders.length + allRegularOrders.length === orders.length ? '✅ YES' : '❌ NO',
+    pgOrderIds: allPGOrders.map(o => o.custom_order_id),
+    filterType,
+    bucketA_count: bucketA.length,
+    bucketB_count: bucketB.length,
+    completed_count: completed.length,
+    bucketA_data: bucketA.map(o => ({
+      id: o.custom_order_id,
+      isPG: o.isPGOrder,
+      pg_name: o.pg_name,
+      status: o.status
+    }))
+  });
 
   if (loading && orders.length === 0) {
     return (
@@ -425,6 +620,34 @@ const VendorDashboard: React.FC = () => {
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
         </div>
       </div>
+
+      <div className="mb-4 flex gap-2 flex-wrap">
+        <Button
+          variant={filterType === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('all')}
+          className="text-xs md:text-sm"
+        >
+          All Orders ({orders.length})
+        </Button>
+        <Button
+          variant={filterType === 'regular' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('regular')}
+          className="text-xs md:text-sm"
+        >
+          Regular Orders ({orders.filter(o => !o.isPGOrder).length})
+        </Button>
+        <Button
+          variant={filterType === 'pg' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('pg')}
+          className="text-xs md:text-sm"
+        >
+          🏠 PG Orders ({orders.filter(o => o.isPGOrder).length})
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
           <div className="mb-4">
@@ -455,18 +678,19 @@ const VendorDashboard: React.FC = () => {
                     <div className="text-sm text-gray-500 mt-1">
                       {order.isPGOrder ? '🏠 PG Service' : order.service}
                     </div>
-                    {order.isPGOrder ? (
-                      <div className="text-xs text-blue-600 mt-1 font-semibold">📍 {order.pg_name}</div>
-                    ) : (
+                    {order.isPGOrder && order.pg_name && (
+                      <div className="text-xs text-blue-600 mt-1 font-semibold">🏠 PG: {order.pg_name}</div>
+                    )}
+                    {!order.isPGOrder && (
                       <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     )}
                     {order.delivery_date && (
                       <div className="text-xs text-gray-500">Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}</div>
                     )}
-                    {order.address && !order.isPGOrder && (
+                    {order.address && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
-                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
+                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left break-words"
                         title="Open in Google Maps"
                       >
                         📍 {order.address}
@@ -527,7 +751,7 @@ const VendorDashboard: React.FC = () => {
                   {order.isPGOrder && order.status === 'vendor_assigned' && (
                     <>
                       <div className="text-xs text-gray-600 font-semibold bg-yellow-50 p-2 rounded border border-yellow-200">
-                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹{order.no_of_items * 25}
+                        ⏳ PG Order Awaiting Confirmation - {order.no_of_items} items @ ₹25 per piece
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -570,8 +794,8 @@ const VendorDashboard: React.FC = () => {
                     </>
                   )}
 
-                  {order.status === 'in_progress' && (
-                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery')} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
+                  {(order.status === 'in_progress' || (order.isPGOrder && order.status === 'pickup_completed')) && (
+                    <Button onClick={() => changeStatus(order._id, 'ready_for_delivery', order.isPGOrder)} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
                       Ready to Dispatch
                     </Button>
                   )}
@@ -615,9 +839,10 @@ const VendorDashboard: React.FC = () => {
                     <div className="text-sm text-gray-500 mt-1">
                       {order.isPGOrder ? '🏠 PG Service' : order.service}
                     </div>
-                    {order.isPGOrder ? (
-                      <div className="text-xs text-blue-600 mt-1 font-semibold">📍 {order.pg_name}</div>
-                    ) : (
+                    {order.isPGOrder && order.pg_name && (
+                      <div className="text-xs text-blue-600 mt-1 font-semibold">🏠 PG: {order.pg_name}</div>
+                    )}
+                    {!order.isPGOrder && (
                       <div className="text-xs text-gray-500 mt-1">Pickup: {formatScheduledDateTime(order)}</div>
                     )}
                     {order.delivery_date && (
@@ -625,10 +850,10 @@ const VendorDashboard: React.FC = () => {
                         Delivery: {formatScheduledDateTime({...order, scheduled_date: order.delivery_date, scheduled_time: order.delivery_time || '00:00'} as Order)}
                       </div>
                     )}
-                    {order.address && !order.isPGOrder && (
+                    {order.address && (
                       <button
                         onClick={() => handleNavigateToAddress(order.address!)}
-                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left"
+                        className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer w-full text-left break-words"
                         title="Open in Google Maps"
                       >
                         📍 {order.address}
@@ -687,7 +912,7 @@ const VendorDashboard: React.FC = () => {
                 )}
 
                 <div className="mt-3">
-                  <Button onClick={() => changeStatus(order._id, 'delivered')} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
+                  <Button onClick={() => changeStatus(order._id, 'delivered', order.isPGOrder)} className="w-full bg-green-600 hover:bg-green-700 text-xs md:text-sm" size="sm">
                     Mark as Delivered
                   </Button>
                 </div>

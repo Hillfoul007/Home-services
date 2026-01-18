@@ -23,6 +23,9 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { vendorService } from "@/services/vendorService";
 import { X } from "lucide-react";
+import { parseGoogleMapsLink, isGoogleMapsUrl } from "@/utils/mapsLinkParser";
+import { locationService } from "@/services/locationService";
+import VendorTimeSlotSelector from "@/components/VendorTimeSlotSelector";
 
 interface User {
   _id: string;
@@ -72,6 +75,8 @@ const AdminUserBooking: React.FC = () => {
     special_instructions: "",
     is_quick_pickup: false,
     assignedVendor: "",
+    mapsLink: "",
+    coordinates: null as { lat: number; lng: number } | null,
   });
 
   // Vendor management state
@@ -82,6 +87,10 @@ const AdminUserBooking: React.FC = () => {
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
   const [newUserAddress, setNewUserAddress] = useState("");
+
+  // Time slot selection state
+  const [selectedPickupSlot, setSelectedPickupSlot] = useState<any>(null);
+  const [selectedDeliverySlot, setSelectedDeliverySlot] = useState<any>(null);
 
   // Service selection state
   const [availableServices] = useState<ServiceItem[]>([
@@ -159,8 +168,8 @@ const AdminUserBooking: React.FC = () => {
     }));
   };
 
-  // Fetch vendors based on address
-  const fetchVendorsForAddress = async (address: string) => {
+  // Fetch vendors based on address, with optional coordinates from Google Maps link
+  const fetchVendorsForAddress = async (address: string, coordinates?: { lat: number; lng: number } | null) => {
     if (!address.trim()) {
       setVendors([]);
       setSelectedVendor(null);
@@ -191,7 +200,11 @@ const AdminUserBooking: React.FC = () => {
         );
 
         // Get vendor recommendations with distance using vendorService
-        const vendorsWithDistance = await vendorService.getVendorRecommendations(address);
+        // If coordinates are provided from Google Maps link, use them for more accurate distance calculation
+        const vendorsWithDistance = await vendorService.getVendorRecommendations(
+          address,
+          coordinates // Pass coordinates if available for precise location
+        );
 
         // Convert to component format with all needed info
         const enrichedVendors = vendorsWithDistance.map((vendor) => ({
@@ -304,9 +317,9 @@ const AdminUserBooking: React.FC = () => {
 
         if (finalAddress) {
           console.log("✅ Autofilling address:", finalAddress);
-          setBookingData((prev) => ({ ...prev, address: finalAddress }));
+          setBookingData((prev) => ({ ...prev, address: finalAddress, mapsLink: "", coordinates: null }));
           // Fetch vendors for this address
-          await fetchVendorsForAddress(finalAddress);
+          await fetchVendorsForAddress(finalAddress, null);
         } else {
           console.warn("⚠️ No address found for user. Please enter address manually.");
           setVendors([]);
@@ -407,7 +420,7 @@ const AdminUserBooking: React.FC = () => {
         return;
       }
 
-      const bookingPayload = {
+      const bookingPayload: any = {
         customer_id: finalCustomerId,
         name: finalUserName,
         phone: finalUserPhone,
@@ -442,7 +455,18 @@ const AdminUserBooking: React.FC = () => {
           distance: selectedVendor.distance,
           estimatedTime: selectedVendor.estimatedTime,
         } : undefined,
+        status: selectedVendor ? "vendor_assigned" : "created",
       };
+
+      // Include coordinates if extracted from Google Maps link
+      if (bookingData.coordinates) {
+        bookingPayload.coordinates = bookingData.coordinates;
+      }
+
+      // Include mapsLink if available (custom or auto-generated)
+      if (bookingData.mapsLink) {
+        bookingPayload.mapsLink = bookingData.mapsLink;
+      }
 
       console.log("🔍 Submitting booking with services:", {
         services: bookingPayload.services,
@@ -477,6 +501,8 @@ const AdminUserBooking: React.FC = () => {
           special_instructions: "",
           is_quick_pickup: false,
           assignedVendor: "",
+          mapsLink: "",
+          coordinates: null,
         });
       } else {
         toast.error(`Failed to create booking: ${response.error || "Unknown error"}`);
@@ -644,7 +670,7 @@ const AdminUserBooking: React.FC = () => {
                           setSelectedUser(null);
                           setVendors([]);
                           setSelectedVendor(null);
-                          setBookingData(prev => ({ ...prev, address: "", assignedVendor: "" }));
+                          setBookingData(prev => ({ ...prev, address: "", assignedVendor: "", mapsLink: "", coordinates: null }));
                         }}
                       >
                         Change User
@@ -701,83 +727,161 @@ const AdminUserBooking: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="pickup-date">Pickup Date</Label>
-                <Input
-                  id="pickup-date"
-                  type="date"
-                  value={bookingData.scheduled_date}
-                  onChange={(e) =>
-                    setBookingData({ ...bookingData, scheduled_date: e.target.value })
-                  }
-                  min={new Date().toISOString().split("T")[0]}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="pickup-time">Pickup Time</Label>
-                <Select
-                  value={bookingData.scheduled_time}
-                  onValueChange={(value) =>
-                    setBookingData({ ...bookingData, scheduled_time: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="09:00">09:00 AM</SelectItem>
-                    <SelectItem value="10:00">10:00 AM</SelectItem>
-                    <SelectItem value="11:00">11:00 AM</SelectItem>
-                    <SelectItem value="12:00">12:00 PM</SelectItem>
-                    <SelectItem value="13:00">01:00 PM</SelectItem>
-                    <SelectItem value="14:00">02:00 PM</SelectItem>
-                    <SelectItem value="15:00">03:00 PM</SelectItem>
-                    <SelectItem value="16:00">04:00 PM</SelectItem>
-                    <SelectItem value="17:00">05:00 PM</SelectItem>
-                    <SelectItem value="18:00">06:00 PM</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {selectedVendor ? (
+                <>
+                  {/* Pickup Time Slot Selector (Only if vendor is selected) */}
+                  <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="pickup-date" className="mb-2 block">Pickup Date</Label>
+                        <Input
+                          id="pickup-date"
+                          type="date"
+                          value={bookingData.scheduled_date}
+                          onChange={(e) => {
+                            const newDate = e.target.value;
+                            setBookingData({ ...bookingData, scheduled_date: newDate });
+                            setSelectedPickupSlot(null);
+                          }}
+                          min={new Date().toISOString().split("T")[0]}
+                        />
+                      </div>
+                    </div>
 
-              <div>
-                <Label htmlFor="delivery-date">Delivery Date (Optional)</Label>
-                <Input
-                  id="delivery-date"
-                  type="date"
-                  value={bookingData.delivery_date}
-                  onChange={(e) =>
-                    setBookingData({ ...bookingData, delivery_date: e.target.value })
-                  }
-                  min={bookingData.scheduled_date || new Date().toISOString().split("T")[0]}
-                />
-              </div>
+                    {bookingData.scheduled_date && (
+                      <div className="mt-4">
+                        <VendorTimeSlotSelector
+                          vendorId={selectedVendor._id || selectedVendor.id}
+                          selectedDate={new Date(bookingData.scheduled_date)}
+                          onSlotSelected={(slot) => {
+                            setSelectedPickupSlot(slot);
+                            setBookingData({
+                              ...bookingData,
+                              scheduled_time: slot.start_time,
+                            });
+                          }}
+                          slotType="pickup"
+                        />
+                      </div>
+                    )}
+                  </div>
 
-              <div>
-                <Label htmlFor="delivery-time">Delivery Time (Optional)</Label>
-                <Select
-                  value={bookingData.delivery_time}
-                  onValueChange={(value) =>
-                    setBookingData({ ...bookingData, delivery_time: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="09:00">09:00 AM</SelectItem>
-                    <SelectItem value="10:00">10:00 AM</SelectItem>
-                    <SelectItem value="11:00">11:00 AM</SelectItem>
-                    <SelectItem value="12:00">12:00 PM</SelectItem>
-                    <SelectItem value="13:00">01:00 PM</SelectItem>
-                    <SelectItem value="14:00">02:00 PM</SelectItem>
-                    <SelectItem value="15:00">03:00 PM</SelectItem>
-                    <SelectItem value="16:00">04:00 PM</SelectItem>
-                    <SelectItem value="17:00">05:00 PM</SelectItem>
-                    <SelectItem value="18:00">06:00 PM</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  {/* Delivery Time Slot Selector (Optional) */}
+                  {bookingData.delivery_date && (
+                    <div className="md:col-span-2">
+                      <VendorTimeSlotSelector
+                        vendorId={selectedVendor._id || selectedVendor.id}
+                        selectedDate={new Date(bookingData.delivery_date)}
+                        onSlotSelected={(slot) => {
+                          setSelectedDeliverySlot(slot);
+                          setBookingData({
+                            ...bookingData,
+                            delivery_time: slot.start_time,
+                          });
+                        }}
+                        slotType="delivery"
+                      />
+                    </div>
+                  )}
+
+                  {/* Delivery Date Input */}
+                  <div className="md:col-span-2">
+                    <Label htmlFor="delivery-date">Delivery Date (Optional)</Label>
+                    <Input
+                      id="delivery-date"
+                      type="date"
+                      value={bookingData.delivery_date}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setBookingData({ ...bookingData, delivery_date: newDate });
+                        setSelectedDeliverySlot(null);
+                      }}
+                      min={bookingData.scheduled_date || new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Fallback to basic time selection if no vendor is selected */}
+                  <div>
+                    <Label htmlFor="pickup-date">Pickup Date</Label>
+                    <Input
+                      id="pickup-date"
+                      type="date"
+                      value={bookingData.scheduled_date}
+                      onChange={(e) =>
+                        setBookingData({ ...bookingData, scheduled_date: e.target.value })
+                      }
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="pickup-time">Pickup Time</Label>
+                    <Select
+                      value={bookingData.scheduled_time}
+                      onValueChange={(value) =>
+                        setBookingData({ ...bookingData, scheduled_time: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="09:00">09:00 AM</SelectItem>
+                        <SelectItem value="10:00">10:00 AM</SelectItem>
+                        <SelectItem value="11:00">11:00 AM</SelectItem>
+                        <SelectItem value="12:00">12:00 PM</SelectItem>
+                        <SelectItem value="13:00">01:00 PM</SelectItem>
+                        <SelectItem value="14:00">02:00 PM</SelectItem>
+                        <SelectItem value="15:00">03:00 PM</SelectItem>
+                        <SelectItem value="16:00">04:00 PM</SelectItem>
+                        <SelectItem value="17:00">05:00 PM</SelectItem>
+                        <SelectItem value="18:00">06:00 PM</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="delivery-date">Delivery Date (Optional)</Label>
+                    <Input
+                      id="delivery-date"
+                      type="date"
+                      value={bookingData.delivery_date}
+                      onChange={(e) =>
+                        setBookingData({ ...bookingData, delivery_date: e.target.value })
+                      }
+                      min={bookingData.scheduled_date || new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="delivery-time">Delivery Time (Optional)</Label>
+                    <Select
+                      value={bookingData.delivery_time}
+                      onValueChange={(value) =>
+                        setBookingData({ ...bookingData, delivery_time: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="09:00">09:00 AM</SelectItem>
+                        <SelectItem value="10:00">10:00 AM</SelectItem>
+                        <SelectItem value="11:00">11:00 AM</SelectItem>
+                        <SelectItem value="12:00">12:00 PM</SelectItem>
+                        <SelectItem value="13:00">01:00 PM</SelectItem>
+                        <SelectItem value="14:00">02:00 PM</SelectItem>
+                        <SelectItem value="15:00">03:00 PM</SelectItem>
+                        <SelectItem value="16:00">04:00 PM</SelectItem>
+                        <SelectItem value="17:00">05:00 PM</SelectItem>
+                        <SelectItem value="18:00">06:00 PM</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
 
 
               <div className="md:col-span-2 flex items-center gap-2">
@@ -808,13 +912,126 @@ const AdminUserBooking: React.FC = () => {
                 onChange={(e) => {
                   const newAddress = e.target.value;
                   setBookingData({ ...bookingData, address: newAddress });
-                  // Fetch vendors when address changes
+                  // Fetch vendors when address changes (use existing coordinates if available)
                   if (newAddress.trim().length > 5) {
-                    fetchVendorsForAddress(newAddress);
+                    fetchVendorsForAddress(newAddress, bookingData.coordinates);
                   }
                 }}
                 rows={3}
               />
+              <p className="text-xs text-gray-500 mt-1">💡 Tip: Paste a Google Maps link below to auto-fill this address with precise coordinates</p>
+            </div>
+
+            {/* Google Maps Link for Precise Location */}
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-3">
+              <div>
+                <Label htmlFor="maps-link" className="text-blue-900 font-semibold flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Google Maps Link (Extracts Coordinates & Auto-Fills Address)
+                </Label>
+                <Input
+                  id="maps-link"
+                  placeholder="Paste Google Maps link here (e.g., https://maps.google.com/...)"
+                  value={bookingData.mapsLink}
+                  onChange={(e) => {
+                    const newLink = e.target.value;
+                    setBookingData(prev => ({ ...prev, mapsLink: newLink }));
+                  }}
+                  onBlur={async (e) => {
+                    const mapsLink = e.target.value.trim();
+                    if (mapsLink && isGoogleMapsUrl(mapsLink)) {
+                      const parsed = parseGoogleMapsLink(mapsLink);
+
+                      if (parsed.coordinates) {
+                        setBookingData(prev => ({
+                          ...prev,
+                          coordinates: parsed.coordinates,
+                        }));
+
+                        // Reverse geocode to get human-readable address
+                        try {
+                          const reversedAddress = await locationService.reverseGeocode({
+                            lat: parsed.coordinates.lat,
+                            lng: parsed.coordinates.lng,
+                          });
+
+                          // Auto-fill the address field
+                          setBookingData(prev => ({
+                            ...prev,
+                            address: reversedAddress || prev.address,
+                          }));
+
+                          toast.success("✅ Location coordinates and address extracted!");
+
+                          // Refetch vendors with both address and coordinates
+                          if (reversedAddress && reversedAddress.trim().length > 5) {
+                            await fetchVendorsForAddress(reversedAddress, parsed.coordinates);
+                          } else if (bookingData.address.trim().length > 5) {
+                            // Use existing address if reverse geocoding fails
+                            await fetchVendorsForAddress(bookingData.address, parsed.coordinates);
+                          }
+                        } catch (error) {
+                          console.error("Reverse geocoding error:", error);
+                          toast.warning("✅ Coordinates extracted but could not auto-fill address. You can enter it manually.");
+
+                          // Still refetch vendors with coordinates even if address lookup fails
+                          if (bookingData.address.trim().length > 5) {
+                            await fetchVendorsForAddress(bookingData.address, parsed.coordinates);
+                          }
+                        }
+                      } else if (parsed.error) {
+                        toast.error(`❌ ${parsed.error}`);
+                        setBookingData(prev => ({ ...prev, coordinates: null }));
+                      }
+                    } else if (mapsLink.length > 0) {
+                      toast.error("❌ Invalid Google Maps link. Please paste a valid maps URL or coordinates.");
+                      setBookingData(prev => ({ ...prev, coordinates: null }));
+                    }
+                  }}
+                  className="mt-2"
+                />
+                <p className="text-xs text-gray-600 mt-2">
+                  Paste a Google Maps link and we'll automatically extract coordinates and fill the address field. You can edit the address afterward if needed.
+                </p>
+              </div>
+
+              {bookingData.coordinates && (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <Label className="text-green-900 font-semibold text-sm block mb-2">✅ Location Data Extracted</Label>
+                      <p className="text-xs text-green-700 mb-2">The address field above has been auto-filled with the coordinates from your Maps link</p>
+                      <div className="space-y-1">
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Latitude:</span> <span className="font-mono font-semibold">{bookingData.coordinates.lat.toFixed(6)}</span>
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Longitude:</span> <span className="font-mono font-semibold">{bookingData.coordinates.lng.toFixed(6)}</span>
+                        </p>
+                      </div>
+                      <a
+                        href={`https://maps.google.com/@${bookingData.coordinates.lat},${bookingData.coordinates.lng},17z`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-600 hover:text-green-700 underline mt-2 inline-block"
+                      >
+                        Open in Google Maps →
+                      </a>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBookingData(prev => ({ ...prev, coordinates: null, mapsLink: "" }));
+                        toast.info("Location cleared");
+                      }}
+                      className="text-red-600 border-red-300 hover:bg-red-50"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Vendor Selection */}

@@ -4,7 +4,8 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const isPWAEnabled = process.env.ENABLE_PWA !== "false";
+  // Disable PWA in development and production for now to avoid service worker issues
+  const isPWAEnabled = false;
 
   // Dynamically import PWA plugin
   let VitePWA;

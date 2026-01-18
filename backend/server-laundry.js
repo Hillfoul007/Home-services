@@ -80,6 +80,22 @@ app.use("/api/auth", (req, res, next) => {
   next();
 });
 
+// Middleware to add cache control headers for PG routes (dynamic data)
+app.use("/api/pg-management", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+// Middleware to add cache control headers for PG orders (dynamic data)
+app.use("/api/pg-orders", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // Additional CORS middleware to ensure headers are always set
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -199,7 +215,10 @@ const connectDB = async () => {
   try {
     // Use production MongoDB URI
     const mongoURI = productionConfig.MONGODB_URI;
-    ("mongodb+srv://sunflower110001:fV4LhLpWlKj5Vx87@cluster0.ic8p792.mongodb.net/cleancare_pro?retryWrites=true&w=majority");
+
+    if (!mongoURI) {
+      throw new Error("MongoDB URI is not configured in environment variables");
+    }
 
     await mongoose.connect(mongoURI);
 
@@ -358,15 +377,6 @@ try {
   console.error("❌ Failed to load Coupon routes:", error.message);
 }
 
-// Referral routes
-try {
-  const referralRoutes = require("./routes/referrals");
-  app.use("/api/referrals", referralRoutes);
-  console.log("🔗 Referral routes registered at /api/referrals");
-} catch (error) {
-  console.error("❌ Failed to load Referral routes:", error.message);
-}
-
 // Wallet routes
 try {
   const walletRoutes = require("./routes/wallet");
@@ -375,6 +385,16 @@ try {
 } catch (error) {
   console.error("❌ Failed to load Wallet routes:", error.message);
   console.error("❌ Full wallet routes error:", error);
+}
+
+// Referral routes
+try {
+  const referralRoutes = require("./routes/referral");
+  app.use("/api/referral", referralRoutes);
+  console.log("🔗 Referral routes registered at /api/referral");
+} catch (error) {
+  console.error("❌ Failed to load Referral routes:", error.message);
+  console.error("❌ Full referral routes error:", error);
 }
 
 // Admin routes
@@ -453,6 +473,24 @@ try {
   console.log("🔗 PG management routes registered at /api/pg-management");
 } catch (error) {
   console.error("❌ Failed to load PG routes:", error.message);
+}
+
+// Vehicle Routing routes
+try {
+  const vehicleRoutes = require("./routes/vehicles");
+  app.use("/api/admin", vehicleRoutes);
+  console.log("🔗 Vehicle routing routes registered at /api/admin");
+} catch (error) {
+  console.error("❌ Failed to load Vehicle routes:", error.message);
+}
+
+// Banner routes
+try {
+  const bannerRoutes = require("./routes/banners");
+  app.use("/api/banners", bannerRoutes);
+  console.log("🔗 Banner routes registered at /api/banners");
+} catch (error) {
+  console.error("❌ Failed to load Banner routes:", error.message);
 }
 
 // Google Sheets integration removed

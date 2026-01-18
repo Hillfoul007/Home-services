@@ -99,45 +99,7 @@ const userSchema = new mongoose.Schema(
       discountAmount: Number,
     }],
 
-    // Referral system fields
-    referral_code: {
-      type: String,
-      unique: true,
-      sparse: true,
-      uppercase: true,
-      trim: true,
-      index: true,
-    },
-
-    // Referral statistics
-    referral_stats: {
-      total_referrals: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      successful_referrals: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      pending_rewards: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      total_rewards_earned: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-      last_referral_at: {
-        type: Date,
-        default: null,
-      },
-    },
-
-    // Available discount coupons (including referral rewards)
+    // Available discount coupons
     available_coupons: [{
       code: {
         type: String,
@@ -214,6 +176,40 @@ const userSchema = new mongoose.Schema(
         default: () => new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
       },
     }],
+
+    // Referral System
+    referral_code: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    referred_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    referral_stats: {
+      total_referrals: {
+        type: Number,
+        default: 0,
+      },
+      completed_referrals: {
+        type: Number,
+        default: 0,
+      },
+      earned_amount: {
+        type: Number,
+        default: 0,
+      },
+      last_referral_date: {
+        type: Date,
+        default: null,
+      },
+    },
+    has_completed_first_order: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -278,5 +274,8 @@ userSchema.statics.phoneExists = async function (phone) {
 // Create indexes
 userSchema.index({ user_type: 1 });
 userSchema.index({ created_at: -1 });
+userSchema.index({ phone: 1 });
+userSchema.index({ referral_code: 1 });
+userSchema.index({ referred_by: 1 });
 
 module.exports = mongoose.model("User", userSchema);

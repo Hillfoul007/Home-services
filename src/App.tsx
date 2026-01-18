@@ -12,8 +12,6 @@ import RiderOrders from "@/pages/rider/RiderOrders";
 import RiderNotificationsPage from "@/pages/rider/RiderNotificationsPage";
 import RiderHistory from "@/pages/rider/RiderHistory";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import InstallPrompt from "@/components/InstallPrompt";
-import PWAUpdateNotification from "@/components/PWAUpdateNotification";
 import MapsPerformanceIndicator from "@/components/MapsPerformanceIndicator";
 import analyticsService from "@/services/analyticsService";
 
@@ -28,6 +26,8 @@ import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
 import MainWebsite from "@/pages/MainWebsite";
 import PGBooking from "@/pages/PGBooking";
+import AdminVehicleManagement from "@/components/AdminVehicleManagement";
+import VehicleDashboard from "@/components/VehicleDashboard";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -69,7 +69,8 @@ function App() {
       initializeAuthPersistence();
 
       // Initialize PWA updates and service worker cleanup
-      initializePWAUpdates();
+      // Disabled: causes service worker loading issues
+      // initializePWAUpdates();
 
       // Restore authentication state from localStorage
       await restoreAuthState();
@@ -105,12 +106,12 @@ function App() {
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/orders/:orderId" element={<VendorOrderDetails />} />
               <Route path="/pg-booking" element={<PGBooking />} />
+              <Route path="/admin/vehicles" element={<AdminVehicleManagement />} />
+              <Route path="/driver/dashboard" element={<VehicleDashboard />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
             <SonnerToaster />
-            <InstallPrompt />
-            <PWAUpdateNotification />
             <MapsPerformanceIndicator />
           </div>
         </Router>

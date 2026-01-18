@@ -24,6 +24,9 @@ import {
   Building,
   Package,
   Home,
+  Truck,
+  Image,
+  MapPin as MapIcon,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
@@ -33,13 +36,17 @@ import AdminVendorManagement from "./AdminVendorManagement";
 import AdminWalletManagement from "./AdminWalletManagement";
 import AdminPGManagement from "./AdminPGManagement";
 import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
+import AdminUsersManagement from "./AdminUsersManagement";
+import AdminOrderAllocation from "./AdminOrderAllocation";
+import AdminBannerManagement from "./AdminBannerManagement";
+import AdminMapAnalytics from "./AdminMapAnalytics";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "pgs" | "pg-orders" | "analytics" | "wallet";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -335,6 +342,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Vendors</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("order-allocation")}
+              variant={activeTab === "order-allocation" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Truck className="h-4 w-4" />
+              <span className="hidden sm:inline">Allocate Orders</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("users")}
+              variant={activeTab === "users" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Users</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("pgs")}
               variant={activeTab === "pgs" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -357,6 +380,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             >
               <span>💰</span>
               <span className="hidden sm:inline">Wallet</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("banners")}
+              variant={activeTab === "banners" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Image className="h-4 w-4" />
+              <span className="hidden sm:inline">Banners</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("map-analytics")}
+              variant={activeTab === "map-analytics" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <MapIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Map</span>
             </Button>
             <Button
               onClick={() => setActiveTab("analytics")}
@@ -391,6 +430,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminVendorManagement />
           </TabsContent>
 
+          <TabsContent value="order-allocation">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Order Allocation:</strong> Manage vehicle allocation for orders. Filter orders by vendor, check vehicle availability and time slots, and allocate orders to vehicles for optimized delivery.</p>
+            </div>
+            <AdminOrderAllocation />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+              <p className="text-purple-900 text-sm"><strong>✓ Users Management:</strong> View all customer accounts and delete users if needed. Deleting a user will also remove all associated bookings.</p>
+            </div>
+            <AdminUsersManagement />
+          </TabsContent>
+
           <TabsContent value="pgs">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <p className="text-blue-900 text-sm"><strong>✓ PG Management:</strong> Create and manage paying guest (PG) locations. Assign vendors to PGs to handle all orders from that location. Set pricing and minimum items per order.</p>
@@ -404,6 +457,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
           <TabsContent value="wallet">
             <AdminWalletManagement />
+          </TabsContent>
+
+          <TabsContent value="banners">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Banner Management:</strong> Create and manage website banners. Set custom display durations, redirect URLs, and track clicks and impressions. Banners rotate automatically on the homepage.</p>
+            </div>
+            <AdminBannerManagement />
+          </TabsContent>
+
+          <TabsContent value="map-analytics">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Map Analytics:</strong> Visualize all orders on an interactive map. Filter by month and status, draw custom areas to analyze order density and revenue, and get detailed statistics for selected regions.</p>
+            </div>
+            <AdminMapAnalytics />
           </TabsContent>
 
           <TabsContent value="analytics">

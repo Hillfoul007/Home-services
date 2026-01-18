@@ -54,7 +54,6 @@ import analyticsService from "@/services/analyticsService";
 import VoiceSearch from "./VoiceSearch";
 import AdminServicesManager from "./AdminServicesManager";
 import LocationUnavailableModal from "./LocationUnavailableModal";
-import ReferralModal from "./ReferralModal";
 import NotificationBell from "./NotificationBell";
 import QuickPickupModal from "./QuickPickupModal";
 import CustomerVerificationPopup from "./CustomerVerificationPopup";
@@ -72,6 +71,7 @@ import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
 import "@/styles/mobile-sticky-search.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
+import BannerCarousel from "./BannerCarousel";
 
 interface ResponsiveLaundryHomeProps {
   currentUser?: any;
@@ -101,7 +101,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [detectedLocationText, setDetectedLocationText] = useState("");
   const [showQuickPickupModal, setShowQuickPickupModal] = useState(false);
   const [showQuickPickupAfterLogin, setShowQuickPickupAfterLogin] = useState(false);
-  const [showReferralModal, setShowReferralModal] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
@@ -1015,6 +1014,11 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         </div>
 
+        {/* Banner Carousel */}
+        <div className="px-4 py-2">
+          <BannerCarousel />
+        </div>
+
         {/* Sticky Search and Categories Only */}
         <div className="sticky top-0 bg-gradient-to-b from-laundrify-purple to-laundrify-pink z-40 shadow-lg">
           <div className="px-4 pt-4 pb-2 space-y-3 sm:mt-0 -mt-1 sm:pl-4 pl-4">
@@ -1506,6 +1510,9 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
+        {/* Banner Carousel */}
+        <BannerCarousel />
+
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-laundrify-purple to-laundrify-pink rounded-2xl text-white p-8 mb-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
@@ -1780,23 +1787,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-20 right-6 z-50 flex flex-col gap-3">
-          {/* Referral Button - Only show if user is logged in */}
-          {currentUser && (
-            <Button
-              onClick={() => setShowReferralModal(true)}
-              className="bg-gradient-to-r from-laundrify-purple to-laundrify-pink hover:from-laundrify-purple/90 hover:to-laundrify-pink/90 text-white rounded-full w-14 h-14 p-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 relative overflow-hidden group"
-              title="Refer friends and earn rewards!"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 opacity-20 animate-pulse group-hover:opacity-30"></div>
-              <div className="relative flex flex-col items-center">
-                <Gift className="h-5 w-5" />
-                <span className="text-xs font-bold leading-none">50%</span>
-              </div>
-              {/* Sparkle animation */}
-              <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-300 rounded-full opacity-80 animate-ping"></div>
-            </Button>
-          )}
-
           {/* WhatsApp Button */}
           <Button
             onClick={() => {
@@ -1810,13 +1800,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             <MessageCircle className="h-5 w-5" />
           </Button>
         </div>
-
-        {/* Referral Modal */}
-        <ReferralModal
-          isOpen={showReferralModal}
-          onClose={() => setShowReferralModal(false)}
-          currentUser={currentUser}
-        />
 
         {/* Customer Verification Popup */}
         <CustomerVerificationPopup

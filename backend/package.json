@@ -14,7 +14,8 @@
     "build": "echo 'No build step required for Node.js backend'",
     "test": "echo 'No tests specified' && exit 0",
     "cleanup": "node cleanup-database.js",
-    "setup:sheets": "node scripts/setup-google-sheets.js"
+    "setup:sheets": "node scripts/setup-google-sheets.js",
+    "fix:pgorder-index": "node fix-pgorder-index.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

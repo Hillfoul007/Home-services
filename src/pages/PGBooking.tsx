@@ -46,7 +46,7 @@ interface OrderInstructions {
   orderId: string;
 }
 
-const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
+const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser: propCurrentUser }) => {
   const navigate = useNavigate();
   const [cities, setCities] = useState<string[]>([]);
   const [pgs, setPGs] = useState<PG[]>([]);
@@ -54,15 +54,69 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
   const [selectedPG, setSelectedPG] = useState<PG | null>(null);
   const [noOfItems, setNoOfItems] = useState(4);
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(propCurrentUser || null);
   const [instructions, setInstructions] = useState<OrderInstructions>({
     isOpen: false,
     orderId: "",
   });
 
+  // Load current user from localStorage if not passed as prop
+  useEffect(() => {
+    if (propCurrentUser) {
+      setCurrentUser(propCurrentUser);
+    } else {
+      // Try to restore from localStorage (same as LaundryIndex)
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("cleancare_auth_token");
+      const userStr = localStorage.getItem("current_user") || localStorage.getItem("cleancare_user");
+
+      if (token && userStr) {
+        try {
+          const storedUser = JSON.parse(userStr);
+          if (storedUser && (storedUser.phone || storedUser.id || storedUser._id)) {
+            setCurrentUser(storedUser);
+            console.log("✅ User restored from localStorage in PGBooking");
+          }
+        } catch (err) {
+          console.warn("Error parsing stored user data:", err);
+        }
+      }
+    }
+  }, [propCurrentUser]);
+
   const pricePerItem = selectedPG?.price_per_item || 25;
   const totalPrice = noOfItems * pricePerItem;
 
-  // Fetch cities on component mount
+  // Fetch available cities from backend
+  const fetchCities = async () => {
+    try {
+      const response = await apiClient.request<any>(
+        "/pg-management/cities/list"
+      );
+
+      if (response.error) {
+        console.warn("Failed to fetch cities:", response.error);
+        setCities([]);
+        return;
+      }
+
+      // Handle the response structure: backend returns {success: true, data: [cities]}
+      const citiesData = response.data?.data || response.data || [];
+
+      if (Array.isArray(citiesData)) {
+        setCities(citiesData);
+        console.log(`✅ Loaded ${citiesData.length} cities with active PGs`);
+      } else {
+        console.warn("Invalid cities response format:", response.data);
+        setCities([]);
+      }
+    } catch (error) {
+      console.error("Error fetching cities:", error);
+      toast.error("Failed to load available cities");
+      setCities([]);
+    }
+  };
+
+  // Load cities on component mount
   useEffect(() => {
     fetchCities();
   }, []);
@@ -75,32 +129,33 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
     }
   }, [selectedCity]);
 
-  const fetchCities = async () => {
-    try {
-      const response = await apiClient.request<any>(
-        "/pg-management/cities/list"
-      );
-      if (response.data) {
-        setCities(response.data);
-      }
-    } catch (error) {
-      console.error("Error fetching cities:", error);
-      toast.error("Failed to load cities");
-    }
-  };
-
   const fetchPGs = async (city: string) => {
     try {
       setLoading(true);
       const response = await apiClient.request<any>(
         `/pg-management/city/${city}`
       );
+
+      // Handle the response structure: backend returns {success: true, data: [pgs]}
       if (response.data) {
-        setPGs(response.data);
+        const pgsData = response.data.data || response.data;
+        if (Array.isArray(pgsData)) {
+          setPGs(pgsData);
+          console.log(`✅ Loaded ${pgsData.length} PGs for ${city}`);
+        } else {
+          console.warn("Invalid PGs response format:", response.data);
+          setPGs([]);
+        }
+      } else if (response.status === 304) {
+        // Handle 304 Not Modified - keep current data
+        console.log("PG data cached (304 Not Modified)");
+      } else {
+        setPGs([]);
       }
     } catch (error) {
       console.error("Error fetching PGs:", error);
-      toast.error("Failed to load PGs");
+      toast.error("Failed to load PGs for " + city);
+      setPGs([]);
     } finally {
       setLoading(false);
     }
@@ -145,19 +200,24 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
       });
 
       if (response.data) {
-        const orderId = response.data.custom_order_id;
+        // Backend returns { success: true, data: { custom_order_id, ...order } }
+        // So we need to access response.data.data
+        const orderData = response.data.data || response.data;
+        const orderId = orderData?.custom_order_id ||
+                       orderData?._id?.slice(-8).toUpperCase() ||
+                       `PG${Date.now().toString().slice(-8)}`;
+
+        console.log("✅ Order created with ID:", orderId);
+        console.log("📋 Full response data:", response.data);
+        console.log("📋 Order data:", orderData);
+
         toast.success(`Order created! Order ID: ${orderId}`);
 
-        // Show instruction modal
+        // Show instruction modal - NO auto redirect
         setInstructions({
           isOpen: true,
           orderId,
         });
-
-        // Reset form
-        setTimeout(() => {
-          navigate("/");
-        }, 3000);
       } else {
         toast.error("Failed to create order");
       }
@@ -275,11 +335,6 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
                                 {" "}items
                               </p>
                             </div>
-                            {pg.assignedVendorName && (
-                              <div className="text-xs text-gray-500">
-                                Vendor: {pg.assignedVendorName}
-                              </div>
-                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -428,9 +483,6 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
       {/* Instructions Modal */}
       <Dialog
         open={instructions.isOpen}
-        onOpenChange={(open) =>
-          setInstructions({ ...instructions, isOpen: open })
-        }
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -438,12 +490,21 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
               <CheckCircle className="h-6 w-6" />
               Booking Done!
             </DialogTitle>
-            <DialogDescription>
-              Order ID: {instructions.orderId}
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Order ID Display - Prominent */}
+            <div className="bg-green-100 border-2 border-green-500 rounded-lg p-4 text-center">
+              <p className="text-sm text-gray-600 mb-1">Your Order ID</p>
+              <p className="text-3xl font-bold text-green-700">
+                {instructions.orderId || "Generating..."}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Save this ID for your records
+              </p>
+            </div>
+
+            {/* Next Steps */}
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="font-bold text-gray-900 mb-3">
                 📋 Next Steps:
@@ -461,7 +522,7 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
                   <span className="font-bold text-green-600 flex-shrink-0">
                     2.
                   </span>
-                  <span>Paste sticker with Order ID: {instructions.orderId}</span>
+                  <span>Paste sticker with Order ID: <span className="font-bold text-green-700">{instructions.orderId}</span></span>
                 </li>
                 <li className="flex gap-3">
                   <span className="font-bold text-green-600 flex-shrink-0">
@@ -475,7 +536,14 @@ const PGBooking: React.FC<{ currentUser?: any }> = ({ currentUser }) => {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-2 flex-col-reverse sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setInstructions({ ...instructions, isOpen: false })}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Make Another Order
+            </Button>
             <Button
               onClick={() =>
                 setInstructions({ ...instructions, isOpen: false })

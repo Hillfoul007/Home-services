@@ -717,11 +717,13 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
     // Get all orders assigned to this rider from both Booking and QuickPickup collections
     const riderId = req.rider.riderId;
 
+    console.log(`👤 Rider ID: ${riderId}`);
+
     const [regularOrders, quickPickups] = await Promise.all([
       // Regular bookings assigned to this rider
       Booking.find({
         assignedRider: riderId,
-        riderStatus: { $in: ['assigned', 'accepted', 'picked_up'] } // Exclude completed orders
+        riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] }
       })
       .populate('customer_id', 'name phone')
       .sort({ assignedAt: -1 }),
@@ -729,11 +731,13 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       // Quick pickups assigned to this rider
       QuickPickup.find({
         rider_id: riderId,
-        status: { $in: ['assigned', 'accepted', 'picked_up'] } // Exclude completed orders
+        status: { $in: ['assigned', 'accepted', 'picked_up'] }
       })
       .populate('customer_id', 'name phone')
       .sort({ createdAt: -1 })
     ]);
+
+    console.log(`📦 Found ${regularOrders.length} bookings and ${quickPickups.length} quick pickups for rider ${riderId}`);
 
     // Transform regular orders to consistent format
     const transformedRegularOrders = regularOrders.map(order => ({

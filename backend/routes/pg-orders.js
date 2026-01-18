@@ -38,10 +38,11 @@ router.get("/cities/list", async (req, res) => {
       data: cities.sort(),
     });
   } catch (error) {
-    console.error("Error fetching cities:", error);
+    console.error("Error fetching cities:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch cities",
+      details: error.message,
     });
   }
 });
@@ -83,25 +84,51 @@ router.get("/vendor/:vendorId", async (req, res) => {
   try {
     const { vendorId } = req.params;
 
-    const pgOrders = await PGOrder.find(
-      { assignedVendor: vendorId },
-      null,
-      { sort: { created_at: -1 } }
-    );
+    console.log("🔍 Searching for PG orders for vendor:", vendorId);
+    console.log("📊 VendorId type:", typeof vendorId);
+    console.log("📊 Is valid ObjectId:", mongoose.Types.ObjectId.isValid(vendorId));
+
+    // Create query that handles both ObjectId and string formats
+    let query = {};
+
+    // Try matching as ObjectId first
+    if (mongoose.Types.ObjectId.isValid(vendorId)) {
+      query = {
+        assignedVendor: new mongoose.Types.ObjectId(vendorId),
+      };
+      console.log("🔎 Query (ObjectId):", JSON.stringify(query));
+    } else {
+      // If not a valid ObjectId, just search as string (fallback)
+      query = { assignedVendor: vendorId };
+      console.log("🔎 Query (String):", JSON.stringify(query));
+    }
+
+    const pgOrders = await PGOrder.find(query).sort({ created_at: -1 });
 
     console.log(
       `✅ Found ${pgOrders.length} PG orders for vendor ${vendorId}`
     );
 
+    // Debug: show what assignedVendor values exist in database
+    if (pgOrders.length === 0) {
+      console.warn(`⚠️ No PG orders found for vendor ${vendorId}. Checking database...`);
+      const allPGOrders = await PGOrder.find({}, { assignedVendor: 1, custom_order_id: 1, status: 1 }).limit(10);
+      console.log(`📋 Sample PG Orders in DB (showing ${allPGOrders.length} orders):`);
+      allPGOrders.forEach(order => {
+        console.log(`  - Order: ${order.custom_order_id}, Status: ${order.status}, AssignedVendor: ${order.assignedVendor}, Type: ${typeof order.assignedVendor}`);
+      });
+    }
+
     res.json({
       success: true,
-      data: pgOrders,
+      data: pgOrders || [],
     });
   } catch (error) {
-    console.error("Error fetching vendor PG orders:", error);
+    console.error("❌ Error fetching vendor PG orders:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch vendor orders",
+      details: error.message,
     });
   }
 });
@@ -111,8 +138,26 @@ router.get("/user/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
+    console.log("🔍 Searching for PG orders for user:", userId);
+
+    // Create query that handles both ObjectId and string formats
+    let query = {};
+
+    // Try matching as ObjectId first
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      query = {
+        $or: [
+          { customer_id: new mongoose.Types.ObjectId(userId) },
+          { customer_id: userId }, // Also try as string
+        ],
+      };
+    } else {
+      // If not a valid ObjectId, just search as string
+      query = { customer_id: userId };
+    }
+
     const pgOrders = await PGOrder.find(
-      { customer_id: userId },
+      query,
       null,
       { sort: { created_at: -1 } }
     );
@@ -121,15 +166,17 @@ router.get("/user/:userId", async (req, res) => {
       `✅ Found ${pgOrders.length} PG orders for user ${userId}`
     );
 
+    // Ensure response always has data array
     res.json({
       success: true,
-      data: pgOrders,
+      data: pgOrders || [],
     });
   } catch (error) {
     console.error("Error fetching user PG orders:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch PG orders",
+      details: error.message,
     });
   }
 });
@@ -157,9 +204,23 @@ router.post("/", async (req, res) => {
 
     // Validation
     if (!customer_id || !pg_id || !pg_name || !city || !no_of_items) {
+      console.warn("❌ Missing required fields:", {
+        customer_id: !!customer_id,
+        pg_id: !!pg_id,
+        pg_name: !!pg_name,
+        city: !!city,
+        no_of_items: !!no_of_items,
+      });
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
+        details: {
+          customer_id: !!customer_id,
+          pg_id: !!pg_id,
+          pg_name: !!pg_name,
+          city: !!city,
+          no_of_items: !!no_of_items,
+        },
       });
     }
 
@@ -173,19 +234,48 @@ router.post("/", async (req, res) => {
     // Get PG details
     const pg = await PG.findById(pg_id);
     if (!pg) {
+      console.warn("❌ PG not found with ID:", pg_id);
       return res.status(404).json({
         success: false,
         error: "PG not found",
+        pg_id,
       });
     }
+
+    console.log("✅ PG found:", pg.name);
 
     // Calculate pricing
     const pricePerItem = pg.price_per_item || 25;
     const totalPrice = no_of_items * pricePerItem;
 
+    // Ensure customer_id is valid ObjectId or string
+    let customerId = customer_id;
+    if (typeof customer_id === "string" && customer_id.length === 24) {
+      // Looks like a MongoDB ObjectId string, keep as is
+      customerId = customer_id;
+    }
+
+    // Generate custom order ID before creating the document
+    console.log("🔢 Generating custom order ID for PG:", pg_name);
+    let customOrderId = null;
+    try {
+      customOrderId = await PGOrder.generateCustomOrderId(pg_name, city);
+      console.log("✅ Generated custom order ID:", customOrderId);
+    } catch (idGenerationError) {
+      console.warn("⚠️ Failed to generate custom order ID, using fallback:", idGenerationError.message);
+      // Fallback: Generate a simple order ID
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const pgPrefix = pg_name.substring(0, 4).toUpperCase();
+      const timestamp = Date.now().toString().slice(-6);
+      customOrderId = `PG${pgPrefix}${month}${timestamp}`;
+      console.log("✅ Using fallback custom order ID:", customOrderId);
+    }
+
     // Create order
     const pgOrder = new PGOrder({
-      customer_id,
+      custom_order_id: customOrderId,
+      customer_id: customerId,
       pg_id,
       pg_name,
       city,
@@ -207,7 +297,7 @@ router.post("/", async (req, res) => {
       ],
       services: ["Laundry and Iron"],
       special_instructions: special_instructions || "",
-      status: "created",
+      status: pg.assignedVendor ? "vendor_assigned" : "created",
       assignedVendor: pg.assignedVendor || null,
       assignedVendorDetails: pg.assignedVendor
         ? {
@@ -215,7 +305,26 @@ router.post("/", async (req, res) => {
             phone: pg.assignedVendorPhone,
           }
         : null,
+      status_history: pg.assignedVendor
+        ? [
+            {
+              status: "vendor_assigned",
+              changed_at: new Date(),
+              changed_by: "system",
+            },
+          ]
+        : [
+            {
+              status: "created",
+              changed_at: new Date(),
+              changed_by: "system",
+            },
+          ],
     });
+
+    console.log("📝 PGOrder object created with ID:", pgOrder.custom_order_id);
+    console.log(`📝 Status set to: ${pgOrder.status}`);
+    console.log("📝 Saving to database...");
 
     await pgOrder.save();
 
@@ -232,10 +341,16 @@ router.post("/", async (req, res) => {
       data: pgOrder,
     });
   } catch (error) {
-    console.error("Error creating PG order:", error);
+    console.error("❌ Error creating PG order:", {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack,
+    });
     res.status(500).json({
       success: false,
       error: "Failed to create PG order",
+      details: error.message,
     });
   }
 });
@@ -386,14 +501,14 @@ router.post("/:orderId/vendor-response", async (req, res) => {
     }
 
     if (action === "accept") {
-      pgOrder.status = "confirmed";
+      pgOrder.status = "pickup_completed";
       pgOrder.acceptedAt = new Date();
-      console.log(`✅ Vendor accepted PG order ${orderId}`);
+      console.log(`✅ Vendor accepted PG order ${orderId} - Moving to pickup_completed`);
     } else {
-      pgOrder.status = "created";
+      pgOrder.status = "cancelled";
       pgOrder.assignedVendor = null;
       pgOrder.assignedVendorDetails = null;
-      console.log(`⚠️ Vendor rejected PG order ${orderId}`);
+      console.log(`⚠️ Vendor rejected PG order ${orderId} - Status set to cancelled`);
     }
 
     pgOrder.updated_at = new Date();

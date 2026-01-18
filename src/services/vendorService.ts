@@ -222,15 +222,43 @@ export class VendorService {
 
   /**
    * Get vendor recommendations for an order
+   * @param pickupAddress - The pickup address (used for geocoding if coordinates not provided)
+   * @param coordinatesOrServiceTypes - Either coordinates object or service types array (for backward compatibility)
+   * @param serviceTypes - Service types to filter by (optional)
    */
   async getVendorRecommendations(
     pickupAddress: string,
-    serviceTypes: string[] = []
+    coordinatesOrServiceTypes?: { lat: number; lng: number } | string[] | null,
+    serviceTypes?: string[]
   ): Promise<VendorWithDistance[]> {
     console.log('🏪 Getting vendor recommendations for address:', pickupAddress);
 
-    // Get coordinates from address - now always returns coordinates
-    const coordinates = await this.getCoordinatesFromAddress(pickupAddress);
+    // Handle backward compatibility - detect if second param is coordinates or serviceTypes
+    let coordinates: { lat: number; lng: number } | null = null;
+    let filterServiceTypes: string[] = [];
+
+    if (coordinatesOrServiceTypes) {
+      if (Array.isArray(coordinatesOrServiceTypes)) {
+        // It's serviceTypes
+        filterServiceTypes = coordinatesOrServiceTypes;
+      } else if (typeof coordinatesOrServiceTypes === 'object' && 'lat' in coordinatesOrServiceTypes && 'lng' in coordinatesOrServiceTypes) {
+        // It's coordinates
+        coordinates = coordinatesOrServiceTypes;
+      }
+    }
+
+    // Use provided serviceTypes if specified
+    if (serviceTypes && Array.isArray(serviceTypes)) {
+      filterServiceTypes = serviceTypes;
+    }
+
+    // If no coordinates provided, geocode from address
+    if (!coordinates) {
+      coordinates = await this.getCoordinatesFromAddress(pickupAddress);
+      console.log('🗺️ Geocoded address to coordinates:', coordinates);
+    } else {
+      console.log('✅ Using provided coordinates (likely from Google Maps link):', coordinates);
+    }
 
     if (!coordinates) {
       console.warn('❌ Could not determine coordinates for address, using defaults:', pickupAddress);
@@ -250,15 +278,15 @@ export class VendorService {
     console.log('📊 Calculated vendor distances:', vendorsWithDistance.map(v => ({ name: v.name, distance: v.distance })));
 
     // Filter by service types if specified
-    if (serviceTypes.length > 0) {
+    if (filterServiceTypes.length > 0) {
       const filtered = vendorsWithDistance.filter(vendor =>
-        serviceTypes.some(service =>
+        filterServiceTypes.some(service =>
           vendor.services.some(vendorService =>
             vendorService.toLowerCase().includes(service.toLowerCase())
           )
         )
       );
-      console.log('🔍 Filtered vendors by service type:', serviceTypes, 'Result count:', filtered.length);
+      console.log('🔍 Filtered vendors by service type:', filterServiceTypes, 'Result count:', filtered.length);
       // Return filtered vendors if found, otherwise return all vendors with distance
       return filtered.length > 0 ? filtered : vendorsWithDistance;
     }

@@ -22,10 +22,11 @@ router.get("/cities/list", async (req, res) => {
       data: sortedCities,
     });
   } catch (error) {
-    console.error("Error fetching cities:", error);
+    console.error("Error fetching cities:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch cities",
+      details: error.message,
     });
   }
 });
@@ -150,12 +151,19 @@ router.get("/city/:city", async (req, res) => {
   try {
     const { city } = req.params;
 
+    if (!city) {
+      return res.status(400).json({
+        success: false,
+        error: "City parameter is required",
+      });
+    }
+
     const pgs = await PG.find(
       {
         city: { $regex: city, $options: "i" },
         is_active: true,
       },
-      "name address phone_number assignedVendor price_per_item min_items"
+      "name address phone_number assignedVendor assignedVendorName assignedVendorPhone price_per_item min_items _id"
     );
 
     console.log(`✅ Found ${pgs.length} active PGs in ${city}`);
@@ -165,10 +173,11 @@ router.get("/city/:city", async (req, res) => {
       data: pgs,
     });
   } catch (error) {
-    console.error("Error fetching PGs by city:", error);
+    console.error("Error fetching PGs by city:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch PGs",
+      details: error.message,
     });
   }
 });
@@ -344,30 +353,34 @@ router.patch("/:pgId", async (req, res) => {
   }
 });
 
-// Delete PG (soft delete - mark as inactive)
+// Delete PG (hard delete)
 router.delete("/:pgId", async (req, res) => {
   try {
     const { pgId } = req.params;
 
-    const pg = await PG.findByIdAndUpdate(
-      pgId,
-      { is_active: false },
-      { new: true }
-    );
+    console.log(`🗑️ Attempting to delete PG: ${pgId}`);
+
+    const pg = await PG.findByIdAndDelete(pgId);
 
     if (!pg) {
+      console.warn(`⚠️ PG not found for deletion: ${pgId}`);
       return res.status(404).json({
         success: false,
         error: "PG not found",
       });
     }
 
-    console.log("✅ PG deactivated:", pgId);
+    // Also delete associated PG orders
+    const PGOrder = require("../models/PGOrder");
+    const deleteResult = await PGOrder.deleteMany({ pg_id: pgId });
+
+    console.log(`✅ PG deleted: ${pgId}`);
+    console.log(`✅ Deleted ${deleteResult.deletedCount} associated PG orders`);
 
     res.json({
       success: true,
       data: pg,
-      message: "PG deactivated successfully",
+      message: "PG and associated orders deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting PG:", error);

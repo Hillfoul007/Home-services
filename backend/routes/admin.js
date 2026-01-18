@@ -363,6 +363,73 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
         console.error("⚠️  Failed to update wallet for completed booking:", walletError);
         // Don't fail the booking update if wallet update fails
       }
+
+      // Handle referral rewards
+      try {
+        const Referral = require("../models/Referral");
+        const customer = await require("../models/User").findById(booking.customer_id);
+
+        if (customer) {
+          // Check if this is customer's first order
+          const previousCompletedBookings = await Booking.countDocuments({
+            customer_id: booking.customer_id,
+            status: "completed",
+            _id: { $ne: booking._id }
+          });
+
+          const isFirstOrder = previousCompletedBookings === 0;
+
+          if (isFirstOrder && customer.referred_by) {
+            console.log("🎁 Processing referral rewards for first-time order...");
+
+            // Find referral record
+            const referral = await Referral.findOne({
+              referee_id: booking.customer_id,
+              referrer_id: customer.referred_by,
+              status: "pending"
+            });
+
+            if (referral && !referral.referrer_reward_credited) {
+              // Get referrer
+              const referrer = await require("../models/User").findById(customer.referred_by);
+
+              if (referrer) {
+                // Credit referrer with ₹100
+                referrer.wallet_balance = (referrer.wallet_balance || 0) + referral.referrer_reward;
+                referrer.wallet_transactions.push({
+                  type: "credit",
+                  amount: referral.referrer_reward,
+                  description: `Referral reward for ${customer.name}'s first order`,
+                  booking_id: booking._id,
+                  created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+                });
+                referrer.referral_stats.completed_referrals += 1;
+                referrer.referral_stats.earned_amount += referral.referrer_reward;
+
+                await referrer.save();
+                console.log(`💰 Credited ₹${referral.referrer_reward} referral reward to referrer ${referrer.phone}`);
+              }
+
+              // Mark customer first order as completed
+              customer.has_completed_first_order = true;
+              await customer.save();
+
+              // Update referral status
+              referral.status = "completed";
+              referral.first_order_booking_id = booking._id;
+              referral.first_order_date = new Date(indianTime);
+              referral.referrer_reward_credited = true;
+              referral.referee_reward_credited = true;
+
+              await referral.save();
+              console.log("✅ Referral completed and rewards credited");
+            }
+          }
+        }
+      } catch (referralError) {
+        console.error("⚠️ Error processing referral rewards:", referralError);
+        // Don't fail the booking update if referral processing fails
+      }
     }
 
     console.log("✅ Booking updated by admin:", booking._id);
@@ -2157,5 +2224,771 @@ router.post("/laundry-vendors/:vendorId/assign-order", verifyAdminAccess, async 
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Delete user account
+router.delete("/users/:userId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    console.log(`🗑️ Deleting user: ${userId}`);
+
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    // Also delete user's bookings
+    await Booking.deleteMany({ customer_id: userId });
+
+    console.log(`✅ User deleted successfully: ${user.name || user.phone}`);
+    res.json({
+      success: true,
+      message: "User and associated bookings deleted successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error deleting user:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// Delete PG (paying guest location)
+router.delete("/pgs/:pgId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { pgId } = req.params;
+
+    console.log(`🗑️ Deleting PG: ${pgId}`);
+
+    const PG = require("../models/PG");
+    const pg = await PG.findByIdAndDelete(pgId);
+
+    if (!pg) {
+      return res.status(404).json({ success: false, error: "PG not found" });
+    }
+
+    // Also delete all PG orders associated with this PG
+    const PGOrder = require("../models/PGOrder");
+    await PGOrder.deleteMany({ pg_id: pgId });
+
+    console.log(`✅ PG deleted successfully: ${pg.name}`);
+    res.json({
+      success: true,
+      message: "PG and associated orders deleted successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error deleting PG:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// Get vendor's orders (for time slot availability)
+router.get("/vendors/:vendorId/orders", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    console.log(`📋 Fetching orders for vendor: ${vendorId}`);
+
+    const Booking = require("../models/Booking");
+
+    // Find all orders assigned to this vendor
+    const orders = await Booking.find({
+      assignedVendor: vendorId,
+    }).select("_id custom_order_id name phone address scheduled_time delivery_time status coordinates");
+
+    console.log(`✅ Found ${orders.length} orders for vendor`);
+    res.json({ success: true, orders });
+  } catch (error) {
+    console.error("❌ Error fetching vendor orders:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============================================================================
+// VEHICLE ALLOCATION MANAGEMENT
+// ============================================================================
+
+// Helper: Calculate distance between two coordinates
+const calculateDistanceForAllocation = (lat1, lng1, lat2, lng2) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// POST: Get auto-allocation suggestions (preview before executing)
+router.post("/order-allocation/auto-suggest", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendor_id } = req.body;
+
+    console.log(`🤖 Getting auto-allocation suggestions for vendor: ${vendor_id}`);
+
+    const Vehicle = require("../models/Vehicle");
+
+    // Get unallocated orders for this vendor
+    const unallocatedOrders = await Booking.find({
+      status: "vendor_assigned",
+      assigned_vehicle_id: { $in: [null, undefined] },
+      assignedVendor: vendor_id,
+    })
+      .select("_id custom_order_id name phone address scheduled_date scheduled_time coordinates");
+
+    // Get available vehicles for this vendor
+    const vehicles = await Vehicle.find({
+      assigned_vendor_id: vendor_id,
+      is_active: true,
+    });
+
+    if (unallocatedOrders.length === 0) {
+      return res.json({
+        success: true,
+        suggestions: [],
+        message: "No unallocated orders found for this vendor",
+        orders: [],
+        vehicles: []
+      });
+    }
+
+    if (vehicles.length === 0) {
+      return res.json({
+        success: true,
+        suggestions: [],
+        message: "No vehicles available for this vendor",
+        orders: unallocatedOrders,
+        vehicles: []
+      });
+    }
+
+    const suggestions = [];
+    const vehicleUtilization = {};
+
+    // For each unallocated order, find the best matching vehicle
+    for (const order of unallocatedOrders) {
+      let bestMatch = null;
+      let bestDistance = Infinity;
+      let bestSlot = null;
+
+      // Try to find best vehicle for this order
+      for (const vehicle of vehicles) {
+        // Skip if vehicle is at capacity
+        if (vehicle.today_orders.length >= vehicle.max_orders_per_trip) {
+          continue;
+        }
+
+        // Calculate distance (use vendor location as fallback if no coordinates)
+        let distance = Infinity;
+        if (order.coordinates && order.coordinates.lat && order.coordinates.lng) {
+          if (vehicle.current_location && vehicle.current_location.lat && vehicle.current_location.lng) {
+            distance = calculateDistanceForAllocation(
+              vehicle.current_location.lat,
+              vehicle.current_location.lng,
+              order.coordinates.lat,
+              order.coordinates.lng
+            );
+          }
+        }
+
+        // Find available time slot
+        let availableSlot = null;
+        if (vehicle.availability_slots && vehicle.availability_slots.length > 0) {
+          availableSlot = vehicle.availability_slots.find(
+            slot => slot.is_available && slot.assigned_orders_count < vehicle.max_orders_per_trip
+          );
+        }
+
+        // If this is a better match, update best match
+        if (distance < bestDistance) {
+          bestMatch = vehicle;
+          bestDistance = distance;
+          bestSlot = availableSlot ? availableSlot.start_time : null;
+        }
+      }
+
+      if (bestMatch) {
+        suggestions.push({
+          order_id: order._id,
+          order_name: order.custom_order_id,
+          customer: order.name,
+          phone: order.phone,
+          address: order.address,
+          scheduled_time: order.scheduled_time,
+          vehicle_id: bestMatch._id,
+          vehicle_name: bestMatch.name,
+          vehicle_plate: bestMatch.number_plate,
+          distance_km: bestDistance.toFixed(2),
+          suggested_slot: bestSlot,
+          confidence: bestDistance < 5 ? 'high' : bestDistance < 10 ? 'medium' : 'low',
+        });
+
+        // Track vehicle utilization after this allocation
+        vehicleUtilization[bestMatch._id] = (vehicleUtilization[bestMatch._id] || 0) + 1;
+      }
+    }
+
+    console.log(`✅ Generated ${suggestions.length} auto-allocation suggestions`);
+
+    res.json({
+      success: true,
+      suggestions,
+      stats: {
+        total_unallocated: unallocatedOrders.length,
+        suggestions_count: suggestions.length,
+        success_rate: ((suggestions.length / unallocatedOrders.length) * 100).toFixed(1) + '%',
+        vehicles_used: Object.keys(vehicleUtilization).length,
+      },
+      orders: unallocatedOrders,
+      vehicles: vehicles
+    });
+  } catch (error) {
+    console.error("❌ Error getting auto-allocation suggestions:", error);
+    res.status(500).json({ success: false, error: "Failed to generate suggestions" });
+  }
+});
+
+// POST: Execute auto-allocation (apply the suggestions)
+router.post("/order-allocation/auto-execute", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendor_id, suggestions } = req.body;
+
+    console.log(`🤖 Executing auto-allocation for vendor: ${vendor_id}`);
+
+    const Vehicle = require("../models/Vehicle");
+
+    const results = {
+      successful: [],
+      failed: [],
+    };
+
+    // Execute each suggestion
+    for (const suggestion of suggestions) {
+      try {
+        const booking = await Booking.findById(suggestion.order_id);
+        const vehicle = await Vehicle.findById(suggestion.vehicle_id);
+
+        if (!booking || !vehicle) {
+          results.failed.push({
+            order_id: suggestion.order_id,
+            reason: "Booking or vehicle not found",
+          });
+          continue;
+        }
+
+        // Check if already allocated
+        if (booking.assigned_vehicle_id) {
+          results.failed.push({
+            order_id: suggestion.order_id,
+            reason: "Order already allocated",
+          });
+          continue;
+        }
+
+        // Check capacity
+        if (vehicle.today_orders.length >= vehicle.max_orders_per_trip) {
+          results.failed.push({
+            order_id: suggestion.order_id,
+            reason: "Vehicle capacity full",
+          });
+          continue;
+        }
+
+        // Assign to slot if suggested
+        if (suggestion.suggested_slot) {
+          vehicle.assignOrderToSlot(suggestion.suggested_slot);
+        }
+
+        // Add order to vehicle
+        vehicle.today_orders.push(booking._id);
+        vehicle.current_orders_count = vehicle.today_orders.length;
+
+        // Update booking
+        booking.assigned_vehicle_id = vehicle._id;
+        booking.vehicle_time_slot = suggestion.suggested_slot || null;
+
+        await vehicle.save();
+        await booking.save();
+
+        results.successful.push({
+          order_id: suggestion.order_id,
+          vehicle_id: vehicle._id,
+          vehicle_name: vehicle.name,
+          slot: suggestion.suggested_slot,
+        });
+      } catch (err) {
+        console.error(`Error allocating order ${suggestion.order_id}:`, err);
+        results.failed.push({
+          order_id: suggestion.order_id,
+          reason: err.message,
+        });
+      }
+    }
+
+    console.log(`✅ Auto-allocation completed: ${results.successful.length} successful, ${results.failed.length} failed`);
+
+    res.json({
+      success: true,
+      message: `Auto-allocation completed: ${results.successful.length} orders allocated, ${results.failed.length} failed`,
+      results,
+      summary: {
+        total_allocated: results.successful.length,
+        total_failed: results.failed.length,
+        success_rate: ((results.successful.length / (results.successful.length + results.failed.length)) * 100).toFixed(1) + '%',
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error executing auto-allocation:", error);
+    res.status(500).json({ success: false, error: "Failed to execute auto-allocation" });
+  }
+});
+
+// GET orders ready for vehicle allocation (vendor_assigned status) with available vehicles
+router.get("/order-allocation", verifyAdminAccess, async (req, res) => {
+  try {
+    const { vendor_id, allocated_status } = req.query;
+
+    console.log(`📦 Fetching orders for allocation with filters:`, { vendor_id, allocated_status });
+
+    const Vehicle = require("../models/Vehicle");
+
+    // Build query for orders ready for allocation
+    const query = {
+      status: "vendor_assigned", // Orders that have a vendor assigned but not yet allocated to a vehicle
+      assigned_vehicle_id: { $in: [null, undefined] }, // Not yet allocated to vehicle
+    };
+
+    // If vendor_id is provided, filter by vendor
+    if (vendor_id) {
+      query.assignedVendor = vendor_id;
+    }
+
+    // Fetch unallocated orders
+    const unallocatedOrders = await Booking.find(query)
+      .populate("customer_id", "full_name phone email")
+      .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
+      .select("_id custom_order_id name phone address scheduled_date scheduled_time delivery_date delivery_time status assignedVendor assignedVendorDetails coordinates item_prices total_price final_amount created_at");
+
+    // Fetch allocated orders (for reference)
+    const allocatedQuery = {
+      status: "vendor_assigned",
+      assigned_vehicle_id: { $ne: null },
+    };
+    if (vendor_id) {
+      allocatedQuery.assignedVendor = vendor_id;
+    }
+
+    const allocatedOrders = await Booking.find(allocatedQuery)
+      .populate("customer_id", "full_name phone email")
+      .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
+      .select("_id custom_order_id name phone address scheduled_date scheduled_time status assignedVendor assigned_vehicle_id vehicle_time_slot created_at");
+
+    // Get unique vendor names from orders
+    const uniqueVendorNames = [...new Set(unallocatedOrders.concat(allocatedOrders).map(o => o.assignedVendor))].filter(Boolean);
+
+    // Look up vendor ObjectIds from vendor names
+    const Vendor = require("../models/Vendor");
+    const vendorNameToIdMap = {};
+    const vendorDocuments = await Vendor.find({ name: { $in: uniqueVendorNames } }).select("_id name");
+
+    for (const vendor of vendorDocuments) {
+      vendorNameToIdMap[vendor.name] = vendor._id;
+    }
+
+    // For each vendor, get their available vehicles with slots
+    const vendorVehicles = {};
+    for (const vendorName of uniqueVendorNames) {
+      const vendorObjectId = vendorNameToIdMap[vendorName];
+
+      console.log(`🔍 Looking for vehicles for vendor: "${vendorName}" (ID: ${vendorObjectId || "NOT FOUND"})`);
+
+      // Query vehicles by vendor name or vendor ObjectId
+      const vehicleQuery = {
+        is_active: true,
+        $or: [
+          { assigned_vendor_id: vendorObjectId }, // By vendor ObjectId
+          { assigned_vendor_name: vendorName },   // By vendor name string
+        ]
+      };
+
+      // Remove the $or if vendor ObjectId is not found (avoid searching with null/undefined)
+      if (!vendorObjectId) {
+        delete vehicleQuery.$or;
+        vehicleQuery.assigned_vendor_name = vendorName;
+      }
+
+      const vehicles = await Vehicle.find(vehicleQuery)
+        .populate("assigned_vendor_id", "name phone email")
+        .select("_id name number_plate vehicle_type status current_orders_count max_orders_per_trip availability_slots today_orders assigned_vendor_name assigned_vendor_id");
+
+      console.log(`📍 Found ${vehicles.length} vehicles for vendor "${vendorName}"`);
+      vendorVehicles[vendorName] = vehicles;
+    }
+
+    console.log(`✅ Found ${unallocatedOrders.length} unallocated orders and ${allocatedOrders.length} allocated orders`);
+
+    res.json({
+      success: true,
+      unallocatedOrders,
+      allocatedOrders,
+      vendorVehicles, // Map of vendor name -> vehicles
+      vendors: uniqueVendorNames,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching order allocation data:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch allocation data" });
+  }
+});
+
+// POST: Allocate an order to a vehicle and time slot
+router.post("/order-allocation/allocate", verifyAdminAccess, async (req, res) => {
+  try {
+    const { booking_id, vehicle_id, slot_start_time } = req.body;
+
+    console.log(`🚗 Allocating order ${booking_id} to vehicle ${vehicle_id} at slot ${slot_start_time || "NO SPECIFIC SLOT"}`);
+
+    if (!mongoose.Types.ObjectId.isValid(booking_id) || !mongoose.Types.ObjectId.isValid(vehicle_id)) {
+      return res.status(400).json({ success: false, error: "Invalid booking or vehicle ID" });
+    }
+
+    const Vehicle = require("../models/Vehicle");
+
+    // Get booking and vehicle
+    const booking = await Booking.findById(booking_id);
+    if (!booking) {
+      return res.status(404).json({ success: false, error: "Booking not found" });
+    }
+
+    const vehicle = await Vehicle.findById(vehicle_id);
+    if (!vehicle) {
+      return res.status(404).json({ success: false, error: "Vehicle not found" });
+    }
+
+    // Check if order is already assigned to a vehicle
+    if (booking.assigned_vehicle_id) {
+      return res.status(400).json({
+        success: false,
+        error: `Order is already allocated to vehicle ${booking.assigned_vehicle_id}`
+      });
+    }
+
+    // Check if vehicle has capacity
+    if (vehicle.today_orders.length >= vehicle.max_orders_per_trip) {
+      return res.status(400).json({
+        success: false,
+        error: `Vehicle is at full capacity (${vehicle.today_orders.length}/${vehicle.max_orders_per_trip})`
+      });
+    }
+
+    // If slot is provided, check slot availability
+    if (slot_start_time) {
+      const slot = vehicle.availability_slots.find(s => s.start_time === slot_start_time);
+      if (!slot) {
+        return res.status(400).json({ success: false, error: `Slot ${slot_start_time} not found` });
+      }
+
+      const slotCapacityReached = slot.assigned_orders_count >= vehicle.max_orders_per_trip;
+      if (!slot.is_available || slotCapacityReached) {
+        return res.status(400).json({
+          success: false,
+          error: `Slot ${slot_start_time} is full (${slot.assigned_orders_count}/${vehicle.max_orders_per_trip} orders)`
+        });
+      }
+
+      console.log(`📅 Assigning order to slot ${slot_start_time}`);
+      // Assign order to slot
+      vehicle.assignOrderToSlot(slot_start_time);
+    }
+
+    // Add order to vehicle
+    vehicle.today_orders.push(booking_id);
+    vehicle.current_orders_count = vehicle.today_orders.length;
+
+    // Update booking with vehicle assignment
+    booking.assigned_vehicle_id = vehicle_id;
+    booking.vehicle_time_slot = slot_start_time || null;
+    booking.status = "vehicle_allocated"; // Update booking status
+
+    await vehicle.save();
+    await booking.save();
+
+    const updatedVehicle = await Vehicle.findById(vehicle_id)
+      .populate("assigned_vendor_id", "name phone email")
+      .populate({
+        path: "today_orders",
+        model: "Booking",
+        select: "custom_order_id name phone address scheduled_time status",
+      });
+
+    console.log(`✅ Order allocated successfully to vehicle ${vehicle_id}`);
+    console.log(`📊 Vehicle capacity: ${updatedVehicle.current_orders_count}/${updatedVehicle.max_orders_per_trip}`);
+
+    if (slot_start_time) {
+      const updatedSlot = updatedVehicle.availability_slots.find(s => s.start_time === slot_start_time);
+      console.log(`📅 Slot ${slot_start_time} now has ${updatedSlot?.assigned_orders_count || 0} orders`);
+    }
+
+    res.json({
+      success: true,
+      message: "Order allocated to vehicle successfully",
+      booking,
+      vehicle: updatedVehicle,
+    });
+  } catch (error) {
+    console.error("❌ Error allocating order to vehicle:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to allocate order"
+    });
+  }
+});
+
+// POST: Remove allocation of an order from a vehicle
+router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) => {
+  try {
+    const { booking_id } = req.body;
+
+    console.log(`🚗 Removing order allocation for ${booking_id}`);
+
+    if (!mongoose.Types.ObjectId.isValid(booking_id)) {
+      return res.status(400).json({ success: false, error: "Invalid booking ID" });
+    }
+
+    const Vehicle = require("../models/Vehicle");
+
+    const booking = await Booking.findById(booking_id);
+    if (!booking) {
+      return res.status(404).json({ success: false, error: "Booking not found" });
+    }
+
+    if (!booking.assigned_vehicle_id) {
+      return res.status(400).json({ success: false, error: "Order is not allocated to any vehicle" });
+    }
+
+    const vehicleId = booking.assigned_vehicle_id;
+    const slotTime = booking.vehicle_time_slot;
+
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (vehicle) {
+      // Remove order from slot
+      if (slotTime) {
+        console.log(`📅 Removing order from slot ${slotTime}`);
+        vehicle.removeOrderFromSlot(slotTime);
+        const updatedSlot = vehicle.availability_slots.find(s => s.start_time === slotTime);
+        console.log(`📅 Slot ${slotTime} now has ${updatedSlot?.assigned_orders_count || 0} orders`);
+      }
+
+      // Remove order from vehicle
+      vehicle.today_orders = vehicle.today_orders.filter(id => !id.equals(booking_id));
+      vehicle.current_orders_count = vehicle.today_orders.length;
+
+      await vehicle.save();
+      console.log(`📊 Vehicle capacity: ${vehicle.current_orders_count}/${vehicle.max_orders_per_trip}`);
+    }
+
+    // Clear vehicle assignment from booking
+    booking.assigned_vehicle_id = null;
+    booking.vehicle_time_slot = null;
+    booking.status = "vendor_assigned"; // Revert to vendor_assigned status
+    await booking.save();
+
+    console.log(`✅ Order deallocation removed successfully`);
+    res.json({
+      success: true,
+      message: "Order deallocation removed successfully",
+      booking,
+    });
+  } catch (error) {
+    console.error("❌ Error removing order allocation:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to remove allocation"
+    });
+  }
+});
+
+// ============================================================================
+// MAP ANALYTICS
+// ============================================================================
+
+// GET orders with location data for map visualization
+router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
+  try {
+    const { months, year, status } = req.query;
+
+    console.log(`📍 Fetching orders for map analytics: months=${months}, year=${year}, status=${status}`);
+
+    // Build date filter for multiple months
+    let dateFilter = {};
+    if (months && year) {
+      const monthArray = months.split(",").map((m) => parseInt(m.trim()));
+      const startDate = new Date(year, monthArray[0] - 1, 1);
+      const lastMonth = Math.max(...monthArray);
+      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+
+      // For multiple months, we create a date range from the first to the last month
+      dateFilter = {
+        created_at: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      };
+    }
+
+    // Build status filter
+    let statusFilter = {};
+    if (status && status !== "all") {
+      statusFilter = { status };
+    }
+
+    // Fetch bookings with location data
+    const bookings = await Booking.find({
+      ...dateFilter,
+      ...statusFilter,
+      "coordinates.lat": { $exists: true },
+      "coordinates.lng": { $exists: true },
+    })
+      .select(
+        "custom_order_id coordinates final_amount status created_at pickup_address delivery_address"
+      )
+      .lean();
+
+    // Transform to map markers
+    const mapMarkers = bookings.map((booking) => ({
+      id: booking._id,
+      orderId: booking.custom_order_id,
+      lat: booking.coordinates.lat,
+      lng: booking.coordinates.lng,
+      amount: booking.final_amount || 0,
+      status: booking.status,
+      date: booking.created_at,
+      address: booking.pickup_address || booking.delivery_address || "Unknown",
+    }));
+
+    console.log(`✅ Found ${mapMarkers.length} orders with location data`);
+
+    res.json({
+      success: true,
+      markers: mapMarkers,
+      total: mapMarkers.length,
+      totalAmount: mapMarkers.reduce((sum, m) => sum + m.amount, 0),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching map analytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch map analytics data",
+    });
+  }
+});
+
+// POST get area statistics - when user selects a polygon area on map
+router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
+  try {
+    const { polygon, months, year, status } = req.body;
+
+    console.log(`📍 Fetching area statistics for polygon with ${polygon?.length || 0} points`);
+
+    if (!polygon || !Array.isArray(polygon) || polygon.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Polygon must have at least 3 points",
+      });
+    }
+
+    // Build date filter for multiple months
+    let dateFilter = {};
+    if (months && year) {
+      const monthArray = Array.isArray(months) ? months.map((m) => parseInt(m)) : [parseInt(months)];
+      const startDate = new Date(year, monthArray[0] - 1, 1);
+      const lastMonth = Math.max(...monthArray);
+      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+
+      dateFilter = {
+        created_at: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      };
+    }
+
+    // Build status filter
+    let statusFilter = {};
+    if (status && status !== "all") {
+      statusFilter = { status };
+    }
+
+    // Fetch all bookings with location data in the date range
+    const bookings = await Booking.find({
+      ...dateFilter,
+      ...statusFilter,
+      "coordinates.lat": { $exists: true },
+      "coordinates.lng": { $exists: true },
+    })
+      .select(
+        "custom_order_id coordinates final_amount status created_at pickup_address delivery_address"
+      )
+      .lean();
+
+    // Filter bookings that are within the polygon (point-in-polygon algorithm)
+    const bookingsInArea = bookings.filter((booking) => {
+      const point = [booking.coordinates.lng, booking.coordinates.lat];
+      return isPointInPolygon(point, polygon);
+    });
+
+    // Calculate statistics
+    const totalOrders = bookingsInArea.length;
+    const totalAmount = bookingsInArea.reduce((sum, b) => sum + (b.final_amount || 0), 0);
+    const avgAmount = totalOrders > 0 ? totalAmount / totalOrders : 0;
+    const statusBreakdown = {};
+
+    bookingsInArea.forEach((booking) => {
+      statusBreakdown[booking.status] = (statusBreakdown[booking.status] || 0) + 1;
+    });
+
+    console.log(`✅ Area statistics: ${totalOrders} orders, ₹${totalAmount} total`);
+
+    res.json({
+      success: true,
+      areaStats: {
+        totalOrders,
+        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        avgAmount: parseFloat(avgAmount.toFixed(2)),
+        statusBreakdown,
+        orders: bookingsInArea.map((b) => ({
+          id: b._id,
+          orderId: b.custom_order_id,
+          amount: b.final_amount,
+          status: b.status,
+          date: b.created_at,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error fetching area statistics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch area statistics",
+    });
+  }
+});
+
+// Helper function: Check if a point is inside a polygon (Ray casting algorithm)
+function isPointInPolygon(point, polygon) {
+  const [x, y] = point;
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+
+  return inside;
+}
 
 module.exports = router;
