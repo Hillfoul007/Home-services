@@ -135,8 +135,9 @@ const AdminMapAnalytics: React.FC = () => {
   const fetchMapOrders = async () => {
     try {
       setLoading(true);
+      const monthsParam = selectedMonths.join(",");
       const response = await fetch(
-        `/api/admin/analytics/map-orders?month=${selectedMonth}&year=${selectedYear}&status=${selectedStatus}`
+        `/api/admin/analytics/map-orders?months=${monthsParam}&year=${selectedYear}&status=${selectedStatus}`
       );
 
       if (response.ok) {
