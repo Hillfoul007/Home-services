@@ -597,8 +597,10 @@ const AdminMapAnalytics: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{totalStats.total}</div>
             <p className="text-xs text-muted-foreground">
-              {selectedMonth && selectedYear
-                ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString("default", { month: "long", year: "numeric" })}`
+              {selectedMonths && selectedYear
+                ? selectedMonths.length === 1
+                  ? `${new Date(parseInt(selectedYear), parseInt(selectedMonths[0]) - 1).toLocaleString("default", { month: "long", year: "numeric" })}`
+                  : `${selectedMonths.length} months in ${selectedYear}`
                 : "Selected period"}
             </p>
           </CardContent>
