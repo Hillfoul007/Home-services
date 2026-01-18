@@ -860,6 +860,8 @@ const AdminBookingManagement: React.FC = () => {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
     }
 
+    filtered = filterByMonths(filtered);
+
     filtered.sort((a, b) => {
       const dateA = getDeliveryDateTimeForSort(a);
       const dateB = getDeliveryDateTimeForSort(b);
