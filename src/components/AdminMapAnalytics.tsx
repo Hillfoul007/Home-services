@@ -67,9 +67,9 @@ const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState<string>(
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([
     new Date().getMonth() + 1 + ""
-  );
+  ]);
   const [selectedYear, setSelectedYear] = useState<string>(
     new Date().getFullYear() + ""
   );
@@ -81,6 +81,7 @@ const AdminMapAnalytics: React.FC = () => {
   const [totalStats, setTotalStats] = useState({ total: 0, amount: 0 });
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(true);
+  const [showMonthSelector, setShowMonthSelector] = useState(false);
 
   // Initialize Google Map
   useEffect(() => {
