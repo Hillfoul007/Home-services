@@ -426,132 +426,108 @@ const AdminMapAnalytics: React.FC = () => {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Months
-              </label>
-              <div className="relative">
-                <button
-                  onClick={() => setShowMonthSelector(!showMonthSelector)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm font-normal hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-laundrify-purple/50"
-                >
-                  {selectedMonths.length === 1
-                    ? new Date(2024, parseInt(selectedMonths[0]) - 1).toLocaleString("default", {
-                        month: "short",
-                      })
-                    : `${selectedMonths.length} months selected`}
-                </button>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Months (Supports Multi-Year)
+                </label>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMonthSelector(!showMonthSelector)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm font-normal hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-laundrify-purple/50"
+                  >
+                    {selectedMonths.size === 1
+                      ? getMonthYearDisplay(Array.from(selectedMonths)[0])
+                      : `${selectedMonths.size} months selected`}
+                  </button>
 
-                {showMonthSelector && (
-                  <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-64 overflow-y-auto">
-                    {months.map((month) => (
-                      <label
-                        key={month}
-                        className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                  {showMonthSelector && (
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-96 overflow-y-auto">
+                      {availableMonths.map((monthYear) => (
+                        <label
+                          key={monthYear}
+                          className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMonths.has(monthYear)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                toggleMonth(monthYear);
+                              } else {
+                                toggleMonth(monthYear);
+                              }
+                            }}
+                            className="rounded border-gray-300 text-laundrify-purple focus:ring-laundrify-purple cursor-pointer"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">
+                            {getMonthYearDisplay(monthYear)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected months pills */}
+                {selectedMonths.size > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {Array.from(selectedMonths).sort().reverse().map((monthYear) => (
+                      <div
+                        key={monthYear}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
                       >
-                        <input
-                          type="checkbox"
-                          checked={selectedMonths.includes(month + "")}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedMonths([...selectedMonths, month + ""]);
-                            } else {
-                              setSelectedMonths(selectedMonths.filter((m) => m !== month + ""));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-laundrify-purple focus:ring-laundrify-purple cursor-pointer"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {new Date(2024, month - 1).toLocaleString("default", {
-                            month: "long",
-                          })}
-                        </span>
-                      </label>
+                        {getMonthYearDisplay(monthYear)}
+                        <button
+                          onClick={() => toggleMonth(monthYear)}
+                          className="hover:text-laundrify-purple/70 ml-1"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Selected months pills */}
-              {selectedMonths.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedMonths.sort((a, b) => parseInt(a) - parseInt(b)).map((month) => (
-                    <div
-                      key={month}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
-                    >
-                      {new Date(2024, parseInt(month) - 1).toLocaleString("default", {
-                        month: "short",
-                      })}
-                      <button
-                        onClick={() =>
-                          setSelectedMonths(selectedMonths.filter((m) => m !== month))
-                        }
-                        className="hover:text-laundrify-purple/70"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Year
-              </label>
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year + ""}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                onClick={fetchMapOrders}
-                disabled={loading || selectedMonths.length === 0}
-                className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
-              >
-                {loading ? (
-                  <>
-                    <Loader className="h-4 w-4 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Filter className="h-4 w-4 mr-2" />
-                    Apply Filters
-                  </>
-                )}
-              </Button>
+              <div className="flex items-end">
+                <Button
+                  onClick={fetchMapOrders}
+                  disabled={loading || selectedMonths.size === 0}
+                  className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
+                >
+                  {loading ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Filter className="h-4 w-4 mr-2" />
+                      Apply Filters
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
