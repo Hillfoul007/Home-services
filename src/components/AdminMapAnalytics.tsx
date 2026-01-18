@@ -168,9 +168,25 @@ const AdminMapAnalytics: React.FC = () => {
   const fetchMapOrders = async () => {
     try {
       setLoading(true);
-      const monthsParam = selectedMonths.join(",");
+
+      if (selectedMonths.size === 0) {
+        toast.error("Please select at least one month");
+        setLoading(false);
+        return;
+      }
+
+      // Convert Set to array and sort
+      const sortedMonths = Array.from(selectedMonths).sort();
+
+      // Extract unique years from selected months
+      const yearsSet = new Set(sortedMonths.map((m) => m.split('-')[0]));
+      const years = Array.from(yearsSet).join(',');
+
+      // Extract months: convert from "YYYY-MM" to "MM" for each month
+      const monthsForApi = sortedMonths.map((m) => m.split('-')[1]).join(',');
+
       const response = await fetch(
-        `/api/admin/analytics/map-orders?months=${monthsParam}&year=${selectedYear}&status=${selectedStatus}`
+        `/api/admin/analytics/map-orders?months=${monthsForApi}&years=${years}&status=${selectedStatus}`
       );
 
       if (response.ok) {
