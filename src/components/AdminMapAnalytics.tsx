@@ -130,50 +130,62 @@ const AdminMapAnalytics: React.FC = () => {
   };
 
   // Plot markers on map
-  const plotMarkers = (markersData: MapMarker[]) => {
+  const plotMarkers = async (markersData: MapMarker[]) => {
     if (!map) return;
 
-    // Clear old markers (simple approach - create new map instance)
-    const infoWindows: any[] = [];
-
-    markersData.forEach((marker) => {
-      const markerColor = getMarkerColor(marker.status);
-
-      const googleMarker = new (window as any).google.maps.Marker({
-        position: { lat: marker.lat, lng: marker.lng },
-        map,
-        title: marker.orderId,
-        icon: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+    try {
+      const loader = new GoogleLoader({
+        apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+        version: "weekly",
+        libraries: ["places"],
       });
 
-      // Create info window for each marker
-      const infoWindow = new (window as any).google.maps.InfoWindow({
-        content: `
-          <div style="padding: 10px; font-family: Arial;">
-            <h4 style="margin: 0 0 8px 0; color: #333;">${marker.orderId}</h4>
-            <p style="margin: 4px 0; font-size: 13px;"><strong>₹${marker.amount}</strong></p>
-            <p style="margin: 4px 0; font-size: 12px; color: #666;">${marker.status}</p>
-            <p style="margin: 4px 0; font-size: 12px; color: #666;">${marker.address}</p>
-          </div>
-        `,
+      const google = await loader.load();
+
+      // Clear old markers (simple approach - create new map instance)
+      const infoWindows: any[] = [];
+
+      markersData.forEach((marker) => {
+        const markerColor = getMarkerColor(marker.status);
+
+        const googleMarker = new google.maps.Marker({
+          position: { lat: marker.lat, lng: marker.lng },
+          map,
+          title: marker.orderId,
+          icon: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+        });
+
+        // Create info window for each marker
+        const infoWindow = new google.maps.InfoWindow({
+          content: `
+            <div style="padding: 10px; font-family: Arial;">
+              <h4 style="margin: 0 0 8px 0; color: #333;">${marker.orderId}</h4>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>₹${marker.amount}</strong></p>
+              <p style="margin: 4px 0; font-size: 12px; color: #666;">${marker.status}</p>
+              <p style="margin: 4px 0; font-size: 12px; color: #666;">${marker.address}</p>
+            </div>
+          `,
+        });
+
+        googleMarker.addListener("click", () => {
+          // Close all other info windows
+          infoWindows.forEach((iw) => iw.close());
+          infoWindow.open(map, googleMarker);
+        });
+
+        infoWindows.push(infoWindow);
       });
 
-      googleMarker.addListener("click", () => {
-        // Close all other info windows
-        infoWindows.forEach((iw) => iw.close());
-        infoWindow.open(map, googleMarker);
-      });
-
-      infoWindows.push(infoWindow);
-    });
-
-    // Fit bounds to show all markers
-    if (markersData.length > 0) {
-      const bounds = new (window as any).google.maps.LatLngBounds();
-      markersData.forEach((m) => {
-        bounds.extend({ lat: m.lat, lng: m.lng });
-      });
-      map.fitBounds(bounds);
+      // Fit bounds to show all markers
+      if (markersData.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        markersData.forEach((m) => {
+          bounds.extend({ lat: m.lat, lng: m.lng });
+        });
+        map.fitBounds(bounds);
+      }
+    } catch (error) {
+      console.error("Error plotting markers:", error);
     }
   };
 
