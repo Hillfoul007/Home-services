@@ -25,6 +25,8 @@ import {
   Package,
   Home,
   Truck,
+  Image,
+  MapPin as MapIcon,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
@@ -36,13 +38,15 @@ import AdminPGManagement from "./AdminPGManagement";
 import AdminPGOrdersManagement from "./AdminPGOrdersManagement";
 import AdminUsersManagement from "./AdminUsersManagement";
 import AdminOrderAllocation from "./AdminOrderAllocation";
+import AdminBannerManagement from "./AdminBannerManagement";
+import AdminMapAnalytics from "./AdminMapAnalytics";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "wallet" | "order-allocation";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -378,6 +382,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Wallet</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("banners")}
+              variant={activeTab === "banners" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Image className="h-4 w-4" />
+              <span className="hidden sm:inline">Banners</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("map-analytics")}
+              variant={activeTab === "map-analytics" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <MapIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Map</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("analytics")}
               variant={activeTab === "analytics" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -437,6 +457,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
           <TabsContent value="wallet">
             <AdminWalletManagement />
+          </TabsContent>
+
+          <TabsContent value="banners">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Banner Management:</strong> Create and manage website banners. Set custom display durations, redirect URLs, and track clicks and impressions. Banners rotate automatically on the homepage.</p>
+            </div>
+            <AdminBannerManagement />
+          </TabsContent>
+
+          <TabsContent value="map-analytics">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Map Analytics:</strong> Visualize all orders on an interactive map. Filter by month and status, draw custom areas to analyze order density and revenue, and get detailed statistics for selected regions.</p>
+            </div>
+            <AdminMapAnalytics />
           </TabsContent>
 
           <TabsContent value="analytics">

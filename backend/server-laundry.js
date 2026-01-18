@@ -484,6 +484,15 @@ try {
   console.error("❌ Failed to load Vehicle routes:", error.message);
 }
 
+// Banner routes
+try {
+  const bannerRoutes = require("./routes/banners");
+  app.use("/api/banners", bannerRoutes);
+  console.log("🔗 Banner routes registered at /api/banners");
+} catch (error) {
+  console.error("❌ Failed to load Banner routes:", error.message);
+}
+
 // Google Sheets integration removed
 
 // Push notification endpoints
