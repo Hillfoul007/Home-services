@@ -129,7 +129,7 @@ const AdminMapAnalytics: React.FC = () => {
       setPolygon([]);
       setAreaStats(null);
     }
-  }, [selectedMonth, selectedYear, selectedStatus, map]);
+  }, [selectedMonths, selectedYear, selectedStatus, map]);
 
   // Fetch orders with location data
   const fetchMapOrders = async () => {
