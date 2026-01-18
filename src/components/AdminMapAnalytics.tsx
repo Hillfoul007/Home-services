@@ -119,6 +119,42 @@ const AdminMapAnalytics: React.FC = () => {
     };
   }, []);
 
+  // Helper functions for month formatting
+  const getMonthYearDisplay = (monthYearKey: string): string => {
+    if (!monthYearKey) return "";
+    const [year, month] = monthYearKey.split('-');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthIndex = parseInt(month) - 1;
+    return `${monthNames[monthIndex]} ${year}`;
+  };
+
+  const toggleMonth = (monthYearKey: string) => {
+    const newSelectedMonths = new Set(selectedMonths);
+    if (newSelectedMonths.has(monthYearKey)) {
+      newSelectedMonths.delete(monthYearKey);
+    } else {
+      newSelectedMonths.add(monthYearKey);
+    }
+    setSelectedMonths(newSelectedMonths);
+  };
+
+  // Generate all available month-year combinations for the past 24 months
+  const generateAvailableMonths = () => {
+    const months: string[] = [];
+    const today = new Date();
+
+    for (let i = 0; i < 24; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      months.push(`${year}-${month}`);
+    }
+
+    return months;
+  };
+
+  const availableMonths = generateAvailableMonths();
+
   // Fetch orders when filters change
   useEffect(() => {
     if (map) {
@@ -126,7 +162,7 @@ const AdminMapAnalytics: React.FC = () => {
       setPolygon([]);
       setAreaStats(null);
     }
-  }, [selectedMonths, selectedYear, selectedStatus, map]);
+  }, [selectedMonths, selectedStatus, map]);
 
   // Fetch orders with location data
   const fetchMapOrders = async () => {
