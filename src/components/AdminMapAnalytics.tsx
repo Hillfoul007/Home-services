@@ -79,6 +79,8 @@ const AdminMapAnalytics: React.FC = () => {
   const [polygon, setPolygon] = useState<Array<[number, number]>>([]);
   const [areaStats, setAreaStats] = useState<AreaStats | null>(null);
   const [totalStats, setTotalStats] = useState({ total: 0, amount: 0 });
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [mapLoading, setMapLoading] = useState(true);
 
   // Initialize Google Map
   useEffect(() => {
