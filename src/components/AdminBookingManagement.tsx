@@ -1147,13 +1147,15 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const toggleMonth = (monthKey: string) => {
-    const newSelectedMonths = new Set(selectedMonths);
-    if (newSelectedMonths.has(monthKey)) {
-      newSelectedMonths.delete(monthKey);
-    } else {
-      newSelectedMonths.add(monthKey);
-    }
-    setSelectedMonths(newSelectedMonths);
+    setSelectedMonths((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(monthKey)) {
+        newSet.delete(monthKey);
+      } else {
+        newSet.add(monthKey);
+      }
+      return newSet;
+    });
   };
 
   const filterByMonths = (bookingsToFilter: Booking[]): Booking[] => {
