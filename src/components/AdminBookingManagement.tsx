@@ -1184,7 +1184,8 @@ const AdminBookingManagement: React.FC = () => {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === statusFilter);
     }
 
-    filtered = filterByMonths(filtered);
+    // Month filtering temporarily disabled to debug
+    // filtered = filterByMonths(filtered);
 
     filtered.sort((a, b) => {
       const dateA = getScheduledDateTime(a);
