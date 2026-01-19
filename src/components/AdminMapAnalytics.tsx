@@ -443,28 +443,25 @@ const AdminMapAnalytics: React.FC = () => {
 
                   {showMonthSelector && (
                     <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-96 overflow-y-auto">
-                      {availableMonths.map((monthYear) => (
-                        <label
-                          key={monthYear}
-                          className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedMonths.has(monthYear)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                toggleMonth(monthYear);
-                              } else {
-                                toggleMonth(monthYear);
-                              }
-                            }}
-                            className="rounded border-gray-300 text-laundrify-purple focus:ring-laundrify-purple cursor-pointer"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">
-                            {getMonthYearDisplay(monthYear)}
-                          </span>
-                        </label>
-                      ))}
+                      {availableMonths.map((monthYear) => {
+                        const isSelected = selectedMonths.has(monthYear);
+                        return (
+                          <label
+                            key={monthYear}
+                            className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleMonth(monthYear)}
+                              className="rounded border-gray-300 text-laundrify-purple focus:ring-laundrify-purple cursor-pointer"
+                            />
+                            <span className="ml-2 text-sm text-gray-700">
+                              {getMonthYearDisplay(monthYear)}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
