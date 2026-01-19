@@ -157,12 +157,12 @@ const AdminMapAnalytics: React.FC = () => {
 
   // Fetch orders when filters change
   useEffect(() => {
-    if (map) {
+    if (map && selectedMonths.size > 0) {
       fetchMapOrders();
       setPolygon([]);
       setAreaStats(null);
     }
-  }, [selectedMonths, selectedStatus, map]);
+  }, [map, fetchMapOrders]);
 
   // Memoized fetch function to avoid recreating on every render
   const fetchMapOrders = useCallback(async () => {
