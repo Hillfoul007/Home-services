@@ -285,18 +285,18 @@ const AdminMapAnalytics: React.FC = () => {
     return colorMap[status] || "blue";
   };
 
-  // Toggle drawing mode
-  const toggleDrawingMode = () => {
-    setDrawingMode(!drawingMode);
+  // Toggle drawing mode (memoized)
+  const toggleDrawingMode = useCallback(() => {
+    setDrawingMode((prev) => {
+      const newMode = !prev;
+      if (map) {
+        map.setOptions({ draggableCursor: newMode ? "crosshair" : "grab" });
+      }
+      return newMode;
+    });
     setPolygon([]);
     setAreaStats(null);
-
-    if (map && !drawingMode) {
-      map.setOptions({ draggableCursor: "crosshair" });
-    } else if (map) {
-      map.setOptions({ draggableCursor: "grab" });
-    }
-  };
+  }, [map]);
 
   // Handle map click when drawing
   useEffect(() => {
