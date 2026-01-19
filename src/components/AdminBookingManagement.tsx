@@ -993,9 +993,9 @@ const AdminBookingManagement: React.FC = () => {
   }, [showEditDialog, lastPollAt]);
 
   useEffect(() => {
-    updateAvailableMonths(bookings);
+    // updateAvailableMonths(bookings);  // Temporarily disabled
     filterBookings();
-  }, [searchTerm, statusFilter, bookings, selectedMonths]);
+  }, [searchTerm, statusFilter, bookings]); // Removed selectedMonths temporarily
 
   useEffect(() => {
     filterCompletedOrders();
