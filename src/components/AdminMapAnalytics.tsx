@@ -271,19 +271,20 @@ const AdminMapAnalytics: React.FC = () => {
     }
   };
 
-  // Get color based on order status
-  const getMarkerColor = (status: string): string => {
-    const colorMap: Record<string, string> = {
-      pending: "red",
-      confirmed: "yellow",
-      picked_up: "blue",
-      in_transit: "orange",
-      delivered: "green",
-      completed: "green",
-      cancelled: "gray",
-    };
+  // Get color based on order status (memoized)
+  const colorMap = useMemo(() => ({
+    pending: "red",
+    confirmed: "yellow",
+    picked_up: "blue",
+    in_transit: "orange",
+    delivered: "green",
+    completed: "green",
+    cancelled: "gray",
+  }), []);
+
+  const getMarkerColor = useCallback((status: string): string => {
     return colorMap[status] || "blue";
-  };
+  }, [colorMap]);
 
   // Toggle drawing mode (memoized)
   const toggleDrawingMode = useCallback(() => {
