@@ -119,27 +119,29 @@ const AdminMapAnalytics: React.FC = () => {
     };
   }, []);
 
-  // Helper functions for month formatting
-  const getMonthYearDisplay = (monthYearKey: string): string => {
+  // Helper functions for month formatting (memoized)
+  const getMonthYearDisplay = useCallback((monthYearKey: string): string => {
     if (!monthYearKey) return "";
     const [year, month] = monthYearKey.split('-');
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthIndex = parseInt(month) - 1;
     return `${monthNames[monthIndex]} ${year}`;
-  };
+  }, []);
 
-  const toggleMonth = (monthYearKey: string) => {
-    const newSelectedMonths = new Set(selectedMonths);
-    if (newSelectedMonths.has(monthYearKey)) {
-      newSelectedMonths.delete(monthYearKey);
-    } else {
-      newSelectedMonths.add(monthYearKey);
-    }
-    setSelectedMonths(newSelectedMonths);
-  };
+  const toggleMonth = useCallback((monthYearKey: string) => {
+    setSelectedMonths((prev) => {
+      const newSelectedMonths = new Set(prev);
+      if (newSelectedMonths.has(monthYearKey)) {
+        newSelectedMonths.delete(monthYearKey);
+      } else {
+        newSelectedMonths.add(monthYearKey);
+      }
+      return newSelectedMonths;
+    });
+  }, []);
 
-  // Generate all available month-year combinations for the past 24 months
-  const generateAvailableMonths = () => {
+  // Generate all available month-year combinations (memoized)
+  const availableMonths = useMemo(() => {
     const months: string[] = [];
     const today = new Date();
 
@@ -151,9 +153,7 @@ const AdminMapAnalytics: React.FC = () => {
     }
 
     return months;
-  };
-
-  const availableMonths = generateAvailableMonths();
+  }, []);
 
   // Fetch orders when filters change
   useEffect(() => {
