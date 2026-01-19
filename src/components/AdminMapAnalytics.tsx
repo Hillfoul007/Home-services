@@ -164,8 +164,8 @@ const AdminMapAnalytics: React.FC = () => {
     }
   }, [selectedMonths, selectedStatus, map]);
 
-  // Fetch orders with location data
-  const fetchMapOrders = async () => {
+  // Memoized fetch function to avoid recreating on every render
+  const fetchMapOrders = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -175,18 +175,25 @@ const AdminMapAnalytics: React.FC = () => {
         return;
       }
 
-      // Convert Set to array and sort
-      const sortedMonths = Array.from(selectedMonths).sort();
+      // Convert Set to array and sort - using cached arrays
+      const monthsArray = Array.from(selectedMonths);
+      const sortedMonths = monthsArray.length > 0 ? monthsArray.sort() : [];
 
-      // Extract unique years from selected months
-      const yearsSet = new Set(sortedMonths.map((m) => m.split('-')[0]));
+      // Extract unique years from selected months using a single pass
+      const yearsSet = new Set<string>();
+      const monthsForApi: string[] = [];
+
+      for (const monthYear of sortedMonths) {
+        const [year, month] = monthYear.split('-');
+        yearsSet.add(year);
+        monthsForApi.push(month);
+      }
+
       const years = Array.from(yearsSet).join(',');
-
-      // Extract months: convert from "YYYY-MM" to "MM" for each month
-      const monthsForApi = sortedMonths.map((m) => m.split('-')[1]).join(',');
+      const monthsParam = monthsForApi.join(',');
 
       const response = await fetch(
-        `/api/admin/analytics/map-orders?months=${monthsForApi}&years=${years}&status=${selectedStatus}`
+        `/api/admin/analytics/map-orders?months=${monthsParam}&years=${years}&status=${selectedStatus}`
       );
 
       if (response.ok) {
@@ -197,9 +204,9 @@ const AdminMapAnalytics: React.FC = () => {
           amount: data.totalAmount || 0,
         });
 
-        // Clear existing markers
+        // Plot markers only if map is initialized
         if (map) {
-          plotMarkers(data.markers || []);
+          await plotMarkers(data.markers || []);
         }
       }
     } catch (error) {
@@ -208,7 +215,7 @@ const AdminMapAnalytics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonths, selectedStatus, map]);
 
   // Plot markers on map
   const plotMarkers = async (markersData: MapMarker[]) => {
