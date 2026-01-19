@@ -1733,31 +1733,6 @@ const AdminBookingManagement: React.FC = () => {
             </div>
           </div>
 
-          {availableMonths.length > 0 && (
-            <div className="mt-4 pt-4 border-t">
-              <Label className="mb-3 block">Filter by Month</Label>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {availableMonths.slice(0, 12).map((monthKey) => {
-                  const isSelected = selectedMonths.has(monthKey);
-                  return (
-                    <button
-                      key={monthKey}
-                      onClick={() => toggleMonth(monthKey)}
-                      className={clsx(
-                        'px-3 py-1 rounded-full text-sm font-medium transition-all whitespace-nowrap',
-                        isSelected
-                          ? 'bg-blue-600 text-white border-2 border-blue-700 shadow-sm'
-                          : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
-                      )}
-                      type="button"
-                    >
-                      {getMonthYearDisplay(monthKey)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
