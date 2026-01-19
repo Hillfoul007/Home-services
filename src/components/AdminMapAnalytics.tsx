@@ -379,8 +379,8 @@ const AdminMapAnalytics: React.FC = () => {
     drawPolygon();
   }, [polygon, map]);
 
-  // Analyze area
-  const analyzeArea = async () => {
+  // Analyze area (memoized)
+  const analyzeArea = useCallback(async () => {
     if (polygon.length < 3) {
       toast.error("Please draw a polygon with at least 3 points");
       return;
@@ -388,10 +388,17 @@ const AdminMapAnalytics: React.FC = () => {
 
     try {
       setLoading(true);
-      const sortedMonths = Array.from(selectedMonths).sort();
-      const yearsSet = new Set(sortedMonths.map((m) => m.split('-')[0]));
-      const years = Array.from(yearsSet);
-      const monthsForApi = sortedMonths.map((m) => m.split('-')[1]);
+      const monthsArray = Array.from(selectedMonths);
+      const sortedMonths = monthsArray.length > 0 ? monthsArray.sort() : [];
+
+      const yearsSet = new Set<string>();
+      const monthsForApi: string[] = [];
+
+      for (const monthYear of sortedMonths) {
+        const [year, month] = monthYear.split('-');
+        yearsSet.add(year);
+        monthsForApi.push(month);
+      }
 
       const response = await fetch("/api/admin/analytics/area-stats", {
         method: "POST",
@@ -401,7 +408,7 @@ const AdminMapAnalytics: React.FC = () => {
         body: JSON.stringify({
           polygon,
           months: monthsForApi,
-          years,
+          years: Array.from(yearsSet),
           status: selectedStatus,
         }),
       });
@@ -417,7 +424,7 @@ const AdminMapAnalytics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [polygon, selectedMonths, selectedStatus]);
 
   return (
     <div className="space-y-6">
