@@ -2816,25 +2816,35 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
 // GET orders with location data for map visualization
 router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
   try {
-    const { months, year, status } = req.query;
+    const { months, years, status } = req.query;
 
-    console.log(`📍 Fetching orders for map analytics: months=${months}, year=${year}, status=${status}`);
+    console.log(`📍 Fetching orders for map analytics: months=${months}, years=${years}, status=${status}`);
 
-    // Build date filter for multiple months
+    // Build date filter for multiple months and years
     let dateFilter = {};
-    if (months && year) {
+    if (months && years) {
       const monthArray = months.split(",").map((m) => parseInt(m.trim()));
-      const startDate = new Date(year, monthArray[0] - 1, 1);
-      const lastMonth = Math.max(...monthArray);
-      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+      const yearArray = years.split(",").map((y) => parseInt(y.trim()));
 
-      // For multiple months, we create a date range from the first to the last month
-      dateFilter = {
-        created_at: {
-          $gte: startDate,
-          $lte: endDate,
-        },
-      };
+      // Create date ranges for each year-month combination
+      const dateRanges = [];
+      for (const year of yearArray) {
+        for (const month of monthArray) {
+          const startDate = new Date(year, month - 1, 1);
+          const endDate = new Date(year, month, 0, 23, 59, 59);
+          dateRanges.push({
+            created_at: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          });
+        }
+      }
+
+      // If we have multiple year-month combinations, use $or to match any of them
+      if (dateRanges.length > 0) {
+        dateFilter = { $or: dateRanges };
+      }
     }
 
     // Build status filter
@@ -2843,7 +2853,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       statusFilter = { status };
     }
 
-    // Fetch bookings with location data
+    // Fetch bookings with location data - INCLUDE ALL ORDERS (completed, cancelled, etc)
     const bookings = await Booking.find({
       ...dateFilter,
       ...statusFilter,
@@ -2867,7 +2877,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       address: booking.pickup_address || booking.delivery_address || "Unknown",
     }));
 
-    console.log(`✅ Found ${mapMarkers.length} orders with location data`);
+    console.log(`✅ Found ${mapMarkers.length} orders with location data (including all statuses)`);
 
     res.json({
       success: true,
