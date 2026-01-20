@@ -2897,7 +2897,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
 // POST get area statistics - when user selects a polygon area on map
 router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
   try {
-    const { polygon, months, year, status } = req.body;
+    const { polygon, months, years, status } = req.body;
 
     console.log(`📍 Fetching area statistics for polygon with ${polygon?.length || 0} points`);
 
@@ -2908,20 +2908,31 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
       });
     }
 
-    // Build date filter for multiple months
+    // Build date filter for multiple months and years
     let dateFilter = {};
-    if (months && year) {
-      const monthArray = Array.isArray(months) ? months.map((m) => parseInt(m)) : [parseInt(months)];
-      const startDate = new Date(year, monthArray[0] - 1, 1);
-      const lastMonth = Math.max(...monthArray);
-      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+    if (months && years) {
+      const monthArray = Array.isArray(months) ? months.map((m) => parseInt(m)) : months.split(",").map((m) => parseInt(m.trim()));
+      const yearArray = Array.isArray(years) ? years.map((y) => parseInt(y)) : years.split(",").map((y) => parseInt(y.trim()));
 
-      dateFilter = {
-        created_at: {
-          $gte: startDate,
-          $lte: endDate,
-        },
-      };
+      // Create date ranges for each year-month combination
+      const dateRanges = [];
+      for (const year of yearArray) {
+        for (const month of monthArray) {
+          const startDate = new Date(year, month - 1, 1);
+          const endDate = new Date(year, month, 0, 23, 59, 59);
+          dateRanges.push({
+            created_at: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          });
+        }
+      }
+
+      // If we have multiple year-month combinations, use $or to match any of them
+      if (dateRanges.length > 0) {
+        dateFilter = { $or: dateRanges };
+      }
     }
 
     // Build status filter
@@ -2930,7 +2941,7 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
       statusFilter = { status };
     }
 
-    // Fetch all bookings with location data in the date range
+    // Fetch all bookings with location data in the date range - INCLUDE ALL ORDERS
     const bookings = await Booking.find({
       ...dateFilter,
       ...statusFilter,
@@ -2958,7 +2969,7 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
       statusBreakdown[booking.status] = (statusBreakdown[booking.status] || 0) + 1;
     });
 
-    console.log(`✅ Area statistics: ${totalOrders} orders, ₹${totalAmount} total`);
+    console.log(`✅ Area statistics: ${totalOrders} orders (including all statuses), ₹${totalAmount} total`);
 
     res.json({
       success: true,
