@@ -174,9 +174,9 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
           </>
         )}
 
-        {/* Dots Indicator - Small and subtle */}
+        {/* Dots Indicator - Minimal and professional */}
         {banners.length > 1 && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1">
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex gap-0.5">
             {banners.map((_, index) => (
               <button
                 key={index}
@@ -187,8 +187,8 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
                 }}
                 className={`rounded-full transition-all duration-300 ${
                   index === currentIndex
-                    ? "bg-white w-3 h-1 drop-shadow-md"
-                    : "bg-white/60 w-1 h-1 hover:bg-white/80 drop-shadow-sm"
+                    ? "bg-white w-2 h-0.5 drop-shadow-sm"
+                    : "bg-white/40 w-0.5 h-0.5 hover:bg-white/60"
                 }`}
               />
             ))}
