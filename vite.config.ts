@@ -4,7 +4,9 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const isPWAEnabled = process.env.ENABLE_PWA !== "false";
+  // Disable PWA on Render to save memory
+  const isRender = process.env.RENDER === "true";
+  const isPWAEnabled = process.env.ENABLE_PWA !== "false" && !isRender;
 
   // Dynamically import PWA plugin
   let VitePWA;
@@ -27,16 +29,24 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-            build: {
+    build: {
       chunkSizeWarningLimit: 500,
       rollupOptions: {
-        // Minimize parallel operations to reduce memory usage
-        maxParallelFileOps: 1,
+        // Minimize parallel operations to reduce memory usage on Render
+        maxParallelFileOps: isRender ? 1 : 20,
         output: {
           // Aggressive chunking to reduce memory
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            ui: ['@radix-ui/react-dialog', '@radix-ui/react-select'],
+          manualChunks: (id) => {
+            // Chunk strategy to reduce memory usage
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('node_modules/@radix-ui')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
           },
         },
       },
@@ -52,6 +62,10 @@ export default defineConfig(({ mode }) => {
       target: 'esnext',
       // Reduce chunk size
       assetsInlineLimit: 0,
+      // Reduce watch depth for dev
+      watch: isRender ? null : {
+        include: ['src/**'],
+      },
     },
     // Enable gzip compression for assets
     esbuild: {
