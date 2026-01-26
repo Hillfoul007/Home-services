@@ -294,11 +294,93 @@ export class VendorService {
     }
     const hours = Math.floor(estimatedTime / 60);
     const minutes = estimatedTime % 60;
-    
+
     if (minutes === 0) {
       return `${hours}h`;
     }
     return `${hours}h ${minutes}m`;
+  }
+
+  /**
+   * Update an existing vendor
+   */
+  updateVendor(vendorId: string, updates: Partial<VendorDetails>): VendorDetails | null {
+    const vendorIndex = this.vendors.findIndex(v => v.id === vendorId);
+    if (vendorIndex === -1) {
+      console.warn('❌ Vendor not found:', vendorId);
+      return null;
+    }
+
+    const updatedVendor = {
+      ...this.vendors[vendorIndex],
+      ...updates,
+      id: vendorId // Ensure ID doesn't change
+    };
+
+    this.vendors[vendorIndex] = updatedVendor;
+    console.log('✅ Vendor updated:', vendorId, updatedVendor);
+    return updatedVendor;
+  }
+
+  /**
+   * Add a new vendor
+   */
+  addVendor(vendor: VendorDetails): VendorDetails {
+    // Generate new ID if not provided
+    if (!vendor.id) {
+      vendor.id = `vendor${Date.now()}`;
+    }
+
+    this.vendors.push(vendor);
+    console.log('✅ Vendor added:', vendor.id, vendor);
+    return vendor;
+  }
+
+  /**
+   * Delete a vendor
+   */
+  deleteVendor(vendorId: string): boolean {
+    const index = this.vendors.findIndex(v => v.id === vendorId);
+    if (index === -1) {
+      console.warn('❌ Vendor not found for deletion:', vendorId);
+      return false;
+    }
+
+    const deleted = this.vendors.splice(index, 1);
+    console.log('✅ Vendor deleted:', vendorId);
+    return true;
+  }
+
+  /**
+   * Get all vendors (including inactive)
+   */
+  getAllVendors(): VendorDetails[] {
+    return [...this.vendors];
+  }
+
+  /**
+   * Calculate distance from user address to vendor and get details
+   */
+  async getVendorDistanceFromAddress(
+    vendorId: string,
+    userAddress: string
+  ): Promise<{ distance: number; estimatedTime: number } | null> {
+    const vendor = this.getVendorById(vendorId);
+    if (!vendor) return null;
+
+    const userCoordinates = await this.getCoordinatesFromAddress(userAddress);
+    if (!userCoordinates) return null;
+
+    const distance = this.calculateDistance(
+      userCoordinates.lat,
+      userCoordinates.lng,
+      vendor.coordinates.lat,
+      vendor.coordinates.lng
+    );
+
+    const estimatedTime = this.estimateDeliveryTime(distance);
+
+    return { distance, estimatedTime };
   }
 }
 
