@@ -370,7 +370,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
                             <Edit3 className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-md">
+                        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Edit Vendor</DialogTitle>
                           </DialogHeader>
