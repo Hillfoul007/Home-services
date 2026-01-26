@@ -29,6 +29,7 @@ import AdminBookingManagement from "./AdminBookingManagement";
 import AdminUserBooking from "./AdminUserBooking";
 import AdminServiceLocations from "./AdminServiceLocations";
 import AdminRiderManagement from "./AdminRiderManagement";
+import AdminVendorManagement from "./AdminVendorManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
