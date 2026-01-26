@@ -845,6 +845,4 @@ const AdminVendorManagement: React.FC = () => {
   );
 };
 
-let selectedVendorForDistance: string | null = null;
-
 export default AdminVendorManagement;
