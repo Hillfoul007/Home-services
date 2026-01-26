@@ -431,6 +431,37 @@ export default function AdminRiderManagement() {
     }
   };
 
+  const fetchAndSetVendors = async () => {
+    try {
+      console.log('📦 Fetching vendors from database...');
+      const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/laundry-vendors');
+
+      if (response.data?.vendors && response.data.vendors.length > 0) {
+        console.log(`✅ Fetched ${response.data.vendors.length} vendors from database`);
+
+        // Convert database vendors to VendorDetails format for vendorService
+        const vendorDetails = response.data.vendors.map((vendor: any) => ({
+          id: vendor._id,
+          name: vendor.name,
+          address: vendor.address || '',
+          coordinates: vendor.coordinates || { lat: 28.4595, lng: 77.0266 }, // Default Gurugram if no coords
+          services: vendor.services || [],
+          contactPhone: vendor.phone,
+          google_maps_link: vendor.google_maps_link,
+          isActive: vendor.is_active !== false
+        }));
+
+        // Set vendors in the vendorService to use its distance calculation
+        vendorService.setVendors(vendorDetails);
+        console.log('✅ Vendors set in vendorService with Google Maps coordinates');
+      } else {
+        console.warn('⚠️ No vendors found in database');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching vendors:', error);
+    }
+  };
+
   const handleVerifyRider = async (riderId: string, status: 'approved' | 'rejected') => {
     try {
       const response = await fetch(getAdminApiUrl(`/riders/${riderId}/verify`), {
