@@ -1921,7 +1921,7 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 // Create laundry vendor with auto-generated credentials
 router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, email, phone, address, services, whatsapp_group_invite_link } = req.body;
+    const { name, email, phone, address, google_maps_link, services, whatsapp_group_invite_link } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({ error: "Name and phone are required" });
@@ -1931,8 +1931,22 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
 
     // Generate unique vendor ID and temporary password
     const VendorAuth = require("../models/Vendor");
+    const { extractCoordinatesFromGoogleMapsLink, validateCoordinates } = require("../utils/mapsHelper");
+
     const vendor_id = VendorAuth.generateVendorId();
     const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Extract coordinates from Google Maps link if provided
+    let coordinates = undefined;
+    if (google_maps_link) {
+      const extractedCoords = extractCoordinatesFromGoogleMapsLink(google_maps_link);
+      if (extractedCoords && validateCoordinates(extractedCoords)) {
+        coordinates = extractedCoords;
+        console.log(`📍 Extracted coordinates from Google Maps link: ${coordinates.lat}, ${coordinates.lng}`);
+      } else {
+        console.warn(`⚠️ Could not extract valid coordinates from Google Maps link: ${google_maps_link}`);
+      }
+    }
 
     const vendor = new VendorAuth({
       vendor_id,
@@ -1941,6 +1955,8 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
       email,
       phone,
       address,
+      google_maps_link: google_maps_link || "",
+      coordinates,
       services: services || [],
       whatsapp_group_invite_link: whatsapp_group_invite_link || "",
       is_active: true,
@@ -1958,6 +1974,9 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
         name,
         email,
         phone,
+        address,
+        google_maps_link: google_maps_link || "",
+        coordinates,
         whatsapp_group_invite_link,
         temp_password, // Share only once!
       },
