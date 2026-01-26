@@ -77,6 +77,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       phone: '',
       email: '',
       address: '',
+      google_maps_link: '',
       password: '',
       services: '',
       whatsapp_group_invite_link: '',
