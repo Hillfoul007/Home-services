@@ -2068,11 +2068,12 @@ router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req,
 router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, email, phone, address, services, is_active, vendor_id, password, whatsapp_group_invite_link } = req.body;
+    const { name, email, phone, address, google_maps_link, services, is_active, vendor_id, password, whatsapp_group_invite_link } = req.body;
 
     console.log(`📝 Updating laundry vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
+    const { extractCoordinatesFromGoogleMapsLink, validateCoordinates } = require("../utils/mapsHelper");
     const vendor = await VendorAuth.findById(vendorId);
 
     if (!vendor) {
@@ -2088,6 +2089,23 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     if (is_active !== undefined) vendor.is_active = is_active;
     if (vendor_id !== undefined) vendor.vendor_id = vendor_id;
     if (whatsapp_group_invite_link !== undefined) vendor.whatsapp_group_invite_link = whatsapp_group_invite_link;
+
+    // Handle Google Maps link and extract coordinates
+    if (google_maps_link !== undefined) {
+      vendor.google_maps_link = google_maps_link;
+      if (google_maps_link) {
+        const extractedCoords = extractCoordinatesFromGoogleMapsLink(google_maps_link);
+        if (extractedCoords && validateCoordinates(extractedCoords)) {
+          vendor.coordinates = extractedCoords;
+          console.log(`📍 Extracted coordinates from Google Maps link: ${extractedCoords.lat}, ${extractedCoords.lng}`);
+        } else {
+          console.warn(`⚠️ Could not extract valid coordinates from Google Maps link: ${google_maps_link}`);
+          vendor.coordinates = undefined;
+        }
+      } else {
+        vendor.coordinates = undefined;
+      }
+    }
 
     // Update password if provided
     if (password) {
