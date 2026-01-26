@@ -14,6 +14,10 @@ services:
         value: production
       - key: NODE_OPTIONS
         value: --max-old-space-size=300
+      - key: RENDER
+        value: "true"
+      - key: ENABLE_PWA
+        value: "false"
     
     # Build settings
     buildFilter:
