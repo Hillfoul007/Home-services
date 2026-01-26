@@ -41,6 +41,10 @@ const vendorSchema = new mongoose.Schema(
     address: {
       type: String,
     },
+    google_maps_link: {
+      type: String,
+      default: "",
+    },
     coordinates: {
       lat: Number,
       lng: Number,
