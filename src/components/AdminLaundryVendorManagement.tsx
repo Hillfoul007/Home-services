@@ -239,7 +239,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
                   Create Vendor
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Vendor Account</DialogTitle>
                   <DialogDescription>Add new laundry vendor with auto-generated credentials</DialogDescription>
