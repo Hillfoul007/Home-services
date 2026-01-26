@@ -495,6 +495,27 @@ const AdminLaundryVendorManagement: React.FC = () => {
                         <p className="font-medium text-sm">{vendor.address}</p>
                       </div>
                     )}
+                    {vendor.coordinates && (
+                      <div className="col-span-2">
+                        <span className="text-gray-600">Coordinates</span>
+                        <p className="font-medium text-sm">
+                          📍 Lat: {vendor.coordinates.lat.toFixed(4)}, Lng: {vendor.coordinates.lng.toFixed(4)}
+                        </p>
+                      </div>
+                    )}
+                    {vendor.google_maps_link && (
+                      <div className="col-span-2">
+                        <span className="text-gray-600">Google Maps Location</span>
+                        <a
+                          href={vendor.google_maps_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm mt-1 block truncate"
+                        >
+                          🗺️ View on Google Maps
+                        </a>
+                      </div>
+                    )}
                     {vendor.services && vendor.services.length > 0 && (
                       <div className="col-span-2">
                         <span className="text-gray-600">Services</span>
