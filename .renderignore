@@ -1,0 +1,67 @@
+# Version Control
+.git
+.gitignore
+.github
+
+# Dependencies
+node_modules
+.npm
+.cache
+
+# Build outputs
+dist
+build
+coverage
+.turbo
+
+# Development
+.env.local
+.env.development
+.vite
+.DS_Store
+*.log
+*.log.*
+
+# IDE/Editor
+.vscode
+.idea
+*.swp
+*.swo
+*.iml
+.editorconfig
+
+# Testing
+__tests__
+.jest
+.mocha
+
+# Documentation
+docs
+README.md
+CHANGELOG.md
+LICENSE
+
+# CI/CD
+.github/workflows
+.gitlab-ci.yml
+.travis.yml
+
+# Deployment
+deploy.sh
+.deploy
+netlify.toml
+_headers
+_redirects
+
+# Mobile/Cordova
+cordova
+android
+ios
+www
+
+# Misc
+*.pem
+*.key
+secrets.json
+.env.example
+TODO.md
