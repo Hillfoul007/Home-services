@@ -16,6 +16,11 @@ interface LaundryVendor {
   phone: string;
   email?: string;
   address?: string;
+  google_maps_link?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
   services?: string[];
   whatsapp_group_invite_link?: string;
   is_active: boolean;
