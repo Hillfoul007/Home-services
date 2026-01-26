@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "npm run start:prod",
-    "start:prod": "npm run build:pwa && cd backend && npm install --production && NODE_ENV=production node server-laundry.js",
+    "start:prod": "NODE_ENV=production node backend/server-laundry.js",
     "start:backend": "NODE_ENV=production node backend/server-laundry.js",
     "start:frontend": "npx serve -s dist -p 8080",
     "deploy": "chmod +x deploy.sh && ./deploy.sh",
