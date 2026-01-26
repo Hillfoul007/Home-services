@@ -1478,38 +1478,45 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
 
     console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType, bookingCoordinates });
 
-    // Vendor options with enhanced data
-    const vendors = {
-      'vendor1': {
-        id: 'vendor1',
-        name: 'Priya Dry Cleaners',
-        address: 'Shop n.155, Spaze corporate park, 1sf, Sector 69, Gurugram, Haryana 122101',
-        phone: '+91 9999999991',
-        coordinates: { lat: 28.3984, lng: 77.0648 },
-        services: ['Dry Cleaning', 'Laundry', 'Ironing', 'Stain Removal'],
-        rating: 4.5
-      },
-      'vendor2': {
-        id: 'vendor2',
-        name: 'White Tiger Dry Cleaning',
-        address: 'Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101',
-        phone: '+91 9999999992',
-        coordinates: { lat: 28.3982, lng: 77.0650 },
-        services: ['Dry Cleaning', 'Premium Care', 'Express Service', 'Alterations'],
-        rating: 4.3
-      }
-    };
+    let selectedVendor = null;
 
-    const selectedVendor = vendors[vendorData.vendorId];
+    // Try to fetch vendor from database first (if vendorData.vendorId is a MongoDB ID)
+    if (vendorData.vendorId && mongoose.Types.ObjectId.isValid(vendorData.vendorId)) {
+      const Vendor = require("../models/Vendor");
+      const dbVendor = await Vendor.findById(vendorData.vendorId).select("-password_hash -temp_password");
+      if (dbVendor) {
+        selectedVendor = {
+          id: dbVendor._id.toString(),
+          name: dbVendor.name,
+          address: dbVendor.address || '',
+          phone: dbVendor.phone,
+          coordinates: dbVendor.coordinates,
+          google_maps_link: dbVendor.google_maps_link,
+          services: dbVendor.services || [],
+          vendor_id: dbVendor.vendor_id
+        };
+        console.log(`✅ Vendor fetched from database: ${selectedVendor.name}`);
+      }
+    }
+
+    // Fallback to passed vendor data if not found in database
     if (!selectedVendor) {
-      return res.status(400).json({ message: 'Invalid vendor selection' });
+      selectedVendor = {
+        id: vendorData.vendorId,
+        name: vendorData.vendorName || 'Unknown Vendor',
+        address: vendorData.vendorAddress || '',
+        coordinates: vendorData.coordinates,
+        services: vendorData.services || []
+      };
     }
 
     // Calculate distance if coordinates are provided
     let calculatedDistance = vendorData.distance || 0;
     if (bookingCoordinates && bookingCoordinates.lat && bookingCoordinates.lng && selectedVendor.coordinates) {
       calculatedDistance = calculateDistance(bookingCoordinates, selectedVendor.coordinates);
-      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor`);
+      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor (using Google Maps coordinates)`);
+    } else if (!selectedVendor.coordinates) {
+      console.warn(`⚠️ Vendor ${selectedVendor.name} has no coordinates. Please add Google Maps link to vendor profile.`);
     }
 
     // Merge vendor data with distance/time information
