@@ -283,6 +283,16 @@ const AdminLaundryVendorManagement: React.FC = () => {
                     />
                   </div>
                   <div>
+                    <Label htmlFor="add-google-maps">Google Maps Link</Label>
+                    <Input
+                      id="add-google-maps"
+                      placeholder="https://maps.google.com/?q=40.7128,-74.0060"
+                      value={formData.google_maps_link}
+                      onChange={(e) => setFormData({ ...formData, google_maps_link: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Paste the Google Maps link to automatically extract precise coordinates</p>
+                  </div>
+                  <div>
                     <Label htmlFor="add-services">Services</Label>
                     <Input
                       id="add-services"
