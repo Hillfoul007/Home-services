@@ -99,6 +99,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
           phone: formData.phone,
           email: formData.email || undefined,
           address: formData.address || undefined,
+          google_maps_link: formData.google_maps_link || undefined,
           services: formData.services.split(',').map(s => s.trim()).filter(s => s),
           whatsapp_group_invite_link: formData.whatsapp_group_invite_link || undefined,
         },
