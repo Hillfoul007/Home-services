@@ -139,16 +139,16 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
           <div className="absolute inset-0 bg-black/10"></div>
 
           {/* Content - Minimal, positioned at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 text-center text-white px-4 py-3 bg-gradient-to-t from-black/40 to-transparent">
-            <h3 className="text-lg md:text-xl font-bold mb-1">
+          <div className="absolute bottom-0 left-0 right-0 z-10 text-center text-white px-4 py-4 bg-gradient-to-t from-black/70 via-black/40 to-transparent">
+            <h3 className="text-lg md:text-xl font-bold mb-1 drop-shadow-lg">
               {currentBanner.title}
             </h3>
             {currentBanner.description && (
-              <p className="text-white/90 text-xs md:text-sm mb-2 line-clamp-1">
+              <p className="text-white text-xs md:text-sm mb-2 line-clamp-1 drop-shadow-md">
                 {currentBanner.description}
               </p>
             )}
-            <button className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-md transition-all duration-200 text-white text-xs font-medium">
+            <button className="inline-flex items-center gap-1 bg-white/30 hover:bg-white/40 px-3 py-1 rounded-md transition-all duration-200 text-white text-xs font-medium drop-shadow-md">
               Explore
               <ExternalLink className="h-3 w-3" />
             </button>
@@ -174,9 +174,9 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
           </>
         )}
 
-        {/* Dots Indicator - Small and subtle */}
+        {/* Dots Indicator - Minimal and professional */}
         {banners.length > 1 && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex gap-0.5">
             {banners.map((_, index) => (
               <button
                 key={index}
@@ -187,8 +187,8 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
                 }}
                 className={`rounded-full transition-all duration-300 ${
                   index === currentIndex
-                    ? "bg-white w-6 h-1.5"
-                    : "bg-white/40 w-1.5 h-1.5 hover:bg-white/60"
+                    ? "bg-white w-2 h-0.5 drop-shadow-sm"
+                    : "bg-white/40 w-0.5 h-0.5 hover:bg-white/60"
                 }`}
               />
             ))}

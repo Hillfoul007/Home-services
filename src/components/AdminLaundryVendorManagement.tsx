@@ -16,6 +16,11 @@ interface LaundryVendor {
   phone: string;
   email?: string;
   address?: string;
+  google_maps_link?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
   services?: string[];
   whatsapp_group_invite_link?: string;
   is_active: boolean;
@@ -38,6 +43,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
     phone: '',
     email: '',
     address: '',
+    google_maps_link: '',
     password: '',
     services: '',
     whatsapp_group_invite_link: '',
@@ -71,6 +77,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       phone: '',
       email: '',
       address: '',
+      google_maps_link: '',
       password: '',
       services: '',
       whatsapp_group_invite_link: '',
@@ -92,6 +99,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
           phone: formData.phone,
           email: formData.email || undefined,
           address: formData.address || undefined,
+          google_maps_link: formData.google_maps_link || undefined,
           services: formData.services.split(',').map(s => s.trim()).filter(s => s),
           whatsapp_group_invite_link: formData.whatsapp_group_invite_link || undefined,
         },
@@ -131,6 +139,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
         phone: formData.phone,
         email: formData.email || undefined,
         address: formData.address || undefined,
+        google_maps_link: formData.google_maps_link || undefined,
         services: formData.services.split(',').map(s => s.trim()).filter(s => s),
         whatsapp_group_invite_link: formData.whatsapp_group_invite_link || undefined,
       };
@@ -188,6 +197,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
       phone: vendor.phone,
       email: vendor.email || '',
       address: vendor.address || '',
+      google_maps_link: vendor.google_maps_link || '',
       password: '',
       services: vendor.services?.join(', ') || '',
       whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
@@ -229,7 +239,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
                   Create Vendor
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Vendor Account</DialogTitle>
                   <DialogDescription>Add new laundry vendor with auto-generated credentials</DialogDescription>
@@ -271,6 +281,16 @@ const AdminLaundryVendorManagement: React.FC = () => {
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="add-google-maps">Google Maps Link</Label>
+                    <Input
+                      id="add-google-maps"
+                      placeholder="https://maps.google.com/?q=40.7128,-74.0060"
+                      value={formData.google_maps_link}
+                      onChange={(e) => setFormData({ ...formData, google_maps_link: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Paste the Google Maps link to automatically extract precise coordinates</p>
                   </div>
                   <div>
                     <Label htmlFor="add-services">Services</Label>
@@ -350,7 +370,7 @@ const AdminLaundryVendorManagement: React.FC = () => {
                             <Edit3 className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-md">
+                        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Edit Vendor</DialogTitle>
                           </DialogHeader>
@@ -420,6 +440,16 @@ const AdminLaundryVendorManagement: React.FC = () => {
                                 />
                               </div>
                               <div>
+                                <Label htmlFor="edit-google-maps">Google Maps Link</Label>
+                                <Input
+                                  id="edit-google-maps"
+                                  placeholder="https://maps.google.com/?q=40.7128,-74.0060"
+                                  value={formData.google_maps_link}
+                                  onChange={(e) => setFormData({ ...formData, google_maps_link: e.target.value })}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Paste the Google Maps link to automatically extract precise coordinates</p>
+                              </div>
+                              <div>
                                 <Label htmlFor="edit-services">Services</Label>
                                 <Input
                                   id="edit-services"
@@ -463,6 +493,27 @@ const AdminLaundryVendorManagement: React.FC = () => {
                       <div className="col-span-2">
                         <span className="text-gray-600">Address</span>
                         <p className="font-medium text-sm">{vendor.address}</p>
+                      </div>
+                    )}
+                    {vendor.coordinates && (
+                      <div className="col-span-2">
+                        <span className="text-gray-600">Coordinates</span>
+                        <p className="font-medium text-sm">
+                          📍 Lat: {vendor.coordinates.lat.toFixed(4)}, Lng: {vendor.coordinates.lng.toFixed(4)}
+                        </p>
+                      </div>
+                    )}
+                    {vendor.google_maps_link && (
+                      <div className="col-span-2">
+                        <span className="text-gray-600">Google Maps Location</span>
+                        <a
+                          href={vendor.google_maps_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm mt-1 block truncate"
+                        >
+                          🗺️ View on Google Maps
+                        </a>
                       </div>
                     )}
                     {vendor.services && vendor.services.length > 0 && (

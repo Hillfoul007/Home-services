@@ -5,6 +5,7 @@ import { vendorService, type VendorWithDistance } from '@/services/vendorService
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiClient } from '@/lib/apiClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -195,18 +196,11 @@ export default function AdminRiderManagement() {
   useEffect(() => {
     console.log('🚀 AdminRiderManagement component mounted, fetching data...');
 
-    // Test vendor service on mount
-    try {
-      const testVendors = vendorService.getActiveVendors();
-      console.log('🏪 Vendor service test - active vendors:', testVendors);
-    } catch (error) {
-      console.error('❌ Vendor service test failed:', error);
-    }
-
     // Directly try to fetch data - let individual functions handle connection issues
     fetchRiders();
     fetchOrders();
     fetchActiveRiders();
+    fetchAndSetVendors(); // Load vendors with Google Maps coordinates
 
     // Set up polling for active riders every 30 seconds (functions will handle connectivity)
     const interval = setInterval(fetchActiveRiders, 30000);
@@ -427,6 +421,37 @@ export default function AdminRiderManagement() {
     } catch (error) {
       console.log('⚪ Backend unavailable for active riders:', error.message);
       setActiveRiders([]); // Prevent crashes with empty array
+    }
+  };
+
+  const fetchAndSetVendors = async () => {
+    try {
+      console.log('📦 Fetching vendors from database...');
+      const response = await apiClient.adminRequest<{ vendors: any[] }>('/admin/laundry-vendors');
+
+      if (response.data?.vendors && response.data.vendors.length > 0) {
+        console.log(`✅ Fetched ${response.data.vendors.length} vendors from database`);
+
+        // Convert database vendors to VendorDetails format for vendorService
+        const vendorDetails = response.data.vendors.map((vendor: any) => ({
+          id: vendor._id,
+          name: vendor.name,
+          address: vendor.address || '',
+          coordinates: vendor.coordinates || { lat: 28.4595, lng: 77.0266 }, // Default Gurugram if no coords
+          services: vendor.services || [],
+          contactPhone: vendor.phone,
+          google_maps_link: vendor.google_maps_link,
+          isActive: vendor.is_active !== false
+        }));
+
+        // Set vendors in the vendorService to use its distance calculation
+        vendorService.setVendors(vendorDetails);
+        console.log('✅ Vendors set in vendorService with Google Maps coordinates');
+      } else {
+        console.warn('⚠️ No vendors found in database');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching vendors:', error);
     }
   };
 

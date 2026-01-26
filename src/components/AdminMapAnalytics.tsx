@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Loader as GoogleLoader } from "@googlemaps/js-api-loader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PRODUCTION_CONFIG } from "@/config/production";
@@ -67,11 +67,8 @@ const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([
-    new Date().getMonth() + 1 + ""
-  ]);
-  const [selectedYear, setSelectedYear] = useState<string>(
-    new Date().getFullYear() + ""
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(
+    new Set([`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`])
   );
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [loading, setLoading] = useState(false);
@@ -122,22 +119,72 @@ const AdminMapAnalytics: React.FC = () => {
     };
   }, []);
 
-  // Fetch orders when filters change
-  useEffect(() => {
-    if (map) {
-      fetchMapOrders();
-      setPolygon([]);
-      setAreaStats(null);
-    }
-  }, [selectedMonths, selectedYear, selectedStatus, map]);
+  // Helper functions for month formatting (memoized)
+  const getMonthYearDisplay = useCallback((monthYearKey: string): string => {
+    if (!monthYearKey) return "";
+    const [year, month] = monthYearKey.split('-');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthIndex = parseInt(month) - 1;
+    return `${monthNames[monthIndex]} ${year}`;
+  }, []);
 
-  // Fetch orders with location data
-  const fetchMapOrders = async () => {
+  const toggleMonth = useCallback((monthYearKey: string) => {
+    setSelectedMonths((prev) => {
+      const newSelectedMonths = new Set(prev);
+      if (newSelectedMonths.has(monthYearKey)) {
+        newSelectedMonths.delete(monthYearKey);
+      } else {
+        newSelectedMonths.add(monthYearKey);
+      }
+      return newSelectedMonths;
+    });
+  }, []);
+
+  // Generate all available month-year combinations (memoized)
+  const availableMonths = useMemo(() => {
+    const months: string[] = [];
+    const today = new Date();
+
+    for (let i = 0; i < 24; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      months.push(`${year}-${month}`);
+    }
+
+    return months;
+  }, []);
+
+  // Memoized fetch function to avoid recreating on every render (MUST BE BEFORE useEffect that uses it)
+  const fetchMapOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const monthsParam = selectedMonths.join(",");
+
+      if (selectedMonths.size === 0) {
+        toast.error("Please select at least one month");
+        setLoading(false);
+        return;
+      }
+
+      // Convert Set to array and sort - using cached arrays
+      const monthsArray = Array.from(selectedMonths);
+      const sortedMonths = monthsArray.length > 0 ? monthsArray.sort() : [];
+
+      // Extract unique years from selected months using a single pass
+      const yearsSet = new Set<string>();
+      const monthsForApi: string[] = [];
+
+      for (const monthYear of sortedMonths) {
+        const [year, month] = monthYear.split('-');
+        yearsSet.add(year);
+        monthsForApi.push(month);
+      }
+
+      const years = Array.from(yearsSet).join(',');
+      const monthsParam = monthsForApi.join(',');
+
       const response = await fetch(
-        `/api/admin/analytics/map-orders?months=${monthsParam}&year=${selectedYear}&status=${selectedStatus}`
+        `/api/admin/analytics/map-orders?months=${monthsParam}&years=${years}&status=${selectedStatus}`
       );
 
       if (response.ok) {
@@ -148,9 +195,9 @@ const AdminMapAnalytics: React.FC = () => {
           amount: data.totalAmount || 0,
         });
 
-        // Clear existing markers
+        // Plot markers only if map is initialized
         if (map) {
-          plotMarkers(data.markers || []);
+          await plotMarkers(data.markers || []);
         }
       }
     } catch (error) {
@@ -159,7 +206,16 @@ const AdminMapAnalytics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonths, selectedStatus, map]);
+
+  // Fetch orders when filters change
+  useEffect(() => {
+    if (map && selectedMonths.size > 0) {
+      fetchMapOrders();
+      setPolygon([]);
+      setAreaStats(null);
+    }
+  }, [map, fetchMapOrders]);
 
   // Plot markers on map
   const plotMarkers = async (markersData: MapMarker[]) => {
@@ -215,32 +271,33 @@ const AdminMapAnalytics: React.FC = () => {
     }
   };
 
-  // Get color based on order status
-  const getMarkerColor = (status: string): string => {
-    const colorMap: Record<string, string> = {
-      pending: "red",
-      confirmed: "yellow",
-      picked_up: "blue",
-      in_transit: "orange",
-      delivered: "green",
-      completed: "green",
-      cancelled: "gray",
-    };
-    return colorMap[status] || "blue";
-  };
+  // Get color based on order status (memoized)
+  const colorMap = useMemo(() => ({
+    pending: "red",
+    confirmed: "yellow",
+    picked_up: "blue",
+    in_transit: "orange",
+    delivered: "green",
+    completed: "green",
+    cancelled: "gray",
+  }), []);
 
-  // Toggle drawing mode
-  const toggleDrawingMode = () => {
-    setDrawingMode(!drawingMode);
+  const getMarkerColor = useCallback((status: string): string => {
+    return colorMap[status] || "blue";
+  }, [colorMap]);
+
+  // Toggle drawing mode (memoized)
+  const toggleDrawingMode = useCallback(() => {
+    setDrawingMode((prev) => {
+      const newMode = !prev;
+      if (map) {
+        map.setOptions({ draggableCursor: newMode ? "crosshair" : "grab" });
+      }
+      return newMode;
+    });
     setPolygon([]);
     setAreaStats(null);
-
-    if (map && !drawingMode) {
-      map.setOptions({ draggableCursor: "crosshair" });
-    } else if (map) {
-      map.setOptions({ draggableCursor: "grab" });
-    }
-  };
+  }, [map]);
 
   // Handle map click when drawing
   useEffect(() => {
@@ -323,8 +380,8 @@ const AdminMapAnalytics: React.FC = () => {
     drawPolygon();
   }, [polygon, map]);
 
-  // Analyze area
-  const analyzeArea = async () => {
+  // Analyze area (memoized)
+  const analyzeArea = useCallback(async () => {
     if (polygon.length < 3) {
       toast.error("Please draw a polygon with at least 3 points");
       return;
@@ -332,6 +389,18 @@ const AdminMapAnalytics: React.FC = () => {
 
     try {
       setLoading(true);
+      const monthsArray = Array.from(selectedMonths);
+      const sortedMonths = monthsArray.length > 0 ? monthsArray.sort() : [];
+
+      const yearsSet = new Set<string>();
+      const monthsForApi: string[] = [];
+
+      for (const monthYear of sortedMonths) {
+        const [year, month] = monthYear.split('-');
+        yearsSet.add(year);
+        monthsForApi.push(month);
+      }
+
       const response = await fetch("/api/admin/analytics/area-stats", {
         method: "POST",
         headers: {
@@ -339,8 +408,8 @@ const AdminMapAnalytics: React.FC = () => {
         },
         body: JSON.stringify({
           polygon,
-          months: selectedMonths,
-          year: selectedYear,
+          months: monthsForApi,
+          years: Array.from(yearsSet),
           status: selectedStatus,
         }),
       });
@@ -356,13 +425,7 @@ const AdminMapAnalytics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Generate months and years for selects
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const years = Array.from({ length: 5 }, (_, i) =>
-    new Date().getFullYear() - i
-  );
+  }, [polygon, selectedMonths, selectedStatus]);
 
   return (
     <div className="space-y-6">
@@ -377,132 +440,107 @@ const AdminMapAnalytics: React.FC = () => {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Months
-              </label>
-              <div className="relative">
-                <button
-                  onClick={() => setShowMonthSelector(!showMonthSelector)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm font-normal hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-laundrify-purple/50"
-                >
-                  {selectedMonths.length === 1
-                    ? new Date(2024, parseInt(selectedMonths[0]) - 1).toLocaleString("default", {
-                        month: "short",
-                      })
-                    : `${selectedMonths.length} months selected`}
-                </button>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Months (Supports Multi-Year)
+                </label>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMonthSelector(!showMonthSelector)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm font-normal hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-laundrify-purple/50"
+                  >
+                    {selectedMonths.size === 1
+                      ? getMonthYearDisplay(Array.from(selectedMonths)[0])
+                      : `${selectedMonths.size} months selected`}
+                  </button>
 
-                {showMonthSelector && (
-                  <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-64 overflow-y-auto">
-                    {months.map((month) => (
-                      <label
-                        key={month}
-                        className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedMonths.includes(month + "")}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedMonths([...selectedMonths, month + ""]);
-                            } else {
-                              setSelectedMonths(selectedMonths.filter((m) => m !== month + ""));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-laundrify-purple focus:ring-laundrify-purple cursor-pointer"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {new Date(2024, month - 1).toLocaleString("default", {
-                            month: "long",
-                          })}
-                        </span>
-                      </label>
-                    ))}
+                  {showMonthSelector && (
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-96 overflow-y-auto">
+                      {availableMonths.map((monthYear) => {
+                        const isSelected = selectedMonths.has(monthYear);
+                        return (
+                          <label
+                            key={monthYear}
+                            className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleMonth(monthYear)}
+                              className="rounded border-gray-300 text-laundrify-purple focus:ring-laundrify-purple cursor-pointer"
+                            />
+                            <span className="ml-2 text-sm text-gray-700">
+                              {getMonthYearDisplay(monthYear)}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected months pills */}
+                {selectedMonths.size > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {useMemo(() =>
+                      Array.from(selectedMonths).sort().reverse().map((monthYear) => (
+                        <div
+                          key={monthYear}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
+                        >
+                          {getMonthYearDisplay(monthYear)}
+                          <button
+                            onClick={() => toggleMonth(monthYear)}
+                            className="hover:text-laundrify-purple/70 ml-1"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))
+                    , [selectedMonths, getMonthYearDisplay, toggleMonth])}
                   </div>
                 )}
               </div>
 
-              {/* Selected months pills */}
-              {selectedMonths.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedMonths.sort((a, b) => parseInt(a) - parseInt(b)).map((month) => (
-                    <div
-                      key={month}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
-                    >
-                      {new Date(2024, parseInt(month) - 1).toLocaleString("default", {
-                        month: "short",
-                      })}
-                      <button
-                        onClick={() =>
-                          setSelectedMonths(selectedMonths.filter((m) => m !== month))
-                        }
-                        className="hover:text-laundrify-purple/70"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Year
-              </label>
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year + ""}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                onClick={fetchMapOrders}
-                disabled={loading || selectedMonths.length === 0}
-                className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
-              >
-                {loading ? (
-                  <>
-                    <Loader className="h-4 w-4 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Filter className="h-4 w-4 mr-2" />
-                    Apply Filters
-                  </>
-                )}
-              </Button>
+              <div className="flex items-end">
+                <Button
+                  onClick={fetchMapOrders}
+                  disabled={loading || selectedMonths.size === 0}
+                  className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
+                >
+                  {loading ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Filter className="h-4 w-4 mr-2" />
+                      Apply Filters
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -597,10 +635,10 @@ const AdminMapAnalytics: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{totalStats.total}</div>
             <p className="text-xs text-muted-foreground">
-              {selectedMonths && selectedYear
-                ? selectedMonths.length === 1
-                  ? `${new Date(parseInt(selectedYear), parseInt(selectedMonths[0]) - 1).toLocaleString("default", { month: "long", year: "numeric" })}`
-                  : `${selectedMonths.length} months in ${selectedYear}`
+              {selectedMonths && selectedMonths.size > 0
+                ? selectedMonths.size === 1
+                  ? `${getMonthYearDisplay(Array.from(selectedMonths)[0])}`
+                  : `${selectedMonths.size} months selected`
                 : "Selected period"}
             </p>
           </CardContent>

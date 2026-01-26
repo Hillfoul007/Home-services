@@ -1478,38 +1478,45 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
 
     console.log('🏪 Assigning vendor:', { orderId, vendorData, orderType, bookingCoordinates });
 
-    // Vendor options with enhanced data
-    const vendors = {
-      'vendor1': {
-        id: 'vendor1',
-        name: 'Priya Dry Cleaners',
-        address: 'Shop n.155, Spaze corporate park, 1sf, Sector 69, Gurugram, Haryana 122101',
-        phone: '+91 9999999991',
-        coordinates: { lat: 28.3984, lng: 77.0648 },
-        services: ['Dry Cleaning', 'Laundry', 'Ironing', 'Stain Removal'],
-        rating: 4.5
-      },
-      'vendor2': {
-        id: 'vendor2',
-        name: 'White Tiger Dry Cleaning',
-        address: 'Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101',
-        phone: '+91 9999999992',
-        coordinates: { lat: 28.3982, lng: 77.0650 },
-        services: ['Dry Cleaning', 'Premium Care', 'Express Service', 'Alterations'],
-        rating: 4.3
-      }
-    };
+    let selectedVendor = null;
 
-    const selectedVendor = vendors[vendorData.vendorId];
+    // Try to fetch vendor from database first (if vendorData.vendorId is a MongoDB ID)
+    if (vendorData.vendorId && mongoose.Types.ObjectId.isValid(vendorData.vendorId)) {
+      const Vendor = require("../models/Vendor");
+      const dbVendor = await Vendor.findById(vendorData.vendorId).select("-password_hash -temp_password");
+      if (dbVendor) {
+        selectedVendor = {
+          id: dbVendor._id.toString(),
+          name: dbVendor.name,
+          address: dbVendor.address || '',
+          phone: dbVendor.phone,
+          coordinates: dbVendor.coordinates,
+          google_maps_link: dbVendor.google_maps_link,
+          services: dbVendor.services || [],
+          vendor_id: dbVendor.vendor_id
+        };
+        console.log(`✅ Vendor fetched from database: ${selectedVendor.name}`);
+      }
+    }
+
+    // Fallback to passed vendor data if not found in database
     if (!selectedVendor) {
-      return res.status(400).json({ message: 'Invalid vendor selection' });
+      selectedVendor = {
+        id: vendorData.vendorId,
+        name: vendorData.vendorName || 'Unknown Vendor',
+        address: vendorData.vendorAddress || '',
+        coordinates: vendorData.coordinates,
+        services: vendorData.services || []
+      };
     }
 
     // Calculate distance if coordinates are provided
     let calculatedDistance = vendorData.distance || 0;
     if (bookingCoordinates && bookingCoordinates.lat && bookingCoordinates.lng && selectedVendor.coordinates) {
       calculatedDistance = calculateDistance(bookingCoordinates, selectedVendor.coordinates);
-      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor`);
+      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor (using Google Maps coordinates)`);
+    } else if (!selectedVendor.coordinates) {
+      console.warn(`⚠️ Vendor ${selectedVendor.name} has no coordinates. Please add Google Maps link to vendor profile.`);
     }
 
     // Merge vendor data with distance/time information
@@ -1921,7 +1928,7 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
 // Create laundry vendor with auto-generated credentials
 router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
   try {
-    const { name, email, phone, address, services, whatsapp_group_invite_link } = req.body;
+    const { name, email, phone, address, google_maps_link, services, whatsapp_group_invite_link } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({ error: "Name and phone are required" });
@@ -1931,8 +1938,22 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
 
     // Generate unique vendor ID and temporary password
     const VendorAuth = require("../models/Vendor");
+    const { extractCoordinatesFromGoogleMapsLink, validateCoordinates } = require("../utils/mapsHelper");
+
     const vendor_id = VendorAuth.generateVendorId();
     const temp_password = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Extract coordinates from Google Maps link if provided
+    let coordinates = undefined;
+    if (google_maps_link) {
+      const extractedCoords = extractCoordinatesFromGoogleMapsLink(google_maps_link);
+      if (extractedCoords && validateCoordinates(extractedCoords)) {
+        coordinates = extractedCoords;
+        console.log(`📍 Extracted coordinates from Google Maps link: ${coordinates.lat}, ${coordinates.lng}`);
+      } else {
+        console.warn(`⚠️ Could not extract valid coordinates from Google Maps link: ${google_maps_link}`);
+      }
+    }
 
     const vendor = new VendorAuth({
       vendor_id,
@@ -1941,6 +1962,8 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
       email,
       phone,
       address,
+      google_maps_link: google_maps_link || "",
+      coordinates,
       services: services || [],
       whatsapp_group_invite_link: whatsapp_group_invite_link || "",
       is_active: true,
@@ -1958,6 +1981,9 @@ router.post("/laundry-vendors", verifyAdminAccess, async (req, res) => {
         name,
         email,
         phone,
+        address,
+        google_maps_link: google_maps_link || "",
+        coordinates,
         whatsapp_group_invite_link,
         temp_password, // Share only once!
       },
@@ -2049,11 +2075,12 @@ router.put("/laundry-vendors/:vendorId/password", verifyAdminAccess, async (req,
 router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, email, phone, address, services, is_active, vendor_id, password, whatsapp_group_invite_link } = req.body;
+    const { name, email, phone, address, google_maps_link, services, is_active, vendor_id, password, whatsapp_group_invite_link } = req.body;
 
     console.log(`📝 Updating laundry vendor: ${vendorId}`);
 
     const VendorAuth = require("../models/Vendor");
+    const { extractCoordinatesFromGoogleMapsLink, validateCoordinates } = require("../utils/mapsHelper");
     const vendor = await VendorAuth.findById(vendorId);
 
     if (!vendor) {
@@ -2069,6 +2096,23 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
     if (is_active !== undefined) vendor.is_active = is_active;
     if (vendor_id !== undefined) vendor.vendor_id = vendor_id;
     if (whatsapp_group_invite_link !== undefined) vendor.whatsapp_group_invite_link = whatsapp_group_invite_link;
+
+    // Handle Google Maps link and extract coordinates
+    if (google_maps_link !== undefined) {
+      vendor.google_maps_link = google_maps_link;
+      if (google_maps_link) {
+        const extractedCoords = extractCoordinatesFromGoogleMapsLink(google_maps_link);
+        if (extractedCoords && validateCoordinates(extractedCoords)) {
+          vendor.coordinates = extractedCoords;
+          console.log(`📍 Extracted coordinates from Google Maps link: ${extractedCoords.lat}, ${extractedCoords.lng}`);
+        } else {
+          console.warn(`⚠️ Could not extract valid coordinates from Google Maps link: ${google_maps_link}`);
+          vendor.coordinates = undefined;
+        }
+      } else {
+        vendor.coordinates = undefined;
+      }
+    }
 
     // Update password if provided
     if (password) {
@@ -2091,6 +2135,8 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
         email: vendor.email,
         phone: vendor.phone,
         address: vendor.address,
+        google_maps_link: vendor.google_maps_link,
+        coordinates: vendor.coordinates,
         services: vendor.services,
         whatsapp_group_invite_link: vendor.whatsapp_group_invite_link,
         is_active: vendor.is_active,
@@ -2816,25 +2862,35 @@ router.post("/order-allocation/deallocate", verifyAdminAccess, async (req, res) 
 // GET orders with location data for map visualization
 router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
   try {
-    const { months, year, status } = req.query;
+    const { months, years, status } = req.query;
 
-    console.log(`📍 Fetching orders for map analytics: months=${months}, year=${year}, status=${status}`);
+    console.log(`📍 Fetching orders for map analytics: months=${months}, years=${years}, status=${status}`);
 
-    // Build date filter for multiple months
+    // Build date filter for multiple months and years
     let dateFilter = {};
-    if (months && year) {
+    if (months && years) {
       const monthArray = months.split(",").map((m) => parseInt(m.trim()));
-      const startDate = new Date(year, monthArray[0] - 1, 1);
-      const lastMonth = Math.max(...monthArray);
-      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+      const yearArray = years.split(",").map((y) => parseInt(y.trim()));
 
-      // For multiple months, we create a date range from the first to the last month
-      dateFilter = {
-        created_at: {
-          $gte: startDate,
-          $lte: endDate,
-        },
-      };
+      // Create date ranges for each year-month combination
+      const dateRanges = [];
+      for (const year of yearArray) {
+        for (const month of monthArray) {
+          const startDate = new Date(year, month - 1, 1);
+          const endDate = new Date(year, month, 0, 23, 59, 59);
+          dateRanges.push({
+            created_at: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          });
+        }
+      }
+
+      // If we have multiple year-month combinations, use $or to match any of them
+      if (dateRanges.length > 0) {
+        dateFilter = { $or: dateRanges };
+      }
     }
 
     // Build status filter
@@ -2843,7 +2899,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       statusFilter = { status };
     }
 
-    // Fetch bookings with location data
+    // Fetch bookings with location data - INCLUDE ALL ORDERS (completed, cancelled, etc)
     const bookings = await Booking.find({
       ...dateFilter,
       ...statusFilter,
@@ -2867,7 +2923,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       address: booking.pickup_address || booking.delivery_address || "Unknown",
     }));
 
-    console.log(`✅ Found ${mapMarkers.length} orders with location data`);
+    console.log(`✅ Found ${mapMarkers.length} orders with location data (including all statuses)`);
 
     res.json({
       success: true,
@@ -2887,7 +2943,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
 // POST get area statistics - when user selects a polygon area on map
 router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
   try {
-    const { polygon, months, year, status } = req.body;
+    const { polygon, months, years, status } = req.body;
 
     console.log(`📍 Fetching area statistics for polygon with ${polygon?.length || 0} points`);
 
@@ -2898,20 +2954,31 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
       });
     }
 
-    // Build date filter for multiple months
+    // Build date filter for multiple months and years
     let dateFilter = {};
-    if (months && year) {
-      const monthArray = Array.isArray(months) ? months.map((m) => parseInt(m)) : [parseInt(months)];
-      const startDate = new Date(year, monthArray[0] - 1, 1);
-      const lastMonth = Math.max(...monthArray);
-      const endDate = new Date(year, lastMonth, 0, 23, 59, 59);
+    if (months && years) {
+      const monthArray = Array.isArray(months) ? months.map((m) => parseInt(m)) : months.split(",").map((m) => parseInt(m.trim()));
+      const yearArray = Array.isArray(years) ? years.map((y) => parseInt(y)) : years.split(",").map((y) => parseInt(y.trim()));
 
-      dateFilter = {
-        created_at: {
-          $gte: startDate,
-          $lte: endDate,
-        },
-      };
+      // Create date ranges for each year-month combination
+      const dateRanges = [];
+      for (const year of yearArray) {
+        for (const month of monthArray) {
+          const startDate = new Date(year, month - 1, 1);
+          const endDate = new Date(year, month, 0, 23, 59, 59);
+          dateRanges.push({
+            created_at: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          });
+        }
+      }
+
+      // If we have multiple year-month combinations, use $or to match any of them
+      if (dateRanges.length > 0) {
+        dateFilter = { $or: dateRanges };
+      }
     }
 
     // Build status filter
@@ -2920,7 +2987,7 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
       statusFilter = { status };
     }
 
-    // Fetch all bookings with location data in the date range
+    // Fetch all bookings with location data in the date range - INCLUDE ALL ORDERS
     const bookings = await Booking.find({
       ...dateFilter,
       ...statusFilter,
@@ -2948,7 +3015,7 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
       statusBreakdown[booking.status] = (statusBreakdown[booking.status] || 0) + 1;
     });
 
-    console.log(`✅ Area statistics: ${totalOrders} orders, ₹${totalAmount} total`);
+    console.log(`✅ Area statistics: ${totalOrders} orders (including all statuses), ₹${totalAmount} total`);
 
     res.json({
       success: true,

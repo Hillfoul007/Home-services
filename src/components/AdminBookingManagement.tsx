@@ -660,6 +660,10 @@ const AdminBookingManagement: React.FC = () => {
   const [readyStatusFilter, setReadyStatusFilter] = useState("all");
   const [filteredReadyOrders, setFilteredReadyOrders] = useState<Booking[]>([]);
 
+  // Month filter state
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set());
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+
   // Reminder modal state
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderType, setReminderType] = useState<'pickup' | 'delivery'>('pickup');
@@ -812,6 +816,9 @@ const AdminBookingManagement: React.FC = () => {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === pickupStatusFilter);
     }
 
+    // Month filtering temporarily disabled to debug
+    // filtered = filterByMonths(filtered);
+
     filtered.sort((a, b) => {
       const dateA = getScheduledDateTime(a);
       const dateB = getScheduledDateTime(b);
@@ -853,6 +860,9 @@ const AdminBookingManagement: React.FC = () => {
     if (readyStatusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === readyStatusFilter);
     }
+
+    // Month filtering temporarily disabled to debug
+    // filtered = filterByMonths(filtered);
 
     filtered.sort((a, b) => {
       const dateA = getDeliveryDateTimeForSort(a);
@@ -983,8 +993,9 @@ const AdminBookingManagement: React.FC = () => {
   }, [showEditDialog, lastPollAt]);
 
   useEffect(() => {
+    // updateAvailableMonths(bookings);  // Temporarily disabled
     filterBookings();
-  }, [searchTerm, statusFilter, bookings]);
+  }, [searchTerm, statusFilter, bookings]); // Removed selectedMonths temporarily
 
   useEffect(() => {
     filterCompletedOrders();
@@ -992,11 +1003,11 @@ const AdminBookingManagement: React.FC = () => {
 
   useEffect(() => {
     filterPickupOrders();
-  }, [pickupSearchTerm, pickupStatusFilter, bucketA]);
+  }, [pickupSearchTerm, pickupStatusFilter, bucketA]); // Removed selectedMonths
 
   useEffect(() => {
     filterReadyOrders();
-  }, [readySearchTerm, readyStatusFilter, bucketB]);
+  }, [readySearchTerm, readyStatusFilter, bucketB]); // Removed selectedMonths
 
   // Geocode booking address and calculate vendor distances
   // Prioritize existing coordinates from Google Maps, then geocode the address
@@ -1105,6 +1116,60 @@ const AdminBookingManagement: React.FC = () => {
     }, {} as Record<string, Booking[]>);
   };
 
+  const getMonthYearKey = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    try {
+      const dateObj = new Date(dateStr);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      return `${year}-${month}`;
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const getMonthYearDisplay = (monthYearKey: string): string => {
+    if (!monthYearKey) return "";
+    const [year, month] = monthYearKey.split('-');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthIndex = parseInt(month) - 1;
+    return `${monthNames[monthIndex]} ${year}`;
+  };
+
+  const updateAvailableMonths = (bookingsToProcess: Booking[]) => {
+    const monthSet = new Set<string>();
+    bookingsToProcess.forEach((booking) => {
+      const monthKey = getMonthYearKey(booking.scheduled_date);
+      if (monthKey) {
+        monthSet.add(monthKey);
+      }
+    });
+    const sortedMonths = Array.from(monthSet).sort().reverse();
+    setAvailableMonths(sortedMonths);
+  };
+
+  const toggleMonth = (monthKey: string) => {
+    setSelectedMonths((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(monthKey)) {
+        newSet.delete(monthKey);
+      } else {
+        newSet.add(monthKey);
+      }
+      return newSet;
+    });
+  };
+
+  const filterByMonths = (bookingsToFilter: Booking[]): Booking[] => {
+    if (selectedMonths.size === 0) {
+      return bookingsToFilter;
+    }
+    return bookingsToFilter.filter((booking) => {
+      const monthKey = getMonthYearKey(booking.scheduled_date);
+      return monthKey && selectedMonths.has(monthKey);
+    });
+  };
+
   const filterBookings = () => {
     let filtered = bookings;
 
@@ -1120,6 +1185,9 @@ const AdminBookingManagement: React.FC = () => {
     if (statusFilter !== "all") {
       filtered = filtered.filter((booking) => normalizeStatus(booking.status) === statusFilter);
     }
+
+    // Month filtering temporarily disabled to debug
+    // filtered = filterByMonths(filtered);
 
     filtered.sort((a, b) => {
       const dateA = getScheduledDateTime(a);
@@ -1667,6 +1735,7 @@ const AdminBookingManagement: React.FC = () => {
               </Select>
             </div>
           </div>
+
         </CardContent>
       </Card>
 
