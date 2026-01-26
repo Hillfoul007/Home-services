@@ -2128,6 +2128,8 @@ router.put("/laundry-vendors/:vendorId", verifyAdminAccess, async (req, res) => 
         email: vendor.email,
         phone: vendor.phone,
         address: vendor.address,
+        google_maps_link: vendor.google_maps_link,
+        coordinates: vendor.coordinates,
         services: vendor.services,
         whatsapp_group_invite_link: vendor.whatsapp_group_invite_link,
         is_active: vendor.is_active,
