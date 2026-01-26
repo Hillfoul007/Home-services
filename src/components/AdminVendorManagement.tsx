@@ -399,26 +399,34 @@ const AdminVendorManagement: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          <p className="text-sm text-gray-600 mb-3">
+            Enter a customer address and select a vendor to calculate distance and estimated delivery time
+          </p>
+          <div className="space-y-3">
             <Input
               value={userAddressForDistance}
               onChange={(e) => setUserAddressForDistance(e.target.value)}
               placeholder="Enter customer/user address..."
               className="flex-1"
             />
-            <Button
-              onClick={() => {
-                if (selectedVendorForDistance) {
-                  calculateDistanceFromAddress(selectedVendorForDistance);
-                } else {
-                  toast.error("Please select a vendor first");
-                }
-              }}
-              disabled={loadingDistance}
-              variant="outline"
-            >
-              {loadingDistance ? "Calculating..." : "Calculate Distance"}
-            </Button>
+            {vendors.length === 0 ? (
+              <p className="text-sm text-gray-500">No vendors available. Add a vendor first.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {vendors.map((vendor) => (
+                  <Button
+                    key={vendor.id}
+                    variant="outline"
+                    onClick={() => calculateDistanceFromAddress(vendor.id)}
+                    disabled={loadingDistance || !userAddressForDistance.trim()}
+                    className="justify-start"
+                  >
+                    <Navigation className="h-4 w-4 mr-2" />
+                    {vendor.name}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
 
           {calculatedDistance && (
