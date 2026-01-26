@@ -40,10 +40,12 @@ export class VendorService {
       services: ["Dry Cleaning", "Laundry", "Ironing", "Stain Removal"],
       contactPhone: "+91 9876543210",
       rating: 4.5,
-      isActive: true
+      isActive: true,
+      googleMapsLink: "https://www.google.com/maps/search/Priya+Dry+Cleaners/@28.3984,77.0648,15z",
+      whatsappLink: "https://chat.whatsapp.com/example1"
     },
     {
-      id: "vendor2", 
+      id: "vendor2",
       name: "White Tiger Dry Cleaning",
       address: "Shop No. 153, First Floor, Spaze Corporate Park, Sector 69, Gurugram, Haryana 122101",
       coordinates: {
@@ -53,7 +55,9 @@ export class VendorService {
       services: ["Dry Cleaning", "Premium Care", "Express Service", "Alterations"],
       contactPhone: "+91 9876543211",
       rating: 4.3,
-      isActive: true
+      isActive: true,
+      googleMapsLink: "https://www.google.com/maps/search/White+Tiger/@28.3982,77.0650,15z",
+      whatsappLink: "https://chat.whatsapp.com/example2"
     }
   ];
 
