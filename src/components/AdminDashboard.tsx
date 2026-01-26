@@ -202,13 +202,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span>Book for User</span>
             </Button>
             
-            <Button 
+            <Button
               onClick={() => setActiveTab("locations")}
               className="h-20 flex flex-col items-center justify-center space-y-2"
               variant="outline"
             >
               <MapPin className="h-6 w-6" />
               <span>Service Locations</span>
+            </Button>
+
+            <Button
+              onClick={() => setActiveTab("vendors")}
+              className="h-20 flex flex-col items-center justify-center space-y-2"
+              variant="outline"
+            >
+              <Building className="h-6 w-6" />
+              <span>Vendors</span>
             </Button>
           </div>
         </CardContent>
