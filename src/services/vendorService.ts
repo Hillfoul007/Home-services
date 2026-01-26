@@ -15,6 +15,8 @@ export interface VendorDetails {
   contactPhone?: string;
   rating?: number;
   isActive: boolean;
+  googleMapsLink?: string; // New field for Google Maps link
+  whatsappLink?: string; // New field for WhatsApp group link
 }
 
 export interface VendorWithDistance extends VendorDetails {
