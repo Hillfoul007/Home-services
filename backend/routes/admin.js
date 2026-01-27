@@ -46,39 +46,159 @@ const verifyAdminAccess = (req, res, next) => {
 };
 
 // ============= GEOCODING HELPER =============
-// Helper function to geocode address using Google Maps API
+// Helper function to format Indian addresses for better geocoding
+const formatIndianAddress = (address) => {
+  if (!address) return address;
+
+  // Add "India" suffix for Indian addresses if not already present
+  let formatted = address.trim();
+  if (!formatted.toLowerCase().includes("india")) {
+    // Check for Indian states/cities to ensure it's an Indian address
+    const indianLocations = ["delhi", "gurgaon", "gurugram", "chandigarh", "mohali", "kharar", "punjab", "haryana", "noida", "delhi ncr"];
+    const lowerAddress = formatted.toLowerCase();
+
+    if (indianLocations.some(loc => lowerAddress.includes(loc))) {
+      formatted += ", India";
+    }
+  }
+
+  return formatted;
+};
+
+// Helper function for retry logic with exponential backoff
+const retryWithBackoff = async (fn, maxRetries = 3, initialDelayMs = 100) => {
+  let lastError;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries - 1) {
+        const delayMs = initialDelayMs * Math.pow(2, attempt);
+        await sleep(delayMs);
+      }
+    }
+  }
+
+  throw lastError;
+};
+
+// Helper function to geocode using Google Maps API
+const geocodeViaGoogleMaps = async (address) => {
+  const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    throw new Error("Google Maps API key not configured");
+  }
+
+  const encodedAddress = encodeURIComponent(address);
+  const response = await fetch(
+    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`,
+    { timeout: 5000 }
+  );
+
+  const data = await response.json();
+
+  if (data.status === "OK" && data.results && data.results.length > 0) {
+    const result = data.results[0];
+    return {
+      lat: result.geometry.location.lat,
+      lng: result.geometry.location.lng,
+      provider: "google",
+    };
+  }
+
+  if (data.status === "ZERO_RESULTS") {
+    throw new Error(`No results found for address: ${address}`);
+  }
+
+  throw new Error(`Google Maps API error: ${data.status}`);
+};
+
+// Helper function to geocode using Nominatim (OpenStreetMap)
+const geocodeViaNominatim = async (address) => {
+  const encodedAddress = encodeURIComponent(address);
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodedAddress}&format=json&limit=1`,
+    {
+      headers: { "User-Agent": "home-services-app" },
+      timeout: 5000,
+    }
+  );
+
+  const data = await response.json();
+
+  if (Array.isArray(data) && data.length > 0) {
+    const result = data[0];
+    return {
+      lat: parseFloat(result.lat),
+      lng: parseFloat(result.lon),
+      provider: "nominatim",
+    };
+  }
+
+  throw new Error(`No results found via Nominatim for address: ${address}`);
+};
+
+// Helper function to geocode using OpenCage Geocoder (fallback)
+const geocodeViaOpenCage = async (address) => {
+  const apiKey = process.env.OPENCAGE_API_KEY;
+  if (!apiKey) {
+    throw new Error("OpenCage API key not configured");
+  }
+
+  const encodedAddress = encodeURIComponent(address);
+  const response = await fetch(
+    `https://api.opencagedata.com/geocode/v1/json?q=${encodedAddress}&key=${apiKey}`,
+    { timeout: 5000 }
+  );
+
+  const data = await response.json();
+
+  if (data.results && data.results.length > 0) {
+    const result = data.results[0];
+    return {
+      lat: result.geometry.lat,
+      lng: result.geometry.lng,
+      provider: "opencage",
+    };
+  }
+
+  throw new Error(`No results found via OpenCage for address: ${address}`);
+};
+
+// Main geocoding function with fallback providers
 const geocodeAddress = async (address) => {
   if (!address || address.trim() === "") {
     return null;
   }
 
-  try {
-    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      console.warn("⚠️ Google Maps API key not configured for geocoding");
-      return null;
-    }
+  const formattedAddress = formatIndianAddress(address);
+  const providers = [
+    { name: "Google Maps", fn: () => retryWithBackoff(() => geocodeViaGoogleMaps(formattedAddress), 2, 100) },
+    { name: "Nominatim", fn: () => retryWithBackoff(() => geocodeViaNominatim(formattedAddress), 2, 100) },
+    { name: "OpenCage", fn: () => retryWithBackoff(() => geocodeViaOpenCage(formattedAddress), 1, 100) },
+  ];
 
-    const encodedAddress = encodeURIComponent(address);
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`
-    );
+  let lastError = null;
 
-    const data = await response.json();
-
-    if (data.status === "OK" && data.results && data.results.length > 0) {
-      const result = data.results[0];
+  for (const provider of providers) {
+    try {
+      console.log(`🌍 Geocoding "${address}" via ${provider.name}...`);
+      const result = await provider.fn();
+      console.log(`✅ Geocoded via ${result.provider}: ${address} -> (${result.lat}, ${result.lng})`);
       return {
-        lat: result.geometry.location.lat,
-        lng: result.geometry.location.lng,
+        lat: result.lat,
+        lng: result.lng,
       };
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️ ${provider.name} failed: ${error.message}`);
     }
-
-    return null;
-  } catch (error) {
-    console.warn(`⚠️ Geocoding failed for address "${address}":`, error.message);
-    return null;
   }
+
+  console.error(`❌ All geocoding providers failed for address "${address}"`);
+  return null;
 };
 
 // Helper to sleep for rate limiting
