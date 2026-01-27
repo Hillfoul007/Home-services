@@ -50,6 +50,10 @@ const riderSchema = new mongoose.Schema(
         default: null,
       },
     },
+    live_location_link: {
+      type: String,
+      default: null,
+    },
     lastLocationUpdate: {
       type: Date,
       default: null,
