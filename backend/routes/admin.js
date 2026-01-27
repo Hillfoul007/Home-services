@@ -3465,7 +3465,7 @@ router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
       ],
       address: { $exists: true, $ne: null, $ne: "" },
     })
-      .select("_id address coordinates")
+      .select("_id custom_order_id address coordinates")
       .limit(batchSize)
       .lean();
 
@@ -3475,6 +3475,7 @@ router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
         message: "All orders have coordinates!",
         geocoded: 0,
         failed: 0,
+        failedOrders: [],
       });
     }
 
@@ -3483,6 +3484,7 @@ router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
     let geocodedCount = 0;
     let failedCount = 0;
     const updates = [];
+    const failedOrders = [];
 
     for (let i = 0; i < ordersWithoutCoords.length; i++) {
       const order = ordersWithoutCoords[i];
@@ -3501,10 +3503,15 @@ router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
             },
           });
           geocodedCount++;
-          console.log(`✅ Geocoded: ${order.address} -> ${coordinates.lat}, ${coordinates.lng}`);
+          console.log(`✅ Geocoded: ${order.custom_order_id} - ${order.address} -> ${coordinates.lat}, ${coordinates.lng}`);
         } else {
           failedCount++;
-          console.warn(`❌ Could not geocode: ${order.address}`);
+          failedOrders.push({
+            orderId: order.custom_order_id,
+            address: order.address,
+            reason: "No coordinates found from any geocoding provider",
+          });
+          console.warn(`❌ Could not geocode: ${order.custom_order_id} - ${order.address}`);
         }
 
         // Rate limiting - delay between requests
@@ -3513,7 +3520,12 @@ router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
         }
       } catch (error) {
         failedCount++;
-        console.error(`❌ Error geocoding order ${order._id}:`, error.message);
+        failedOrders.push({
+          orderId: order.custom_order_id,
+          address: order.address,
+          reason: error.message || "Unknown error during geocoding",
+        });
+        console.error(`❌ Error geocoding order ${order.custom_order_id}:`, error.message);
       }
     }
 
@@ -3531,13 +3543,23 @@ router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
       `📊 Batch geocoding complete: ${geocodedCount} geocoded, ${failedCount} failed (${successRate}% success rate)`
     );
 
+    // Log failed orders summary
+    if (failedOrders.length > 0 && failedOrders.length <= 10) {
+      console.log("📋 Failed orders details:");
+      failedOrders.forEach((fo) => {
+        console.log(`   - ${fo.orderId}: ${fo.address} (${fo.reason})`);
+      });
+    }
+
     res.json({
       success: true,
-      message: `Batch geocoding completed`,
+      message: `Batch geocoding completed: ${geocodedCount} successful, ${failedCount} failed`,
       geocoded: geocodedCount,
       failed: failedCount,
       successRate: parseFloat(successRate),
       totalProcessed,
+      failedOrders: failedOrders.slice(0, 20), // Return first 20 failed orders for debugging
+      failedOrdersCount: failedOrders.length,
     });
   } catch (error) {
     console.error("❌ Error during batch geocoding:", error);
