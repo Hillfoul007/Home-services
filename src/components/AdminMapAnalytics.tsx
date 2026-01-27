@@ -547,18 +547,19 @@ const AdminMapAnalytics: React.FC = () => {
               <div className="flex items-end">
                 <Button
                   onClick={fetchMapOrders}
-                  disabled={loading || selectedMonths.size === 0}
+                  disabled={loading}
                   className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
+                  title={selectedMonths.size === 0 ? "Select at least one month or click 'Select All'" : ""}
                 >
                   {loading ? (
                     <>
                       <Loader className="h-4 w-4 mr-2 animate-spin" />
-                      Loading...
+                      Loading {totalStats.total > 0 ? totalStats.total : "data"}...
                     </>
                   ) : (
                     <>
                       <Filter className="h-4 w-4 mr-2" />
-                      Apply Filters
+                      {selectedMonths.size === 0 ? "Select Months First" : "Apply Filters"}
                     </>
                   )}
                 </Button>
