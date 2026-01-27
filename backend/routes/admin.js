@@ -249,6 +249,17 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       delete updateData.assigned_vendor;
     }
 
+    // Normalize rider field: frontend may send `rider` while schema uses `assignedRider`
+    if (typeof updateData.rider !== 'undefined') {
+      updateData.assignedRider = updateData.rider;
+      delete updateData.rider;
+    }
+    if (typeof updateData.assigned_rider !== 'undefined') {
+      // support snake_case too
+      updateData.assignedRider = updateData.assigned_rider;
+      delete updateData.assigned_rider;
+    }
+
     // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
     const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
     if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
