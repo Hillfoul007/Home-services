@@ -711,6 +711,18 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
+  const fetchRiders = async () => {
+    try {
+      const response = await apiClient.adminRequest<{ riders: any[] }>('/admin/riders');
+      if (response.data?.riders) {
+        setRiders(response.data.riders);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch riders:', error);
+      setRiders([]);
+    }
+  };
+
   const fetchCompletedOrders = async () => {
     try {
       const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=50`);
