@@ -1687,21 +1687,6 @@ const AdminBookingManagement: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end gap-2">
-              <Button
-                onClick={() => {
-                  setAutoAllocationVendor('');
-                  setAutoAllocSuggestions([]);
-                  setAutoAllocStats(null);
-                  setSelectedSuggestions(new Set());
-                  setShowAutoAllocationModal(true);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Truck className="h-4 w-4 mr-2" />
-                Smart Auto-Allocate
-              </Button>
-            </div>
           </div>
 
           <div className="mt-3 space-y-4">
