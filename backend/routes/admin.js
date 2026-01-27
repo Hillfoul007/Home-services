@@ -3282,6 +3282,153 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// ============================================================================
+// BATCH GEOCODING ENDPOINT - Convert addresses to coordinates
+// ============================================================================
+
+// GET: Get status of orders without coordinates
+router.get("/analytics/geocoding-status", verifyAdminAccess, async (req, res) => {
+  try {
+    console.log("📍 Fetching geocoding status...");
+
+    // Count orders without coordinates
+    const ordersWithoutCoords = await Booking.countDocuments({
+      $or: [
+        { "coordinates.lat": { $exists: false } },
+        { "coordinates.lng": { $exists: false } },
+        { "coordinates.lat": null },
+        { "coordinates.lng": null },
+      ],
+    });
+
+    // Count orders with coordinates
+    const ordersWithCoords = await Booking.countDocuments({
+      "coordinates.lat": { $exists: true, $ne: null },
+      "coordinates.lng": { $exists: true, $ne: null },
+    });
+
+    const totalOrders = ordersWithCoords + ordersWithoutCoords;
+    const coverage = totalOrders > 0 ? ((ordersWithCoords / totalOrders) * 100).toFixed(1) : 0;
+
+    console.log(`📊 Geocoding status: ${ordersWithCoords}/${totalOrders} orders geocoded (${coverage}%)`);
+
+    res.json({
+      success: true,
+      ordersWithoutCoordinates: ordersWithoutCoords,
+      ordersWithCoordinates: ordersWithCoords,
+      totalOrders,
+      coverage: parseFloat(coverage),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching geocoding status:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch geocoding status",
+    });
+  }
+});
+
+// POST: Batch geocode orders without coordinates
+router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
+  try {
+    const { batchSize = 50, delayMs = 500 } = req.body;
+
+    console.log(`🌍 Starting batch geocoding with batchSize=${batchSize}, delayMs=${delayMs}ms`);
+
+    // Find orders without coordinates
+    const ordersWithoutCoords = await Booking.find({
+      $or: [
+        { "coordinates.lat": { $exists: false } },
+        { "coordinates.lng": { $exists: false } },
+        { "coordinates.lat": null },
+        { "coordinates.lng": null },
+      ],
+      address: { $exists: true, $ne: null, $ne: "" },
+    })
+      .select("_id address coordinates")
+      .limit(batchSize)
+      .lean();
+
+    if (ordersWithoutCoords.length === 0) {
+      return res.json({
+        success: true,
+        message: "All orders have coordinates!",
+        geocoded: 0,
+        failed: 0,
+      });
+    }
+
+    console.log(`📋 Found ${ordersWithoutCoords.length} orders to geocode`);
+
+    let geocodedCount = 0;
+    let failedCount = 0;
+    const updates = [];
+
+    for (let i = 0; i < ordersWithoutCoords.length; i++) {
+      const order = ordersWithoutCoords[i];
+
+      try {
+        console.log(`⏳ Geocoding [${i + 1}/${ordersWithoutCoords.length}]: "${order.address}"`);
+
+        // Geocode the address
+        const coordinates = await geocodeAddress(order.address);
+
+        if (coordinates && coordinates.lat && coordinates.lng) {
+          updates.push({
+            updateOne: {
+              filter: { _id: order._id },
+              update: { $set: { coordinates } },
+            },
+          });
+          geocodedCount++;
+          console.log(`✅ Geocoded: ${order.address} -> ${coordinates.lat}, ${coordinates.lng}`);
+        } else {
+          failedCount++;
+          console.warn(`❌ Could not geocode: ${order.address}`);
+        }
+
+        // Rate limiting - delay between requests
+        if (i < ordersWithoutCoords.length - 1) {
+          await sleep(delayMs);
+        }
+      } catch (error) {
+        failedCount++;
+        console.error(`❌ Error geocoding order ${order._id}:`, error.message);
+      }
+    }
+
+    // Bulk update all geocoded orders
+    if (updates.length > 0) {
+      console.log(`💾 Saving ${updates.length} geocoded orders...`);
+      const result = await Booking.bulkWrite(updates);
+      console.log(`✅ Bulk write completed: ${result.modifiedCount} orders updated`);
+    }
+
+    const totalProcessed = geocodedCount + failedCount;
+    const successRate = totalProcessed > 0 ? ((geocodedCount / totalProcessed) * 100).toFixed(1) : 0;
+
+    console.log(
+      `📊 Batch geocoding complete: ${geocodedCount} geocoded, ${failedCount} failed (${successRate}% success rate)`
+    );
+
+    res.json({
+      success: true,
+      message: `Batch geocoding completed`,
+      geocoded: geocodedCount,
+      failed: failedCount,
+      successRate: parseFloat(successRate),
+      totalProcessed,
+    });
+  } catch (error) {
+    console.error("❌ Error during batch geocoding:", error);
+    res.status(500).json({
+      success: false,
+      message: "Batch geocoding failed",
+      error: error.message,
+    });
+  }
+});
+
 // Helper function: Check if a point is inside a polygon (Ray casting algorithm)
 function isPointInPolygon(point, polygon) {
   const [x, y] = point;
