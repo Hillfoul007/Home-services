@@ -205,11 +205,18 @@ const AdminMapAnalytics: React.FC = () => {
         setTotalStats({
           total: data.total || 0,
           amount: data.totalAmount || 0,
+          totalOrders: data.totalOrders || 0,
+          ordersWithoutLocation: data.ordersWithoutLocation || 0,
         });
 
         // Plot markers only if map is initialized
         if (map) {
           await plotMarkers(data.markers || []);
+        }
+
+        // Show warning if some orders don't have location data
+        if (data.ordersWithoutLocation > 0) {
+          console.warn(`⚠️ ${data.ordersWithoutLocation} orders in selected period don't have location data`);
         }
       }
     } catch (error) {
