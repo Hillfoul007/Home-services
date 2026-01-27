@@ -3091,12 +3091,18 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       statusFilter = { status };
     }
 
+    // Count total orders in this period (for reference)
+    const totalOrders = await Booking.countDocuments({
+      ...dateFilter,
+      ...statusFilter,
+    });
+
     // Fetch bookings with location data - INCLUDE ALL ORDERS (completed, cancelled, etc)
     const bookings = await Booking.find({
       ...dateFilter,
       ...statusFilter,
-      "coordinates.lat": { $exists: true },
-      "coordinates.lng": { $exists: true },
+      "coordinates.lat": { $exists: true, $ne: null },
+      "coordinates.lng": { $exists: true, $ne: null },
     })
       .select(
         "custom_order_id coordinates final_amount status created_at pickup_address delivery_address"
@@ -3115,12 +3121,15 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       address: booking.pickup_address || booking.delivery_address || "Unknown",
     }));
 
-    console.log(`✅ Found ${mapMarkers.length} orders with location data (including all statuses)`);
+    const ordersWithoutLocation = totalOrders - mapMarkers.length;
+    console.log(`📍 Map Analytics: ${mapMarkers.length}/${totalOrders} orders have location data (${ordersWithoutLocation} missing coordinates)`);
 
     res.json({
       success: true,
       markers: mapMarkers,
       total: mapMarkers.length,
+      totalOrders: totalOrders,
+      ordersWithoutLocation: ordersWithoutLocation,
       totalAmount: mapMarkers.reduce((sum, m) => sum + m.amount, 0),
     });
   } catch (error) {
