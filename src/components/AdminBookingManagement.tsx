@@ -868,6 +868,7 @@ const AdminBookingManagement: React.FC = () => {
   useEffect(() => {
     fetchBookings();
     fetchVendors();
+    fetchRiders();
     fetchCompletedOrders();
 
     let es: EventSource | null = null;
