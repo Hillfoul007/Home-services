@@ -2207,6 +2207,44 @@ const AdminBookingManagement: React.FC = () => {
                 ) : null}
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Assign Rider</Label>
+                  <Select
+                    value={editingBooking.rider ?? "__unassigned__"}
+                    onValueChange={(value) => {
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              rider: value === "__unassigned__" ? null : value,
+                            }
+                          : prev,
+                      );
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                      {DEFAULT_RIDER_LIST.length > 0 ? (
+                        DEFAULT_RIDER_LIST.map((rider) => (
+                          <SelectItem key={rider} value={rider}>
+                            {rider}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-riders" disabled>
+                          No riders available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">Assign delivery rider for this order</p>
+                </div>
+              </div>
+
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
