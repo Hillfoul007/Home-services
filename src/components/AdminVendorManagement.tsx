@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit3, Trash2, MapPin, Phone, Star } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, MapPin, Phone, Star, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/apiClient';
+import { parseGoogleMapsLink, calculateDistance } from '@/utils/mapsLinkParser';
 
 interface VendorDetails {
   id?: string;
