@@ -25,11 +25,13 @@ const riderSchema = new mongoose.Schema(
     },
     aadharImageUrl: {
       type: String,
-      required: [true, "Aadhar image is required"],
+      required: false,
+      default: null,
     },
     selfieImageUrl: {
       type: String,
-      required: [true, "Selfie image is required"],
+      required: false,
+      default: null,
     },
     status: {
       type: String,
