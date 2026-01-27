@@ -641,6 +641,7 @@ const AdminBookingManagement: React.FC = () => {
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
+  const [riders, setRiders] = useState<Array<{ _id: string; name: string; phone: string; live_location_link?: string; location?: { lat: number; lng: number } }>>([]);
   const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
   const [loadingWallet, setLoadingWallet] = useState(false);
