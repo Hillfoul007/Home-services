@@ -67,9 +67,21 @@ const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(
-    new Set([`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`])
-  );
+
+  // Generate last 12 months for default selection
+  const getDefaultMonths = (): Set<string> => {
+    const months = new Set<string>();
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      months.add(`${year}-${month}`);
+    }
+    return months;
+  };
+
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(getDefaultMonths());
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [drawingMode, setDrawingMode] = useState(false);
