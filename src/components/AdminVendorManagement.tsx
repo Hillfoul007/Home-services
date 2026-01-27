@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit3, Trash2, MapPin, Phone, Star } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, MapPin, Phone, Star, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/apiClient';
+import { parseGoogleMapsLink, calculateDistance } from '@/utils/mapsLinkParser';
 
 interface VendorDetails {
   id?: string;
@@ -41,6 +42,7 @@ interface FormData {
   services: string;
   rating: string;
   whatsapp_group_invite_link: string;
+  googleMapsLink: string;
 }
 
 const AVAILABLE_SERVICES = [
@@ -72,11 +74,69 @@ const AdminVendorManagement: React.FC = () => {
     services: '',
     rating: '4.5',
     whatsapp_group_invite_link: '',
+    googleMapsLink: '',
   });
+  const [calculatedDistance, setCalculatedDistance] = useState<number | null>(null);
+  const [userCoordinates, setUserCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     fetchVendors();
+    // Try to get user's current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserCoordinates({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.log('Geolocation not available:', error);
+        }
+      );
+    }
   }, []);
+
+  const handleGoogleMapsLinkChange = (link: string) => {
+    setFormData({ ...formData, googleMapsLink: link });
+
+    if (!link.trim()) {
+      setCalculatedDistance(null);
+      return;
+    }
+
+    // Parse the Google Maps link
+    const parsed = parseGoogleMapsLink(link);
+
+    if (parsed.error) {
+      toast.error(parsed.error);
+      setCalculatedDistance(null);
+      return;
+    }
+
+    if (parsed.coordinates) {
+      // Auto-fill latitude and longitude
+      setFormData((prev) => ({
+        ...prev,
+        lat: parsed.coordinates!.lat.toString(),
+        lng: parsed.coordinates!.lng.toString(),
+      }));
+
+      // Calculate distance if user coordinates are available
+      if (userCoordinates) {
+        const distance = calculateDistance(
+          userCoordinates.lat,
+          userCoordinates.lng,
+          parsed.coordinates.lat,
+          parsed.coordinates.lng
+        );
+        setCalculatedDistance(distance);
+      } else {
+        setCalculatedDistance(null);
+        toast.info('Enable location access to see distance from your location');
+      }
+    }
+  };
 
   const fetchVendors = async () => {
     try {
@@ -303,7 +363,9 @@ const AdminVendorManagement: React.FC = () => {
       services: '',
       rating: '4.5',
       whatsapp_group_invite_link: '',
+      googleMapsLink: '',
     });
+    setCalculatedDistance(null);
   };
 
   const openEditDialog = (vendor: VendorDetails) => {
@@ -317,7 +379,9 @@ const AdminVendorManagement: React.FC = () => {
       services: vendor.services.join(', '),
       rating: (vendor.rating || 4.5).toString(),
       whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
+      googleMapsLink: '',
     });
+    setCalculatedDistance(null);
     setIsEditDialogOpen(true);
   };
 
@@ -432,6 +496,25 @@ const AdminVendorManagement: React.FC = () => {
                       value={formData.services}
                       onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="vendor-gmaps">
+                      <div className="flex items-center gap-2">
+                        <Navigation className="h-4 w-4" />
+                        Google Maps Link
+                      </div>
+                    </Label>
+                    <Input
+                      id="vendor-gmaps"
+                      placeholder="https://www.google.com/maps/place/..."
+                      value={formData.googleMapsLink}
+                      onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+                    />
+                    {calculatedDistance !== null && (
+                      <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
+                        📍 Distance from your location: <strong>{calculatedDistance.toFixed(2)} km</strong>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="vendor-whatsapp">WhatsApp Group Invite Link</Label>
@@ -653,6 +736,25 @@ const AdminVendorManagement: React.FC = () => {
                   value={formData.services}
                   onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                 />
+              </div>
+              <div>
+                <Label htmlFor="edit-vendor-gmaps">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="h-4 w-4" />
+                    Google Maps Link
+                  </div>
+                </Label>
+                <Input
+                  id="edit-vendor-gmaps"
+                  placeholder="https://www.google.com/maps/place/..."
+                  value={formData.googleMapsLink}
+                  onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+                />
+                {calculatedDistance !== null && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
+                    📍 Distance from your location: <strong>{calculatedDistance.toFixed(2)} km</strong>
+                  </div>
+                )}
               </div>
               <div>
                 <Label htmlFor="edit-vendor-whatsapp">WhatsApp Group Invite Link</Label>
