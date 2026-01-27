@@ -704,10 +704,25 @@ const AdminMapAnalytics: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">₹{totalStats.amount.toFixed(0)}</div>
             <p className="text-xs text-muted-foreground">
-              Revenue
+              Revenue from mapped orders
             </p>
           </CardContent>
         </Card>
+
+        {totalStats.ordersWithoutLocation > 0 && (
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-yellow-900">No Location Data</CardTitle>
+              <MapPin className="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-700">{totalStats.ordersWithoutLocation}</div>
+              <p className="text-xs text-yellow-600">
+                Orders missing coordinates
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {areaStats && (
           <Card className="border-laundrify-purple">
