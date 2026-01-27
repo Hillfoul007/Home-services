@@ -25,7 +25,6 @@ import {
   AlertCircle,
   Store,
   MessageCircle,
-  Truck,
 } from "lucide-react";
 import { vendorService } from "@/services/vendorService";
 import { walletService } from "@/services/walletService";
