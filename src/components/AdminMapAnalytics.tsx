@@ -450,10 +450,9 @@ const AdminMapAnalytics: React.FC = () => {
         );
         console.log("✅ Batch geocoding result:", data);
 
-        // Refresh geocoding status
+        // Refresh geocoding status after completion
         setTimeout(() => {
           fetchGeocodingStatus();
-          fetchMapOrders(); // Refresh map orders
         }, 1000);
       } else {
         const error = await response.json();
@@ -465,7 +464,7 @@ const AdminMapAnalytics: React.FC = () => {
     } finally {
       setGeocodingInProgress(false);
     }
-  }, [geocodingStatus?.ordersWithoutCoordinates, fetchGeocodingStatus, fetchMapOrders]);
+  }, [geocodingStatus?.ordersWithoutCoordinates, fetchGeocodingStatus]);
 
   // Load geocoding status on component mount
   useEffect(() => {
