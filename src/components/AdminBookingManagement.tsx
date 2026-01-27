@@ -1918,21 +1918,6 @@ const AdminBookingManagement: React.FC = () => {
                           </Button>
                           {normalizeStatus(booking.status) === 'vendor_assigned' && (
                             <>
-                              <Button
-                                size="sm"
-                                className="bg-blue-600 text-white hover:bg-blue-700"
-                                onClick={() => {
-                                  setVehicleAllocationBooking(booking);
-                                  setVehicleAllocationFor('pickup');
-                                  setSelectedAllocationVehicle('');
-                                  setSelectedAllocationSlot('');
-                                  fetchAvailableVehicles(booking.assignedVendor || '');
-                                  setShowVehicleAllocationModal(true);
-                                }}
-                              >
-                                <Truck className="h-4 w-4 mr-1" />
-                                Allocate Pickup Vehicle
-                              </Button>
                               <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
                                 Mark Pickup Complete
                               </Button>
@@ -1945,21 +1930,6 @@ const AdminBookingManagement: React.FC = () => {
                           )}
                           {normalizeStatus(booking.status) === 'ready_for_delivery' && (
                             <>
-                              <Button
-                                size="sm"
-                                className="bg-blue-600 text-white hover:bg-blue-700"
-                                onClick={() => {
-                                  setVehicleAllocationBooking(booking);
-                                  setVehicleAllocationFor('delivery');
-                                  setSelectedAllocationVehicle('');
-                                  setSelectedAllocationSlot('');
-                                  fetchAvailableVehicles(booking.assignedVendor || '');
-                                  setShowVehicleAllocationModal(true);
-                                }}
-                              >
-                                <Truck className="h-4 w-4 mr-1" />
-                                Allocate Delivery Vehicle
-                              </Button>
                               <Button size="sm" className="bg-amber-600 text-white" onClick={() => updateBookingStatus(booking._id, 'delivered')}>
                                 Mark Delivered
                               </Button>
