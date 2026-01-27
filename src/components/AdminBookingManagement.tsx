@@ -2242,12 +2242,46 @@ const AdminBookingManagement: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                      {DEFAULT_RIDER_LIST.length > 0 ? (
-                        DEFAULT_RIDER_LIST.map((rider) => (
-                          <SelectItem key={rider} value={rider}>
-                            {rider}
-                          </SelectItem>
-                        ))
+                      {riders.length > 0 ? (
+                        riders
+                          .map((rider) => {
+                            let distance = null;
+
+                            // Only calculate distance if both booking and rider have coordinates
+                            if (bookingAddressCoords && bookingAddressCoords.lat && bookingAddressCoords.lng &&
+                                rider.location && rider.location.lat && rider.location.lng) {
+                              try {
+                                const R = 6371;
+                                const dLat = (rider.location.lat - bookingAddressCoords.lat) * (Math.PI / 180);
+                                const dLng = (rider.location.lng - bookingAddressCoords.lng) * (Math.PI / 180);
+                                const a =
+                                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                  Math.cos(bookingAddressCoords.lat * (Math.PI / 180)) * Math.cos(rider.location.lat * (Math.PI / 180)) *
+                                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                distance = R * c;
+                              } catch (e) {
+                                distance = null;
+                              }
+                            }
+
+                            return { rider, distance };
+                          })
+                          .sort((a, b) => {
+                            // Sort by distance if available, then by name
+                            if (a.distance !== null && b.distance !== null) {
+                              return a.distance - b.distance;
+                            }
+                            return a.rider.name.localeCompare(b.rider.name);
+                          })
+                          .map(({ rider, distance }) => {
+                            const distanceLabel = distance !== null ? ` • ${distance.toFixed(1)} km` : "";
+                            return (
+                              <SelectItem key={rider._id} value={rider._id}>
+                                {rider.name}{distanceLabel}
+                              </SelectItem>
+                            );
+                          })
                       ) : (
                         <SelectItem value="no-riders" disabled>
                           No riders available
