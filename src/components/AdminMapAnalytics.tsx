@@ -87,7 +87,7 @@ const AdminMapAnalytics: React.FC = () => {
   const [drawingMode, setDrawingMode] = useState(false);
   const [polygon, setPolygon] = useState<Array<[number, number]>>([]);
   const [areaStats, setAreaStats] = useState<AreaStats | null>(null);
-  const [totalStats, setTotalStats] = useState({ total: 0, amount: 0 });
+  const [totalStats, setTotalStats] = useState({ total: 0, amount: 0, totalOrders: 0, ordersWithoutLocation: 0 });
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(true);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
