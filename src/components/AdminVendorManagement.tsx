@@ -81,7 +81,62 @@ const AdminVendorManagement: React.FC = () => {
 
   useEffect(() => {
     fetchVendors();
+    // Try to get user's current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserCoordinates({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.log('Geolocation not available:', error);
+        }
+      );
+    }
   }, []);
+
+  const handleGoogleMapsLinkChange = (link: string) => {
+    setFormData({ ...formData, googleMapsLink: link });
+
+    if (!link.trim()) {
+      setCalculatedDistance(null);
+      return;
+    }
+
+    // Parse the Google Maps link
+    const parsed = parseGoogleMapsLink(link);
+
+    if (parsed.error) {
+      toast.error(parsed.error);
+      setCalculatedDistance(null);
+      return;
+    }
+
+    if (parsed.coordinates) {
+      // Auto-fill latitude and longitude
+      setFormData((prev) => ({
+        ...prev,
+        lat: parsed.coordinates!.lat.toString(),
+        lng: parsed.coordinates!.lng.toString(),
+      }));
+
+      // Calculate distance if user coordinates are available
+      if (userCoordinates) {
+        const distance = calculateDistance(
+          userCoordinates.lat,
+          userCoordinates.lng,
+          parsed.coordinates.lat,
+          parsed.coordinates.lng
+        );
+        setCalculatedDistance(distance);
+      } else {
+        setCalculatedDistance(null);
+        toast.info('Enable location access to see distance from your location');
+      }
+    }
+  };
 
   const fetchVendors = async () => {
     try {
