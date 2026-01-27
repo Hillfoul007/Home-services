@@ -3571,6 +3571,100 @@ router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// ============================================================================
+// ADMIN BOOKINGS ENDPOINT - Fetch orders with filtering
+// ============================================================================
+
+// GET: Fetch all bookings with optional filters (status, date range, vendor)
+router.get("/bookings", verifyAdminAccess, async (req, res) => {
+  try {
+    const {
+      status,
+      startDate,
+      endDate,
+      vendor,
+      limit = 500,
+      offset = 0,
+    } = req.query;
+
+    console.log(`📋 Fetching admin bookings:`, {
+      status,
+      startDate,
+      endDate,
+      vendor,
+      limit,
+      offset,
+    });
+
+    // Build filter
+    const filter = {};
+
+    // Filter by status if provided
+    if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    // Filter by vendor if provided
+    if (vendor && vendor !== "all" && vendor !== "Unassigned") {
+      filter.assignedVendor = vendor;
+    } else if (vendor === "Unassigned") {
+      filter.$or = [{ assignedVendor: null }, { assignedVendor: "" }];
+    }
+
+    // Filter by scheduled_date range if provided
+    if (startDate || endDate) {
+      filter.scheduled_date = {};
+
+      if (startDate) {
+        // Parse the date and create a Date object for the start of the day
+        const start = new Date(startDate + "T00:00:00");
+        filter.scheduled_date.$gte = start;
+        console.log(`📅 Date filter: >= ${start.toISOString()}`);
+      }
+
+      if (endDate) {
+        // Parse the date and create a Date object for the end of the day
+        const end = new Date(endDate + "T23:59:59");
+        filter.scheduled_date.$lte = end;
+        console.log(`📅 Date filter: <= ${end.toISOString()}`);
+      }
+    }
+
+    // Count total matching orders
+    const total = await Booking.countDocuments(filter);
+
+    // Fetch bookings with pagination
+    const bookings = await Booking.find(filter)
+      .select(
+        "_id custom_order_id name phone service services status final_amount scheduled_date scheduled_time delivery_date delivery_time address assignedVendor total_price"
+      )
+      .sort({ scheduled_date: -1, created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
+
+    console.log(`✅ Fetched ${bookings.length} bookings (total: ${total})`);
+
+    res.json({
+      success: true,
+      bookings,
+      pagination: {
+        total,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error fetching admin bookings:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch bookings",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
 // Helper function: Check if a point is inside a polygon (Ray casting algorithm)
 function isPointInPolygon(point, polygon) {
   const [x, y] = point;
