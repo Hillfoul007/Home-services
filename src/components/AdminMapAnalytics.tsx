@@ -742,10 +742,47 @@ const AdminMapAnalytics: React.FC = () => {
 
       {/* Warning about missing location data */}
       {totalStats.ordersWithoutLocation > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
           <p className="text-sm text-yellow-800">
             <strong>⚠️ {totalStats.ordersWithoutLocation} orders</strong> in the selected period don't have location coordinates and won't appear on the map. Out of <strong>{totalStats.totalOrders} total orders</strong>, only <strong>{totalStats.total} ({((totalStats.total / Math.max(1, totalStats.totalOrders)) * 100).toFixed(1)}%)</strong> can be displayed on the map.
           </p>
+
+          {/* Batch Geocoding Section */}
+          {geocodingStatus && geocodingStatus.ordersWithoutCoordinates > 0 && (
+            <div className="bg-white border border-yellow-300 rounded p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    🌍 Batch Geocoding Available
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Found <strong>{geocodingStatus.ordersWithoutCoordinates} orders</strong> without coordinates in your entire system.
+                    Current map coverage: <strong>{geocodingStatus.coverage}%</strong>
+                  </p>
+                </div>
+                <Button
+                  onClick={startBatchGeocoding}
+                  disabled={geocodingInProgress}
+                  className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
+                  size="sm"
+                >
+                  {geocodingInProgress ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Geocoding...
+                    </>
+                  ) : (
+                    <>
+                      🗺️ Auto-Geocode All
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 italic">
+                This will convert all addresses to coordinates (may take 5-10 minutes for large datasets)
+              </p>
+            </div>
+          )}
         </div>
       )}
 
