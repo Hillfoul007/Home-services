@@ -39,11 +39,50 @@ const verifyAdminAccess = (req, res, next) => {
   // In a production environment, you would implement proper admin authentication
   // For now, we'll use a simple header check or token validation
   const adminToken = req.headers["admin-token"] || req.headers["authorization"];
-  
+
   // For demo purposes, we'll allow all requests
   // In production, implement proper admin authentication
   next();
 };
+
+// ============= GEOCODING HELPER =============
+// Helper function to geocode address using Google Maps API
+const geocodeAddress = async (address) => {
+  if (!address || address.trim() === "") {
+    return null;
+  }
+
+  try {
+    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.warn("⚠️ Google Maps API key not configured for geocoding");
+      return null;
+    }
+
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`
+    );
+
+    const data = await response.json();
+
+    if (data.status === "OK" && data.results && data.results.length > 0) {
+      const result = data.results[0];
+      return {
+        lat: result.geometry.location.lat,
+        lng: result.geometry.location.lng,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.warn(`⚠️ Geocoding failed for address "${address}":`, error.message);
+    return null;
+  }
+};
+
+// Helper to sleep for rate limiting
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Get dashboard statistics
 router.get("/stats", verifyAdminAccess, async (req, res) => {
