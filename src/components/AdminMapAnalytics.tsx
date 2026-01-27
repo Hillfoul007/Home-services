@@ -446,14 +446,36 @@ const AdminMapAnalytics: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Months (Supports Multi-Year)
                 </label>
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedMonths(new Set(availableMonths))}
+                    className="text-xs"
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedMonths(new Set())}
+                    className="text-xs"
+                  >
+                    Clear All
+                  </Button>
+                </div>
                 <div className="relative">
                   <button
                     onClick={() => setShowMonthSelector(!showMonthSelector)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm font-normal hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-laundrify-purple/50"
                   >
-                    {selectedMonths.size === 1
-                      ? getMonthYearDisplay(Array.from(selectedMonths)[0])
-                      : `${selectedMonths.size} months selected`}
+                    {selectedMonths.size === 0
+                      ? "Select months..."
+                      : selectedMonths.size === availableMonths.length
+                        ? "All months selected"
+                        : selectedMonths.size === 1
+                          ? getMonthYearDisplay(Array.from(selectedMonths)[0])
+                          : `${selectedMonths.size} months selected`}
                   </button>
 
                   {showMonthSelector && (
