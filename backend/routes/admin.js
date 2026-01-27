@@ -1995,8 +1995,6 @@ router.post("/riders", verifyAdminAccess, async (req, res) => {
       status: "approved",
       isActive: true,
       aadharNumber: `TEMP_${Date.now()}`,
-      aadharImageUrl: "",
-      selfieImageUrl: "",
     });
 
     await rider.save();
