@@ -91,6 +91,13 @@ const AdminMapAnalytics: React.FC = () => {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(true);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
+  const [geocodingInProgress, setGeocodingInProgress] = useState(false);
+  const [geocodingStatus, setGeocodingStatus] = useState<{
+    ordersWithoutCoordinates: number;
+    ordersWithCoordinates: number;
+    totalOrders: number;
+    coverage: number;
+  } | null>(null);
 
   // Initialize Google Map
   useEffect(() => {
