@@ -738,6 +738,25 @@ const AdminVendorManagement: React.FC = () => {
                 />
               </div>
               <div>
+                <Label htmlFor="edit-vendor-gmaps">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="h-4 w-4" />
+                    Google Maps Link
+                  </div>
+                </Label>
+                <Input
+                  id="edit-vendor-gmaps"
+                  placeholder="https://www.google.com/maps/place/..."
+                  value={formData.googleMapsLink}
+                  onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+                />
+                {calculatedDistance !== null && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
+                    📍 Distance from your location: <strong>{calculatedDistance.toFixed(2)} km</strong>
+                  </div>
+                )}
+              </div>
+              <div>
                 <Label htmlFor="edit-vendor-whatsapp">WhatsApp Group Invite Link</Label>
                 <Input
                   id="edit-vendor-whatsapp"
