@@ -74,7 +74,10 @@ const AdminVendorManagement: React.FC = () => {
     services: '',
     rating: '4.5',
     whatsapp_group_invite_link: '',
+    googleMapsLink: '',
   });
+  const [calculatedDistance, setCalculatedDistance] = useState<number | null>(null);
+  const [userCoordinates, setUserCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     fetchVendors();
