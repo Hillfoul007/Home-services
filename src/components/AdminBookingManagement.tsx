@@ -670,25 +670,6 @@ const AdminBookingManagement: React.FC = () => {
   const [reminderMessage, setReminderMessage] = useState('');
   const [reminderVendorGroupLink, setReminderVendorGroupLink] = useState<string | undefined>();
 
-  // Vehicle allocation modal state
-  const [showVehicleAllocationModal, setShowVehicleAllocationModal] = useState(false);
-  const [vehicleAllocationFor, setVehicleAllocationFor] = useState<'pickup' | 'delivery'>('pickup');
-  const [vehicleAllocationBooking, setVehicleAllocationBooking] = useState<Booking | null>(null);
-  const [availableVehicles, setAvailableVehicles] = useState<any[]>([]);
-  const [selectedAllocationVehicle, setSelectedAllocationVehicle] = useState<string>('');
-  const [selectedAllocationSlot, setSelectedAllocationSlot] = useState<string>('');
-  const [loadingVehicles, setLoadingVehicles] = useState(false);
-
-  // Auto-allocation state
-  const [showAutoAllocationModal, setShowAutoAllocationModal] = useState(false);
-  const [autoAllocationVendor, setAutoAllocationVendor] = useState<string>('');
-  const [autoAllocSuggestions, setAutoAllocSuggestions] = useState<any[]>([]);
-  const [autoAllocStats, setAutoAllocStats] = useState<any>(null);
-  const [loadingAutoAlloc, setLoadingAutoAlloc] = useState(false);
-  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
-  const [executingAutoAlloc, setExecutingAutoAlloc] = useState(false);
-  const [autoAllocResults, setAutoAllocResults] = useState<any>(null);
-
 
   const fetchVendors = async () => {
     try {
