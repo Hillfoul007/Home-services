@@ -667,11 +667,20 @@ const AdminMapAnalytics: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Warning about missing location data */}
+      {totalStats.ordersWithoutLocation > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-sm text-yellow-800">
+            <strong>⚠️ {totalStats.ordersWithoutLocation} orders</strong> in the selected period don't have location coordinates and won't appear on the map. Out of <strong>{totalStats.totalOrders} total orders</strong>, only <strong>{totalStats.total} ({((totalStats.total / Math.max(1, totalStats.totalOrders)) * 100).toFixed(1)}%)</strong> can be displayed on the map.
+          </p>
+        </div>
+      )}
+
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <CardTitle className="text-sm font-medium">Orders with Location</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -682,6 +691,7 @@ const AdminMapAnalytics: React.FC = () => {
                   ? `${getMonthYearDisplay(Array.from(selectedMonths)[0])}`
                   : `${selectedMonths.size} months selected`
                 : "Selected period"}
+              {totalStats.totalOrders > 0 && ` (${((totalStats.total / totalStats.totalOrders) * 100).toFixed(1)}%)`}
             </p>
           </CardContent>
         </Card>
