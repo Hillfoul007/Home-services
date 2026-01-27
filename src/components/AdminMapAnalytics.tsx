@@ -406,6 +406,72 @@ const AdminMapAnalytics: React.FC = () => {
     drawPolygon();
   }, [polygon, map]);
 
+  // Fetch geocoding status
+  const fetchGeocodingStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/analytics/geocoding-status");
+      if (response.ok) {
+        const data = await response.json();
+        setGeocodingStatus(data);
+        console.log("📊 Geocoding status:", data);
+      }
+    } catch (error) {
+      console.error("Error fetching geocoding status:", error);
+    }
+  }, []);
+
+  // Trigger batch geocoding
+  const startBatchGeocoding = useCallback(async () => {
+    if (!window.confirm(
+      `This will geocode ${geocodingStatus?.ordersWithoutCoordinates || 0} orders without coordinates. This may take several minutes. Continue?`
+    )) {
+      return;
+    }
+
+    try {
+      setGeocodingInProgress(true);
+      console.log("🌍 Starting batch geocoding...");
+
+      const response = await fetch("/api/admin/analytics/batch-geocode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          batchSize: 50,
+          delayMs: 500, // 500ms delay between geocoding requests to avoid rate limiting
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(
+          `✅ Batch geocoding completed!\n${data.geocoded} orders geocoded, ${data.failed} failed (${data.successRate}% success)`
+        );
+        console.log("✅ Batch geocoding result:", data);
+
+        // Refresh geocoding status
+        setTimeout(() => {
+          fetchGeocodingStatus();
+          fetchMapOrders(); // Refresh map orders
+        }, 1000);
+      } else {
+        const error = await response.json();
+        toast.error(`❌ Geocoding failed: ${error.message}`);
+      }
+    } catch (error) {
+      console.error("Error during batch geocoding:", error);
+      toast.error("Failed to start batch geocoding");
+    } finally {
+      setGeocodingInProgress(false);
+    }
+  }, [geocodingStatus?.ordersWithoutCoordinates, fetchGeocodingStatus, fetchMapOrders]);
+
+  // Load geocoding status on component mount
+  useEffect(() => {
+    fetchGeocodingStatus();
+  }, [fetchGeocodingStatus]);
+
   // Analyze area (memoized)
   const analyzeArea = useCallback(async () => {
     if (polygon.length < 3) {
