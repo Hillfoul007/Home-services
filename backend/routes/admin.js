@@ -1096,7 +1096,7 @@ router.get("/riders/active", verifyAdminAccess, async (req, res) => {
 
     if (activeRiders.length > 0) {
       console.log('🎯 Returning real active riders from database');
-      return res.json(activeRiders);
+      return res.json({ riders: activeRiders });
     }
 
     // Only use sample data if no active riders exist
@@ -1113,7 +1113,7 @@ router.get("/riders/active", verifyAdminAccess, async (req, res) => {
       }
     ];
 
-    res.json(sampleActiveRiders);
+    res.json({ riders: sampleActiveRiders });
   } catch (error) {
     console.error('❌ Get active riders error:', error);
     res.status(500).json({ message: 'Failed to fetch active riders', error: error.message });
