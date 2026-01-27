@@ -42,6 +42,7 @@ interface FormData {
   services: string;
   rating: string;
   whatsapp_group_invite_link: string;
+  googleMapsLink: string;
 }
 
 const AVAILABLE_SERVICES = [
