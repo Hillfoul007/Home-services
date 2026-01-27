@@ -67,18 +67,37 @@ const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(
-    new Set([`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`])
-  );
+
+  // Generate last 12 months for default selection
+  const getDefaultMonths = (): Set<string> => {
+    const months = new Set<string>();
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      months.add(`${year}-${month}`);
+    }
+    return months;
+  };
+
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(getDefaultMonths());
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [drawingMode, setDrawingMode] = useState(false);
   const [polygon, setPolygon] = useState<Array<[number, number]>>([]);
   const [areaStats, setAreaStats] = useState<AreaStats | null>(null);
-  const [totalStats, setTotalStats] = useState({ total: 0, amount: 0 });
+  const [totalStats, setTotalStats] = useState({ total: 0, amount: 0, totalOrders: 0, ordersWithoutLocation: 0 });
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(true);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
+  const [geocodingInProgress, setGeocodingInProgress] = useState(false);
+  const [geocodingStatus, setGeocodingStatus] = useState<{
+    ordersWithoutCoordinates: number;
+    ordersWithCoordinates: number;
+    totalOrders: number;
+    coverage: number;
+  } | null>(null);
 
   // Initialize Google Map
   useEffect(() => {
@@ -193,11 +212,18 @@ const AdminMapAnalytics: React.FC = () => {
         setTotalStats({
           total: data.total || 0,
           amount: data.totalAmount || 0,
+          totalOrders: data.totalOrders || 0,
+          ordersWithoutLocation: data.ordersWithoutLocation || 0,
         });
 
         // Plot markers only if map is initialized
         if (map) {
           await plotMarkers(data.markers || []);
+        }
+
+        // Show warning if some orders don't have location data
+        if (data.ordersWithoutLocation > 0) {
+          console.warn(`⚠️ ${data.ordersWithoutLocation} orders in selected period don't have location data`);
         }
       }
     } catch (error) {
@@ -380,6 +406,71 @@ const AdminMapAnalytics: React.FC = () => {
     drawPolygon();
   }, [polygon, map]);
 
+  // Fetch geocoding status
+  const fetchGeocodingStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/analytics/geocoding-status");
+      if (response.ok) {
+        const data = await response.json();
+        setGeocodingStatus(data);
+        console.log("📊 Geocoding status:", data);
+      }
+    } catch (error) {
+      console.error("Error fetching geocoding status:", error);
+    }
+  }, []);
+
+  // Trigger batch geocoding
+  const startBatchGeocoding = useCallback(async () => {
+    if (!window.confirm(
+      `This will geocode ${geocodingStatus?.ordersWithoutCoordinates || 0} orders without coordinates. This may take several minutes. Continue?`
+    )) {
+      return;
+    }
+
+    try {
+      setGeocodingInProgress(true);
+      console.log("🌍 Starting batch geocoding...");
+
+      const response = await fetch("/api/admin/analytics/batch-geocode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          batchSize: 50,
+          delayMs: 500, // 500ms delay between geocoding requests to avoid rate limiting
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(
+          `✅ Batch geocoding completed!\n${data.geocoded} orders geocoded, ${data.failed} failed (${data.successRate}% success)`
+        );
+        console.log("✅ Batch geocoding result:", data);
+
+        // Refresh geocoding status after completion
+        setTimeout(() => {
+          fetchGeocodingStatus();
+        }, 1000);
+      } else {
+        const error = await response.json();
+        toast.error(`❌ Geocoding failed: ${error.message}`);
+      }
+    } catch (error) {
+      console.error("Error during batch geocoding:", error);
+      toast.error("Failed to start batch geocoding");
+    } finally {
+      setGeocodingInProgress(false);
+    }
+  }, [geocodingStatus?.ordersWithoutCoordinates, fetchGeocodingStatus]);
+
+  // Load geocoding status on component mount
+  useEffect(() => {
+    fetchGeocodingStatus();
+  }, [fetchGeocodingStatus]);
+
   // Analyze area (memoized)
   const analyzeArea = useCallback(async () => {
     if (polygon.length < 3) {
@@ -446,14 +537,36 @@ const AdminMapAnalytics: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Months (Supports Multi-Year)
                 </label>
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedMonths(new Set(availableMonths))}
+                    className="text-xs"
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedMonths(new Set())}
+                    className="text-xs"
+                  >
+                    Clear All
+                  </Button>
+                </div>
                 <div className="relative">
                   <button
                     onClick={() => setShowMonthSelector(!showMonthSelector)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm font-normal hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-laundrify-purple/50"
                   >
-                    {selectedMonths.size === 1
-                      ? getMonthYearDisplay(Array.from(selectedMonths)[0])
-                      : `${selectedMonths.size} months selected`}
+                    {selectedMonths.size === 0
+                      ? "Select months..."
+                      : selectedMonths.size === availableMonths.length
+                        ? "All months selected"
+                        : selectedMonths.size === 1
+                          ? getMonthYearDisplay(Array.from(selectedMonths)[0])
+                          : `${selectedMonths.size} months selected`}
                   </button>
 
                   {showMonthSelector && (
@@ -525,18 +638,19 @@ const AdminMapAnalytics: React.FC = () => {
               <div className="flex items-end">
                 <Button
                   onClick={fetchMapOrders}
-                  disabled={loading || selectedMonths.size === 0}
+                  disabled={loading}
                   className="w-full bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
+                  title={selectedMonths.size === 0 ? "Select at least one month or click 'Select All'" : ""}
                 >
                   {loading ? (
                     <>
                       <Loader className="h-4 w-4 mr-2 animate-spin" />
-                      Loading...
+                      Loading {totalStats.total > 0 ? totalStats.total : "data"}...
                     </>
                   ) : (
                     <>
                       <Filter className="h-4 w-4 mr-2" />
-                      Apply Filters
+                      {selectedMonths.size === 0 ? "Select Months First" : "Apply Filters"}
                     </>
                   )}
                 </Button>
@@ -625,11 +739,57 @@ const AdminMapAnalytics: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Warning about missing location data */}
+      {totalStats.ordersWithoutLocation > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+          <p className="text-sm text-yellow-800">
+            <strong>⚠️ {totalStats.ordersWithoutLocation} orders</strong> in the selected period don't have location coordinates and won't appear on the map. Out of <strong>{totalStats.totalOrders} total orders</strong>, only <strong>{totalStats.total} ({((totalStats.total / Math.max(1, totalStats.totalOrders)) * 100).toFixed(1)}%)</strong> can be displayed on the map.
+          </p>
+
+          {/* Batch Geocoding Section */}
+          {geocodingStatus && geocodingStatus.ordersWithoutCoordinates > 0 && (
+            <div className="bg-white border border-yellow-300 rounded p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    🌍 Batch Geocoding Available
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Found <strong>{geocodingStatus.ordersWithoutCoordinates} orders</strong> without coordinates in your entire system.
+                    Current map coverage: <strong>{geocodingStatus.coverage}%</strong>
+                  </p>
+                </div>
+                <Button
+                  onClick={startBatchGeocoding}
+                  disabled={geocodingInProgress}
+                  className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
+                  size="sm"
+                >
+                  {geocodingInProgress ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Geocoding...
+                    </>
+                  ) : (
+                    <>
+                      🗺️ Auto-Geocode All
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 italic">
+                This will convert all addresses to coordinates (may take 5-10 minutes for large datasets)
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <CardTitle className="text-sm font-medium">Orders with Location</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -640,6 +800,7 @@ const AdminMapAnalytics: React.FC = () => {
                   ? `${getMonthYearDisplay(Array.from(selectedMonths)[0])}`
                   : `${selectedMonths.size} months selected`
                 : "Selected period"}
+              {totalStats.totalOrders > 0 && ` (${((totalStats.total / totalStats.totalOrders) * 100).toFixed(1)}%)`}
             </p>
           </CardContent>
         </Card>
@@ -652,10 +813,25 @@ const AdminMapAnalytics: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">₹{totalStats.amount.toFixed(0)}</div>
             <p className="text-xs text-muted-foreground">
-              Revenue
+              Revenue from mapped orders
             </p>
           </CardContent>
         </Card>
+
+        {totalStats.ordersWithoutLocation > 0 && (
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-yellow-900">No Location Data</CardTitle>
+              <MapPin className="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-700">{totalStats.ordersWithoutLocation}</div>
+              <p className="text-xs text-yellow-600">
+                Orders missing coordinates
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {areaStats && (
           <Card className="border-laundrify-purple">

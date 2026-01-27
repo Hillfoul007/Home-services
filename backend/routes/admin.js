@@ -39,11 +39,50 @@ const verifyAdminAccess = (req, res, next) => {
   // In a production environment, you would implement proper admin authentication
   // For now, we'll use a simple header check or token validation
   const adminToken = req.headers["admin-token"] || req.headers["authorization"];
-  
+
   // For demo purposes, we'll allow all requests
   // In production, implement proper admin authentication
   next();
 };
+
+// ============= GEOCODING HELPER =============
+// Helper function to geocode address using Google Maps API
+const geocodeAddress = async (address) => {
+  if (!address || address.trim() === "") {
+    return null;
+  }
+
+  try {
+    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.warn("⚠️ Google Maps API key not configured for geocoding");
+      return null;
+    }
+
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`
+    );
+
+    const data = await response.json();
+
+    if (data.status === "OK" && data.results && data.results.length > 0) {
+      const result = data.results[0];
+      return {
+        lat: result.geometry.location.lat,
+        lng: result.geometry.location.lng,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.warn(`⚠️ Geocoding failed for address "${address}":`, error.message);
+    return null;
+  }
+};
+
+// Helper to sleep for rate limiting
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Get dashboard statistics
 router.get("/stats", verifyAdminAccess, async (req, res) => {
@@ -1047,7 +1086,7 @@ router.get("/riders", verifyAdminAccess, async (req, res) => {
 
     if (riders.length > 0) {
       console.log('🎯 Returning real riders from database');
-      return res.json(riders);
+      return res.json({ riders });
     }
 
     // Only use sample data if no riders exist
@@ -1075,7 +1114,7 @@ router.get("/riders", verifyAdminAccess, async (req, res) => {
       }
     ];
 
-    res.json(sampleRiders);
+    res.json({ riders: sampleRiders });
   } catch (error) {
     console.error('❌ Get riders error:', error);
     res.status(500).json({ message: 'Failed to fetch riders', error: error.message });
@@ -1096,7 +1135,7 @@ router.get("/riders/active", verifyAdminAccess, async (req, res) => {
 
     if (activeRiders.length > 0) {
       console.log('🎯 Returning real active riders from database');
-      return res.json(activeRiders);
+      return res.json({ riders: activeRiders });
     }
 
     // Only use sample data if no active riders exist
@@ -1113,7 +1152,7 @@ router.get("/riders/active", verifyAdminAccess, async (req, res) => {
       }
     ];
 
-    res.json(sampleActiveRiders);
+    res.json({ riders: sampleActiveRiders });
   } catch (error) {
     console.error('❌ Get active riders error:', error);
     res.status(500).json({ message: 'Failed to fetch active riders', error: error.message });
@@ -3091,12 +3130,18 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       statusFilter = { status };
     }
 
+    // Count total orders in this period (for reference)
+    const totalOrders = await Booking.countDocuments({
+      ...dateFilter,
+      ...statusFilter,
+    });
+
     // Fetch bookings with location data - INCLUDE ALL ORDERS (completed, cancelled, etc)
     const bookings = await Booking.find({
       ...dateFilter,
       ...statusFilter,
-      "coordinates.lat": { $exists: true },
-      "coordinates.lng": { $exists: true },
+      "coordinates.lat": { $exists: true, $ne: null },
+      "coordinates.lng": { $exists: true, $ne: null },
     })
       .select(
         "custom_order_id coordinates final_amount status created_at pickup_address delivery_address"
@@ -3115,12 +3160,15 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       address: booking.pickup_address || booking.delivery_address || "Unknown",
     }));
 
-    console.log(`✅ Found ${mapMarkers.length} orders with location data (including all statuses)`);
+    const ordersWithoutLocation = totalOrders - mapMarkers.length;
+    console.log(`📍 Map Analytics: ${mapMarkers.length}/${totalOrders} orders have location data (${ordersWithoutLocation} missing coordinates)`);
 
     res.json({
       success: true,
       markers: mapMarkers,
       total: mapMarkers.length,
+      totalOrders: totalOrders,
+      ordersWithoutLocation: ordersWithoutLocation,
       totalAmount: mapMarkers.reduce((sum, m) => sum + m.amount, 0),
     });
   } catch (error) {
@@ -3230,6 +3278,153 @@ router.post("/analytics/area-stats", verifyAdminAccess, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch area statistics",
+    });
+  }
+});
+
+// ============================================================================
+// BATCH GEOCODING ENDPOINT - Convert addresses to coordinates
+// ============================================================================
+
+// GET: Get status of orders without coordinates
+router.get("/analytics/geocoding-status", verifyAdminAccess, async (req, res) => {
+  try {
+    console.log("📍 Fetching geocoding status...");
+
+    // Count orders without coordinates
+    const ordersWithoutCoords = await Booking.countDocuments({
+      $or: [
+        { "coordinates.lat": { $exists: false } },
+        { "coordinates.lng": { $exists: false } },
+        { "coordinates.lat": null },
+        { "coordinates.lng": null },
+      ],
+    });
+
+    // Count orders with coordinates
+    const ordersWithCoords = await Booking.countDocuments({
+      "coordinates.lat": { $exists: true, $ne: null },
+      "coordinates.lng": { $exists: true, $ne: null },
+    });
+
+    const totalOrders = ordersWithCoords + ordersWithoutCoords;
+    const coverage = totalOrders > 0 ? ((ordersWithCoords / totalOrders) * 100).toFixed(1) : 0;
+
+    console.log(`📊 Geocoding status: ${ordersWithCoords}/${totalOrders} orders geocoded (${coverage}%)`);
+
+    res.json({
+      success: true,
+      ordersWithoutCoordinates: ordersWithoutCoords,
+      ordersWithCoordinates: ordersWithCoords,
+      totalOrders,
+      coverage: parseFloat(coverage),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching geocoding status:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch geocoding status",
+    });
+  }
+});
+
+// POST: Batch geocode orders without coordinates
+router.post("/analytics/batch-geocode", verifyAdminAccess, async (req, res) => {
+  try {
+    const { batchSize = 50, delayMs = 500 } = req.body;
+
+    console.log(`🌍 Starting batch geocoding with batchSize=${batchSize}, delayMs=${delayMs}ms`);
+
+    // Find orders without coordinates
+    const ordersWithoutCoords = await Booking.find({
+      $or: [
+        { "coordinates.lat": { $exists: false } },
+        { "coordinates.lng": { $exists: false } },
+        { "coordinates.lat": null },
+        { "coordinates.lng": null },
+      ],
+      address: { $exists: true, $ne: null, $ne: "" },
+    })
+      .select("_id address coordinates")
+      .limit(batchSize)
+      .lean();
+
+    if (ordersWithoutCoords.length === 0) {
+      return res.json({
+        success: true,
+        message: "All orders have coordinates!",
+        geocoded: 0,
+        failed: 0,
+      });
+    }
+
+    console.log(`📋 Found ${ordersWithoutCoords.length} orders to geocode`);
+
+    let geocodedCount = 0;
+    let failedCount = 0;
+    const updates = [];
+
+    for (let i = 0; i < ordersWithoutCoords.length; i++) {
+      const order = ordersWithoutCoords[i];
+
+      try {
+        console.log(`⏳ Geocoding [${i + 1}/${ordersWithoutCoords.length}]: "${order.address}"`);
+
+        // Geocode the address
+        const coordinates = await geocodeAddress(order.address);
+
+        if (coordinates && coordinates.lat && coordinates.lng) {
+          updates.push({
+            updateOne: {
+              filter: { _id: order._id },
+              update: { $set: { coordinates } },
+            },
+          });
+          geocodedCount++;
+          console.log(`✅ Geocoded: ${order.address} -> ${coordinates.lat}, ${coordinates.lng}`);
+        } else {
+          failedCount++;
+          console.warn(`❌ Could not geocode: ${order.address}`);
+        }
+
+        // Rate limiting - delay between requests
+        if (i < ordersWithoutCoords.length - 1) {
+          await sleep(delayMs);
+        }
+      } catch (error) {
+        failedCount++;
+        console.error(`❌ Error geocoding order ${order._id}:`, error.message);
+      }
+    }
+
+    // Bulk update all geocoded orders
+    if (updates.length > 0) {
+      console.log(`💾 Saving ${updates.length} geocoded orders...`);
+      const result = await Booking.bulkWrite(updates);
+      console.log(`✅ Bulk write completed: ${result.modifiedCount} orders updated`);
+    }
+
+    const totalProcessed = geocodedCount + failedCount;
+    const successRate = totalProcessed > 0 ? ((geocodedCount / totalProcessed) * 100).toFixed(1) : 0;
+
+    console.log(
+      `📊 Batch geocoding complete: ${geocodedCount} geocoded, ${failedCount} failed (${successRate}% success rate)`
+    );
+
+    res.json({
+      success: true,
+      message: `Batch geocoding completed`,
+      geocoded: geocodedCount,
+      failed: failedCount,
+      successRate: parseFloat(successRate),
+      totalProcessed,
+    });
+  } catch (error) {
+    console.error("❌ Error during batch geocoding:", error);
+    res.status(500).json({
+      success: false,
+      message: "Batch geocoding failed",
+      error: error.message,
     });
   }
 });
