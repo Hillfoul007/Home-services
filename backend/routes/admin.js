@@ -1047,7 +1047,7 @@ router.get("/riders", verifyAdminAccess, async (req, res) => {
 
     if (riders.length > 0) {
       console.log('🎯 Returning real riders from database');
-      return res.json(riders);
+      return res.json({ riders });
     }
 
     // Only use sample data if no riders exist
@@ -1075,7 +1075,7 @@ router.get("/riders", verifyAdminAccess, async (req, res) => {
       }
     ];
 
-    res.json(sampleRiders);
+    res.json({ riders: sampleRiders });
   } catch (error) {
     console.error('❌ Get riders error:', error);
     res.status(500).json({ message: 'Failed to fetch riders', error: error.message });
