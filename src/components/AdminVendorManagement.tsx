@@ -363,7 +363,9 @@ const AdminVendorManagement: React.FC = () => {
       services: '',
       rating: '4.5',
       whatsapp_group_invite_link: '',
+      googleMapsLink: '',
     });
+    setCalculatedDistance(null);
   };
 
   const openEditDialog = (vendor: VendorDetails) => {
