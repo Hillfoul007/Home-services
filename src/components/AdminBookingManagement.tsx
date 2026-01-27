@@ -641,6 +641,7 @@ const AdminBookingManagement: React.FC = () => {
   const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
+  const [riders, setRiders] = useState<Array<{ _id: string; name: string; phone: string; live_location_link?: string; location?: { lat: number; lng: number } }>>([]);
   const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
   const [loadingWallet, setLoadingWallet] = useState(false);
@@ -707,6 +708,18 @@ const AdminBookingManagement: React.FC = () => {
       console.warn('Failed to fetch vendors:', error);
       setVendors([]);
       setVendorFullData({});
+    }
+  };
+
+  const fetchRiders = async () => {
+    try {
+      const response = await apiClient.adminRequest<{ riders: any[] }>('/admin/riders');
+      if (response.data?.riders) {
+        setRiders(response.data.riders);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch riders:', error);
+      setRiders([]);
     }
   };
 
@@ -855,6 +868,7 @@ const AdminBookingManagement: React.FC = () => {
   useEffect(() => {
     fetchBookings();
     fetchVendors();
+    fetchRiders();
     fetchCompletedOrders();
 
     let es: EventSource | null = null;
@@ -2207,6 +2221,78 @@ const AdminBookingManagement: React.FC = () => {
                 ) : null}
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Assign Rider</Label>
+                  <Select
+                    value={editingBooking.rider ?? "__unassigned__"}
+                    onValueChange={(value) => {
+                      setEditingBooking((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              rider: value === "__unassigned__" ? null : value,
+                            }
+                          : prev,
+                      );
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                      {riders.length > 0 ? (
+                        riders
+                          .map((rider) => {
+                            let distance = null;
+
+                            // Only calculate distance if both booking and rider have coordinates
+                            if (bookingAddressCoords && bookingAddressCoords.lat && bookingAddressCoords.lng &&
+                                rider.location && rider.location.lat && rider.location.lng) {
+                              try {
+                                const R = 6371;
+                                const dLat = (rider.location.lat - bookingAddressCoords.lat) * (Math.PI / 180);
+                                const dLng = (rider.location.lng - bookingAddressCoords.lng) * (Math.PI / 180);
+                                const a =
+                                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                  Math.cos(bookingAddressCoords.lat * (Math.PI / 180)) * Math.cos(rider.location.lat * (Math.PI / 180)) *
+                                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                distance = R * c;
+                              } catch (e) {
+                                distance = null;
+                              }
+                            }
+
+                            return { rider, distance };
+                          })
+                          .sort((a, b) => {
+                            // Sort by distance if available, then by name
+                            if (a.distance !== null && b.distance !== null) {
+                              return a.distance - b.distance;
+                            }
+                            return a.rider.name.localeCompare(b.rider.name);
+                          })
+                          .map(({ rider, distance }) => {
+                            const distanceLabel = distance !== null ? ` • ${distance.toFixed(1)} km` : "";
+                            return (
+                              <SelectItem key={rider._id} value={rider._id}>
+                                {rider.name}{distanceLabel}
+                              </SelectItem>
+                            );
+                          })
+                      ) : (
+                        <SelectItem value="no-riders" disabled>
+                          No riders available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">Assign delivery rider for this order</p>
+                </div>
+              </div>
+
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
@@ -2604,6 +2690,7 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_date: editingBooking.delivery_date || "",
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
+                        rider: editingBooking.rider || null,
                         cashback_amount: editingBooking.cashback_amount || 0,
                         cashback: editingBooking.cashback || 0,
                         wallet_cashback: editingBooking.wallet_cashback || 0,

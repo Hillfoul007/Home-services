@@ -40,13 +40,15 @@ import AdminUsersManagement from "./AdminUsersManagement";
 import AdminOrderAllocation from "./AdminOrderAllocation";
 import AdminBannerManagement from "./AdminBannerManagement";
 import AdminMapAnalytics from "./AdminMapAnalytics";
+import AdminRiderManagement from "./AdminRiderManagement";
+import AdminDailyOrdersView from "./AdminDailyOrdersView";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -350,6 +352,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Allocate Orders</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("riders")}
+              variant={activeTab === "riders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Truck className="h-4 w-4" />
+              <span className="hidden sm:inline">Riders</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("daily-orders")}
+              variant={activeTab === "daily-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Calendar className="h-4 w-4" />
+              <span className="hidden sm:inline">Daily Orders</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("users")}
               variant={activeTab === "users" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -484,6 +502,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="riders">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Rider Management:</strong> Add and manage delivery riders. Set live location links for real-time tracking during orders.</p>
+            </div>
+            <AdminRiderManagement />
+          </TabsContent>
+
+          <TabsContent value="daily-orders">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Daily Orders:</strong> View vendor orders grouped by day. Today's orders appear first, with option to view previous days.</p>
+            </div>
+            <AdminDailyOrdersView />
           </TabsContent>
         </Tabs>
       </main>

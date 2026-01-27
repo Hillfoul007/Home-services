@@ -249,6 +249,17 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       delete updateData.assigned_vendor;
     }
 
+    // Normalize rider field: frontend may send `rider` while schema uses `assignedRider`
+    if (typeof updateData.rider !== 'undefined') {
+      updateData.assignedRider = updateData.rider;
+      delete updateData.rider;
+    }
+    if (typeof updateData.assigned_rider !== 'undefined') {
+      // support snake_case too
+      updateData.assignedRider = updateData.assigned_rider;
+      delete updateData.assigned_rider;
+    }
+
     // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
     const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
     if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
@@ -1919,6 +1930,187 @@ router.delete("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
     res.json({ success: true, message: "Vendor deleted successfully" });
   } catch (error) {
     console.error("❌ Error deleting vendor:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============= RIDER MANAGEMENT =============
+
+// Get all riders
+router.get("/riders", verifyAdminAccess, async (req, res) => {
+  try {
+    console.log("🏍️ Fetching all riders");
+
+    const riders = await Rider.find().sort({ createdAt: -1 });
+
+    console.log(`✅ Found ${riders.length} riders`);
+    res.json({ success: true, riders });
+  } catch (error) {
+    console.error("❌ Error fetching riders:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get single rider
+router.get("/riders/:riderId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { riderId } = req.params;
+    console.log(`🔍 Fetching rider: ${riderId}`);
+
+    const rider = await Rider.findById(riderId);
+
+    if (!rider) {
+      return res.status(404).json({ error: "Rider not found" });
+    }
+
+    console.log(`✅ Rider found: ${rider.name}`);
+    res.json({ success: true, rider });
+  } catch (error) {
+    console.error("❌ Error fetching rider:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create rider
+router.post("/riders", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, phone, live_location_link } = req.body;
+
+    console.log("🆕 Creating rider:", { name, phone });
+
+    if (!name || !phone) {
+      return res.status(400).json({ error: "Name and phone are required" });
+    }
+
+    // Check if rider already exists with this phone
+    const existingRider = await Rider.findOne({ phone });
+    if (existingRider) {
+      return res.status(409).json({ error: "Rider with this phone number already exists" });
+    }
+
+    const rider = new Rider({
+      name,
+      phone,
+      live_location_link: live_location_link || null,
+      status: "approved",
+      isActive: true,
+      aadharNumber: `TEMP_${Date.now()}`,
+    });
+
+    await rider.save();
+
+    console.log(`✅ Rider created successfully: ${rider._id}`);
+    res.status(201).json({ success: true, rider });
+  } catch (error) {
+    console.error("❌ Error creating rider:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update rider
+router.put("/riders/:riderId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { riderId } = req.params;
+    const { name, phone, live_location_link, isActive } = req.body;
+
+    console.log(`📝 Updating rider: ${riderId}`);
+
+    // Validate riderId
+    if (!riderId || riderId === 'undefined') {
+      return res.status(400).json({ error: "Rider ID is required and must be valid" });
+    }
+
+    // Check if phone is already used by another rider
+    if (phone) {
+      const existingRider = await Rider.findOne({ phone, _id: { $ne: riderId } });
+      if (existingRider) {
+        return res.status(409).json({ error: "Rider with this phone number already exists" });
+      }
+    }
+
+    const rider = await Rider.findByIdAndUpdate(
+      riderId,
+      {
+        ...(name && { name }),
+        ...(phone && { phone }),
+        ...(live_location_link !== undefined && { live_location_link }),
+        ...(isActive !== undefined && { isActive }),
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!rider) {
+      return res.status(404).json({ error: "Rider not found" });
+    }
+
+    console.log(`✅ Rider updated successfully: ${rider.name}`);
+    res.json({ success: true, rider });
+  } catch (error) {
+    console.error("❌ Error updating rider:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Delete rider
+router.delete("/riders/:riderId", verifyAdminAccess, async (req, res) => {
+  try {
+    const { riderId } = req.params;
+
+    console.log(`🗑️ Deleting rider: ${riderId}`);
+
+    const rider = await Rider.findByIdAndDelete(riderId);
+
+    if (!rider) {
+      return res.status(404).json({ error: "Rider not found" });
+    }
+
+    console.log(`✅ Rider deleted successfully: ${rider.name}`);
+    res.json({ success: true, message: "Rider deleted successfully" });
+  } catch (error) {
+    console.error("❌ Error deleting rider:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get riders with distance from a location (for booking assignment)
+router.post("/riders/distance-from-location", verifyAdminAccess, async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: "Location coordinates (lat, lng) are required" });
+    }
+
+    console.log(`📍 Fetching riders with distance from location: ${lat}, ${lng}`);
+
+    const riders = await Rider.find({ isActive: true }).lean();
+
+    // Calculate distance for each rider
+    const ridersWithDistance = riders.map(rider => {
+      let distance = null;
+      if (rider.location && rider.location.lat && rider.location.lng) {
+        distance = calculateDistance(
+          { lat, lng },
+          { lat: rider.location.lat, lng: rider.location.lng }
+        );
+      }
+      return {
+        ...rider,
+        distance_from_location: distance
+      };
+    });
+
+    // Sort by distance (nulls last)
+    ridersWithDistance.sort((a, b) => {
+      if (a.distance_from_location === null) return 1;
+      if (b.distance_from_location === null) return -1;
+      return a.distance_from_location - b.distance_from_location;
+    });
+
+    console.log(`✅ Found ${ridersWithDistance.length} active riders`);
+    res.json({ success: true, riders: ridersWithDistance });
+  } catch (error) {
+    console.error("❌ Error fetching riders with distance:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
