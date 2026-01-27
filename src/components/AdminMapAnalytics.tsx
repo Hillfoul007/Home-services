@@ -748,16 +748,28 @@ const AdminMapAnalytics: React.FC = () => {
 
           {/* Batch Geocoding Section */}
           {geocodingStatus && geocodingStatus.ordersWithoutCoordinates > 0 && (
-            <div className="bg-white border border-yellow-300 rounded p-3 space-y-2">
+            <div className="bg-white border border-yellow-300 rounded p-3 space-y-3">
               <div className="flex items-start gap-2">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">
                     🌍 Batch Geocoding Available
                   </p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Found <strong>{geocodingStatus.ordersWithoutCoordinates} orders</strong> without coordinates in your entire system.
-                    Current map coverage: <strong>{geocodingStatus.coverage}%</strong>
-                  </p>
+                  <div className="text-xs text-gray-600 mt-2 space-y-1">
+                    <p>
+                      Found <strong>{geocodingStatus.ordersWithoutCoordinates} orders</strong> without coordinates in your entire system.
+                    </p>
+                    <p>
+                      Current map coverage: <strong>{geocodingStatus.coverage}%</strong> ({geocodingStatus.ordersWithCoordinates}/{geocodingStatus.totalOrders} orders)
+                    </p>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="mt-3 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-green-600 h-full transition-all duration-300"
+                      style={{ width: `${Math.max(5, geocodingStatus.coverage)}%` }}
+                    />
+                  </div>
                 </div>
                 <Button
                   onClick={startBatchGeocoding}
@@ -777,9 +789,17 @@ const AdminMapAnalytics: React.FC = () => {
                   )}
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 italic">
-                This will convert all addresses to coordinates (may take 5-10 minutes for large datasets)
-              </p>
+
+              {/* Geocoding Information */}
+              <div className="bg-blue-50 border border-blue-200 rounded p-2 space-y-1">
+                <p className="text-xs font-medium text-blue-900">ℹ️ How it works:</p>
+                <ul className="text-xs text-blue-800 space-y-1 ml-2">
+                  <li>• Uses multiple geocoding providers (Google Maps, OpenStreetMap, OpenCage)</li>
+                  <li>• Automatically retries failed addresses with different providers</li>
+                  <li>• Processes in batches of 50 with rate limiting to avoid API issues</li>
+                  <li>• May take 10-20 minutes for large datasets depending on API limits</li>
+                </ul>
+              </div>
             </div>
           )}
         </div>
