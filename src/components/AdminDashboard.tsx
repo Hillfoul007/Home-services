@@ -503,6 +503,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="riders">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>✓ Rider Management:</strong> Add and manage delivery riders. Set live location links for real-time tracking during orders.</p>
+            </div>
+            <AdminRiderManagement />
+          </TabsContent>
+
+          <TabsContent value="daily-orders">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>✓ Daily Orders:</strong> View vendor orders grouped by day. Today's orders appear first, with option to view previous days.</p>
+            </div>
+            <AdminDailyOrdersView />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
