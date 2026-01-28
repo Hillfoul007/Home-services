@@ -123,9 +123,9 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
   return (
     <>
       {/* Banner Carousel */}
-      <div className="relative w-full mb-4">
+      <div className="relative w-full mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-laundrify-purple to-laundrify-pink">
         <div
-          className="relative w-full h-40 md:h-56 cursor-pointer flex items-center justify-center bg-cover bg-center bg-no-repeat transition-all duration-500 overflow-hidden rounded-2xl bg-gradient-to-r from-laundrify-purple to-laundrify-pink"
+          className="relative w-full h-40 md:h-56 cursor-pointer flex items-center justify-center bg-cover bg-center bg-no-repeat transition-all duration-500"
           style={{
             backgroundImage: currentBanner.imageUrl
               ? `url(${currentBanner.imageUrl})`
@@ -148,55 +148,55 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
                 {currentBanner.description}
               </p>
             )}
-            <button className="inline-flex items-center gap-1 bg-white/30 hover:bg-white/40 px-3 py-1 rounded-md transition-all duration-200 text-white text-xs font-medium drop-shadow-md">
+            <button className="inline-flex items-center gap-0.5 bg-white/30 hover:bg-white/40 px-2 py-0.5 rounded-md transition-all duration-200 text-white text-xs font-medium drop-shadow-md">
               Explore
               <ExternalLink className="h-3 w-3" />
             </button>
           </div>
 
-          {/* Navigation Arrows - Positioned on the sides */}
+          {/* Navigation Arrows - Small, on sides */}
           {banners.length > 1 && (
             <>
               <button
                 onClick={goToPrevious}
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-2 rounded-full transition-all duration-200"
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1 rounded-full transition-all duration-200"
                 aria-label="Previous banner"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </button>
 
               <button
                 onClick={goToNext}
-                className="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-2 rounded-full transition-all duration-200"
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1 rounded-full transition-all duration-200"
                 aria-label="Next banner"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </>
           )}
-        </div>
 
-        {/* Dots Indicator - Positioned below the banner */}
-        {banners.length > 1 && (
-          <div className="flex justify-center gap-1 mt-3 pb-2">
-            {banners.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  setCurrentIndex(index);
-                  setAutoRotateEnabled(false);
-                  setTimeout(() => setAutoRotateEnabled(true), 5000);
-                }}
-                className={`rounded-full transition-all duration-300 ${
-                  index === currentIndex
-                    ? "bg-laundrify-purple w-2.5 h-2.5"
-                    : "bg-gray-300 w-2 h-2 hover:bg-gray-400"
-                }`}
-                aria-label={`Go to banner ${index + 1}`}
-              />
-            ))}
-          </div>
-        )}
+          {/* Dots Indicator - Small, on banner */}
+          {banners.length > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-0.5">
+              {banners.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setCurrentIndex(index);
+                    setAutoRotateEnabled(false);
+                    setTimeout(() => setAutoRotateEnabled(true), 5000);
+                  }}
+                  className={`rounded-full transition-all duration-300 ${
+                    index === currentIndex
+                      ? "bg-white w-1.5 h-1.5 drop-shadow-sm"
+                      : "bg-white/40 w-1 h-1 hover:bg-white/60"
+                  }`}
+                  aria-label={`Go to banner ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Confirmation Dialog */}
