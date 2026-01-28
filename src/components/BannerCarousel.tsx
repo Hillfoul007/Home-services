@@ -123,9 +123,9 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
   return (
     <>
       {/* Banner Carousel */}
-      <div className="relative w-full mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-laundrify-purple to-laundrify-pink">
+      <div className="relative w-full mb-4">
         <div
-          className="relative w-full h-40 md:h-56 cursor-pointer flex items-center justify-center bg-cover bg-center bg-no-repeat transition-all duration-500"
+          className="relative w-full h-40 md:h-56 cursor-pointer flex items-center justify-center bg-cover bg-center bg-no-repeat transition-all duration-500 overflow-hidden rounded-2xl bg-gradient-to-r from-laundrify-purple to-laundrify-pink"
           style={{
             backgroundImage: currentBanner.imageUrl
               ? `url(${currentBanner.imageUrl})`
@@ -153,30 +153,32 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
               <ExternalLink className="h-3 w-3" />
             </button>
           </div>
+
+          {/* Navigation Arrows - Positioned on the sides */}
+          {banners.length > 1 && (
+            <>
+              <button
+                onClick={goToPrevious}
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-2 rounded-full transition-all duration-200"
+                aria-label="Previous banner"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
+              <button
+                onClick={goToNext}
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-2 rounded-full transition-all duration-200"
+                aria-label="Next banner"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Navigation Arrows - Small and subtle */}
+        {/* Dots Indicator - Positioned below the banner */}
         {banners.length > 1 && (
-          <>
-            <button
-              onClick={goToPrevious}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded-full transition-all duration-200"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            <button
-              onClick={goToNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded-full transition-all duration-200"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </>
-        )}
-
-        {/* Dots Indicator - Minimal and professional */}
-        {banners.length > 1 && (
-          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex gap-0.5">
+          <div className="flex justify-center gap-1 mt-3 pb-2">
             {banners.map((_, index) => (
               <button
                 key={index}
@@ -187,9 +189,10 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
                 }}
                 className={`rounded-full transition-all duration-300 ${
                   index === currentIndex
-                    ? "bg-white w-2 h-0.5 drop-shadow-sm"
-                    : "bg-white/40 w-0.5 h-0.5 hover:bg-white/60"
+                    ? "bg-laundrify-purple w-2.5 h-2.5"
+                    : "bg-gray-300 w-2 h-2 hover:bg-gray-400"
                 }`}
+                aria-label={`Go to banner ${index + 1}`}
               />
             ))}
           </div>
