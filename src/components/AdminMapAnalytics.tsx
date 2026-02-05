@@ -271,7 +271,12 @@ const AdminMapAnalytics: React.FC = () => {
     try {
       const google = await getGoogleMaps();
 
-      // Clear old markers (simple approach - create new map instance)
+      // Clear old markers from the map
+      googleMarkersRef.current.forEach((marker) => {
+        marker.setMap(null);
+      });
+      googleMarkersRef.current = [];
+
       const infoWindows: any[] = [];
 
       markersData.forEach((marker) => {
@@ -283,6 +288,9 @@ const AdminMapAnalytics: React.FC = () => {
           title: marker.orderId,
           icon: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
         });
+
+        // Store marker reference for later cleanup
+        googleMarkersRef.current.push(googleMarker);
 
         // Create info window for each marker
         const infoWindow = new google.maps.InfoWindow({
