@@ -629,22 +629,7 @@ const AdminMapAnalytics: React.FC = () => {
                 {/* Selected months pills */}
                 {selectedMonths.size > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {useMemo(() =>
-                      Array.from(selectedMonths).sort().reverse().map((monthYear) => (
-                        <div
-                          key={monthYear}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
-                        >
-                          {getMonthYearDisplay(monthYear)}
-                          <button
-                            onClick={() => toggleMonth(monthYear)}
-                            className="hover:text-laundrify-purple/70 ml-1"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))
-                    , [selectedMonths, getMonthYearDisplay, toggleMonth])}
+                    {selectedMonthsPills}
                   </div>
                 )}
               </div>
