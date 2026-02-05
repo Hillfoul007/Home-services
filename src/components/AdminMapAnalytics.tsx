@@ -65,6 +65,7 @@ const getGoogleMaps = async () => {
 
 const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
+  const googleMarkersRef = useRef<any[]>([]);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
 
