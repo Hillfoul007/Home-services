@@ -174,6 +174,26 @@ const AdminMapAnalytics: React.FC = () => {
     return months;
   }, []);
 
+  // Memoize selected months pills rendering (moved to top level to fix hook order)
+  const selectedMonthsPills = useMemo(() => {
+    if (selectedMonths.size === 0) return null;
+
+    return Array.from(selectedMonths).sort().reverse().map((monthYear) => (
+      <div
+        key={monthYear}
+        className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
+      >
+        {getMonthYearDisplay(monthYear)}
+        <button
+          onClick={() => toggleMonth(monthYear)}
+          className="hover:text-laundrify-purple/70 ml-1"
+        >
+          ×
+        </button>
+      </div>
+    ));
+  }, [selectedMonths, getMonthYearDisplay, toggleMonth]);
+
   // Memoized fetch function to avoid recreating on every render (MUST BE BEFORE useEffect that uses it)
   const fetchMapOrders = useCallback(async () => {
     try {
