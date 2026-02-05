@@ -261,7 +261,7 @@ const AdminMapAnalytics: React.FC = () => {
       setPolygon([]);
       setAreaStats(null);
     }
-  }, [map, fetchMapOrders]);
+  }, [map, fetchMapOrders, selectedMonths, selectedStatus]);
 
   // Plot markers on map
   const plotMarkers = async (markersData: MapMarker[]) => {
