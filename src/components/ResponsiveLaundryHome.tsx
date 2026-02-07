@@ -70,6 +70,7 @@ import { debugVerificationSystem } from "@/utils/debugVerification";
 import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
 import "@/styles/mobile-sticky-search.css";
+import "@/styles/mobile-advanced-design.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
 
