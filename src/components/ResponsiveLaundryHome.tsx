@@ -1181,23 +1181,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             </button>
           </div>
         )}
-        {/* Empty State */}
-        {!getPopularServices().length && (
-          <div className="text-center py-8">
-            <h2 className="text-2xl font-bold text-laundrify-blue mb-4">
-              Welcome to Laundrify
-            </h2>
-            <p className="text-laundrify-blue/80 mb-6">
-              Quick Clean & Convenient thats laundrify
-            </p>
-            <Button
-              onClick={handleBookService}
-              className="bg-laundrify-mint hover:bg-laundrify-mint/90 px-8 py-3 rounded-xl text-lg font-medium text-laundrify-blue"
-            >
-              Get Started
-            </Button>
-          </div>
-        )}
 
 {/* Auth Modal */}
         <PhoneOtpAuthModal
