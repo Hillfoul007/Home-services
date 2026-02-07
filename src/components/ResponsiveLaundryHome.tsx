@@ -924,149 +924,72 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
         </div>
 
 
-        {/* Non-sticky delivery/location section */}
-        <div className="p-4">
-          {/* Delivery Time & Location */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-white">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  🕐 Pick up in {deliveryTime}
-                </span>
-                <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
-                  Available
-                </span>
-              </div>
-            </div>
-            <div
-              className={`flex items-center gap-2 text-sm ${
-                userLocation?.includes("denied") ||
-                userLocation?.includes("access denied")
-                  ? "cursor-pointer hover:text-white/80 transition-colors"
-                  : ""
-              }`}
-              onClick={
-                userLocation?.includes("denied") ||
-                userLocation?.includes("access denied")
-                  ? requestLocationPermission
-                  : undefined
-              }
-              title={
-                userLocation?.includes("denied") ||
-                userLocation?.includes("access denied")
-                  ? "Click to request location permission again"
-                  : undefined
-              }
-            >
-              <MapPin
-                className={`h-4 w-4 sm:mt-0 mt-2 ${
-                  userLocation?.includes("denied") ||
-                  userLocation?.includes("access denied")
-                    ? "animate-pulse"
-                    : ""
-                }`}
-              />
-              <span className="sm:mb-0 mb-auto sm:pt-0 pt-2">
-                {isRequestingLocation
-                  ? "Requesting location..."
-                  : userLocation || "Detect Location"}
-              </span>
-            </div>
-
-            {/* Professional Quick Pickup Button */}
-            <Button
-              onClick={handleQuickPickup}
-              className="w-full bg-gradient-to-r from-white to-gray-50 text-purple-700 font-semibold py-3 px-4 rounded-xl shadow-lg border border-white/20 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-xl mt-3 mb-4 relative z-[60]"
-              style={{
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-              }}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Clock className="h-5 w-5 text-purple-600" />
-                <span className="text-base">Quick Pickup</span>
-                <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center ml-1">
-                  <span className="text-white text-sm">⚡</span>
-                </div>
-              </div>
-            </Button>
+        {/* Delivery Time Display */}
+        <div className="premium-delivery-time">
+          <div className="premium-delivery-time-content">
+            <Clock className="premium-delivery-icon" size={16} />
+            <span className="premium-delivery-text">Delivery in {deliveryTime}</span>
+            <span className="premium-delivery-badge">Free Delivery</span>
           </div>
         </div>
 
-        {/* Banner Carousel */}
-        <div className="px-4 py-2">
-          <BannerCarousel />
+        {/* Premium Search Bar */}
+        <div className="premium-search-section">
+          <div className="premium-search-bar">
+            <Search className="premium-search-icon" size={16} />
+            <Input
+              placeholder="Search services..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="premium-search-input"
+            />
+            <VoiceSearch
+              onResult={(transcript) => {
+                handleSearch(transcript);
+              }}
+              onError={(error) => {
+                console.error("Voice search error:", error);
+              }}
+              className="text-gray-400"
+            />
+          </div>
         </div>
 
-        {/* Sticky Search and Categories Only */}
-        <div className="sticky top-0 bg-gradient-to-b from-laundrify-purple to-laundrify-pink z-40 shadow-lg">
-          <div className="px-4 pt-4 pb-2 space-y-3 sm:mt-0 -mt-1 sm:pl-4 pl-4">
-            {/* Search Bar */}
-            <div className="bg-gray-800 rounded-xl flex items-center px-4 py-3 mobile-sticky-search">
-              <Search className="h-5 w-5 text-gray-400 mr-3" />
-              <Input
-                placeholder="Search laundry services"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="bg-transparent border-none text-white placeholder-gray-400 focus:ring-0 p-0 text-sm"
-              />
-              <VoiceSearch
-                onResult={(transcript) => {
-                  handleSearch(transcript);
-                }}
-                onError={(error) => {
-                  console.error("Voice search error:", error);
-                }}
-                className="ml-3 text-gray-400 hover:text-white"
-              />
-            </div>
+        {/* Premium Filter Chips */}
+        <div className="premium-filter-section">
+          <div className="premium-filters">
+            <button
+              onClick={() => setSelectedCategory("all")}
+              className={`premium-filter-chip ${selectedCategory === "all" ? "active" : ""}`}
+            >
+              All Services
+            </button>
 
-            {/* Categories */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mobile-sticky-categories">
-              <Button
-                variant={selectedCategory === "all" ? "default" : "ghost"}
-                onClick={() => setSelectedCategory("all")}
-                className={`flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border ${
-                  selectedCategory === "all"
-                    ? "bg-white text-laundrify-blue border-white shadow-lg"
-                    : "bg-laundrify-blue/80 text-white border-white/30 hover:bg-laundrify-blue hover:border-white/50 shadow-md"
-                }`}
-              >
-                All
-              </Button>
+            <button
+              onClick={() => navigate("/pg-booking")}
+              className="premium-filter-chip active"
+              title="PG Laundry & Iron Service"
+            >
+              <Home size={14} className="inline mr-1" />
+              PG Booking
+            </button>
 
-              <Button
-                onClick={() => navigate("/pg-booking")}
-                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border bg-gradient-to-r from-laundrify-pink to-laundrify-red text-white border-laundrify-red/50 hover:from-laundrify-pink/90 hover:to-laundrify-red/90 shadow-md whitespace-nowrap"
-                title="PG Laundry & Iron Service"
-              >
-                <Home className="h-3 w-3 mr-1" />
-                <span>PG</span>
-              </Button>
-
-              {(useStaticFallback
-                ? (serviceCategories || []).slice(1)
-                : dynamicServices || []
-              )
-                .filter((category) => category.enabled !== false)
-                .map((category) => (
-                  <Button
-                    key={category.id}
-                    variant={
-                      selectedCategory === category.id ? "default" : "ghost"
-                    }
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border ${
-                      selectedCategory === category.id
-                        ? "bg-white text-laundrify-blue border-white shadow-lg"
-                        : "bg-laundrify-blue/80 text-white border-white/30 hover:bg-laundrify-blue hover:border-white/50 shadow-md"
-                    }`}
-                  >
-                    <span className="mr-1">{category.icon}</span>
-                    <span className="whitespace-nowrap">{category.name}</span>
-                  </Button>
-                ))}
-            </div>
+            {(useStaticFallback
+              ? (serviceCategories || []).slice(1)
+              : dynamicServices || []
+            )
+              .filter((category) => category.enabled !== false)
+              .slice(0, 5)
+              .map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`premium-filter-chip ${selectedCategory === category.id ? "active" : ""}`}
+                >
+                  <span className="mr-1">{category.icon}</span>
+                  {category.name}
+                </button>
+              ))}
           </div>
         </div>
 
