@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import "@/styles/mobile-advanced-design.css";
 
 interface PG {
   _id: string;
