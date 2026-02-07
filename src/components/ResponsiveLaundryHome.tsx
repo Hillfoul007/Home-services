@@ -73,6 +73,7 @@ import "@/styles/mobile-sticky-search.css";
 import "@/styles/mobile-advanced-design.css";
 import "@/styles/mobile-gestures-animations.css";
 import "@/styles/mobile-typography-spacing.css";
+import "@/styles/mobile-gesture-support.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
 
