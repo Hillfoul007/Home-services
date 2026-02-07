@@ -1170,23 +1170,15 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           )}
         </div>
 
-        {/* Floating Cart Button - Mobile */}
+        {/* Premium Floating Cart Button */}
         {getCartItemCount() > 0 && (
-          <div className="fixed bottom-4 left-4 right-4 z-50">
-            <Button
+          <div className="premium-bottom-bar">
+            <button
               onClick={onViewCart}
-              className="w-full bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue rounded-xl py-3 flex items-center justify-between shadow-lg"
+              className="premium-bottom-button"
             >
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="h-4 w-4" />
-                <span className="font-semibold text-sm">
-                  {getCartItemCount()} item{getCartItemCount() > 1 ? "s" : ""}
-                </span>
-              </div>
-              <span className="text-xs bg-white/20 px-2 py-1 rounded">
-                View Cart
-              </span>
-            </Button>
+              <span>🛒 View Cart ({getCartItemCount()}) • ₹{getSubtotal()}</span>
+            </button>
           </div>
         )}
         {/* Empty State */}
