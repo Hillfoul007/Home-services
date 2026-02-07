@@ -71,6 +71,7 @@ import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
 import "@/styles/mobile-sticky-search.css";
 import "@/styles/mobile-advanced-design.css";
+import "@/styles/mobile-gestures-animations.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
 
