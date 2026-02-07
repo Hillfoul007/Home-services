@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import "@/styles/mobile-advanced-design.css";
 import "@/styles/mobile-pgbooking-advanced.css";
+import "@/styles/mobile-gestures-animations.css";
 
 interface PG {
   _id: string;
