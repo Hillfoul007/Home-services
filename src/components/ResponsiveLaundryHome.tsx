@@ -1018,136 +1018,155 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
-        {/* Services Grid */}
-        <div
-          id="services-section"
-          className="bg-white rounded-t-3xl min-h-screen p-4 relative"
-        >
+        {/* Premium Services Container */}
+        <div id="services-section" className="premium-services-container premium-content">
           {getFilteredServices().length === 0 ? (
-            <EmptyStateCard />
+            <div className="premium-empty-state">
+              <div className="premium-empty-icon">🔍</div>
+              <div className="premium-empty-title">No services available</div>
+              <div className="premium-empty-description">Try different filters or search terms</div>
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 pb-20 service-grid">
-              {getFilteredServices().map((service) => {
-                const quantity = cart[service.id] || 0;
+            <>
+              {/* Popular Items Section - Grid View */}
+              {getFilteredServices().filter(s => s.popular).length > 0 && (
+                <div className="premium-grid-section">
+                  <div className="premium-section-title">Trending Now</div>
+                  <div className="premium-service-grid">
+                    {getFilteredServices().filter(s => s.popular).slice(0, 4).map((service) => {
+                      const quantity = cart[service.id] || 0;
+                      return (
+                        <div key={service.id} className="premium-grid-card premium-animate-in">
+                          <div className="premium-grid-image-container">
+                            {service.image ? (
+                              <OptimizedImage
+                                src={service.image}
+                                alt={service.name}
+                                className="premium-grid-image"
+                                priority
+                              />
+                            ) : (
+                              <div className="premium-grid-image-fallback">
+                                {getCategoryDisplay(service.category).split(" ")[0]}
+                              </div>
+                            )}
+                            {service.popular && (
+                              <div className="premium-grid-badge">POPULAR</div>
+                            )}
+                          </div>
+                          <div className="premium-grid-content">
+                            <h3 className="premium-grid-name">{service.name}</h3>
+                            <p className="premium-grid-category">
+                              {getCategoryDisplay(service.category)}
+                            </p>
+                            <div className="premium-grid-footer">
+                              <span className="premium-grid-price">₹{service.price}</span>
+                              {quantity > 0 ? (
+                                <div className="premium-quantity-selector">
+                                  <button
+                                    onClick={() => removeFromCart(service.id)}
+                                    className="premium-quantity-btn"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="premium-quantity-value">{quantity}</span>
+                                  <button
+                                    onClick={() => addToCart(service.id)}
+                                    className="premium-quantity-btn"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => addToCart(service.id)}
+                                  className="premium-add-button"
+                                >
+                                  Add
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                return (
-                  <Card
-                    key={service.id}
-                    className="border-0 shadow-lg rounded-2xl overflow-hidden service-card"
-                  >
-                    <CardContent className="p-3 card-content">
-                      <div className="aspect-square bg-gradient-to-br from-laundrify-mint/20 to-laundrify-mint/40 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden">
+              {/* All Services - List View */}
+              <div className="premium-services-container">
+                {getFilteredServices().filter(s => !s.popular).length > 0 && (
+                  <div className="premium-section-title">All Services</div>
+                )}
+                {getFilteredServices().map((service) => {
+                  const quantity = cart[service.id] || 0;
+                  return (
+                    <div key={service.id} className="premium-service-card premium-animate-in">
+                      <div className="premium-service-image-container">
                         {service.image ? (
-                          <>
-                            <OptimizedImage
-                              src={service.image}
-                              alt={service.name}
-                              className="w-full h-full rounded-xl"
-                              priority={service.popular}
-                              fallback={
-                                <span className="text-3xl">
-                                  {
-                                    getCategoryDisplay(service.category).split(
-                                      " ",
-                                    )[0]
-                                  }
-                                </span>
-                              }
-                            />
-                            {service.popular && (
-                              <div className="absolute bottom-1 right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold z-10">
-                                Popular
-                              </div>
-                            )}
-                          </>
+                          <OptimizedImage
+                            src={service.image}
+                            alt={service.name}
+                            className="premium-service-image"
+                            priority={service.popular}
+                          />
                         ) : (
-                          <>
-                            <span className="text-3xl">
-                              {
-                                getCategoryDisplay(service.category).split(
-                                  " ",
-                                )[0]
-                              }
-                            </span>
-                            {service.popular && (
-                              <div className="absolute bottom-1 right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
-                                Popular
-                              </div>
-                            )}
-                          </>
+                          <div className="premium-service-image-fallback">
+                            {getCategoryDisplay(service.category).split(" ")[0]}
+                          </div>
+                        )}
+                        {service.popular && (
+                          <div className="premium-service-badge">HOT DEAL</div>
                         )}
                       </div>
 
-                      <div className="card-details">
-                        <div className="service-info">
-                          <h4 className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2 mb-2">
-                            {service.name}
-                          </h4>
-
-                          <div className="text-xs text-gray-600 mb-2">
+                      <div className="premium-service-content">
+                        <div className="premium-service-header">
+                          <h3 className="premium-service-name">{service.name}</h3>
+                          <p className="premium-service-category">
                             {getCategoryDisplay(service.category)}
-                          </div>
+                          </p>
                         </div>
 
-                        <div className="price-badge-container">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="text-sm font-bold text-gray-900">
-                                ₹{service.price}
-                              </span>
-                              <span className="text-xs text-gray-600 ml-1">
-                                {service.unit}
-                              </span>
-                            </div>
-
-                            {service.popular && !service.image && (
-                              <Badge className="bg-laundrify-yellow/20 text-laundrify-blue text-xs">
-                                Popular
-                              </Badge>
+                        <div className="premium-service-footer">
+                          <span className="premium-service-price">
+                            ₹{service.price}
+                            <span className="premium-service-unit">{service.unit}</span>
+                          </span>
+                          <div className="premium-service-actions">
+                            {quantity > 0 ? (
+                              <div className="premium-quantity-selector">
+                                <button
+                                  onClick={() => removeFromCart(service.id)}
+                                  className="premium-quantity-btn"
+                                >
+                                  −
+                                </button>
+                                <span className="premium-quantity-value">{quantity}</span>
+                                <button
+                                  onClick={() => addToCart(service.id)}
+                                  className="premium-quantity-btn"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => addToCart(service.id)}
+                                className="premium-add-button"
+                              >
+                                Add
+                              </button>
                             )}
                           </div>
                         </div>
-
-                        <div className="card-actions">
-                          {quantity > 0 ? (
-                            <div className="flex items-center justify-between bg-laundrify-mint/20 rounded-lg p-2 quantity-controls">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeFromCart(service.id)}
-                                className="h-6 w-6 p-0 text-laundrify-blue hover:bg-laundrify-mint/40"
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-
-                              <span className="font-semibold text-laundrify-blue text-sm">
-                                {quantity}
-                              </span>
-
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => addToCart(service.id)}
-                                className="h-6 w-6 p-0 text-laundrify-blue hover:bg-laundrify-mint/40"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              onClick={() => addToCart(service.id)}
-                              className="w-full bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue rounded-lg text-xs py-2 service-add-button mobile-button"
-                            >
-                              ADD
-                            </Button>
-                          )}
-                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
