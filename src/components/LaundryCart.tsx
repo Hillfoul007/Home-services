@@ -38,6 +38,8 @@ import {
   saveCartData,
   getCartData,
 } from "@/utils/formPersistence";
+import "@/styles/mobile-advanced-design.css";
+import "@/styles/mobile-cart-advanced.css";
 import SimplifiedAddressForm from "./SimplifiedAddressForm";
 import ProfessionalDateTimePicker from "./ProfessionalDateTimePicker";
 import DeliveryDateTimePicker from "./DeliveryDateTimePicker";
