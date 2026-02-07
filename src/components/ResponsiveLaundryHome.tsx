@@ -810,10 +810,10 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   );
 
   if (isMobile) {
-    // Mobile Interface
+    // Premium Mobile Interface - Zomato/Swiggy Style
     return (
-      <div className="min-h-screen bg-gradient-to-br from-laundrify-purple via-purple-400 to-laundrify-pink">
-        {/* Mobile Verification Status Banner */}
+      <div className="min-h-screen bg-white">
+        {/* Verification Status Banner */}
         {(() => {
           console.log('📱 Mobile Banner Check - pendingCount:', pendingCount, 'isMobile:', typeof window !== 'undefined' && window.innerWidth < 768);
           return pendingCount > 0;
@@ -837,56 +837,34 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
-        {/* Mobile Header */}
-        <div className={`bg-gradient-to-r from-laundrify-purple to-laundrify-pink text-white relative z-40 ${pendingCount > 0 ? 'pt-12' : ''}`}>
-          <div className="flex items-center justify-between mobile-header-safe">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 sm:w-14 sm:h-10 rounded-lg overflow-hidden bg-white p-1">
-                    <img
-                      src="/laundrify-exact-icon.svg"
-                      alt="Laundrify Logo"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-bold">Laundrify</h1>
-                    <div className="text-xs text-white/80">
-                      <span>Quick Clean & Convenient</span>
-                    </div>
-                  </div>
-                </div>
-                {currentUser && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/20 active:bg-white/30 p-3 h-10 w-10 mobile-button mobile-touch transition-all duration-200"
-                      onClick={handleViewBookings}
-                      title="View Bookings"
-                    >
-                      <Package className="h-5 w-5" />
-                    </Button>
-                  </>
-                )}
+        {/* Premium Header with Location & Actions */}
+        <div className={`premium-header ${pendingCount > 0 ? 'mt-12' : ''}`}>
+          <div className="premium-header-content">
+            <div className="premium-location-section">
+              <div className="premium-location-label">Delivery to</div>
+              <div className="premium-location-text">
+                <MapPin className="premium-location-icon" size={16} />
+                <span className="truncate">{userLocation || "Select Location"}</span>
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
+            <div className="premium-header-actions">
               {currentUser && (
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <NotificationBell
-                      userId={currentUser._id || currentUser.phone}
-                      className="text-white hover:bg-white/20"
-                    />
-                  </div>
-
-
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleViewBookings}
+                  className="premium-icon-button"
+                  title="View Orders"
+                >
+                  <Package size={20} />
+                </Button>
               )}
-
+              {currentUser && (
+                <NotificationBell
+                  userId={currentUser._id || currentUser.phone}
+                  className="premium-icon-button"
+                />
+              )}
               {currentUser ? (
                 <UserMenuDropdown
                   currentUser={currentUser}
@@ -895,21 +873,17 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
-                <Button
+                <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log("Mobile signin button clicked");
                     handleLogin();
                   }}
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:bg-white/20 active:bg-white/30 px-4 py-3 h-12 mobile-button mobile-touch rounded-lg transition-all duration-200 font-medium min-w-[100px]"
-                  type="button"
+                  className="premium-icon-button"
+                  title="Sign In"
                 >
-                  <User className="h-5 w-5 mr-2" />
-                  <span className="text-sm font-semibold">Sign In</span>
-                </Button>
+                  <User size={20} />
+                </button>
               )}
             </div>
           </div>
