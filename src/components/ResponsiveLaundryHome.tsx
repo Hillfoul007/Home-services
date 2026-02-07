@@ -1177,7 +1177,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
               onClick={onViewCart}
               className="premium-bottom-button"
             >
-              <span>🛒 View Cart ({getCartItemCount()}) • ₹{getSubtotal()}</span>
+              <span>🛒 View Cart ({getCartItemCount()}) • ₹{getCartTotal()}</span>
             </button>
           </div>
         )}
