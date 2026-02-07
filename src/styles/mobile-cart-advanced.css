@@ -1,9 +1,6 @@
-/* ============================================
-   ADVANCED MOBILE CART STYLES
-   ============================================ */
+/* ADVANCED MOBILE CART STYLES */
 
 @media (max-width: 768px) {
-  /* Cart Header with improved sticky positioning */
   .mobile-cart-header {
     position: sticky;
     top: 0;
@@ -19,7 +16,7 @@
   }
   
   .mobile-cart-header-back {
-    flex-shrink-0;
+    flex-shrink: 0;
     width: 40px;
     height: 40px;
     display: flex;
@@ -56,10 +53,8 @@
     text-align: center;
   }
   
-  /* Cart Items Section */
   .mobile-cart-items-container {
     padding: var(--space-md);
-    space-y: var(--space-md);
   }
   
   .mobile-cart-item {
@@ -162,14 +157,12 @@
     background: rgba(239, 68, 68, 0.2);
   }
   
-  /* Cart Summary Section */
   .mobile-cart-summary {
     padding: var(--space-lg) var(--space-md);
     background: linear-gradient(135deg, rgba(31, 41, 55, 0.6), rgba(55, 65, 81, 0.4));
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-xl);
     margin: var(--space-md);
-    space-y: var(--space-md);
   }
   
   .mobile-cart-summary-row {
@@ -203,7 +196,6 @@
     font-size: var(--font-size-xl);
   }
   
-  /* Coupon & Wallet Section */
   .mobile-cart-promo-section {
     padding: var(--space-lg) var(--space-md);
   }
@@ -259,65 +251,6 @@
     transform: scale(0.98);
   }
   
-  .mobile-cart-promo-status {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-md);
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    border-radius: var(--radius-lg);
-    color: var(--color-success);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-  }
-  
-  .mobile-cart-promo-remove {
-    background: rgba(239, 68, 68, 0.1);
-    border: none;
-    color: var(--color-danger);
-    cursor: pointer;
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-md);
-    transition: all var(--transition-base);
-  }
-  
-  .mobile-cart-promo-remove:active {
-    background: rgba(239, 68, 68, 0.2);
-    transform: scale(0.95);
-  }
-  
-  /* Empty Cart State */
-  .mobile-cart-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 300px;
-    padding: var(--space-xl);
-    text-align: center;
-  }
-  
-  .mobile-cart-empty-icon {
-    font-size: 3rem;
-    margin-bottom: var(--space-lg);
-    opacity: 0.6;
-  }
-  
-  .mobile-cart-empty-title {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-    color: white;
-    margin-bottom: var(--space-sm);
-  }
-  
-  .mobile-cart-empty-description {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: var(--font-size-base);
-    margin-bottom: var(--space-lg);
-  }
-  
-  /* Fixed Bottom Checkout Button */
   .mobile-cart-checkout-fixed {
     position: fixed;
     bottom: 0;
@@ -360,7 +293,6 @@
     cursor: not-allowed;
   }
   
-  /* Address & Details Section */
   .mobile-cart-section {
     padding: var(--space-lg) var(--space-md);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -374,19 +306,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-  }
-  
-  .mobile-cart-section-title-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-lg);
-    background: rgba(147, 51, 234, 0.15);
-    border: 1px solid rgba(147, 51, 234, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-primary-light);
-    font-size: var(--font-size-sm);
   }
   
   .mobile-cart-form-group {
@@ -417,31 +336,6 @@
   }
   
   .mobile-cart-form-input:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    background: rgba(31, 41, 55, 0.7);
-    box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.1);
-  }
-  
-  .mobile-cart-form-textarea {
-    width: 100%;
-    padding: var(--space-md);
-    background: rgba(31, 41, 55, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: var(--radius-lg);
-    color: white;
-    font-size: var(--font-size-base);
-    min-height: 100px;
-    resize: vertical;
-    font-family: inherit;
-    transition: all var(--transition-base);
-  }
-  
-  .mobile-cart-form-textarea::placeholder {
-    color: rgba(255, 255, 255, 0.5);
-  }
-  
-  .mobile-cart-form-textarea:focus {
     outline: none;
     border-color: var(--color-primary);
     background: rgba(31, 41, 55, 0.7);
