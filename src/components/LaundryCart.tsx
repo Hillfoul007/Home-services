@@ -41,6 +41,7 @@ import {
 import "@/styles/mobile-advanced-design.css";
 import "@/styles/mobile-cart-advanced.css";
 import "@/styles/mobile-gestures-animations.css";
+import "@/styles/mobile-typography-spacing.css";
 import SimplifiedAddressForm from "./SimplifiedAddressForm";
 import ProfessionalDateTimePicker from "./ProfessionalDateTimePicker";
 import DeliveryDateTimePicker from "./DeliveryDateTimePicker";
