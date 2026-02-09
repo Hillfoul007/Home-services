@@ -143,7 +143,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "24-48 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1612393507854-4f0e8c7a78ed?w=800&q=80",
   },
   {
     id: "household-bedsheet-double",
