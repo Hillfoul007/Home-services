@@ -185,7 +185,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "24-48 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
   },
   {
     id: "shoes-leather",
