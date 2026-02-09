@@ -35,6 +35,7 @@ import "@/styles/mobile-pgbooking-advanced.css";
 import "@/styles/mobile-gestures-animations.css";
 import "@/styles/mobile-typography-spacing.css";
 import "@/styles/mobile-gesture-support.css";
+import "@/styles/premium-app-ui.css";
 
 interface PG {
   _id: string;
