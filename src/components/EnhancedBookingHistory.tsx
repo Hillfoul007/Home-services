@@ -58,6 +58,8 @@ import {
   getServicePriceWithFallback,
   calculateServiceTotal,
 } from "@/utils/servicePricing";
+import "@/styles/premium-app-ui.css";
+import "@/styles/premium-booking-history-ui.css";
 
 interface EnhancedBookingHistoryProps {
   currentUser?: any;
