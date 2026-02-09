@@ -173,7 +173,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "24-48 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=800&q=80",
   },
 
   // Shoes
