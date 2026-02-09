@@ -163,7 +163,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "48-72 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1599843682286-ac3e12a7f32a?w=800&q=80",
   },
   {
     id: "household-table-matte",
