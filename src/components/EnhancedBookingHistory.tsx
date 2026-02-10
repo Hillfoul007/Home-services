@@ -58,6 +58,8 @@ import {
   getServicePriceWithFallback,
   calculateServiceTotal,
 } from "@/utils/servicePricing";
+import "@/styles/premium-app-ui.css";
+import "@/styles/premium-booking-history-ui.css";
 
 interface EnhancedBookingHistoryProps {
   currentUser?: any;
@@ -713,10 +715,10 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
     if (!currentUser) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
-            <CardContent className="text-center py-12">
-              <User className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
+          <Card className="w-full max-w-md border-gray-100">
+            <CardContent className="text-center py-12 bg-white">
+              <User className="h-16 w-16 text-gray-300 mx-auto mb-6" />
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
                 Sign In Required
               </h2>
@@ -725,7 +727,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               </p>
               <Button
                 onClick={onLoginRequired}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 w-full py-3 rounded-xl text-white font-medium"
+                className="bg-purple-600 hover:bg-purple-700 w-full py-3 rounded-xl text-white font-medium"
               >
                 <User className="mr-2 h-4 w-4" />
                 Sign In
@@ -738,9 +740,9 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
     if (loading) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mx-auto mb-4"></div>
             <p className="text-gray-600 font-medium">
               Loading your bookings...
             </p>
@@ -750,9 +752,9 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
     }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="min-h-screen bg-white">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-6 sm:py-6">
+        <div className="bg-white border-b border-gray-100 px-3 py-3 sm:px-6 sm:py-6 sticky top-0 z-10">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 sm:gap-4">
@@ -761,18 +763,18 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                     onClick={onBack}
                     variant="ghost"
                     size="sm"
-                    className="text-gray-600 hover:text-gray-900 p-1 sm:p-2"
+                    className="text-gray-700 hover:text-gray-900 p-1 sm:p-2"
                   >
                     <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 )}
                 <div>
                   <h1 className="text-xl sm:text-3xl font-bold text-gray-900">
-                    Booking History
+                    My Orders
                   </h1>
-                  <p className="text-gray-600 mt-1 text-sm sm:text-base">
+                  <p className="text-gray-500 mt-1 text-sm sm:text-base">
                     {bookings.length}{" "}
-                    {bookings.length === 1 ? "booking" : "bookings"} found
+                    {bookings.length === 1 ? "booking" : "bookings"}
                   </p>
                 </div>
               </div>
@@ -797,18 +799,18 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         {/* Content */}
         <div className="max-w-4xl mx-auto px-3 py-3 sm:px-6 sm:py-8">
           {bookings.length === 0 ? (
-            <Card className="text-center py-12">
-              <CardContent>
-                <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+            <Card className="text-center py-12 border-gray-100">
+              <CardContent className="bg-white">
+                <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-6" />
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                  No Bookings Yet
+                  No Orders Yet
                 </h3>
                 <p className="text-gray-600 mb-8">
                   Your booking history will appear here once you book a service.
                 </p>
                 <Button
                   onClick={onBack}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium"
                 >
                   Book Your First Service
                 </Button>
@@ -835,16 +837,16 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 return (
                   <Card
                     key={bookingId}
-                    className="overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+                    className="overflow-hidden border border-gray-100 shadow-sm hover:shadow-md hover:border-purple-200 transition-all duration-200 cursor-pointer"
                     onClick={toggleExpand}
                   >
                     {/* Compact Card Header - Always Visible */}
-                    <CardHeader className="pb-2 px-3 py-3 bg-gradient-to-r from-green-50 to-blue-50">
+                    <CardHeader className="pb-2 px-3 py-3 bg-gradient-to-r from-white to-purple-50 border-b border-gray-100">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <div className="flex flex-col">
-                              <h3 className="font-bold text-base text-blue-600 truncate">
+                              <h3 className="font-bold text-base text-purple-600 truncate">
                                 #
                                 {booking.custom_order_id ||
                                   booking.order_id ||
@@ -861,12 +863,12 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                           {/* Quick Pickup Indicator */}
                           {(booking.isQuickPickup || (booking as any).is_quick_pickup) && (
                             <div className="flex items-center gap-1 mt-1">
-                              <div className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                              <div className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <RefreshCw className="h-3 w-3" />
                                 <span>🚀 Quick Pickup</span>
                               </div>
                               {((booking as any).quick_pickup_tag || booking.quickPickupNote) && (
-                                <div className="text-xs text-blue-600 font-medium">
+                                <div className="text-xs text-purple-600 font-medium">
                                   {(booking as any).quick_pickup_tag || booking.quickPickupNote}
                                 </div>
                               )}
@@ -914,7 +916,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                   "10:00 AM"}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1 text-green-600 font-semibold ml-auto">
+                            <div className="flex items-center gap-1 text-purple-600 font-semibold ml-auto">
                               <span>₹{total}</span>
                             </div>
                           </div>

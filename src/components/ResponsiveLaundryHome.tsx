@@ -70,6 +70,11 @@ import { debugVerificationSystem } from "@/utils/debugVerification";
 import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
 import "@/styles/mobile-sticky-search.css";
+import "@/styles/mobile-advanced-design.css";
+import "@/styles/mobile-gestures-animations.css";
+import "@/styles/mobile-typography-spacing.css";
+import "@/styles/mobile-gesture-support.css";
+import "@/styles/premium-app-ui.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
 
@@ -805,10 +810,10 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   );
 
   if (isMobile) {
-    // Mobile Interface
+    // Premium Mobile Interface - Zomato/Swiggy Style
     return (
-      <div className="min-h-screen bg-gradient-to-br from-laundrify-purple via-purple-400 to-laundrify-pink">
-        {/* Mobile Verification Status Banner */}
+      <div className="min-h-screen bg-white">
+        {/* Verification Status Banner */}
         {(() => {
           console.log('📱 Mobile Banner Check - pendingCount:', pendingCount, 'isMobile:', typeof window !== 'undefined' && window.innerWidth < 768);
           return pendingCount > 0;
@@ -832,56 +837,34 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
-        {/* Mobile Header */}
-        <div className={`bg-gradient-to-r from-laundrify-purple to-laundrify-pink text-white relative z-40 ${pendingCount > 0 ? 'pt-12' : ''}`}>
-          <div className="flex items-center justify-between mobile-header-safe">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 sm:w-14 sm:h-10 rounded-lg overflow-hidden bg-white p-1">
-                    <img
-                      src="/laundrify-exact-icon.svg"
-                      alt="Laundrify Logo"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-bold">Laundrify</h1>
-                    <div className="text-xs text-white/80">
-                      <span>Quick Clean & Convenient</span>
-                    </div>
-                  </div>
-                </div>
-                {currentUser && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/20 active:bg-white/30 p-3 h-10 w-10 mobile-button mobile-touch transition-all duration-200"
-                      onClick={handleViewBookings}
-                      title="View Bookings"
-                    >
-                      <Package className="h-5 w-5" />
-                    </Button>
-                  </>
-                )}
+        {/* Premium Header with Location & Actions */}
+        <div className={`premium-header ${pendingCount > 0 ? 'mt-12' : ''}`}>
+          <div className="premium-header-content">
+            <div className="premium-location-section">
+              <div className="premium-location-label">Delivery to</div>
+              <div className="premium-location-text">
+                <MapPin className="premium-location-icon" size={16} />
+                <span className="truncate">{userLocation || "Select Location"}</span>
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
+            <div className="premium-header-actions">
               {currentUser && (
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <NotificationBell
-                      userId={currentUser._id || currentUser.phone}
-                      className="text-white hover:bg-white/20"
-                    />
-                  </div>
-
-
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleViewBookings}
+                  className="premium-icon-button"
+                  title="View Orders"
+                >
+                  <Package size={20} />
+                </Button>
               )}
-
+              {currentUser && (
+                <NotificationBell
+                  userId={currentUser._id || currentUser.phone}
+                  className="premium-icon-button"
+                />
+              )}
               {currentUser ? (
                 <UserMenuDropdown
                   currentUser={currentUser}
@@ -890,21 +873,17 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
-                <Button
+                <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log("Mobile signin button clicked");
                     handleLogin();
                   }}
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:bg-white/20 active:bg-white/30 px-4 py-3 h-12 mobile-button mobile-touch rounded-lg transition-all duration-200 font-medium min-w-[100px]"
-                  type="button"
+                  className="premium-icon-button"
+                  title="Sign In"
                 >
-                  <User className="h-5 w-5 mr-2" />
-                  <span className="text-sm font-semibold">Sign In</span>
-                </Button>
+                  <User size={20} />
+                </button>
               )}
             </div>
           </div>
@@ -945,149 +924,77 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
         </div>
 
 
-        {/* Non-sticky delivery/location section */}
-        <div className="p-4">
-          {/* Delivery Time & Location */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-white">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  🕐 Pick up in {deliveryTime}
-                </span>
-                <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
-                  Available
-                </span>
-              </div>
-            </div>
-            <div
-              className={`flex items-center gap-2 text-sm ${
-                userLocation?.includes("denied") ||
-                userLocation?.includes("access denied")
-                  ? "cursor-pointer hover:text-white/80 transition-colors"
-                  : ""
-              }`}
-              onClick={
-                userLocation?.includes("denied") ||
-                userLocation?.includes("access denied")
-                  ? requestLocationPermission
-                  : undefined
-              }
-              title={
-                userLocation?.includes("denied") ||
-                userLocation?.includes("access denied")
-                  ? "Click to request location permission again"
-                  : undefined
-              }
-            >
-              <MapPin
-                className={`h-4 w-4 sm:mt-0 mt-2 ${
-                  userLocation?.includes("denied") ||
-                  userLocation?.includes("access denied")
-                    ? "animate-pulse"
-                    : ""
-                }`}
-              />
-              <span className="sm:mb-0 mb-auto sm:pt-0 pt-2">
-                {isRequestingLocation
-                  ? "Requesting location..."
-                  : userLocation || "Detect Location"}
-              </span>
-            </div>
-
-            {/* Professional Quick Pickup Button */}
-            <Button
-              onClick={handleQuickPickup}
-              className="w-full bg-gradient-to-r from-white to-gray-50 text-purple-700 font-semibold py-3 px-4 rounded-xl shadow-lg border border-white/20 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-xl mt-3 mb-4 relative z-[60]"
-              style={{
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-              }}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Clock className="h-5 w-5 text-purple-600" />
-                <span className="text-base">Quick Pickup</span>
-                <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center ml-1">
-                  <span className="text-white text-sm">⚡</span>
-                </div>
-              </div>
-            </Button>
+        {/* Delivery Time Display */}
+        <div className="premium-delivery-time">
+          <div className="premium-delivery-time-content">
+            <Clock className="premium-delivery-icon" size={16} />
+            <span className="premium-delivery-text">Delivery in {deliveryTime}</span>
+            <span className="premium-delivery-badge">Free Delivery</span>
           </div>
         </div>
 
         {/* Banner Carousel */}
-        <div className="px-4 py-2">
+        <div className="px-0 py-2">
           <BannerCarousel />
         </div>
 
-        {/* Sticky Search and Categories Only */}
-        <div className="sticky top-0 bg-gradient-to-b from-laundrify-purple to-laundrify-pink z-40 shadow-lg">
-          <div className="px-4 pt-4 pb-2 space-y-3 sm:mt-0 -mt-1 sm:pl-4 pl-4">
-            {/* Search Bar */}
-            <div className="bg-gray-800 rounded-xl flex items-center px-4 py-3 mobile-sticky-search">
-              <Search className="h-5 w-5 text-gray-400 mr-3" />
-              <Input
-                placeholder="Search laundry services"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="bg-transparent border-none text-white placeholder-gray-400 focus:ring-0 p-0 text-sm"
-              />
-              <VoiceSearch
-                onResult={(transcript) => {
-                  handleSearch(transcript);
-                }}
-                onError={(error) => {
-                  console.error("Voice search error:", error);
-                }}
-                className="ml-3 text-gray-400 hover:text-white"
-              />
-            </div>
+        {/* Premium Search Bar */}
+        <div className="premium-search-section">
+          <div className="premium-search-bar">
+            <Search className="premium-search-icon" size={16} />
+            <Input
+              placeholder="Search services..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="premium-search-input"
+            />
+            <VoiceSearch
+              onResult={(transcript) => {
+                handleSearch(transcript);
+              }}
+              onError={(error) => {
+                console.error("Voice search error:", error);
+              }}
+              className="text-gray-400"
+            />
+          </div>
+        </div>
 
-            {/* Categories */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mobile-sticky-categories">
-              <Button
-                variant={selectedCategory === "all" ? "default" : "ghost"}
-                onClick={() => setSelectedCategory("all")}
-                className={`flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border ${
-                  selectedCategory === "all"
-                    ? "bg-white text-laundrify-blue border-white shadow-lg"
-                    : "bg-laundrify-blue/80 text-white border-white/30 hover:bg-laundrify-blue hover:border-white/50 shadow-md"
-                }`}
-              >
-                All
-              </Button>
+        {/* Premium Filter Chips */}
+        <div className="premium-filter-section">
+          <div className="premium-filters">
+            <button
+              onClick={() => setSelectedCategory("all")}
+              className={`premium-filter-chip ${selectedCategory === "all" ? "active" : ""}`}
+            >
+              All Services
+            </button>
 
-              <Button
-                onClick={() => navigate("/pg-booking")}
-                className="flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border bg-gradient-to-r from-laundrify-pink to-laundrify-red text-white border-laundrify-red/50 hover:from-laundrify-pink/90 hover:to-laundrify-red/90 shadow-md whitespace-nowrap"
-                title="PG Laundry & Iron Service"
-              >
-                <Home className="h-3 w-3 mr-1" />
-                <span>PG</span>
-              </Button>
+            <button
+              onClick={() => navigate("/pg-booking")}
+              className="premium-filter-chip active"
+              title="PG Laundry & Iron Service"
+            >
+              <Home size={14} className="inline mr-1" />
+              PG Booking
+            </button>
 
-              {(useStaticFallback
-                ? (serviceCategories || []).slice(1)
-                : dynamicServices || []
-              )
-                .filter((category) => category.enabled !== false)
-                .map((category) => (
-                  <Button
-                    key={category.id}
-                    variant={
-                      selectedCategory === category.id ? "default" : "ghost"
-                    }
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`flex-shrink-0 rounded-xl text-xs px-3 py-2 font-medium border ${
-                      selectedCategory === category.id
-                        ? "bg-white text-laundrify-blue border-white shadow-lg"
-                        : "bg-laundrify-blue/80 text-white border-white/30 hover:bg-laundrify-blue hover:border-white/50 shadow-md"
-                    }`}
-                  >
-                    <span className="mr-1">{category.icon}</span>
-                    <span className="whitespace-nowrap">{category.name}</span>
-                  </Button>
-                ))}
-            </div>
+            {(useStaticFallback
+              ? (serviceCategories || []).slice(1)
+              : dynamicServices || []
+            )
+              .filter((category) => category.enabled !== false)
+              .slice(0, 5)
+              .map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`premium-filter-chip ${selectedCategory === category.id ? "active" : ""}`}
+                >
+                  <span className="mr-1">{category.icon}</span>
+                  {category.name}
+                </button>
+              ))}
           </div>
         </div>
 
@@ -1116,173 +1023,167 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
-        {/* Services Grid */}
-        <div
-          id="services-section"
-          className="bg-white rounded-t-3xl min-h-screen p-4 relative"
-        >
+        {/* Premium Services Container */}
+        <div id="services-section" className="premium-services-container premium-content">
           {getFilteredServices().length === 0 ? (
-            <EmptyStateCard />
+            <div className="premium-empty-state">
+              <div className="premium-empty-icon">🔍</div>
+              <div className="premium-empty-title">No services available</div>
+              <div className="premium-empty-description">Try different filters or search terms</div>
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 pb-20 service-grid">
-              {getFilteredServices().map((service) => {
-                const quantity = cart[service.id] || 0;
+            <>
+              {/* Popular Items Section - Grid View */}
+              {getFilteredServices().filter(s => s.popular).length > 0 && (
+                <div className="premium-grid-section">
+                  <div className="premium-section-title">Trending Now</div>
+                  <div className="premium-service-grid">
+                    {getFilteredServices().filter(s => s.popular).slice(0, 4).map((service) => {
+                      const quantity = cart[service.id] || 0;
+                      return (
+                        <div key={service.id} className="premium-grid-card premium-animate-in">
+                          <div className="premium-grid-image-container">
+                            {service.image ? (
+                              <OptimizedImage
+                                src={service.image}
+                                alt={service.name}
+                                className="premium-grid-image"
+                                priority
+                              />
+                            ) : (
+                              <div className="premium-grid-image-fallback">
+                                {getCategoryDisplay(service.category).split(" ")[0]}
+                              </div>
+                            )}
+                            {service.popular && (
+                              <div className="premium-grid-badge">POPULAR</div>
+                            )}
+                          </div>
+                          <div className="premium-grid-content">
+                            <h3 className="premium-grid-name">{service.name}</h3>
+                            <p className="premium-grid-category">
+                              {getCategoryDisplay(service.category)}
+                            </p>
+                            <div className="premium-grid-footer">
+                              <span className="premium-grid-price">₹{service.price}</span>
+                              {quantity > 0 ? (
+                                <div className="premium-quantity-selector">
+                                  <button
+                                    onClick={() => removeFromCart(service.id)}
+                                    className="premium-quantity-btn"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="premium-quantity-value">{quantity}</span>
+                                  <button
+                                    onClick={() => addToCart(service.id)}
+                                    className="premium-quantity-btn"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => addToCart(service.id)}
+                                  className="premium-add-button"
+                                >
+                                  Add
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                return (
-                  <Card
-                    key={service.id}
-                    className="border-0 shadow-lg rounded-2xl overflow-hidden service-card"
-                  >
-                    <CardContent className="p-3 card-content">
-                      <div className="aspect-square bg-gradient-to-br from-laundrify-mint/20 to-laundrify-mint/40 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden">
+              {/* All Services - List View */}
+              <div className="premium-services-container">
+                {getFilteredServices().filter(s => !s.popular).length > 0 && (
+                  <div className="premium-section-title">All Services</div>
+                )}
+                {getFilteredServices().map((service) => {
+                  const quantity = cart[service.id] || 0;
+                  return (
+                    <div key={service.id} className="premium-service-card premium-animate-in">
+                      <div className="premium-service-image-container">
                         {service.image ? (
-                          <>
-                            <OptimizedImage
-                              src={service.image}
-                              alt={service.name}
-                              className="w-full h-full rounded-xl"
-                              priority={service.popular}
-                              fallback={
-                                <span className="text-3xl">
-                                  {
-                                    getCategoryDisplay(service.category).split(
-                                      " ",
-                                    )[0]
-                                  }
-                                </span>
-                              }
-                            />
-                            {service.popular && (
-                              <div className="absolute bottom-1 right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold z-10">
-                                Popular
-                              </div>
-                            )}
-                          </>
+                          <OptimizedImage
+                            src={service.image}
+                            alt={service.name}
+                            className="premium-service-image"
+                            priority={service.popular}
+                          />
                         ) : (
-                          <>
-                            <span className="text-3xl">
-                              {
-                                getCategoryDisplay(service.category).split(
-                                  " ",
-                                )[0]
-                              }
-                            </span>
-                            {service.popular && (
-                              <div className="absolute bottom-1 right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
-                                Popular
-                              </div>
-                            )}
-                          </>
+                          <div className="premium-service-image-fallback">
+                            {getCategoryDisplay(service.category).split(" ")[0]}
+                          </div>
+                        )}
+                        {service.popular && (
+                          <div className="premium-service-badge">HOT DEAL</div>
                         )}
                       </div>
 
-                      <div className="card-details">
-                        <div className="service-info">
-                          <h4 className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2 mb-2">
-                            {service.name}
-                          </h4>
-
-                          <div className="text-xs text-gray-600 mb-2">
+                      <div className="premium-service-content">
+                        <div className="premium-service-header">
+                          <h3 className="premium-service-name">{service.name}</h3>
+                          <p className="premium-service-category">
                             {getCategoryDisplay(service.category)}
-                          </div>
+                          </p>
                         </div>
 
-                        <div className="price-badge-container">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="text-sm font-bold text-gray-900">
-                                ₹{service.price}
-                              </span>
-                              <span className="text-xs text-gray-600 ml-1">
-                                {service.unit}
-                              </span>
-                            </div>
-
-                            {service.popular && !service.image && (
-                              <Badge className="bg-laundrify-yellow/20 text-laundrify-blue text-xs">
-                                Popular
-                              </Badge>
+                        <div className="premium-service-footer">
+                          <span className="premium-service-price">
+                            ₹{service.price}
+                            <span className="premium-service-unit">{service.unit}</span>
+                          </span>
+                          <div className="premium-service-actions">
+                            {quantity > 0 ? (
+                              <div className="premium-quantity-selector">
+                                <button
+                                  onClick={() => removeFromCart(service.id)}
+                                  className="premium-quantity-btn"
+                                >
+                                  −
+                                </button>
+                                <span className="premium-quantity-value">{quantity}</span>
+                                <button
+                                  onClick={() => addToCart(service.id)}
+                                  className="premium-quantity-btn"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => addToCart(service.id)}
+                                className="premium-add-button"
+                              >
+                                Add
+                              </button>
                             )}
                           </div>
                         </div>
-
-                        <div className="card-actions">
-                          {quantity > 0 ? (
-                            <div className="flex items-center justify-between bg-laundrify-mint/20 rounded-lg p-2 quantity-controls">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeFromCart(service.id)}
-                                className="h-6 w-6 p-0 text-laundrify-blue hover:bg-laundrify-mint/40"
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-
-                              <span className="font-semibold text-laundrify-blue text-sm">
-                                {quantity}
-                              </span>
-
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => addToCart(service.id)}
-                                className="h-6 w-6 p-0 text-laundrify-blue hover:bg-laundrify-mint/40"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              onClick={() => addToCart(service.id)}
-                              className="w-full bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue rounded-lg text-xs py-2 service-add-button mobile-button"
-                            >
-                              ADD
-                            </Button>
-                          )}
-                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
-        {/* Floating Cart Button - Mobile */}
+        {/* Premium Floating Cart Button */}
         {getCartItemCount() > 0 && (
-          <div className="fixed bottom-4 left-4 right-4 z-50">
-            <Button
+          <div className="premium-bottom-bar">
+            <button
               onClick={onViewCart}
-              className="w-full bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue rounded-xl py-3 flex items-center justify-between shadow-lg"
+              className="premium-bottom-button"
             >
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="h-4 w-4" />
-                <span className="font-semibold text-sm">
-                  {getCartItemCount()} item{getCartItemCount() > 1 ? "s" : ""}
-                </span>
-              </div>
-              <span className="text-xs bg-white/20 px-2 py-1 rounded">
-                View Cart
-              </span>
-            </Button>
-          </div>
-        )}
-        {/* Empty State */}
-        {!getPopularServices().length && (
-          <div className="text-center py-8">
-            <h2 className="text-2xl font-bold text-laundrify-blue mb-4">
-              Welcome to Laundrify
-            </h2>
-            <p className="text-laundrify-blue/80 mb-6">
-              Quick Clean & Convenient thats laundrify
-            </p>
-            <Button
-              onClick={handleBookService}
-              className="bg-laundrify-mint hover:bg-laundrify-mint/90 px-8 py-3 rounded-xl text-lg font-medium text-laundrify-blue"
-            >
-              Get Started
-            </Button>
+              <span>🛒 View Cart ({getCartItemCount()}) • ₹{getCartTotal()}</span>
+            </button>
           </div>
         )}
 

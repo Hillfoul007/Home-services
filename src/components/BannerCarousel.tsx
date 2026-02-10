@@ -148,52 +148,55 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
                 {currentBanner.description}
               </p>
             )}
-            <button className="inline-flex items-center gap-1 bg-white/30 hover:bg-white/40 px-3 py-1 rounded-md transition-all duration-200 text-white text-xs font-medium drop-shadow-md">
+            <button className="inline-flex items-center gap-0.5 bg-white/30 hover:bg-white/40 px-2 py-0.5 rounded-md transition-all duration-200 text-white text-xs font-medium drop-shadow-md">
               Explore
               <ExternalLink className="h-3 w-3" />
             </button>
           </div>
-        </div>
 
-        {/* Navigation Arrows - Small and subtle */}
-        {banners.length > 1 && (
-          <>
-            <button
-              onClick={goToPrevious}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded-full transition-all duration-200"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            <button
-              onClick={goToNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded-full transition-all duration-200"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </>
-        )}
-
-        {/* Dots Indicator - Minimal and professional */}
-        {banners.length > 1 && (
-          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex gap-0.5">
-            {banners.map((_, index) => (
+          {/* Navigation Arrows - Small, on sides */}
+          {banners.length > 1 && (
+            <>
               <button
-                key={index}
-                onClick={() => {
-                  setCurrentIndex(index);
-                  setAutoRotateEnabled(false);
-                  setTimeout(() => setAutoRotateEnabled(true), 5000);
-                }}
-                className={`rounded-full transition-all duration-300 ${
-                  index === currentIndex
-                    ? "bg-white w-2 h-0.5 drop-shadow-sm"
-                    : "bg-white/40 w-0.5 h-0.5 hover:bg-white/60"
-                }`}
-              />
-            ))}
-          </div>
-        )}
+                onClick={goToPrevious}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1 rounded-full transition-all duration-200"
+                aria-label="Previous banner"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+
+              <button
+                onClick={goToNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/40 text-white p-1 rounded-full transition-all duration-200"
+                aria-label="Next banner"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+
+          {/* Dots Indicator - Small, on banner */}
+          {banners.length > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-0.5">
+              {banners.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setCurrentIndex(index);
+                    setAutoRotateEnabled(false);
+                    setTimeout(() => setAutoRotateEnabled(true), 5000);
+                  }}
+                  className={`rounded-full transition-all duration-300 ${
+                    index === currentIndex
+                      ? "bg-white w-1.5 h-1.5 drop-shadow-sm"
+                      : "bg-white/40 w-1 h-1 hover:bg-white/60"
+                  }`}
+                  aria-label={`Go to banner ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Confirmation Dialog */}

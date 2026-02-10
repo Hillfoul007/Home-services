@@ -38,6 +38,13 @@ import {
   saveCartData,
   getCartData,
 } from "@/utils/formPersistence";
+import "@/styles/mobile-advanced-design.css";
+import "@/styles/mobile-cart-advanced.css";
+import "@/styles/mobile-gestures-animations.css";
+import "@/styles/mobile-typography-spacing.css";
+import "@/styles/mobile-gesture-support.css";
+import "@/styles/premium-app-ui.css";
+import "@/styles/premium-cart-ui.css";
 import SimplifiedAddressForm from "./SimplifiedAddressForm";
 import ProfessionalDateTimePicker from "./ProfessionalDateTimePicker";
 import DeliveryDateTimePicker from "./DeliveryDateTimePicker";
@@ -964,12 +971,12 @@ Confirm this booking?`;
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm px-4 py-4 flex items-center gap-4">
+      <div className="min-h-screen bg-white">
+        <div className="bg-white border-b border-gray-100 px-4 py-4 flex items-center gap-4 sticky top-0 z-10">
           <Button variant="ghost" onClick={onBack} className="p-0 h-8 w-8">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-semibold">Cart</h1>
+          <h1 className="text-lg font-semibold text-gray-900">Cart</h1>
         </div>
 
         <div className="flex flex-col items-center justify-center h-96">
@@ -978,7 +985,7 @@ Confirm this booking?`;
             Your cart is empty
           </h2>
           <p className="text-gray-600 mb-6">Add some items to get started</p>
-          <Button onClick={onBack} className="bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue">
+          <Button onClick={onBack} className="bg-purple-600 hover:bg-purple-700 text-white">
             Continue Shopping
           </Button>
         </div>
@@ -987,14 +994,14 @@ Confirm this booking?`;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="bg-white shadow-sm px-3 sm:px-4 py-4 flex items-center sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-100 px-3 sm:px-4 py-4 flex items-center sticky top-0 z-10">
         <div className="flex items-center gap-2 sm:gap-4">
-          <Button variant="ghost" onClick={onBack} className="p-0 h-8 w-8">
+          <Button variant="ghost" onClick={onBack} className="p-0 h-8 w-8 text-gray-700 hover:text-gray-900">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-base sm:text-lg font-semibold">
+          <h1 className="text-base sm:text-lg font-semibold text-gray-900">
             Cart ({cartItems.length} items)
           </h1>
         </div>
@@ -1002,17 +1009,17 @@ Confirm this booking?`;
 
       <div className={`p-2 space-y-2 ${validationErrors.length > 0 ? 'pb-56' : 'pb-24'}`}>
         {/* Cart Items - Compact View */}
-        <Card className="shadow-sm">
-          <CardHeader className="pb-1 px-3 py-1">
-            <CardTitle className="text-sm font-medium">
+        <Card className="shadow-sm border-gray-100">
+          <CardHeader className="pb-1 px-3 py-1 bg-gradient-to-r from-white to-purple-50">
+            <CardTitle className="text-sm font-medium text-gray-900">
               Items ({cartItems.length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 pt-0 px-3 pb-2">
+          <CardContent className="space-y-1 pt-0 px-3 pb-2 bg-white">
             {cartItems.map(({ service, quantity }) => (
               <div
                 key={service!.id}
-                className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-md"
+                className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-md hover:bg-purple-50 transition-colors"
               >
                 <div className="w-12 h-12 rounded-md overflow-hidden bg-gradient-to-br from-laundrify-mint/20 to-laundrify-mint/40 flex items-center justify-center flex-shrink-0">
                   {service!.image ? (
@@ -1034,10 +1041,10 @@ Confirm this booking?`;
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-xs break-words leading-tight">
+                  <h4 className="font-medium text-xs break-words leading-tight text-gray-900">
                     {service!.name}
                   </h4>
-                  <p className="text-xs text-laundrify-red">₹{service!.price}</p>
+                  <p className="text-xs text-purple-600 font-semibold">₹{service!.price}</p>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -1063,14 +1070,14 @@ Confirm this booking?`;
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <span className="font-semibold text-xs text-laundrify-red">
+                  <span className="font-semibold text-xs text-purple-600">
                     ₹{service!.price * quantity}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => removeItem(service!.id)}
-                    className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="h-5 w-5 p-0 text-gray-400 hover:text-purple-600 hover:bg-purple-50"
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -1081,8 +1088,8 @@ Confirm this booking?`;
         </Card>
 
         {/* Zomato-style Address Section */}
-        <Card className="shadow-sm border-0">
-          <CardContent className="p-4">
+        <Card className="shadow-sm border-gray-100">
+          <CardContent className="p-4 bg-white">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Home className="h-4 w-4 text-gray-600" />

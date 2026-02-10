@@ -1,0 +1,472 @@
+/* ADVANCED MOBILE PG BOOKING STYLES */
+
+@media (max-width: 768px) {
+  /* PG Booking Container */
+  .mobile-pgbooking-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(55, 65, 81, 0.8));
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header with Back Button */
+  .mobile-pgbooking-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(55, 65, 81, 0.8));
+    backdrop-filter: blur(12px);
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .mobile-pgbooking-header-back {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-lg);
+    color: white;
+    cursor: pointer;
+    transition: all var(--transition-base);
+  }
+
+  .mobile-pgbooking-header-back:active {
+    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .mobile-pgbooking-header-title {
+    flex: 1;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: white;
+  }
+
+  /* Step Indicator */
+  .mobile-pgbooking-step-indicator {
+    padding: var(--space-md) var(--space-lg);
+    background: rgba(147, 51, 234, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .mobile-pgbooking-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .mobile-pgbooking-step-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(147, 51, 234, 0.3);
+    border: 2px solid rgba(147, 51, 234, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary-light);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-base);
+  }
+
+  .mobile-pgbooking-step-number.active {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    border-color: var(--color-primary-light);
+    color: white;
+  }
+
+  .mobile-pgbooking-step-label {
+    flex: 1;
+  }
+
+  .mobile-pgbooking-step-title {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: white;
+  }
+
+  .mobile-pgbooking-step-desc {
+    font-size: var(--font-size-xs);
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: var(--space-xs);
+  }
+
+  /* Content Area */
+  .mobile-pgbooking-content {
+    flex: 1;
+    padding: var(--space-lg) var(--space-md);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-pgbooking-section {
+    margin-bottom: var(--space-xl);
+  }
+
+  .mobile-pgbooking-section-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: white;
+    margin-bottom: var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .mobile-pgbooking-section-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-lg);
+    background: rgba(147, 51, 234, 0.2);
+    border: 1px solid rgba(147, 51, 234, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary-light);
+  }
+
+  /* Select Dropdown Styles */
+  .mobile-pgbooking-select {
+    width: 100%;
+    padding: var(--space-md);
+    background: rgba(31, 41, 55, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-lg);
+    color: white;
+    font-size: var(--font-size-base);
+    transition: all var(--transition-base);
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: var(--space-xl);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--space-md) center;
+    margin-bottom: var(--space-md);
+  }
+
+  .mobile-pgbooking-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background-color: rgba(31, 41, 55, 0.7);
+    box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.1);
+  }
+
+  .mobile-pgbooking-select option {
+    background: var(--color-neutral-800);
+    color: white;
+  }
+
+  /* PG List - Card Grid */
+  .mobile-pgbooking-pg-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .mobile-pgbooking-pg-card {
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.6), rgba(55, 65, 81, 0.4));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-xl);
+    padding: var(--space-lg);
+    cursor: pointer;
+    transition: all var(--transition-base);
+  }
+
+  .mobile-pgbooking-pg-card:active {
+    transform: scale(0.98);
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.8), rgba(55, 65, 81, 0.6));
+    border-color: rgba(147, 51, 234, 0.3);
+    box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.1);
+  }
+
+  .mobile-pgbooking-pg-card.selected {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(147, 51, 234, 0.1));
+    border-color: var(--color-primary-light);
+    box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.2);
+  }
+
+  .mobile-pgbooking-pg-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+  }
+
+  .mobile-pgbooking-pg-name {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
+    color: white;
+  }
+
+  .mobile-pgbooking-pg-address {
+    font-size: var(--font-size-sm);
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: var(--space-xs);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xs);
+  }
+
+  .mobile-pgbooking-pg-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+    margin: var(--space-md) 0;
+    padding: var(--space-md) 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .mobile-pgbooking-pg-detail {
+    text-align: left;
+  }
+
+  .mobile-pgbooking-pg-detail-label {
+    font-size: var(--font-size-xs);
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: var(--space-xs);
+  }
+
+  .mobile-pgbooking-pg-detail-value {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary-light);
+  }
+
+  .mobile-pgbooking-pg-contact {
+    font-size: var(--font-size-sm);
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* Price Calculator Section */
+  .mobile-pgbooking-price-calc {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.1), rgba(147, 51, 234, 0.05));
+    border: 1px solid rgba(147, 51, 234, 0.3);
+    border-radius: var(--radius-xl);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-xl);
+  }
+
+  .mobile-pgbooking-price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) 0;
+    font-size: var(--font-size-base);
+  }
+
+  .mobile-pgbooking-price-row.total {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: var(--space-lg);
+    font-weight: var(--font-weight-bold);
+    color: white;
+  }
+
+  .mobile-pgbooking-price-value {
+    text-align: right;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary-light);
+  }
+
+  /* Quantity Controls */
+  .mobile-pgbooking-quantity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: rgba(147, 51, 234, 0.15);
+    padding: var(--space-sm);
+    border-radius: var(--radius-lg);
+    width: fit-content;
+  }
+
+  .mobile-pgbooking-quantity-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(147, 51, 234, 0.3);
+    border: 1px solid rgba(147, 51, 234, 0.4);
+    border-radius: var(--radius-md);
+    color: var(--color-primary-light);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .mobile-pgbooking-quantity-btn:active {
+    transform: scale(0.9);
+    background: rgba(147, 51, 234, 0.4);
+  }
+
+  .mobile-pgbooking-quantity-value {
+    min-width: 36px;
+    text-align: center;
+    color: white;
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /* Action Buttons */
+  .mobile-pgbooking-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-lg) var(--space-md);
+    padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+  }
+
+  .mobile-pgbooking-button {
+    width: 100%;
+    padding: var(--space-lg);
+    border: none;
+    border-radius: var(--radius-xl);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    min-height: 56px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .mobile-pgbooking-button-primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    color: white;
+    box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3);
+  }
+
+  .mobile-pgbooking-button-primary:active:not(:disabled) {
+    transform: scale(0.98);
+    box-shadow: 0 2px 8px rgba(147, 51, 234, 0.2);
+  }
+
+  .mobile-pgbooking-button-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+  }
+
+  .mobile-pgbooking-button-secondary:active:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(0.98);
+  }
+
+  .mobile-pgbooking-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Order Instructions Modal */
+  .mobile-pgbooking-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .mobile-pgbooking-modal-content {
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(31, 41, 55, 0.85));
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    width: 100%;
+    max-height: 90vh;
+    padding: var(--space-lg);
+    padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: slideUp var(--transition-base) ease-out forwards;
+  }
+
+  .mobile-pgbooking-modal-handle {
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    margin: 0 auto var(--space-md) auto;
+  }
+
+  .mobile-pgbooking-modal-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: white;
+    margin-bottom: var(--space-md);
+  }
+
+  .mobile-pgbooking-modal-input {
+    width: 100%;
+    padding: var(--space-md);
+    background: rgba(31, 41, 55, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-lg);
+    color: white;
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-md);
+    transition: all var(--transition-base);
+    min-height: 100px;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .mobile-pgbooking-modal-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .mobile-pgbooking-modal-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background: rgba(31, 41, 55, 0.7);
+    box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.1);
+  }
+
+  /* Alert and Status Messages */
+  .mobile-pgbooking-alert {
+    padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-md);
+    border-left: 4px solid;
+  }
+
+  .mobile-pgbooking-alert.info {
+    background: rgba(6, 182, 212, 0.1);
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+  }
+
+  .mobile-pgbooking-alert.warning {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+  }
+
+  .mobile-pgbooking-alert.error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+  }
+
+  .mobile-pgbooking-alert.success {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: var(--color-success);
+    color: var(--color-success);
+  }
+}

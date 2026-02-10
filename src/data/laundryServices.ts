@@ -123,7 +123,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "48-72 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1584622614875-2f0dd24f7e27?w=800&q=80",
   },
   {
     id: "household-blanket-double",
@@ -133,7 +133,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "48-72 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&q=80",
   },
   {
     id: "household-bedsheet-single",
@@ -143,7 +143,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "24-48 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1612393507854-4f0e8c7a78ed?w=800&q=80",
   },
   {
     id: "household-bedsheet-double",
@@ -153,7 +153,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "24-48 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1612393507854-4f0e8c7a78ed?w=800&q=80",
   },
   {
     id: "household-curtain-panel",
@@ -163,7 +163,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "48-72 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1599843682286-ac3e12a7f32a?w=800&q=80",
   },
   {
     id: "household-table-matte",
@@ -173,7 +173,7 @@ export const laundryServices: LaundryService[] = [
     unit: "PC",
     category: "other-household",
     estimatedTime: "24-48 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=800&q=80",
   },
 
   // Shoes
@@ -185,7 +185,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "24-48 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
   },
   {
     id: "shoes-leather",
@@ -195,7 +195,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "48-72 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1543163521-9efcc06b9cea?w=800&q=80",
   },
   {
     id: "shoes-boots-ankle",
@@ -205,7 +205,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "48-72 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1548434831-46b7c2fcae34?w=800&q=80",
   },
   {
     id: "shoes-boots-knee",
@@ -215,7 +215,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "48-72 hours",
-    image: "",
+    image: "https://images.unsplash.com/photo-1548434831-46b7c2fcae34?w=800&q=80",
   },
 
   // Men's Dry Clean

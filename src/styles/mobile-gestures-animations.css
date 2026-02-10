@@ -1,0 +1,552 @@
+/* ADVANCED MOBILE ANIMATIONS, GESTURES & TRANSITIONS */
+
+@media (max-width: 768px) {
+  /* ============================================
+     ENTRANCE ANIMATIONS
+     ============================================ */
+
+  @keyframes slideUpFast {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideDownFast {
+    from {
+      opacity: 0;
+      transform: translateY(-40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes fadeInScale {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes bounceIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    70% {
+      transform: scale(0.9);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes rotateIn {
+    from {
+      opacity: 0;
+      transform: rotate(-10deg) scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: rotate(0deg) scale(1);
+    }
+  }
+
+  /* Staggered animations for lists */
+  @keyframes staggerFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ============================================
+     EXIT ANIMATIONS
+     ============================================ */
+
+  @keyframes slideDownExit {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+  }
+
+  @keyframes fadeOutScale {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+  }
+
+  /* ============================================
+     INTERACTIVE ANIMATIONS
+     ============================================ */
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  @keyframes scaleUp {
+    from {
+      transform: scale(1);
+    }
+    to {
+      transform: scale(1.08);
+    }
+  }
+
+  @keyframes scaleDown {
+    from {
+      transform: scale(1);
+    }
+    to {
+      transform: scale(0.95);
+    }
+  }
+
+  @keyframes wiggle {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-2px);
+    }
+    75% {
+      transform: translateX(2px);
+    }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  /* ============================================
+     ANIMATION CLASSES
+     ============================================ */
+
+  .mobile-animate-in {
+    animation: slideUpFast 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-animate-in-slow {
+    animation: slideUpFast 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-animate-in-left {
+    animation: slideInLeft 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-animate-in-right {
+    animation: slideInRight 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-animate-in-scale {
+    animation: fadeInScale 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-animate-bounce-in {
+    animation: bounceIn 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+
+  .mobile-animate-rotate-in {
+    animation: rotateIn 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-animate-out {
+    animation: slideDownExit 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .mobile-animate-out-scale {
+    animation: fadeOutScale 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .mobile-animate-pulse {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .mobile-animate-shimmer {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  .mobile-animate-wiggle {
+    animation: wiggle 500ms ease-in-out;
+  }
+
+  .mobile-animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* ============================================
+     SMOOTH TRANSITIONS
+     ============================================ */
+
+  .mobile-transition-fast {
+    transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mobile-transition-base {
+    transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mobile-transition-slow {
+    transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mobile-transition-color {
+    transition: background-color 200ms ease-out, color 200ms ease-out;
+  }
+
+  .mobile-transition-transform {
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mobile-transition-opacity {
+    transition: opacity 200ms ease-out;
+  }
+
+  /* ============================================
+     GESTURE-FRIENDLY INTERACTIONS
+     ============================================ */
+
+  /* Touch targets - minimum 44x44px */
+  .mobile-touch-target {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Tap feedback - visual feedback on active state */
+  .mobile-tap-feedback {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mobile-tap-feedback::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+  }
+
+  .mobile-tap-feedback:active::after {
+    animation: ripple 600ms ease-out;
+  }
+
+  @keyframes ripple {
+    0% {
+      width: 0;
+      height: 0;
+    }
+    100% {
+      width: 300px;
+      height: 300px;
+      opacity: 0;
+    }
+  }
+
+  /* Swipe gesture indicators */
+  .mobile-swipe-indicator {
+    position: relative;
+  }
+
+  .mobile-swipe-indicator::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, transparent, var(--color-primary), transparent);
+    animation: swipeHint 2s ease-in-out infinite;
+  }
+
+  @keyframes swipeHint {
+    0%, 100% {
+      transform: translateY(-10px);
+      opacity: 0;
+    }
+    50% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* Long press feedback */
+  .mobile-long-press-target {
+    transition: all 100ms ease-out;
+  }
+
+  .mobile-long-press-target.active {
+    transform: scale(0.92);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  /* ============================================
+     SCROLL BEHAVIOR
+     ============================================ */
+
+  .mobile-scroll-smooth {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Elastic scroll for iOS */
+  .mobile-scroll-elastic {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Scroll fade effect */
+  .mobile-scroll-fade {
+    position: relative;
+  }
+
+  .mobile-scroll-fade::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(180deg, transparent, rgba(17, 24, 39, 0.8));
+    pointer-events: none;
+  }
+
+  /* ============================================
+     PAGE TRANSITIONS
+     ============================================ */
+
+  /* Fade transition between pages */
+  .mobile-page-fade-in {
+    animation: fadeIn 200ms ease-out forwards;
+  }
+
+  .mobile-page-fade-out {
+    animation: fadeOut 200ms ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* Slide transition from right */
+  .mobile-page-slide-in {
+    animation: slidePageIn 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-page-slide-out {
+    animation: slidePageOut 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  @keyframes slidePageIn {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slidePageOut {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+  }
+
+  /* ============================================
+     HAPTIC & FEEDBACK ANIMATIONS
+     ============================================ */
+
+  /* Success animation */
+  .mobile-animate-success {
+    animation: successPulse 500ms ease-out;
+  }
+
+  @keyframes successPulse {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* Error shake animation */
+  .mobile-animate-error {
+    animation: errorShake 400ms ease-in-out;
+  }
+
+  @keyframes errorShake {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-8px);
+    }
+    75% {
+      transform: translateX(8px);
+    }
+  }
+
+  /* Warning pulse */
+  .mobile-animate-warning {
+    animation: warningPulse 600ms ease-in-out;
+  }
+
+  @keyframes warningPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+    }
+  }
+
+  /* ============================================
+     ACCESSIBILITY
+     ============================================ */
+
+  /* Respect user's motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+    }
+  }
+
+  /* ============================================
+     MOMENTUM SCROLLING OPTIMIZATIONS
+     ============================================ */
+
+  .mobile-momentum-scroll {
+    -webkit-overflow-scrolling: touch;
+    will-change: transform;
+  }
+
+  /* GPU acceleration */
+  .mobile-gpu-accelerate {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+
+  /* ============================================
+     STAGGER ANIMATIONS FOR LISTS
+     ============================================ */
+
+  .mobile-list-item {
+    opacity: 0;
+    animation: staggerFadeIn 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-list-item:nth-child(1) { animation-delay: 0ms; }
+  .mobile-list-item:nth-child(2) { animation-delay: 60ms; }
+  .mobile-list-item:nth-child(3) { animation-delay: 120ms; }
+  .mobile-list-item:nth-child(4) { animation-delay: 180ms; }
+  .mobile-list-item:nth-child(5) { animation-delay: 240ms; }
+  .mobile-list-item:nth-child(n+6) { animation-delay: 300ms; }
+}

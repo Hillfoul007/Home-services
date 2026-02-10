@@ -65,6 +65,7 @@ const getGoogleMaps = async () => {
 
 const AdminMapAnalytics: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
+  const googleMarkersRef = useRef<any[]>([]);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
 
@@ -174,6 +175,26 @@ const AdminMapAnalytics: React.FC = () => {
     return months;
   }, []);
 
+  // Memoize selected months pills rendering (moved to top level to fix hook order)
+  const selectedMonthsPills = useMemo(() => {
+    if (selectedMonths.size === 0) return null;
+
+    return Array.from(selectedMonths).sort().reverse().map((monthYear) => (
+      <div
+        key={monthYear}
+        className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
+      >
+        {getMonthYearDisplay(monthYear)}
+        <button
+          onClick={() => toggleMonth(monthYear)}
+          className="hover:text-laundrify-purple/70 ml-1"
+        >
+          ×
+        </button>
+      </div>
+    ));
+  }, [selectedMonths, getMonthYearDisplay, toggleMonth]);
+
   // Memoized fetch function to avoid recreating on every render (MUST BE BEFORE useEffect that uses it)
   const fetchMapOrders = useCallback(async () => {
     try {
@@ -241,7 +262,7 @@ const AdminMapAnalytics: React.FC = () => {
       setPolygon([]);
       setAreaStats(null);
     }
-  }, [map, fetchMapOrders]);
+  }, [map, fetchMapOrders, selectedMonths, selectedStatus]);
 
   // Plot markers on map
   const plotMarkers = async (markersData: MapMarker[]) => {
@@ -250,7 +271,12 @@ const AdminMapAnalytics: React.FC = () => {
     try {
       const google = await getGoogleMaps();
 
-      // Clear old markers (simple approach - create new map instance)
+      // Clear old markers from the map
+      googleMarkersRef.current.forEach((marker) => {
+        marker.setMap(null);
+      });
+      googleMarkersRef.current = [];
+
       const infoWindows: any[] = [];
 
       markersData.forEach((marker) => {
@@ -262,6 +288,9 @@ const AdminMapAnalytics: React.FC = () => {
           title: marker.orderId,
           icon: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
         });
+
+        // Store marker reference for later cleanup
+        googleMarkersRef.current.push(googleMarker);
 
         // Create info window for each marker
         const infoWindow = new google.maps.InfoWindow({
@@ -423,7 +452,7 @@ const AdminMapAnalytics: React.FC = () => {
   // Trigger batch geocoding
   const startBatchGeocoding = useCallback(async () => {
     if (!window.confirm(
-      `This will geocode ${geocodingStatus?.ordersWithoutCoordinates || 0} orders without coordinates. This may take several minutes. Continue?`
+      `This will geocode ${geocodingStatus?.ordersWithoutCoordinates || 0} orders without coordinates. This may take 10-20 minutes depending on API limits. Continue?`
     )) {
       return;
     }
@@ -431,6 +460,7 @@ const AdminMapAnalytics: React.FC = () => {
     try {
       setGeocodingInProgress(true);
       console.log("🌍 Starting batch geocoding...");
+      toast.loading("🌍 Starting batch geocoding... This may take a while.");
 
       const response = await fetch("/api/admin/analytics/batch-geocode", {
         method: "POST",
@@ -445,26 +475,37 @@ const AdminMapAnalytics: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        toast.success(
-          `✅ Batch geocoding completed!\n${data.geocoded} orders geocoded, ${data.failed} failed (${data.successRate}% success)`
-        );
+
+        // Show detailed results
+        const message = `✅ Geocoding Complete!\n${data.geocoded}/${data.totalProcessed} orders successfully geocoded (${data.successRate}% success rate)`;
+        toast.success(message);
         console.log("✅ Batch geocoding result:", data);
 
-        // Refresh geocoding status after completion
+        // Log failed orders if any
+        if (data.failedOrders && data.failedOrders.length > 0) {
+          console.warn(`⚠️ ${data.failedOrdersCount} orders could not be geocoded:`, data.failedOrders);
+
+          // Show warning about failed orders
+          const failureMessage = `⚠️ ${data.failedOrdersCount} orders could not be geocoded. Common reasons:\n- Incomplete addresses\n- Addresses outside service areas\n- Invalid address format`;
+          toast.warning(failureMessage);
+        }
+
+        // Refresh geocoding status and map after completion
         setTimeout(() => {
           fetchGeocodingStatus();
-        }, 1000);
+          fetchMapOrders();
+        }, 2000);
       } else {
         const error = await response.json();
         toast.error(`❌ Geocoding failed: ${error.message}`);
       }
     } catch (error) {
       console.error("Error during batch geocoding:", error);
-      toast.error("Failed to start batch geocoding");
+      toast.error("Failed to start batch geocoding. Check console for details.");
     } finally {
       setGeocodingInProgress(false);
     }
-  }, [geocodingStatus?.ordersWithoutCoordinates, fetchGeocodingStatus]);
+  }, [geocodingStatus?.ordersWithoutCoordinates, fetchGeocodingStatus, fetchMapOrders]);
 
   // Load geocoding status on component mount
   useEffect(() => {
@@ -597,22 +638,7 @@ const AdminMapAnalytics: React.FC = () => {
                 {/* Selected months pills */}
                 {selectedMonths.size > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {useMemo(() =>
-                      Array.from(selectedMonths).sort().reverse().map((monthYear) => (
-                        <div
-                          key={monthYear}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-laundrify-purple/10 text-laundrify-purple rounded-full text-xs font-medium"
-                        >
-                          {getMonthYearDisplay(monthYear)}
-                          <button
-                            onClick={() => toggleMonth(monthYear)}
-                            className="hover:text-laundrify-purple/70 ml-1"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))
-                    , [selectedMonths, getMonthYearDisplay, toggleMonth])}
+                    {selectedMonthsPills}
                   </div>
                 )}
               </div>
@@ -748,16 +774,28 @@ const AdminMapAnalytics: React.FC = () => {
 
           {/* Batch Geocoding Section */}
           {geocodingStatus && geocodingStatus.ordersWithoutCoordinates > 0 && (
-            <div className="bg-white border border-yellow-300 rounded p-3 space-y-2">
+            <div className="bg-white border border-yellow-300 rounded p-3 space-y-3">
               <div className="flex items-start gap-2">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">
                     🌍 Batch Geocoding Available
                   </p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Found <strong>{geocodingStatus.ordersWithoutCoordinates} orders</strong> without coordinates in your entire system.
-                    Current map coverage: <strong>{geocodingStatus.coverage}%</strong>
-                  </p>
+                  <div className="text-xs text-gray-600 mt-2 space-y-1">
+                    <p>
+                      Found <strong>{geocodingStatus.ordersWithoutCoordinates} orders</strong> without coordinates in your entire system.
+                    </p>
+                    <p>
+                      Current map coverage: <strong>{geocodingStatus.coverage}%</strong> ({geocodingStatus.ordersWithCoordinates}/{geocodingStatus.totalOrders} orders)
+                    </p>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="mt-3 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-green-600 h-full transition-all duration-300"
+                      style={{ width: `${Math.max(5, geocodingStatus.coverage)}%` }}
+                    />
+                  </div>
                 </div>
                 <Button
                   onClick={startBatchGeocoding}
@@ -777,9 +815,17 @@ const AdminMapAnalytics: React.FC = () => {
                   )}
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 italic">
-                This will convert all addresses to coordinates (may take 5-10 minutes for large datasets)
-              </p>
+
+              {/* Geocoding Information */}
+              <div className="bg-blue-50 border border-blue-200 rounded p-2 space-y-1">
+                <p className="text-xs font-medium text-blue-900">ℹ️ How it works:</p>
+                <ul className="text-xs text-blue-800 space-y-1 ml-2">
+                  <li>• Uses multiple geocoding providers (Google Maps, OpenStreetMap, OpenCage)</li>
+                  <li>• Automatically retries failed addresses with different providers</li>
+                  <li>• Processes in batches of 50 with rate limiting to avoid API issues</li>
+                  <li>• May take 10-20 minutes for large datasets depending on API limits</li>
+                </ul>
+              </div>
             </div>
           )}
         </div>
