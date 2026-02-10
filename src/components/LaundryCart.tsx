@@ -971,12 +971,12 @@ Confirm this booking?`;
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm px-4 py-4 flex items-center gap-4">
+      <div className="min-h-screen bg-white">
+        <div className="bg-white border-b border-gray-100 px-4 py-4 flex items-center gap-4 sticky top-0 z-10">
           <Button variant="ghost" onClick={onBack} className="p-0 h-8 w-8">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-semibold">Cart</h1>
+          <h1 className="text-lg font-semibold text-gray-900">Cart</h1>
         </div>
 
         <div className="flex flex-col items-center justify-center h-96">
@@ -985,7 +985,7 @@ Confirm this booking?`;
             Your cart is empty
           </h2>
           <p className="text-gray-600 mb-6">Add some items to get started</p>
-          <Button onClick={onBack} className="bg-laundrify-mint hover:bg-laundrify-mint/90 text-laundrify-blue">
+          <Button onClick={onBack} className="bg-purple-600 hover:bg-purple-700 text-white">
             Continue Shopping
           </Button>
         </div>
@@ -994,7 +994,7 @@ Confirm this booking?`;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="bg-white shadow-sm px-3 sm:px-4 py-4 flex items-center sticky top-0 z-10">
         <div className="flex items-center gap-2 sm:gap-4">
