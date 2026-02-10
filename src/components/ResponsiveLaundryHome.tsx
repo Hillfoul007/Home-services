@@ -933,6 +933,11 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         </div>
 
+        {/* Banner Carousel */}
+        <div className="px-0 py-2">
+          <BannerCarousel />
+        </div>
+
         {/* Premium Search Bar */}
         <div className="premium-search-section">
           <div className="premium-search-bar">
