@@ -1041,10 +1041,10 @@ Confirm this booking?`;
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-xs break-words leading-tight">
+                  <h4 className="font-medium text-xs break-words leading-tight text-gray-900">
                     {service!.name}
                   </h4>
-                  <p className="text-xs text-laundrify-red">₹{service!.price}</p>
+                  <p className="text-xs text-purple-600 font-semibold">₹{service!.price}</p>
                 </div>
 
                 <div className="flex items-center gap-1">
