@@ -763,18 +763,18 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                     onClick={onBack}
                     variant="ghost"
                     size="sm"
-                    className="text-gray-600 hover:text-gray-900 p-1 sm:p-2"
+                    className="text-gray-700 hover:text-gray-900 p-1 sm:p-2"
                   >
                     <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 )}
                 <div>
                   <h1 className="text-xl sm:text-3xl font-bold text-gray-900">
-                    Booking History
+                    My Orders
                   </h1>
-                  <p className="text-gray-600 mt-1 text-sm sm:text-base">
+                  <p className="text-gray-500 mt-1 text-sm sm:text-base">
                     {bookings.length}{" "}
-                    {bookings.length === 1 ? "booking" : "bookings"} found
+                    {bookings.length === 1 ? "booking" : "bookings"}
                   </p>
                 </div>
               </div>
