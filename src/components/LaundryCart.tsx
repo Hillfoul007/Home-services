@@ -1088,8 +1088,8 @@ Confirm this booking?`;
         </Card>
 
         {/* Zomato-style Address Section */}
-        <Card className="shadow-sm border-0">
-          <CardContent className="p-4">
+        <Card className="shadow-sm border-gray-100">
+          <CardContent className="p-4 bg-white">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Home className="h-4 w-4 text-gray-600" />
