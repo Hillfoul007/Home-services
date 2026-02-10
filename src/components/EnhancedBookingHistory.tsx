@@ -916,7 +916,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                   "10:00 AM"}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1 text-green-600 font-semibold ml-auto">
+                            <div className="flex items-center gap-1 text-purple-600 font-semibold ml-auto">
                               <span>₹{total}</span>
                             </div>
                           </div>
