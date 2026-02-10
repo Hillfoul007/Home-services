@@ -837,16 +837,16 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 return (
                   <Card
                     key={bookingId}
-                    className="overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+                    className="overflow-hidden border border-gray-100 shadow-sm hover:shadow-md hover:border-purple-200 transition-all duration-200 cursor-pointer"
                     onClick={toggleExpand}
                   >
                     {/* Compact Card Header - Always Visible */}
-                    <CardHeader className="pb-2 px-3 py-3 bg-gradient-to-r from-green-50 to-blue-50">
+                    <CardHeader className="pb-2 px-3 py-3 bg-gradient-to-r from-white to-purple-50 border-b border-gray-100">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <div className="flex flex-col">
-                              <h3 className="font-bold text-base text-blue-600 truncate">
+                              <h3 className="font-bold text-base text-purple-600 truncate">
                                 #
                                 {booking.custom_order_id ||
                                   booking.order_id ||
