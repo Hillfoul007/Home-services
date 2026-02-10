@@ -1070,14 +1070,14 @@ Confirm this booking?`;
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <span className="font-semibold text-xs text-laundrify-red">
+                  <span className="font-semibold text-xs text-purple-600">
                     ₹{service!.price * quantity}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => removeItem(service!.id)}
-                    className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="h-5 w-5 p-0 text-gray-400 hover:text-purple-600 hover:bg-purple-50"
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
