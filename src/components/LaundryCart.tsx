@@ -1009,17 +1009,17 @@ Confirm this booking?`;
 
       <div className={`p-2 space-y-2 ${validationErrors.length > 0 ? 'pb-56' : 'pb-24'}`}>
         {/* Cart Items - Compact View */}
-        <Card className="shadow-sm">
-          <CardHeader className="pb-1 px-3 py-1">
-            <CardTitle className="text-sm font-medium">
+        <Card className="shadow-sm border-gray-100">
+          <CardHeader className="pb-1 px-3 py-1 bg-gradient-to-r from-white to-purple-50">
+            <CardTitle className="text-sm font-medium text-gray-900">
               Items ({cartItems.length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 pt-0 px-3 pb-2">
+          <CardContent className="space-y-1 pt-0 px-3 pb-2 bg-white">
             {cartItems.map(({ service, quantity }) => (
               <div
                 key={service!.id}
-                className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-md"
+                className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-md hover:bg-purple-50 transition-colors"
               >
                 <div className="w-12 h-12 rounded-md overflow-hidden bg-gradient-to-br from-laundrify-mint/20 to-laundrify-mint/40 flex items-center justify-center flex-shrink-0">
                   {service!.image ? (
