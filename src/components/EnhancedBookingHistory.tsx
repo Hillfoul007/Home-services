@@ -715,10 +715,10 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
     if (!currentUser) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
-            <CardContent className="text-center py-12">
-              <User className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
+          <Card className="w-full max-w-md border-gray-100">
+            <CardContent className="text-center py-12 bg-white">
+              <User className="h-16 w-16 text-gray-300 mx-auto mb-6" />
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
                 Sign In Required
               </h2>
@@ -727,7 +727,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               </p>
               <Button
                 onClick={onLoginRequired}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 w-full py-3 rounded-xl text-white font-medium"
+                className="bg-purple-600 hover:bg-purple-700 w-full py-3 rounded-xl text-white font-medium"
               >
                 <User className="mr-2 h-4 w-4" />
                 Sign In
@@ -740,9 +740,9 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
     if (loading) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mx-auto mb-4"></div>
             <p className="text-gray-600 font-medium">
               Loading your bookings...
             </p>
@@ -752,9 +752,9 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
     }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="min-h-screen bg-white">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-6 sm:py-6">
+        <div className="bg-white border-b border-gray-100 px-3 py-3 sm:px-6 sm:py-6 sticky top-0 z-10">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 sm:gap-4">
