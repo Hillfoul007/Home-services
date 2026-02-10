@@ -799,18 +799,18 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
         {/* Content */}
         <div className="max-w-4xl mx-auto px-3 py-3 sm:px-6 sm:py-8">
           {bookings.length === 0 ? (
-            <Card className="text-center py-12">
-              <CardContent>
-                <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+            <Card className="text-center py-12 border-gray-100">
+              <CardContent className="bg-white">
+                <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-6" />
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                  No Bookings Yet
+                  No Orders Yet
                 </h3>
                 <p className="text-gray-600 mb-8">
                   Your booking history will appear here once you book a service.
                 </p>
                 <Button
                   onClick={onBack}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-medium"
                 >
                   Book Your First Service
                 </Button>
