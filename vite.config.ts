@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "::",
       port: 10000,
+      middlewareMode: false,
       proxy: {
         "/api": {
           target: "http://localhost:3001",
@@ -28,60 +29,73 @@ export default defineConfig(({ mode }) => {
       },
     },
             build: {
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 2000,
       minify: mode === "production" ? "esbuild" : false,
       sourcemap: false,
       reportCompressedSize: false,
       target: 'esnext',
-      assetsInlineLimit: 4096,
+      assetsInlineLimit: 8192,
+      emptyOutDir: true,
 
       // MEMORY OPTIMIZATION FOR RENDER.COM (512MB limit)
       rollupOptions: {
         maxParallelFileOps: 1,
+        // Suppress warnings to save memory
+        onwarn(warning) {
+          if (warning.code === 'CIRCULAR_DEPENDENCY' || warning.code === 'EVAL') return;
+        },
         output: {
-          // Reduce total chunks to avoid memory spike
+          // Larger chunks - fewer splits reduce build memory
           manualChunks: (id) => {
-            // Core vendor
+            // Core vendor - single large chunk
             if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-              return 'vendor-react';
+              return 'vendor-core';
             }
-            // UI library
-            if (id.includes('node_modules/@radix-ui')) {
+            // UI + utilities
+            if (id.includes('node_modules/@radix-ui') || id.includes('node_modules/lucide-react')) {
               return 'vendor-ui';
             }
-            // Other vendors
+            // Everything else in one chunk
             if (id.includes('node_modules')) {
-              return 'vendor-other';
+              return 'vendor';
             }
           },
-          // Reduce inlining overhead
-          entryFileNames: 'js/[name]-[hash].js',
-          chunkFileNames: 'js/[name]-[hash].js',
+          // Optimize filenames
+          entryFileNames: '[name]-[hash].js',
+          chunkFileNames: '[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash][extname]',
-        },
-        input: {
-          main: path.resolve(__dirname, 'index.html'),
+          // Reduce intermediate chunk creation
+          inlineDynamicImports: false,
+          // Don't split by output format
+          format: 'es',
         },
       },
 
       // Aggressively optimize memory during build
       cssCodeSplit: false,
+      write: true,
 
       // Reduce what needs to be kept in memory
       commonjsOptions: {
         transformMixedEsModules: true,
+        sourceMap: false,
       },
     },
-    // Enable gzip compression for assets
+    // Optimize esbuild for memory efficiency
     esbuild: {
       drop: mode === "production" ? ["console", "debugger"] : [],
-      // Reduce memory usage during build
       logLevel: 'warning',
+      // Reduce intermediate representations in memory
+      keepNames: false,
+      pure: ['console.log', 'console.warn', 'console.error'],
     },
-    // Optimize dependencies
+    // Optimize dependencies - be selective to save memory
     optimizeDeps: {
-      include: ['react', 'react-dom'],
-      exclude: ['vite-plugin-pwa'],
+      // Only pre-bundle critical deps
+      include: ['react', 'react-dom', '@radix-ui/react-dialog', '@radix-ui/react-select'],
+      exclude: ['vite-plugin-pwa', '@googlemaps/js-api-loader'],
+      // Reduce cache overhead
+      holdFiles: [],
     },
     plugins: [
       react({
