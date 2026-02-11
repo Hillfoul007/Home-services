@@ -28,30 +28,49 @@ export default defineConfig(({ mode }) => {
       },
     },
             build: {
-      chunkSizeWarningLimit: 500,
+      chunkSizeWarningLimit: 1000,
+      minify: mode === "production" ? "esbuild" : false,
+      sourcemap: false,
+      reportCompressedSize: false,
+      target: 'esnext',
+      assetsInlineLimit: 4096,
+
+      // MEMORY OPTIMIZATION FOR RENDER.COM (512MB limit)
       rollupOptions: {
-        // Minimize parallel operations to reduce memory usage
         maxParallelFileOps: 1,
         output: {
-          // Aggressive chunking to reduce memory
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            ui: ['@radix-ui/react-dialog', '@radix-ui/react-select'],
+          // Reduce total chunks to avoid memory spike
+          manualChunks: (id) => {
+            // Core vendor
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'vendor-react';
+            }
+            // UI library
+            if (id.includes('node_modules/@radix-ui')) {
+              return 'vendor-ui';
+            }
+            // Other vendors
+            if (id.includes('node_modules')) {
+              return 'vendor-other';
+            }
           },
+          // Reduce inlining overhead
+          entryFileNames: 'js/[name]-[hash].js',
+          chunkFileNames: 'js/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]',
+        },
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
         },
       },
-      // Use esbuild instead of terser for lower memory usage
-      minify: mode === "production" ? "esbuild" : false,
-      // Disable CSS code splitting to reduce memory usage
+
+      // Aggressively optimize memory during build
       cssCodeSplit: false,
-      // Disable sourcemap to save memory
-      sourcemap: false,
-      // Disable reporting to save memory
-      reportCompressedSize: false,
-      // Reduce target to minimize polyfills
-      target: 'esnext',
-      // Reduce chunk size
-      assetsInlineLimit: 0,
+
+      // Reduce what needs to be kept in memory
+      commonjsOptions: {
+        transformMixedEsModules: true,
+      },
     },
     // Enable gzip compression for assets
     esbuild: {

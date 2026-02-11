@@ -1,5 +1,3 @@
-import { LaundryService, ServiceCategory } from "@/data/laundryServices";
-
 export interface DynamicLaundryService {
   id: string;
   name: string;

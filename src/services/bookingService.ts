@@ -1277,10 +1277,7 @@ export class BookingService {
 
             try {
               // Try to refresh user session from backend
-              const dvhostingSmsService = (
-                await import("./dvhostingSmsService")
-              ).default;
-              const smsService = dvhostingSmsService.getInstance();
+              const smsService = DVHostingSmsService.getInstance();
               const refreshed = await smsService.restoreSession();
 
               if (refreshed) {
