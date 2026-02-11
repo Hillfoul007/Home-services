@@ -1064,25 +1064,45 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               // Try to get actual admin-set price from item_prices
                               let actualUnitPrice = staticUnitPrice;
                               let actualTotalPrice = staticTotalPrice;
+                              let matchedItemPrice = null;
 
-                              if (booking.item_prices && Array.isArray(booking.item_prices)) {
-                                const matchedItemPrice = booking.item_prices.find(
+                              if (booking.item_prices && Array.isArray(booking.item_prices) && booking.item_prices.length > 0) {
+                                // Try exact match first
+                                matchedItemPrice = booking.item_prices.find(
                                   (item: any) =>
                                     item.service_name?.toLowerCase() === serviceName.toLowerCase() ||
                                     item.name?.toLowerCase() === serviceName.toLowerCase()
                                 );
 
+                                // If no exact match, try partial/contains match
+                                if (!matchedItemPrice) {
+                                  const cleanServiceName = serviceName.toLowerCase().trim();
+                                  matchedItemPrice = booking.item_prices.find(
+                                    (item: any) => {
+                                      const itemName = (item.service_name || item.name || '').toLowerCase();
+                                      return itemName.includes(cleanServiceName) || cleanServiceName.includes(itemName);
+                                    }
+                                  );
+                                }
+
+                                // Use matched item or fallback to index-based matching
+                                if (!matchedItemPrice && idx < booking.item_prices.length) {
+                                  matchedItemPrice = booking.item_prices[idx];
+                                }
+
                                 if (matchedItemPrice) {
-                                  actualUnitPrice = matchedItemPrice.unit_price || matchedItemPrice.price || staticUnitPrice;
-                                  actualTotalPrice = matchedItemPrice.total_price || (actualUnitPrice * quantity);
+                                  // Extract the actual unit price and total price from item_prices
+                                  actualUnitPrice = Number(matchedItemPrice.unit_price || matchedItemPrice.price || staticUnitPrice);
+                                  actualTotalPrice = Number(matchedItemPrice.total_price || (actualUnitPrice * quantity));
+                                  console.log(`✅ Using item_price for "${serviceName}": unit=${actualUnitPrice}, total=${actualTotalPrice}`, matchedItemPrice);
                                 }
                               }
 
-                              // Check if price was discounted
+                              // Check if price was discounted (actual < static)
                               const isPriceDiscounted = actualUnitPrice < staticUnitPrice;
 
                               console.log(
-                                `💰 Service "${serviceName}": Static ₹${staticUnitPrice}, Actual ₹${actualUnitPrice} x ${quantity} = ₹${actualTotalPrice}`,
+                                `💰 Service "${serviceName}": Static ₹${staticUnitPrice}, Actual ₹${actualUnitPrice} x ${quantity} = ₹${actualTotalPrice}, Discounted: ${isPriceDiscounted}`,
                               );
 
                               return (
@@ -1092,26 +1112,29 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                 >
                                   <div className="flex-1">
                                     <span className="font-medium text-gray-900">
-                                      {serviceName} x{quantity}
+                                      {serviceName}
                                     </span>
                                     <div className="flex items-center gap-2 mt-1">
                                       {isPriceDiscounted && (
-                                        <span className="line-through text-gray-400">
-                                          ₹{staticUnitPrice} per {serviceInfo.unit.toLowerCase()}
+                                        <span className="line-through text-gray-400 text-xs">
+                                          ₹{staticUnitPrice}
                                         </span>
                                       )}
-                                      <span className={`text-xs ${isPriceDiscounted ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                                      <span className={`text-xs font-semibold ${isPriceDiscounted ? 'text-green-600' : 'text-blue-600'}`}>
                                         ₹{actualUnitPrice} per {serviceInfo.unit.toLowerCase()}
                                       </span>
                                     </div>
                                   </div>
                                   <div className="flex flex-col items-end gap-1">
+                                    <span className="text-gray-600 text-xs">
+                                      Qty: {quantity}
+                                    </span>
                                     {isPriceDiscounted && (
                                       <span className="line-through text-gray-400 text-xs">
                                         ₹{staticTotalPrice}
                                       </span>
                                     )}
-                                    <span className={`font-semibold text-sm ${isPriceDiscounted ? 'text-green-600' : 'text-gray-900'}`}>
+                                    <span className={`font-semibold text-sm ${isPriceDiscounted ? 'text-green-600' : 'text-blue-600'}`}>
                                       ₹{actualTotalPrice}
                                     </span>
                                   </div>
