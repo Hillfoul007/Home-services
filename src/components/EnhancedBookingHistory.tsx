@@ -1052,17 +1052,37 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                 }
                               }
 
-                              // Get pricing from static service data instead of database
+                              // Get static pricing for comparison (original price)
                               const serviceInfo =
                                 getServicePriceWithFallback(serviceName);
-                              const unitPrice = serviceInfo.unitPrice;
-                              const totalServicePrice = calculateServiceTotal(
+                              const staticUnitPrice = serviceInfo.unitPrice;
+                              const staticTotalPrice = calculateServiceTotal(
                                 serviceName,
                                 quantity,
                               );
 
+                              // Try to get actual admin-set price from item_prices
+                              let actualUnitPrice = staticUnitPrice;
+                              let actualTotalPrice = staticTotalPrice;
+
+                              if (booking.item_prices && Array.isArray(booking.item_prices)) {
+                                const matchedItemPrice = booking.item_prices.find(
+                                  (item: any) =>
+                                    item.service_name?.toLowerCase() === serviceName.toLowerCase() ||
+                                    item.name?.toLowerCase() === serviceName.toLowerCase()
+                                );
+
+                                if (matchedItemPrice) {
+                                  actualUnitPrice = matchedItemPrice.unit_price || matchedItemPrice.price || staticUnitPrice;
+                                  actualTotalPrice = matchedItemPrice.total_price || (actualUnitPrice * quantity);
+                                }
+                              }
+
+                              // Check if price was discounted
+                              const isPriceDiscounted = actualUnitPrice < staticUnitPrice;
+
                               console.log(
-                                `💰 Using static pricing for "${serviceName}": ₹${unitPrice} x ${quantity} = ₹${totalServicePrice}`,
+                                `💰 Service "${serviceName}": Static ₹${staticUnitPrice}, Actual ₹${actualUnitPrice} x ${quantity} = ₹${actualTotalPrice}`,
                               );
 
                               return (
@@ -1072,19 +1092,27 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                 >
                                   <div className="flex-1">
                                     <span className="font-medium text-gray-900">
-                                      {serviceName}
+                                      {serviceName} x{quantity}
                                     </span>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      ₹{unitPrice} per{" "}
-                                      {serviceInfo.unit.toLowerCase()}
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {isPriceDiscounted && (
+                                        <span className="line-through text-gray-400">
+                                          ₹{staticUnitPrice} per {serviceInfo.unit.toLowerCase()}
+                                        </span>
+                                      )}
+                                      <span className={`text-xs ${isPriceDiscounted ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                                        ₹{actualUnitPrice} per {serviceInfo.unit.toLowerCase()}
+                                      </span>
                                     </div>
                                   </div>
                                   <div className="flex flex-col items-end gap-1">
-                                    <span className="text-gray-600 text-xs">
-                                      Qty: {quantity}
-                                    </span>
-                                    <span className="font-semibold text-green-600 text-sm">
-                                      ₹{totalServicePrice}
+                                    {isPriceDiscounted && (
+                                      <span className="line-through text-gray-400 text-xs">
+                                        ₹{staticTotalPrice}
+                                      </span>
+                                    )}
+                                    <span className={`font-semibold text-sm ${isPriceDiscounted ? 'text-green-600' : 'text-gray-900'}`}>
+                                      ₹{actualTotalPrice}
                                     </span>
                                   </div>
                                 </div>
@@ -1171,11 +1199,21 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                           </h4>
 
                           <div className="space-y-2 text-xs bg-white p-3 rounded-lg">
-                            {/* Services Total */}
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600 font-medium">Services Total</span>
-                              <span className="font-semibold text-gray-900">₹{total}</span>
-                            </div>
+                            {/* Services Total - Calculate from item_prices if available */}
+                            {(() => {
+                              let servicesTotal = total;
+                              if (booking.item_prices && Array.isArray(booking.item_prices)) {
+                                servicesTotal = booking.item_prices.reduce((sum: number, item: any) => {
+                                  return sum + (item.total_price || item.price || 0);
+                                }, 0);
+                              }
+                              return (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-600 font-medium">Services Total</span>
+                                  <span className="font-semibold text-gray-900">₹{servicesTotal}</span>
+                                </div>
+                              );
+                            })()}
 
                             {/* Delivery Fee */}
                             <div className="flex justify-between items-center">
@@ -1247,7 +1285,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-emerald-100 p-2 rounded">
                               <span className="font-bold text-gray-900">Final Amount</span>
                               <span className="font-bold text-green-700 text-sm">
-                                ₹{total}
+                                ₹{booking.final_amount || booking.total_price || total}
                               </span>
                             </div>
 
