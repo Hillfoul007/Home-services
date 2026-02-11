@@ -446,6 +446,8 @@ router.post("/", async (req, res) => {
 
     // Prepare item prices for storage
     let item_prices = [];
+    let calculatedTotalPrice = 0;
+
     if (Array.isArray(services)) {
       item_prices = services.map((service) => {
         const serviceName =
@@ -456,13 +458,32 @@ router.post("/", async (req, res) => {
           typeof service === "object" ? service.quantity || 1 : 1;
         const price = typeof service === "object" ? service.price || 50 : 50;
 
+        const itemTotal = price * quantity;
+        calculatedTotalPrice += itemTotal;
+
         return {
           service_name: serviceName,
           quantity: quantity,
           unit_price: price,
-          total_price: price * quantity,
+          total_price: itemTotal,
         };
       });
+    }
+
+    // Validate and correct total_price if needed
+    const totalPriceNumber = parseFloat(total_price);
+    if (calculatedTotalPrice > 0 && Math.abs(calculatedTotalPrice - totalPriceNumber) > 0.01) {
+      console.log("⚠️ PRICE MISMATCH DETECTED:");
+      console.log(`   📊 Request total_price: ₹${totalPriceNumber}`);
+      console.log(`   📊 Calculated from items: ₹${calculatedTotalPrice}`);
+      console.log(`   📊 Difference: ₹${Math.abs(calculatedTotalPrice - totalPriceNumber)}`);
+      console.log("   ✅ Using calculated total from item_prices for consistency");
+
+      // Use the calculated total for accuracy
+      req.body.total_price = calculatedTotalPrice;
+      req.body.final_amount = final_amount
+        ? parseFloat(final_amount) - (totalPriceNumber - calculatedTotalPrice)
+        : calculatedTotalPrice - (discount_amount || 0);
     }
 
     // Check for potential duplicate bookings (same customer, service, date, time)
