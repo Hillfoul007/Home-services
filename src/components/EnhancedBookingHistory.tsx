@@ -631,11 +631,19 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
     };
 
     const calculateTotal = (booking: any) => {
-      if (booking.totalAmount) return booking.totalAmount;
+      // PRIORITY: Prefer total_price (subtotal before fees) over final_amount
       if (booking.total_price) return booking.total_price;
+      if (booking.totalAmount) return booking.totalAmount;
       if (booking.final_amount) return booking.final_amount;
 
-      // Calculate from services if available
+      // Calculate from item_prices if available (for accurate service total)
+      if (Array.isArray(booking.item_prices) && booking.item_prices.length > 0) {
+        return booking.item_prices.reduce((total: number, item: any) => {
+          return total + (item.total_price || item.price || 0);
+        }, 0);
+      }
+
+      // Fallback: Calculate from services if available
       if (Array.isArray(booking.services)) {
         return booking.services.reduce((total: number, service: any) => {
           const price = service.price || service.amount || 0;
@@ -980,80 +988,107 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             <p className="text-xs text-gray-600 mb-1">
                               Services:
                             </p>
-                            {services.map((service: any, idx: number) => {
-                              let serviceName = "";
-                              let quantity = 1;
-
-                              // Extract service information based on data structure
-                              if (
-                                typeof service === "object" &&
-                                service !== null
-                              ) {
-                                serviceName =
-                                  service.name ||
-                                  service.service ||
-                                  service.serviceName ||
-                                  "Unknown Service";
-                                quantity =
-                                  parseInt(service.quantity) ||
-                                  parseInt(service.qty) ||
-                                  1;
-                              } else {
-                                serviceName = String(
-                                  service || "Unknown Service",
-                                );
-                                quantity = 1;
-                              }
-
-                              // Extract quantity from service name if it contains "x<number>" pattern
-                              const quantityMatch = serviceName.match(/x(\d+)$/i);
-                              if (quantityMatch) {
-                                const extractedQuantity = parseInt(quantityMatch[1]);
-                                if (extractedQuantity > 0) {
-                                  quantity = extractedQuantity;
-                                  // Remove the quantity part from the service name for display
-                                  serviceName = serviceName.replace(/\s*x\d+$/i, '').trim();
-                                }
-                              }
-
-                              // Get pricing from static service data instead of database
-                              const serviceInfo =
-                                getServicePriceWithFallback(serviceName);
-                              const unitPrice = serviceInfo.unitPrice;
-                              const totalServicePrice = calculateServiceTotal(
-                                serviceName,
-                                quantity,
-                              );
-
-                              console.log(
-                                `💰 Using static pricing for "${serviceName}": ₹${unitPrice} x ${quantity} = ₹${totalServicePrice}`,
-                              );
-
-                              return (
+                            {/* Use item_prices array if available (actual prices paid), otherwise calculate from services */}
+                            {Array.isArray(booking.item_prices) && booking.item_prices.length > 0 ? (
+                              booking.item_prices.map((item: any, idx: number) => (
                                 <div
                                   key={idx}
                                   className="flex justify-between items-center bg-white p-3 rounded text-xs border border-gray-100"
                                 >
                                   <div className="flex-1">
                                     <span className="font-medium text-gray-900">
-                                      {serviceName}
+                                      {item.service_name || item.name || "Service"}
                                     </span>
                                     <div className="text-xs text-gray-500 mt-1">
-                                      ₹{unitPrice} per{" "}
-                                      {serviceInfo.unit.toLowerCase()}
+                                      ₹{item.unit_price || item.price} per unit
                                     </div>
                                   </div>
                                   <div className="flex flex-col items-end gap-1">
                                     <span className="text-gray-600 text-xs">
-                                      Qty: {quantity}
+                                      Qty: {item.quantity || 1}
                                     </span>
                                     <span className="font-semibold text-green-600 text-sm">
-                                      ₹{totalServicePrice}
+                                      ₹{item.total_price || (item.quantity * item.unit_price) || item.price}
                                     </span>
                                   </div>
                                 </div>
-                              );
-                            })}
+                              ))
+                            ) : (
+                              services.map((service: any, idx: number) => {
+                                let serviceName = "";
+                                let quantity = 1;
+
+                                // Extract service information based on data structure
+                                if (
+                                  typeof service === "object" &&
+                                  service !== null
+                                ) {
+                                  serviceName =
+                                    service.name ||
+                                    service.service ||
+                                    service.serviceName ||
+                                    "Unknown Service";
+                                  quantity =
+                                    parseInt(service.quantity) ||
+                                    parseInt(service.qty) ||
+                                    1;
+                                } else {
+                                  serviceName = String(
+                                    service || "Unknown Service",
+                                  );
+                                  quantity = 1;
+                                }
+
+                                // Extract quantity from service name if it contains "x<number>" pattern
+                                const quantityMatch = serviceName.match(/x(\d+)$/i);
+                                if (quantityMatch) {
+                                  const extractedQuantity = parseInt(quantityMatch[1]);
+                                  if (extractedQuantity > 0) {
+                                    quantity = extractedQuantity;
+                                    // Remove the quantity part from the service name for display
+                                    serviceName = serviceName.replace(/\s*x\d+$/i, '').trim();
+                                  }
+                                }
+
+                                // Get pricing from static service data as fallback
+                                const serviceInfo =
+                                  getServicePriceWithFallback(serviceName);
+                                const unitPrice = serviceInfo.unitPrice;
+                                const totalServicePrice = calculateServiceTotal(
+                                  serviceName,
+                                  quantity,
+                                );
+
+                                console.log(
+                                  `💰 Using static pricing for "${serviceName}": ₹${unitPrice} x ${quantity} = ₹${totalServicePrice}`,
+                                );
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="flex justify-between items-center bg-white p-3 rounded text-xs border border-gray-100"
+                                  >
+                                    <div className="flex-1">
+                                      <span className="font-medium text-gray-900">
+                                        {serviceName}
+                                      </span>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        ₹{unitPrice} per{" "}
+                                        {serviceInfo.unit.toLowerCase()}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span className="text-gray-600 text-xs">
+                                        Qty: {quantity}
+                                      </span>
+                                      <span className="font-semibold text-green-600 text-sm">
+                                        ₹{totalServicePrice}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
                           </div>
                         </div>
 
@@ -1135,13 +1170,24 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                           </h4>
 
                           <div className="space-y-1 text-xs">
-                            {/* Calculate service total and delivery fee */}
+                            {/* Calculate service total from item_prices or use total_price */}
                             {(() => {
-                              const handlingFee = 0; // Free handling fee
-                              const serviceTotal = Math.max(
-                                0,
-                                total - handlingFee,
-                              );
+                              // Use item_prices array if available for accurate service total
+                              let serviceTotal = total;
+                              if (Array.isArray(booking.item_prices) && booking.item_prices.length > 0) {
+                                serviceTotal = booking.item_prices.reduce((sum: number, item: any) => {
+                                  return sum + (item.total_price || item.price || 0);
+                                }, 0);
+                              }
+
+                              // Calculate final total after discounts
+                              const discountAmount = booking.discount_amount || 0;
+                              const deliveryFee = booking.delivery_fee || 0;
+                              const handlingFee = booking.handling_fee || 0;
+
+                              // Final amount should be: serviceTotal + deliveryFee + handlingFee - discountAmount
+                              // But if final_amount is provided, use it as the ultimate source of truth
+                              const finalTotal = booking.final_amount || (serviceTotal + deliveryFee + handlingFee - discountAmount);
 
                               return (
                                 <>
@@ -1154,33 +1200,55 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                     </span>
                                   </div>
 
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-green-600">
-                                      Delivery Fee
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <span className="line-through text-gray-400 text-xs">
-                                        ₹30
+                                  {deliveryFee > 0 ? (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">
+                                        Delivery Fee
                                       </span>
-                                      <span className="font-medium text-green-600">
-                                        FREE
+                                      <span className="font-medium">
+                                        ₹{deliveryFee}
                                       </span>
                                     </div>
-                                  </div>
+                                  ) : (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-green-600">
+                                        Delivery Fee
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        <span className="line-through text-gray-400 text-xs">
+                                          ₹30
+                                        </span>
+                                        <span className="font-medium text-green-600">
+                                          FREE
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
 
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-green-600">
-                                      Handling Fee
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <span className="line-through text-gray-400 text-xs">
-                                        ₹9
+                                  {handlingFee > 0 ? (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">
+                                        Handling Fee
                                       </span>
-                                      <span className="font-medium text-green-600">
-                                        FREE
+                                      <span className="font-medium">
+                                        ₹{handlingFee}
                                       </span>
                                     </div>
-                                  </div>
+                                  ) : (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-green-600">
+                                        Handling Fee
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        <span className="line-through text-gray-400 text-xs">
+                                          ₹0
+                                        </span>
+                                        <span className="font-medium text-green-600">
+                                          FREE
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </>
                               );
                             })()}
@@ -1204,7 +1272,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                 Total Amount
                               </span>
                               <span className="font-bold text-green-600">
-                                ₹{total}
+                                ₹{booking.final_amount || total}
                               </span>
                             </div>
 
