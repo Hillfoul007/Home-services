@@ -970,15 +970,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
               All Services
             </button>
 
-            <button
-              onClick={() => navigate("/pg-booking")}
-              className="premium-filter-chip active"
-              title="PG Laundry & Iron Service"
-            >
-              <Home size={14} className="inline mr-1" />
-              PG Booking
-            </button>
-
             {(useStaticFallback
               ? (serviceCategories || []).slice(1)
               : dynamicServices || []
@@ -1049,6 +1040,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                                 alt={service.name}
                                 className="premium-grid-image"
                                 priority
+                                fallbackText={getCategoryDisplay(service.category).split(" ")[0]}
                               />
                             ) : (
                               <div className="premium-grid-image-fallback">
@@ -1115,6 +1107,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                             alt={service.name}
                             className="premium-service-image"
                             priority={service.popular}
+                            fallbackText={getCategoryDisplay(service.category).split(" ")[0]}
                           />
                         ) : (
                           <div className="premium-service-image-fallback">

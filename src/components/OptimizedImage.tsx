@@ -6,6 +6,7 @@ interface OptimizedImageProps {
   className?: string;
   fallback?: React.ReactNode;
   priority?: boolean;
+  fallbackText?: string;
 }
 
 export function OptimizedImage({
@@ -14,6 +15,7 @@ export function OptimizedImage({
   className = "",
   fallback,
   priority = false,
+  fallbackText,
 }: OptimizedImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
@@ -65,11 +67,17 @@ export function OptimizedImage({
 
       {/* Error fallback */}
       {isError && (
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center">
           {fallback || (
-            <div className="text-center text-gray-500">
-              <div className="text-2xl mb-1">📷</div>
-              <div className="text-xs">Image not found</div>
+            <div className="text-center text-gray-600">
+              {fallbackText ? (
+                <div className="text-3xl font-bold">{fallbackText}</div>
+              ) : (
+                <>
+                  <div className="text-2xl mb-1">📷</div>
+                  <div className="text-xs">Image not found</div>
+                </>
+              )}
             </div>
           )}
         </div>
