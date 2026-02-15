@@ -195,7 +195,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "48-72 hours",
-    image: "https://images.unsplash.com/photo-1543163521-9efcc06b9cea?w=800&q=80",
+    image: "https://images.pexels.com/photos/31844640/pexels-photo-31844640.jpeg",
   },
   {
     id: "shoes-boots-ankle",
@@ -205,7 +205,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "48-72 hours",
-    image: "https://images.unsplash.com/photo-1548434831-46b7c2fcae34?w=800&q=80",
+    image: "https://images.pexels.com/photos/27174561/pexels-photo-27174561.jpeg",
   },
   {
     id: "shoes-boots-knee",
@@ -215,7 +215,7 @@ export const laundryServices: LaundryService[] = [
     unit: "Pair",
     category: "shoes",
     estimatedTime: "48-72 hours",
-    image: "https://images.unsplash.com/photo-1548434831-46b7c2fcae34?w=800&q=80",
+    image: "https://images.pexels.com/photos/27141849/pexels-photo-27141849.jpeg",
   },
 
   // Men's Dry Clean
