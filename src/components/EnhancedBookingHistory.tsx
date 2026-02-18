@@ -713,6 +713,30 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
       return 0;
     };
 
+    const extractQuantityFromService = (service: any): number => {
+      // If it's an object with quantity property, use that first
+      if (typeof service === "object" && service && service.quantity) {
+        const qty = parseInt(service.quantity);
+        if (!isNaN(qty) && qty > 0) {
+          return qty;
+        }
+      }
+
+      // Try to extract quantity from string service name (e.g., "Service x2")
+      if (typeof service === "string") {
+        const match = service.match(/\s*x(\d+)\s*/i);
+        if (match) {
+          const qty = parseInt(match[1]);
+          if (!isNaN(qty) && qty > 0) {
+            return qty;
+          }
+        }
+      }
+
+      // Default to 1 if no quantity found
+      return 1;
+    };
+
     if (!currentUser) {
       return (
         <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -881,19 +905,11 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               <Package className="h-3 w-3" />
                               <span>
                                 {services.reduce((total, service) => {
-                                  const quantity =
-                                    typeof service === "object"
-                                      ? service.quantity || 1
-                                      : 1;
-                                  return total + quantity;
+                                  return total + extractQuantityFromService(service);
                                 }, 0)}{" "}
                                 item
                                 {services.reduce((total, service) => {
-                                  const quantity =
-                                    typeof service === "object"
-                                      ? service.quantity || 1
-                                      : 1;
-                                  return total + quantity;
+                                  return total + extractQuantityFromService(service);
                                 }, 0) > 1
                                   ? "s"
                                   : ""}
@@ -988,11 +1004,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               </span>
                               <span className="font-medium">
                                 {services.reduce((total, service) => {
-                                  const quantity =
-                                    typeof service === "object"
-                                      ? service.quantity || 1
-                                      : 1;
-                                  return total + quantity;
+                                  return total + extractQuantityFromService(service);
                                 }, 0)}{" "}
                                 items
                               </span>
@@ -1042,13 +1054,15 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               }
 
                               // Extract quantity from service name if it contains "x<number>" pattern
-                              const quantityMatch = serviceName.match(/x(\d+)$/i);
+                              // Updated regex to handle cases where price info might appear after x<number>
+                              const quantityMatch = serviceName.match(/\s*x(\d+)\s*(?:\(|$)/i);
                               if (quantityMatch) {
                                 const extractedQuantity = parseInt(quantityMatch[1]);
                                 if (extractedQuantity > 0) {
                                   quantity = extractedQuantity;
                                   // Remove the quantity part from the service name for display
-                                  serviceName = serviceName.replace(/\s*x\d+$/i, '').trim();
+                                  // This handles both "service x2" and "service x2 (price)" formats
+                                  serviceName = serviceName.replace(/\s*x\d+\s*/i, '').trim();
                                 }
                               }
 
