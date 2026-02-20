@@ -357,6 +357,205 @@ router.get("/admin/search-users", async (req, res) => {
 });
 
 /**
+ * Admin: Deduct wallet amount from a single user
+ * POST /api/wallet/admin/deduct-amount
+ * Body: { user_id, amount, description }
+ */
+router.post("/admin/deduct-amount", async (req, res) => {
+  try {
+    const { user_id, amount, description } = req.body;
+
+    if (!user_id || !amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user_id or amount"
+      });
+    }
+
+    const user = await findUserById(user_id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found"
+      });
+    }
+
+    const currentBalance = user.wallet_balance || 0;
+    if (currentBalance < amount) {
+      return res.status(400).json({
+        success: false,
+        error: `Insufficient wallet balance. Current balance: ₹${currentBalance}. Trying to deduct: ₹${amount}`
+      });
+    }
+
+    // Deduct from wallet balance
+    user.wallet_balance = currentBalance - amount;
+
+    // Add transaction record
+    user.wallet_transactions.push({
+      type: "debit",
+      amount,
+      description: description || "Admin deducted amount",
+      created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
+    });
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Amount deducted successfully",
+      wallet_balance: user.wallet_balance,
+      transaction: user.wallet_transactions[user.wallet_transactions.length - 1]
+    });
+  } catch (error) {
+    console.error("Error deducting wallet amount:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Admin: Deduct wallet amount from multiple users (specific user IDs)
+ * POST /api/wallet/admin/bulk-deduct-amount
+ * Body: { user_ids: [], amount, description }
+ */
+router.post("/admin/bulk-deduct-amount", async (req, res) => {
+  try {
+    const { user_ids, amount, description } = req.body;
+
+    if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0 || !amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid user_ids or amount"
+      });
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    for (const userId of user_ids) {
+      try {
+        const user = await findUserById(userId);
+        if (!user) {
+          results.failed++;
+          results.errors.push({ userId, error: "User not found" });
+          continue;
+        }
+
+        const currentBalance = user.wallet_balance || 0;
+        if (currentBalance < amount) {
+          results.failed++;
+          results.errors.push({
+            userId,
+            error: `Insufficient balance. Current: ₹${currentBalance}, Trying to deduct: ₹${amount}`
+          });
+          continue;
+        }
+
+        user.wallet_balance = currentBalance - amount;
+        user.wallet_transactions.push({
+          type: "debit",
+          amount,
+          description: description || "Admin deducted bulk amount",
+          created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
+        });
+
+        await user.save();
+        results.success++;
+      } catch (err) {
+        results.failed++;
+        results.errors.push({ userId, error: err.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Deducted amount from ${results.success} users`,
+      results
+    });
+  } catch (error) {
+    console.error("Error bulk deducting wallet amount:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Admin: Deduct wallet amount from ALL users
+ * POST /api/wallet/admin/bulk-deduct-from-all-users
+ * Body: { amount, description }
+ */
+router.post("/admin/bulk-deduct-from-all-users", async (req, res) => {
+  try {
+    const { amount, description } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid amount"
+      });
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    const allUsers = await User.find({});
+
+    for (const user of allUsers) {
+      try {
+        const currentBalance = user.wallet_balance || 0;
+
+        // Skip users with insufficient balance
+        if (currentBalance < amount) {
+          results.failed++;
+          results.errors.push({
+            userId: user._id,
+            error: `Insufficient balance. Current: ₹${currentBalance}`
+          });
+          continue;
+        }
+
+        user.wallet_balance = currentBalance - amount;
+        user.wallet_transactions.push({
+          type: "debit",
+          amount,
+          description: description || "Admin deducted amount from all users",
+          created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
+        });
+
+        await user.save();
+        results.success++;
+      } catch (err) {
+        results.failed++;
+        results.errors.push({ userId: user._id, error: err.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Deducted amount from ${results.success} users`,
+      results
+    });
+  } catch (error) {
+    console.error("Error bulk deducting wallet amount from all users:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Debit wallet when booking cashback is used
  * POST /api/wallet/debit-for-booking
  * Body: { user_id, booking_id, amount }

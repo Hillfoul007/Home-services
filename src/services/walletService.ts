@@ -105,6 +105,57 @@ export class WalletService {
   }
 
   /**
+   * Admin: Deduct wallet amount from a single user
+   */
+  async adminDeductAmount(userId: string, amount: number, description: string = ''): Promise<any> {
+    try {
+      const response = await fetch('/api/wallet/admin/deduct-amount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, amount, description })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error deducting amount:', error);
+      return { success: false, error: 'Failed to deduct amount' };
+    }
+  }
+
+  /**
+   * Admin: Deduct wallet amount from multiple users (specific user IDs)
+   */
+  async adminBulkDeductAmount(userIds: string[], amount: number, description: string = ''): Promise<any> {
+    try {
+      const response = await fetch('/api/wallet/admin/bulk-deduct-amount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: userIds, amount, description })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error deducting bulk amount:', error);
+      return { success: false, error: 'Failed to deduct bulk amount' };
+    }
+  }
+
+  /**
+   * Admin: Deduct wallet amount from ALL users
+   */
+  async adminBulkDeductFromAllUsers(amount: number, description: string = ''): Promise<any> {
+    try {
+      const response = await fetch('/api/wallet/admin/bulk-deduct-from-all-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, description })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error deducting amount from all users:', error);
+      return { success: false, error: 'Failed to deduct amount from all users' };
+    }
+  }
+
+  /**
    * Admin: Search users for wallet management
    */
   async searchUsers(query: string): Promise<{ success: boolean; users?: UserWallet[]; error?: string }> {
