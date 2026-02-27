@@ -38,8 +38,20 @@ const userSchema = new mongoose.Schema(
     },
     user_type: {
       type: String,
-      enum: ["customer", "provider", "rider"],
+      enum: ["customer", "provider", "rider", "offline_store"],
       default: "customer",
+    },
+    store_name: {
+      type: String,
+      default: "",
+    },
+    store_address: {
+      type: String,
+      default: "",
+    },
+    store_phone: {
+      type: String,
+      default: "",
     },
     profile_image: {
       type: String,

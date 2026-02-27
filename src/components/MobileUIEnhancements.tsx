@@ -176,15 +176,20 @@ export const AdvancedMobileServiceCard: React.FC<{
   onRemoveFromCart,
   onViewDetails,
 }) => {
+  const [imageLoadError, setImageLoadError] = React.useState(false);
+
+  const showFallback = !image || imageLoadError;
+
   return (
     <div className="mobile-card h-full flex flex-col">
       {/* Image Section */}
       <div className="relative mb-3 aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-pink-100">
-        {image ? (
+        {!showFallback ? (
           <img
             src={image}
             alt={name}
             className="w-full h-full object-cover"
+            onError={() => setImageLoadError(true)}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-2xl">

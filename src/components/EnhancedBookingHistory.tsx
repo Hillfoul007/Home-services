@@ -713,6 +713,30 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
       return 0;
     };
 
+    const extractQuantityFromService = (service: any): number => {
+      // If it's an object with quantity property, use that first
+      if (typeof service === "object" && service && service.quantity) {
+        const qty = parseInt(service.quantity);
+        if (!isNaN(qty) && qty > 0) {
+          return qty;
+        }
+      }
+
+      // Try to extract quantity from string service name (e.g., "Service x2")
+      if (typeof service === "string") {
+        const match = service.match(/\s*x(\d+)\s*/i);
+        if (match) {
+          const qty = parseInt(match[1]);
+          if (!isNaN(qty) && qty > 0) {
+            return qty;
+          }
+        }
+      }
+
+      // Default to 1 if no quantity found
+      return 1;
+    };
+
     if (!currentUser) {
       return (
         <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -881,19 +905,11 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               <Package className="h-3 w-3" />
                               <span>
                                 {services.reduce((total, service) => {
-                                  const quantity =
-                                    typeof service === "object"
-                                      ? service.quantity || 1
-                                      : 1;
-                                  return total + quantity;
+                                  return total + extractQuantityFromService(service);
                                 }, 0)}{" "}
                                 item
                                 {services.reduce((total, service) => {
-                                  const quantity =
-                                    typeof service === "object"
-                                      ? service.quantity || 1
-                                      : 1;
-                                  return total + quantity;
+                                  return total + extractQuantityFromService(service);
                                 }, 0) > 1
                                   ? "s"
                                   : ""}
@@ -988,11 +1004,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               </span>
                               <span className="font-medium">
                                 {services.reduce((total, service) => {
-                                  const quantity =
-                                    typeof service === "object"
-                                      ? service.quantity || 1
-                                      : 1;
-                                  return total + quantity;
+                                  return total + extractQuantityFromService(service);
                                 }, 0)}{" "}
                                 items
                               </span>
@@ -1042,27 +1054,69 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                               }
 
                               // Extract quantity from service name if it contains "x<number>" pattern
-                              const quantityMatch = serviceName.match(/x(\d+)$/i);
+                              // Updated regex to handle cases where price info might appear after x<number>
+                              const quantityMatch = serviceName.match(/\s*x(\d+)\s*(?:\(|$)/i);
                               if (quantityMatch) {
                                 const extractedQuantity = parseInt(quantityMatch[1]);
                                 if (extractedQuantity > 0) {
                                   quantity = extractedQuantity;
                                   // Remove the quantity part from the service name for display
-                                  serviceName = serviceName.replace(/\s*x\d+$/i, '').trim();
+                                  // This handles both "service x2" and "service x2 (price)" formats
+                                  serviceName = serviceName.replace(/\s*x\d+\s*/i, '').trim();
                                 }
                               }
 
-                              // Get pricing from static service data instead of database
+                              // Get static pricing for comparison (original price)
                               const serviceInfo =
                                 getServicePriceWithFallback(serviceName);
-                              const unitPrice = serviceInfo.unitPrice;
-                              const totalServicePrice = calculateServiceTotal(
+                              const staticUnitPrice = serviceInfo.unitPrice;
+                              const staticTotalPrice = calculateServiceTotal(
                                 serviceName,
                                 quantity,
                               );
 
+                              // Try to get actual admin-set price from item_prices
+                              let actualUnitPrice = staticUnitPrice;
+                              let actualTotalPrice = staticTotalPrice;
+                              let matchedItemPrice = null;
+
+                              if (booking.item_prices && Array.isArray(booking.item_prices) && booking.item_prices.length > 0) {
+                                // Try exact match first
+                                matchedItemPrice = booking.item_prices.find(
+                                  (item: any) =>
+                                    item.service_name?.toLowerCase() === serviceName.toLowerCase() ||
+                                    item.name?.toLowerCase() === serviceName.toLowerCase()
+                                );
+
+                                // If no exact match, try partial/contains match
+                                if (!matchedItemPrice) {
+                                  const cleanServiceName = serviceName.toLowerCase().trim();
+                                  matchedItemPrice = booking.item_prices.find(
+                                    (item: any) => {
+                                      const itemName = (item.service_name || item.name || '').toLowerCase();
+                                      return itemName.includes(cleanServiceName) || cleanServiceName.includes(itemName);
+                                    }
+                                  );
+                                }
+
+                                // Use matched item or fallback to index-based matching
+                                if (!matchedItemPrice && idx < booking.item_prices.length) {
+                                  matchedItemPrice = booking.item_prices[idx];
+                                }
+
+                                if (matchedItemPrice) {
+                                  // Extract the actual unit price and total price from item_prices
+                                  actualUnitPrice = Number(matchedItemPrice.unit_price || matchedItemPrice.price || staticUnitPrice);
+                                  actualTotalPrice = Number(matchedItemPrice.total_price || (actualUnitPrice * quantity));
+                                  console.log(`✅ Using item_price for "${serviceName}": unit=${actualUnitPrice}, total=${actualTotalPrice}`, matchedItemPrice);
+                                }
+                              }
+
+                              // Check if price was discounted (actual < static)
+                              const isPriceDiscounted = actualUnitPrice < staticUnitPrice;
+
                               console.log(
-                                `💰 Using static pricing for "${serviceName}": ₹${unitPrice} x ${quantity} = ₹${totalServicePrice}`,
+                                `💰 Service "${serviceName}": Static ₹${staticUnitPrice}, Actual ₹${actualUnitPrice} x ${quantity} = ₹${actualTotalPrice}, Discounted: ${isPriceDiscounted}`,
                               );
 
                               return (
@@ -1074,17 +1128,28 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                     <span className="font-medium text-gray-900">
                                       {serviceName}
                                     </span>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      ₹{unitPrice} per{" "}
-                                      {serviceInfo.unit.toLowerCase()}
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {isPriceDiscounted && (
+                                        <span className="line-through text-gray-400 text-xs">
+                                          ₹{staticUnitPrice}
+                                        </span>
+                                      )}
+                                      <span className={`text-xs font-semibold ${isPriceDiscounted ? 'text-green-600' : 'text-blue-600'}`}>
+                                        ₹{actualUnitPrice} per {serviceInfo.unit.toLowerCase()}
+                                      </span>
                                     </div>
                                   </div>
                                   <div className="flex flex-col items-end gap-1">
                                     <span className="text-gray-600 text-xs">
                                       Qty: {quantity}
                                     </span>
-                                    <span className="font-semibold text-green-600 text-sm">
-                                      ₹{totalServicePrice}
+                                    {isPriceDiscounted && (
+                                      <span className="line-through text-gray-400 text-xs">
+                                        ₹{staticTotalPrice}
+                                      </span>
+                                    )}
+                                    <span className={`font-semibold text-sm ${isPriceDiscounted ? 'text-green-600' : 'text-blue-600'}`}>
+                                      ₹{actualTotalPrice}
                                     </span>
                                   </div>
                                 </div>
@@ -1171,11 +1236,21 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                           </h4>
 
                           <div className="space-y-2 text-xs bg-white p-3 rounded-lg">
-                            {/* Services Total */}
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600 font-medium">Services Total</span>
-                              <span className="font-semibold text-gray-900">₹{total}</span>
-                            </div>
+                            {/* Services Total - Calculate from item_prices if available */}
+                            {(() => {
+                              let servicesTotal = total;
+                              if (booking.item_prices && Array.isArray(booking.item_prices)) {
+                                servicesTotal = booking.item_prices.reduce((sum: number, item: any) => {
+                                  return sum + (item.total_price || item.price || 0);
+                                }, 0);
+                              }
+                              return (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-600 font-medium">Services Total</span>
+                                  <span className="font-semibold text-gray-900">₹{servicesTotal}</span>
+                                </div>
+                              );
+                            })()}
 
                             {/* Delivery Fee */}
                             <div className="flex justify-between items-center">
@@ -1247,7 +1322,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                             <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-emerald-100 p-2 rounded">
                               <span className="font-bold text-gray-900">Final Amount</span>
                               <span className="font-bold text-green-700 text-sm">
-                                ₹{total}
+                                ₹{booking.final_amount || booking.total_price || total}
                               </span>
                             </div>
 

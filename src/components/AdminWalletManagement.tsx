@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { walletService, type UserWallet } from "@/services/walletService";
-import { Search, Plus, Mail } from "lucide-react";
+import { Search, Plus, Minus, Mail } from "lucide-react";
 
 const AdminWalletManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"single" | "bulk">("single");
+  const [operationMode, setOperationMode] = useState<"add" | "deduct">("add");
   
   // Single user state
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,6 +85,49 @@ const AdminWalletManagement: React.FC = () => {
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to add cashback");
+    } finally {
+      setLoadingSingle(false);
+    }
+  };
+
+  // Deduct amount from single user
+  const handleDeductSingleAmount = async () => {
+    if (!selectedUser || !singleAmount) {
+      toast.error("Please select a user and enter amount");
+      return;
+    }
+
+    const amount = parseFloat(singleAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if ((selectedUser.wallet_balance || 0) < amount) {
+      toast.error(`Insufficient balance. Current balance: ₹${selectedUser.wallet_balance || 0}`);
+      return;
+    }
+
+    setLoadingSingle(true);
+    try {
+      const result = await walletService.adminDeductAmount(
+        selectedUser._id,
+        amount,
+        singleDescription || `Deducted wallet amount of ₹${amount}`
+      );
+
+      if (result.success) {
+        toast.success(`Amount deducted! New balance: ₹${result.wallet_balance}`);
+        setSingleAmount("");
+        setSingleDescription("");
+        setSelectedUser(null);
+        setSearchResults([]);
+        setSearchQuery("");
+      } else {
+        toast.error(result.error || "Failed to deduct amount");
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to deduct amount");
     } finally {
       setLoadingSingle(false);
     }
@@ -167,6 +211,84 @@ const AdminWalletManagement: React.FC = () => {
     }
   };
 
+  // Deduct amount from multiple users
+  const handleDeductBulkAmount = async () => {
+    const amount = parseFloat(bulkAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (bulkMode === "specific") {
+      if (!bulkUserIds.trim()) {
+        toast.error("Please enter user IDs");
+        return;
+      }
+
+      const userIds = bulkUserIds
+        .split(",")
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
+      if (userIds.length === 0) {
+        toast.error("Please enter at least one user ID");
+        return;
+      }
+
+      setLoadingBulk(true);
+      try {
+        const result = await walletService.adminBulkDeductAmount(
+          userIds,
+          amount,
+          bulkDescription || `Bulk deducted amount of ₹${amount}`
+        );
+
+        if (result.success) {
+          toast.success(
+            `Successfully deducted amount from ${result.results.success} users`
+          );
+          if (result.results.failed > 0) {
+            toast.warning(`Failed for ${result.results.failed} users (insufficient balance or other errors)`);
+          }
+          setBulkUserIds("");
+          setBulkAmount("");
+          setBulkDescription("");
+        } else {
+          toast.error(result.error || "Failed to deduct bulk amount");
+        }
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to deduct bulk amount");
+      } finally {
+        setLoadingBulk(false);
+      }
+    } else {
+      setLoadingBulk(true);
+      try {
+        const result = await walletService.adminBulkDeductFromAllUsers(
+          amount,
+          bulkDescription || `Bulk deducted amount of ₹${amount}`
+        );
+
+        if (result.success) {
+          toast.success(
+            `Successfully deducted amount from ${result.results.success} users`
+          );
+          if (result.results.failed > 0) {
+            toast.warning(`Failed for ${result.results.failed} users (insufficient balance or other errors)`);
+          }
+          setBulkAmount("");
+          setBulkDescription("");
+        } else {
+          toast.error(result.error || "Failed to deduct bulk amount");
+        }
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to deduct bulk amount");
+      } finally {
+        setLoadingBulk(false);
+      }
+    }
+  };
+
   return (
     <div className="p-6 bg-white min-h-screen">
       <div className="max-w-6xl mx-auto">
@@ -175,8 +297,34 @@ const AdminWalletManagement: React.FC = () => {
             💰 Wallet Management
           </h1>
           <p className="text-gray-600">
-            Add wallet cashback to users for their next orders
+            Add or deduct wallet amounts for users
           </p>
+        </div>
+
+        {/* Operation Mode Toggle */}
+        <div className="mb-6 flex gap-3">
+          <button
+            onClick={() => setOperationMode("add")}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              operationMode === "add"
+                ? "bg-green-600 text-white"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            <Plus className="inline mr-2 h-4 w-4" />
+            Add Amount
+          </button>
+          <button
+            onClick={() => setOperationMode("deduct")}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              operationMode === "deduct"
+                ? "bg-red-600 text-white"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            <Minus className="inline mr-2 h-4 w-4" />
+            Deduct Amount
+          </button>
         </div>
 
         {/* Tabs */}
@@ -190,7 +338,7 @@ const AdminWalletManagement: React.FC = () => {
             }`}
           >
             <Mail className="inline mr-2 h-4 w-4" />
-            Add to Single User
+            Single User
           </button>
           <button
             onClick={() => setActiveTab("bulk")}
@@ -201,7 +349,7 @@ const AdminWalletManagement: React.FC = () => {
             }`}
           >
             <Mail className="inline mr-2 h-4 w-4" />
-            Bulk Add
+            Bulk Operation
           </button>
         </div>
 
@@ -281,19 +429,39 @@ const AdminWalletManagement: React.FC = () => {
 
               {/* Amount and Description */}
               {selectedUser && (
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className={`p-4 rounded-lg border ${
+                  operationMode === "add"
+                    ? "bg-green-50 border-green-200"
+                    : "bg-red-50 border-red-200"
+                }`}>
                   <div className="mb-4">
-                    <p className="text-sm font-semibold text-blue-900">
+                    <p className={`text-sm font-semibold ${
+                      operationMode === "add"
+                        ? "text-green-900"
+                        : "text-red-900"
+                    }`}>
                       Selected User: {selectedUser.name || selectedUser.full_name}
                     </p>
-                    <p className="text-sm text-blue-700">
+                    <p className={`text-sm ${
+                      operationMode === "add"
+                        ? "text-green-700"
+                        : "text-red-700"
+                    }`}>
                       Current Wallet: ₹{(selectedUser.wallet_balance || 0).toFixed(2)}
                     </p>
                   </div>
 
+                  {operationMode === "deduct" && (
+                    <div className="bg-red-100 p-3 rounded mb-4 border border-red-300">
+                      <p className="text-sm text-red-900 font-semibold">
+                        ⚠️ Warning: You are about to deduct amount from this user's wallet.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                     <div>
-                      <Label>Amount to Add (₹)</Label>
+                      <Label>Amount to {operationMode === "add" ? "Add" : "Deduct"} (₹)</Label>
                       <Input
                         type="number"
                         min="0"
@@ -307,19 +475,30 @@ const AdminWalletManagement: React.FC = () => {
                     <div>
                       <Label>Description (Optional)</Label>
                       <Input
-                        placeholder="e.g., Welcome bonus, referral reward"
+                        placeholder={operationMode === "add"
+                          ? "e.g., Welcome bonus, referral reward"
+                          : "e.g., Adjustment, refund, penalty"}
                         value={singleDescription}
                         onChange={(e) => setSingleDescription(e.target.value)}
                       />
                     </div>
 
                     <Button
-                      onClick={handleAddSingleCashback}
+                      onClick={operationMode === "add" ? handleAddSingleCashback : handleDeductSingleAmount}
                       disabled={loadingSingle}
-                      className="w-full bg-green-600 hover:bg-green-700"
+                      className={operationMode === "add" ? "w-full bg-green-600 hover:bg-green-700" : "w-full bg-red-600 hover:bg-red-700"}
                     >
-                      <Plus className="h-4 w-4 mr-2" />
-                      {loadingSingle ? "Adding..." : "Add Cashback"}
+                      {operationMode === "add" ? (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          {loadingSingle ? "Adding..." : "Add Amount"}
+                        </>
+                      ) : (
+                        <>
+                          <Minus className="h-4 w-4 mr-2" />
+                          {loadingSingle ? "Deducting..." : "Deduct Amount"}
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -328,13 +507,13 @@ const AdminWalletManagement: React.FC = () => {
           </Card>
         )}
 
-        {/* Bulk Add Tab */}
+        {/* Bulk Operation Tab */}
         {activeTab === "bulk" && (
           <Card className="p-6">
             <div className="space-y-6">
               <div>
                 <Label className="text-lg font-semibold mb-4 block">
-                  Bulk Add Mode
+                  Bulk {operationMode === "add" ? "Add" : "Deduct"} Mode
                 </Label>
                 <div className="flex gap-4">
                   <button
@@ -378,15 +557,23 @@ const AdminWalletManagement: React.FC = () => {
               )}
 
               {bulkMode === "all" && (
-                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-                  <p className="text-sm text-amber-900">
-                    <strong>⚠️ Warning:</strong> This will add cashback to <strong>ALL users</strong> in the system. Please ensure this is what you intend.
+                <div className={`p-4 rounded-lg border ${
+                  operationMode === "add"
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-red-50 border-red-200"
+                }`}>
+                  <p className={`text-sm font-semibold ${
+                    operationMode === "add"
+                      ? "text-amber-900"
+                      : "text-red-900"
+                  }`}>
+                    <strong>⚠️ Warning:</strong> This will {operationMode === "add" ? "add cashback to" : "deduct amount from"} <strong>ALL users</strong> in the system. Please ensure this is what you intend.
                   </p>
                 </div>
               )}
 
               <div>
-                <Label>Amount to Add to Each User (₹)</Label>
+                <Label>Amount to {operationMode === "add" ? "Add to" : "Deduct from"} Each User (₹)</Label>
                 <Input
                   type="number"
                   min="0"
@@ -400,19 +587,30 @@ const AdminWalletManagement: React.FC = () => {
               <div>
                 <Label>Description (Optional)</Label>
                 <Input
-                  placeholder="e.g., Diwali promo cashback"
+                  placeholder={operationMode === "add"
+                    ? "e.g., Diwali promo cashback"
+                    : "e.g., Adjustment, refund, penalty"}
                   value={bulkDescription}
                   onChange={(e) => setBulkDescription(e.target.value)}
                 />
               </div>
 
               <Button
-                onClick={handleAddBulkCashback}
+                onClick={operationMode === "add" ? handleAddBulkCashback : handleDeductBulkAmount}
                 disabled={loadingBulk}
-                className="w-full bg-green-600 hover:bg-green-700"
+                className={operationMode === "add" ? "w-full bg-green-600 hover:bg-green-700" : "w-full bg-red-600 hover:bg-red-700"}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                {loadingBulk ? "Adding..." : `Add Cashback ${bulkMode === "all" ? "to All Users" : "to Selected Users"}`}
+                {operationMode === "add" ? (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {loadingBulk ? "Adding..." : `Add Cashback ${bulkMode === "all" ? "to All Users" : "to Selected Users"}`}
+                  </>
+                ) : (
+                  <>
+                    <Minus className="h-4 w-4 mr-2" />
+                    {loadingBulk ? "Deducting..." : `Deduct Amount ${bulkMode === "all" ? "from All Users" : "from Selected Users"}`}
+                  </>
+                )}
               </Button>
             </div>
           </Card>

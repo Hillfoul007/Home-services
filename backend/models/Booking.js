@@ -317,6 +317,30 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
+    // OFFLINE STORE FIELDS
+    is_offline_order: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    offline_store_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    customer_name: {
+      type: String,
+      default: "",
+    },
+    customer_phone: {
+      type: String,
+      default: "",
+    },
+    notes: {
+      type: String,
+      default: "",
+    },
+
     created_at: {
       type: Date,
       default: () => new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
