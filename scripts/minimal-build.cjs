@@ -4,8 +4,9 @@
 const { spawn } = require('child_process');
 
 // Set optimized memory allocation for 512MB environments
-// Using 400MB heap (leaving ~100MB for system, ~12MB for other Node processes)
-process.env.NODE_OPTIONS = '--max-old-space-size=400';
+// Using 800MB heap (Node allows overcommit on modern systems)
+// Also enable aggressive garbage collection to prevent OOM during build
+process.env.NODE_OPTIONS = '--max-old-space-size=800 --expose-gc';
 
 // Function to run command with minimal memory settings
 function runCommand(command, args = []) {
@@ -17,9 +18,11 @@ function runCommand(command, args = []) {
       shell: true,
       env: {
         ...process.env,
-        NODE_OPTIONS: '--max-old-space-size=400',
+        NODE_OPTIONS: '--max-old-space-size=800 --expose-gc --max-http-header-size=16384',
         // Enable aggressive garbage collection
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        // Vite specific optimizations
+        VITE_BUILD_STATIC_DIR: 'true'
       }
     });
     

@@ -11,47 +11,22 @@ export default defineConfig({
   build: {
     // Aggressive memory optimizations
     chunkSizeWarningLimit: 1000,
+    // Limit concurrent workers to prevent memory spikes
+    ssr: false,
     // Use rollup for better tree-shaking
     rollupOptions: {
-      // Absolute minimum parallel operations
+      // Absolute minimum parallel operations to prevent memory spikes
       maxParallelFileOps: 1,
+      // Limit concurrent chunk processing
+      maxChunks: 50,
       // Aggressive manual chunking to spread load
       output: {
-        // Split into multiple chunks to reduce peak memory
+        // Minimal chunking to reduce file I/O and memory pressure
+        // Group vendors but keep it simple
         manualChunks: {
-          'react-vendors': ['react', 'react-dom', 'react-router-dom'],
-          'radix-ui': [
-            '@radix-ui/react-accordion',
-            '@radix-ui/react-alert-dialog',
-            '@radix-ui/react-aspect-ratio',
-            '@radix-ui/react-avatar',
-            '@radix-ui/react-checkbox',
-            '@radix-ui/react-collapsible',
-            '@radix-ui/react-context-menu',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-hover-card',
-            '@radix-ui/react-label',
-            '@radix-ui/react-menubar',
-            '@radix-ui/react-navigation-menu',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-progress',
-            '@radix-ui/react-radio-group',
-            '@radix-ui/react-scroll-area',
-            '@radix-ui/react-select',
-            '@radix-ui/react-separator',
-            '@radix-ui/react-slider',
-            '@radix-ui/react-slot',
-            '@radix-ui/react-switch',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-toast',
-            '@radix-ui/react-toggle',
-            '@radix-ui/react-toggle-group',
-            '@radix-ui/react-tooltip',
-          ],
-          'charts': ['recharts'],
-          'forms': ['react-hook-form', 'input-otp'],
-          'utils': ['date-fns', 'clsx', 'tailwind-merge', 'class-variance-authority'],
+          'vendors': ['react', 'react-dom', 'react-router-dom'],
+          'ui': ['@radix-ui/react-accordion', '@radix-ui/react-alert-dialog', '@radix-ui/react-avatar', '@radix-ui/react-checkbox', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-label', '@radix-ui/react-popover', '@radix-ui/react-select', '@radix-ui/react-separator', '@radix-ui/react-switch', '@radix-ui/react-tabs', '@radix-ui/react-tooltip'],
+          'extras': ['lucide-react', 'date-fns', 'recharts'],
         },
         // Limit chunk size to prevent large chunks
         chunkFileNames: 'js/[name]-[hash].js',
@@ -61,10 +36,16 @@ export default defineConfig({
     },
     // Use esbuild for faster, lower memory minification
     minify: "esbuild",
-    // Aggressive size reduction
+    // Do NOT split CSS to reduce file operations and memory usage
     cssCodeSplit: false,
+    // Inline CSS for critical styles to reduce HTTP requests and memory
+    cssMinify: "esbuild",
     sourcemap: false,
     reportCompressedSize: false,
+    // Limit the number of modules processed at once
+    modulePreload: {
+      polyfill: false
+    },
     // Use latest JS features to reduce bundle size
     target: 'esnext',
     // Don't include module preload polyfill
@@ -107,33 +88,17 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Aggressive dependency optimization
+  // Minimal dependency optimization to save memory during build
   optimizeDeps: {
+    // Only optimize critical dependencies
     include: [
       'react',
       'react-dom',
       'react-router-dom',
-      '@radix-ui/react-accordion',
-      '@radix-ui/react-alert-dialog',
-      '@radix-ui/react-avatar',
-      '@radix-ui/react-checkbox',
-      '@radix-ui/react-dialog',
-      '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-label',
-      '@radix-ui/react-popover',
-      '@radix-ui/react-progress',
-      '@radix-ui/react-select',
-      '@radix-ui/react-separator',
-      '@radix-ui/react-slider',
-      '@radix-ui/react-switch',
-      '@radix-ui/react-tabs',
-      '@radix-ui/react-toast',
-      '@radix-ui/react-tooltip',
       'lucide-react',
       'date-fns',
-      'clsx',
-      'react-hook-form',
     ],
-    exclude: ['vite-plugin-pwa', 'googleapis', 'mongodb'],
+    // Exclude heavy dependencies that don't need pre-bundling
+    exclude: ['vite-plugin-pwa', 'googleapis', 'mongodb', '@radix-ui/*'],
   },
 });
