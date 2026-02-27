@@ -47,6 +47,7 @@ router.post("/register", async (req, res) => {
     // Generate and send OTP
     const otp = otpService.generateOTP();
     otpService.storeOTP(phone, otp, "offline_store_register");
+    await otpService.sendOTP(phone, otp, "offline_store_register");
 
     res.json({
       success: true,
@@ -75,11 +76,11 @@ router.post("/verify-otp", async (req, res) => {
     }
 
     // Verify OTP
-    const isOTPValid = otpService.verifyOTP(phone, otp, "offline_store_register");
-    if (!isOTPValid) {
+    const verification = otpService.verifyOTP(phone, otp, "offline_store_register");
+    if (!verification.success) {
       return res.status(400).json({
         success: false,
-        error: "Invalid or expired OTP",
+        error: verification.error || "Invalid or expired OTP",
       });
     }
 
@@ -149,6 +150,7 @@ router.post("/login", async (req, res) => {
     // Generate and send OTP
     const otp = otpService.generateOTP();
     otpService.storeOTP(phone, otp, "offline_store_login");
+    await otpService.sendOTP(phone, otp, "offline_store_login");
 
     res.json({
       success: true,
@@ -177,11 +179,11 @@ router.post("/verify-login-otp", async (req, res) => {
     }
 
     // Verify OTP
-    const isOTPValid = otpService.verifyOTP(phone, otp, "offline_store_login");
-    if (!isOTPValid) {
+    const verification = otpService.verifyOTP(phone, otp, "offline_store_login");
+    if (!verification.success) {
       return res.status(400).json({
         success: false,
-        error: "Invalid or expired OTP",
+        error: verification.error || "Invalid or expired OTP",
       });
     }
 

@@ -19,6 +19,7 @@ export default function OfflineStoreAuth() {
   const [storePhone, setStorePhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +116,7 @@ export default function OfflineStoreAuth() {
 
       if (data.success) {
         toast.success("OTP sent for verification");
-        setStep("otp");
+        setOtpSent(true);
       } else {
         toast.error(data.error || "Error creating account");
       }
@@ -260,11 +261,11 @@ export default function OfflineStoreAuth() {
           {step === "register" && (
             <form
               onSubmit={
-                isNewUser && otp ? handleVerifyRegistration : handleRegisterSubmit
+                isNewUser && otpSent ? handleVerifyRegistration : handleRegisterSubmit
               }
             >
               <div className="space-y-4">
-                {isNewUser && !otp ? (
+                {isNewUser && !otpSent ? (
                   <>
                     <p className="text-sm text-gray-600 mb-4">
                       Create your offline store account
@@ -358,7 +359,7 @@ export default function OfflineStoreAuth() {
                       variant="outline"
                       className="w-full"
                       onClick={() => {
-                        setStep("register");
+                        setOtpSent(false);
                         setOtp("");
                       }}
                     >
