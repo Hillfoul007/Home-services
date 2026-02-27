@@ -35,12 +35,12 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ phone });
-    if (existingUser) {
+    // Check if user already exists and is already an offline store
+    const existingStore = await User.findOne({ phone, user_type: "offline_store" });
+    if (existingStore) {
       return res.status(400).json({
         success: false,
-        error: "Account with this phone number already exists",
+        error: "Offline store already registered with this phone number",
       });
     }
 
@@ -86,7 +86,16 @@ router.post("/verify-otp", async (req, res) => {
 
     // Check if user already exists
     let user = await User.findOne({ phone });
-    if (!user) {
+
+    if (user) {
+      // Update existing user to become an offline store
+      user.user_type = "offline_store";
+      user.store_name = store_name || user.store_name || "";
+      user.store_address = store_address || user.store_address || "";
+      user.store_phone = store_phone || user.store_phone || phone;
+      user.phone_verified = true;
+      await user.save();
+    } else {
       // Create new offline store user
       user = new User({
         phone,
