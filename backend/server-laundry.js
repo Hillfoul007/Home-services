@@ -493,6 +493,15 @@ try {
   console.error("❌ Failed to load Banner routes:", error.message);
 }
 
+// Offline Store routes
+try {
+  const offlineStoreRoutes = require("./routes/offline-store");
+  app.use("/api/offline-store", offlineStoreRoutes);
+  console.log("🔗 Offline Store routes registered at /api/offline-store");
+} catch (error) {
+  console.error("❌ Failed to load Offline Store routes:", error.message);
+}
+
 // Google Sheets integration removed
 
 // Push notification endpoints

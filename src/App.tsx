@@ -28,6 +28,8 @@ import MainWebsite from "@/pages/MainWebsite";
 import PGBooking from "@/pages/PGBooking";
 import AdminVehicleManagement from "@/components/AdminVehicleManagement";
 import VehicleDashboard from "@/components/VehicleDashboard";
+import OfflineStoreAuth from "@/pages/OfflineStoreAuth";
+import OfflineStoreDeskPage from "@/pages/OfflineStoreDeskPage";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -108,6 +110,8 @@ function App() {
               <Route path="/pg-booking" element={<PGBooking />} />
               <Route path="/admin/vehicles" element={<AdminVehicleManagement />} />
               <Route path="/driver/dashboard" element={<VehicleDashboard />} />
+              <Route path="/offlinestore/login" element={<OfflineStoreAuth />} />
+              <Route path="/desk" element={<OfflineStoreDeskPage />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
