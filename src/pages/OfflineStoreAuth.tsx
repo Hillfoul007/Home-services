@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Phone, Lock, Store } from "lucide-react";
 import { toast } from "sonner";
-import dvhostingSmsService from "@/services/dvhostingSmsService";
+import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 
 type AuthStep = "phone" | "otp" | "register";
 
 export default function OfflineStoreAuth() {
   const navigate = useNavigate();
+  const dvhostingSmsService = DVHostingSmsService.getInstance();
   const [step, setStep] = useState<AuthStep>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
