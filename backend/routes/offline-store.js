@@ -250,12 +250,19 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
       new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
     );
 
-    // Get current time string (HH:mm)
-    const timeStr = indianDate.getHours().toString().padStart(2, '0') + ":" +
-                    indianDate.getMinutes().toString().padStart(2, '0');
+    // Get current time string (HH:mm) in IST
+    const timeStr = indianDate.toLocaleTimeString("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
-    // Get current date string (YYYY-MM-DD)
-    const dateStr = indianDate.toISOString().split('T')[0];
+    // Get current date string (YYYY-MM-DD) in IST
+    const year = indianDate.getFullYear();
+    const month = String(indianDate.getMonth() + 1).padStart(2, '0');
+    const day = String(indianDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
     const booking = new Booking({
       // Required fields
