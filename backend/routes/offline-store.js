@@ -338,14 +338,14 @@ router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
       orders = await Booking.find(query)
         .sort({ created_at: 1 })
         .select(
-          "custom_order_id customer_name customer_phone services total_price final_amount status created_at updated_at riderStatus"
+          "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus"
         );
     } else {
       // Default: recent first
       orders = await Booking.find(query)
         .sort({ created_at: -1 })
         .select(
-          "custom_order_id customer_name customer_phone services total_price final_amount status created_at updated_at riderStatus"
+          "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus"
         );
     }
 

@@ -32,7 +32,8 @@ interface Order {
   custom_order_id: string;
   customer_name: string;
   customer_phone: string;
-  services: any[];
+  services: string[];
+  item_prices: any[];
   total_price: number;
   final_amount: number;
   status: string;
@@ -451,15 +452,21 @@ export default function OfflineStoreDeskPage() {
                       <div className="bg-gray-50 p-4 rounded-lg">
                         <h3 className="font-semibold mb-3">Services</h3>
                         <div className="space-y-2">
-                          {selectedOrder.services && selectedOrder.services.length > 0 ? (
-                            selectedOrder.services.map((service: any, idx: number) => (
+                          {selectedOrder.item_prices && selectedOrder.item_prices.length > 0 ? (
+                            selectedOrder.item_prices.map((service: any, idx: number) => (
                               <div key={idx} className="flex justify-between">
                                 <span>
-                                  {service.service_name || service} x {service.quantity || 1}
+                                  {service.service_name} x {service.quantity || 1}
                                 </span>
                                 <span className="font-semibold">
-                                  ₹{service.total_price || service.unit_price || 0}
+                                  ₹{service.total_price || (service.unit_price * (service.quantity || 1)) || 0}
                                 </span>
+                              </div>
+                            ))
+                          ) : selectedOrder.services && selectedOrder.services.length > 0 ? (
+                            selectedOrder.services.map((service: any, idx: number) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{service}</span>
                               </div>
                             ))
                           ) : (
