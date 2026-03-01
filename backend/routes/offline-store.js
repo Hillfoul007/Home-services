@@ -250,16 +250,30 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
       new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
     );
 
+    // Get current time string (HH:mm)
+    const timeStr = indianDate.getHours().toString().padStart(2, '0') + ":" +
+                    indianDate.getMinutes().toString().padStart(2, '0');
+
+    // Get current date string (YYYY-MM-DD)
+    const dateStr = indianDate.toISOString().split('T')[0];
+
     const booking = new Booking({
+      // Required fields
+      name: customer_name,
+      phone: customer_phone,
+      customer_id: req.offlineStore._id,
+      service: "Offline Order", // Will be overridden by pre-save
+      service_type: "Offline Store",
+      services: services.map(s => s.service_name), // Must be [String]
+      scheduled_date: dateStr,
+      scheduled_time: timeStr,
+      delivery_date: dateStr,
+      delivery_time: timeStr,
+      provider_name: "Store Order",
+
+      // Offline specific fields
       customer_name,
       customer_phone,
-      customer_id: req.offlineStore._id,
-      services: services.map((s) => ({
-        service_name: s.service_name,
-        quantity: s.quantity || 1,
-        unit_price: s.unit_price || 0,
-        total_price: s.total_price || 0,
-      })),
       item_prices: services.map((s) => ({
         service_name: s.service_name,
         quantity: s.quantity || 1,
