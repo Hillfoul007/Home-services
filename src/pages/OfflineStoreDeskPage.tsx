@@ -25,6 +25,8 @@ interface OfflineStoreUser {
   phone: string;
   store_name: string;
   store_address: string;
+  is_vendor?: boolean;
+  vendor_id?: string;
 }
 
 interface Order {
@@ -273,9 +275,18 @@ export default function OfflineStoreDeskPage() {
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{user.store_name}</h1>
-            <p className="text-sm text-gray-600">{user.store_address}</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-900">{user.store_name}</h1>
+                {user.is_vendor && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    Vendor Account
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-600">{user.store_address}</p>
+            </div>
           </div>
           <Button
             variant="outline"

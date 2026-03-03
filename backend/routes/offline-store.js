@@ -232,6 +232,83 @@ router.post("/verify-login-otp", async (req, res) => {
   }
 });
 
+// Vendor login as offline store
+router.post("/vendor-login", async (req, res) => {
+  try {
+    const { vendor_id, password } = req.body;
+
+    if (!vendor_id || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Vendor ID and password are required",
+      });
+    }
+
+    const Vendor = require("../models/Vendor");
+    const vendor = await Vendor.findOne({ vendor_id }).select("+password_hash");
+
+    if (!vendor) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid vendor ID or password",
+      });
+    }
+
+    if (!vendor.is_active) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor account is inactive",
+      });
+    }
+
+    const isPasswordValid = await vendor.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid vendor ID or password",
+      });
+    }
+
+    // Update last login
+    vendor.last_login = new Date();
+    await vendor.save();
+
+    // Generate JWT token compatible with offline store middleware
+    const token = jwt.sign(
+      {
+        _id: vendor._id,
+        vendor_id_str: vendor.vendor_id,
+        phone: vendor.phone,
+        user_type: "vendor",
+        is_vendor: true,
+        name: vendor.name,
+      },
+      process.env.JWT_SECRET || "fallback-secret-key",
+      { expiresIn: "30d" }
+    );
+
+    res.json({
+      success: true,
+      message: "Vendor login successful",
+      token,
+      user: {
+        _id: vendor._id,
+        phone: vendor.phone,
+        store_name: vendor.name,
+        store_address: vendor.address,
+        is_vendor: true,
+        vendor_id: vendor.vendor_id,
+      },
+    });
+  } catch (error) {
+    console.error("Vendor offline login error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 // Create offline store order
 router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
   try {
@@ -264,7 +341,7 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
     const day = String(indianDate.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
-    const booking = new Booking({
+    const bookingData = {
       // Required fields
       name: customer_name,
       phone: customer_phone,
@@ -297,8 +374,20 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
       updated_at: indianDate,
       is_offline_order: true,
       offline_store_id: req.offlineStore._id,
-    });
+    };
 
+    // If it's a vendor creating the order, automatically assign it to them
+    if (req.offlineStore.is_vendor) {
+      bookingData.assignedVendor = req.offlineStore.vendor_id_str;
+      bookingData.assignedVendorDetails = {
+        name: req.offlineStore.name,
+        phone: req.offlineStore.phone,
+        address: address || "Store Address",
+      };
+      bookingData.status = "vendor_assigned";
+    }
+
+    const booking = new Booking(bookingData);
     await booking.save();
 
     res.json({
