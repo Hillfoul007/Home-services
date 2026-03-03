@@ -1,9 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save, Search } from "lucide-react";
 import { toast } from "sonner";
+
+interface WebsiteService {
+  id: string;
+  name: string;
+  price: number;
+  unit: string;
+  category: string;
+}
 
 interface Service {
   service_name: string;
@@ -24,6 +32,39 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
     { service_name: "", quantity: 1, unit_price: 0, total_price: 0 },
   ]);
   const [loading, setLoading] = useState(false);
+  const [websiteServices, setWebsiteServices] = useState<WebsiteService[]>([]);
+
+  // Fetch website services on mount
+  useEffect(() => {
+    const fetchWebsiteServices = async () => {
+      try {
+        const response = await fetch("/api/services/dynamic");
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          // Flatten categories and services
+          const flattened: WebsiteService[] = [];
+          data.data.forEach((category: any) => {
+            if (category.services && Array.isArray(category.services)) {
+              category.services.forEach((s: any) => {
+                flattened.push({
+                  id: s.id,
+                  name: s.name,
+                  price: s.price,
+                  unit: s.unit,
+                  category: category.name,
+                });
+              });
+            }
+          });
+          setWebsiteServices(flattened);
+        }
+      } catch (error) {
+        console.error("Error fetching services:", error);
+      }
+    };
+
+    fetchWebsiteServices();
+  }, []);
 
   const handleServiceChange = (
     index: number,
@@ -33,7 +74,17 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
     const newServices = [...services];
     const service = newServices[index];
 
-    if (field === "quantity" || field === "unit_price") {
+    if (field === "service_name") {
+      service.service_name = value;
+      // If the name matches one of our website services, auto-populate the price
+      const matchedService = websiteServices.find(
+        (ws) => ws.name.toLowerCase() === value.toLowerCase()
+      );
+      if (matchedService) {
+        service.unit_price = matchedService.price;
+        service.total_price = service.quantity * matchedService.price;
+      }
+    } else if (field === "quantity" || field === "unit_price") {
       const quantity = field === "quantity" ? value : service.quantity;
       const unitPrice = field === "unit_price" ? value : service.unit_price;
       service[field] = value;
@@ -186,11 +237,12 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
           <div className="space-y-3">
             {services.map((service, index) => (
               <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end bg-white p-4 rounded-lg border">
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     Service Name
                   </label>
                   <Input
+                    list={`service-options-${index}`}
                     type="text"
                     placeholder="e.g., Shirt Wash"
                     value={service.service_name}
@@ -199,6 +251,13 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
                     }
                     required
                   />
+                  <datalist id={`service-options-${index}`}>
+                    {websiteServices.map((ws) => (
+                      <option key={ws.id} value={ws.name}>
+                        {ws.category} - ₹{ws.price} {ws.unit}
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">

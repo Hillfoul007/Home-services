@@ -14,7 +14,8 @@ interface Order {
   custom_order_id: string;
   customer_name: string;
   customer_phone: string;
-  services: Service[];
+  services: string[];
+  item_prices: Service[];
   total_price: number;
   final_amount: number;
   status: string;
@@ -97,10 +98,12 @@ export default function OrderListView({
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-gray-700 max-w-xs">
-                        {order.services && order.services.length > 0
-                          ? order.services
+                        {order.item_prices && order.item_prices.length > 0
+                          ? order.item_prices
                               .map((s) => `${s.service_name || "Service"} x${s.quantity || 1}`)
                               .join(", ")
+                          : order.services && order.services.length > 0
+                          ? order.services.join(", ")
                           : "No services"}
                       </p>
                     </td>
@@ -168,10 +171,12 @@ export default function OrderListView({
               <div className="border-t pt-3">
                 <p className="text-sm text-gray-600 mb-1">Services</p>
                 <p className="text-sm font-medium">
-                  {order.services && order.services.length > 0
-                    ? order.services
+                  {order.item_prices && order.item_prices.length > 0
+                    ? order.item_prices
                         .map((s) => `${s.service_name || "Service"} x${s.quantity || 1}`)
                         .join(", ")
+                    : order.services && order.services.length > 0
+                    ? order.services.join(", ")
                     : "No services"}
                 </p>
               </div>

@@ -5,20 +5,24 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Phone, Lock, Store } from "lucide-react";
 import { toast } from "sonner";
-import dvhostingSmsService from "@/services/dvhostingSmsService";
+import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 
-type AuthStep = "phone" | "otp" | "register";
+type AuthStep = "phone" | "otp" | "register" | "vendor";
 
 export default function OfflineStoreAuth() {
   const navigate = useNavigate();
+  const dvhostingSmsService = DVHostingSmsService.getInstance();
   const [step, setStep] = useState<AuthStep>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [vendorId, setVendorId] = useState("");
+  const [password, setPassword] = useState("");
   const [storeName, setStoreName] = useState("");
   const [storeAddress, setStoreAddress] = useState("");
   const [storePhone, setStorePhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +82,7 @@ export default function OfflineStoreAuth() {
         localStorage.setItem("offline_store_token", data.token);
         localStorage.setItem("offline_store_user", JSON.stringify(data.user));
         dvhostingSmsService.setCurrentUser(data.user, data.token);
-        
+
         toast.success("Login successful!");
         navigate("/desk");
       } else {
@@ -86,6 +90,41 @@ export default function OfflineStoreAuth() {
       }
     } catch (error: any) {
       toast.error(error.message || "Error verifying OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVendorLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vendorId || !password) {
+      toast.error("Please enter Vendor ID and password");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/offline-store/vendor-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendor_id: vendorId, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Save token and user data
+        localStorage.setItem("offline_store_token", data.token);
+        localStorage.setItem("offline_store_user", JSON.stringify(data.user));
+        dvhostingSmsService.setCurrentUser(data.user, data.token);
+
+        toast.success("Vendor login successful!");
+        navigate("/desk");
+      } else {
+        toast.error(data.error || "Invalid vendor credentials");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error logging in");
     } finally {
       setLoading(false);
     }
@@ -115,7 +154,7 @@ export default function OfflineStoreAuth() {
 
       if (data.success) {
         toast.success("OTP sent for verification");
-        setStep("otp");
+        setOtpSent(true);
       } else {
         toast.error(data.error || "Error creating account");
       }
@@ -179,22 +218,81 @@ export default function OfflineStoreAuth() {
 
           {/* Phone Step */}
           {step === "phone" && (
-            <form onSubmit={handlePhoneSubmit}>
+            <>
+              <form onSubmit={handlePhoneSubmit}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                      <Input
+                        type="tel"
+                        placeholder="Enter 10-digit phone number"
+                        value={phone}
+                        onChange={(e) =>
+                          setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                        }
+                        maxLength={10}
+                        className="pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    disabled={loading}
+                  >
+                    {loading ? "Sending OTP..." : "Send OTP"}
+                  </Button>
+                </div>
+              </form>
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-center text-sm text-gray-600 mb-4">Are you a vendor?</p>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStep("vendor")}
+                >
+                  Login with Vendor Credentials
+                </Button>
+              </div>
+            </>
+          )}
+
+          {/* Vendor Login Step */}
+          {step === "vendor" && (
+            <form onSubmit={handleVendorLogin}>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number
+                    Vendor ID
                   </label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                    <Store className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                     <Input
-                      type="tel"
-                      placeholder="Enter 10-digit phone number"
-                      value={phone}
-                      onChange={(e) =>
-                        setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
-                      }
-                      maxLength={10}
+                      type="text"
+                      placeholder="Enter Vendor ID"
+                      value={vendorId}
+                      onChange={(e) => setVendorId(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                    <Input
+                      type="password"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       className="pl-10"
                       required
                     />
@@ -205,7 +303,15 @@ export default function OfflineStoreAuth() {
                   className="w-full bg-blue-600 hover:bg-blue-700"
                   disabled={loading}
                 >
-                  {loading ? "Sending OTP..." : "Send OTP"}
+                  {loading ? "Logging in..." : "Vendor Login"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStep("phone")}
+                >
+                  Back to Phone Login
                 </Button>
               </div>
             </form>
@@ -260,11 +366,11 @@ export default function OfflineStoreAuth() {
           {step === "register" && (
             <form
               onSubmit={
-                isNewUser && otp ? handleVerifyRegistration : handleRegisterSubmit
+                isNewUser && otpSent ? handleVerifyRegistration : handleRegisterSubmit
               }
             >
               <div className="space-y-4">
-                {isNewUser && !otp ? (
+                {isNewUser && !otpSent ? (
                   <>
                     <p className="text-sm text-gray-600 mb-4">
                       Create your offline store account
@@ -358,7 +464,7 @@ export default function OfflineStoreAuth() {
                       variant="outline"
                       className="w-full"
                       onClick={() => {
-                        setStep("register");
+                        setOtpSent(false);
                         setOtp("");
                       }}
                     >

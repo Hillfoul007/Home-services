@@ -25,6 +25,8 @@ interface OfflineStoreUser {
   phone: string;
   store_name: string;
   store_address: string;
+  is_vendor?: boolean;
+  vendor_id?: string;
 }
 
 interface Order {
@@ -32,7 +34,8 @@ interface Order {
   custom_order_id: string;
   customer_name: string;
   customer_phone: string;
-  services: any[];
+  services: string[];
+  item_prices: any[];
   total_price: number;
   final_amount: number;
   status: string;
@@ -53,6 +56,7 @@ export default function OfflineStoreDeskPage() {
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -147,6 +151,39 @@ export default function OfflineStoreDeskPage() {
     setShowOrderDetail(true);
   };
 
+  const handleStatusUpdate = async (newStatus: string) => {
+    if (!selectedOrder) return;
+
+    const token = localStorage.getItem("offline_store_token");
+    if (!token) return;
+
+    setUpdatingStatus(true);
+    try {
+      const response = await fetch(`/api/offline-store/order/${selectedOrder._id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Order status updated successfully");
+        setSelectedOrder(data.order);
+        fetchOrders();
+      } else {
+        toast.error(data.error || "Failed to update status");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error updating status");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-IN", {
@@ -238,9 +275,18 @@ export default function OfflineStoreDeskPage() {
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{user.store_name}</h1>
-            <p className="text-sm text-gray-600">{user.store_address}</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-900">{user.store_name}</h1>
+                {user.is_vendor && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    Vendor Account
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-600">{user.store_address}</p>
+            </div>
           </div>
           <Button
             variant="outline"
@@ -417,15 +463,21 @@ export default function OfflineStoreDeskPage() {
                       <div className="bg-gray-50 p-4 rounded-lg">
                         <h3 className="font-semibold mb-3">Services</h3>
                         <div className="space-y-2">
-                          {selectedOrder.services && selectedOrder.services.length > 0 ? (
-                            selectedOrder.services.map((service: any, idx: number) => (
+                          {selectedOrder.item_prices && selectedOrder.item_prices.length > 0 ? (
+                            selectedOrder.item_prices.map((service: any, idx: number) => (
                               <div key={idx} className="flex justify-between">
                                 <span>
-                                  {service.service_name || service} x {service.quantity || 1}
+                                  {service.service_name} x {service.quantity || 1}
                                 </span>
                                 <span className="font-semibold">
-                                  ₹{service.total_price || service.unit_price || 0}
+                                  ₹{service.total_price || (service.unit_price * (service.quantity || 1)) || 0}
                                 </span>
+                              </div>
+                            ))
+                          ) : selectedOrder.services && selectedOrder.services.length > 0 ? (
+                            selectedOrder.services.map((service: any, idx: number) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{service}</span>
                               </div>
                             ))
                           ) : (
@@ -443,10 +495,20 @@ export default function OfflineStoreDeskPage() {
                           </p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-lg">
-                          <p className="text-sm text-gray-600">Status</p>
-                          <p className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(selectedOrder.status)}`}>
-                            {selectedOrder.status}
-                          </p>
+                          <p className="text-sm text-gray-600 mb-2">Update Status</p>
+                          <select
+                            value={selectedOrder.status}
+                            onChange={(e) => handleStatusUpdate(e.target.value)}
+                            disabled={updatingStatus}
+                            className="w-full px-3 py-2 border rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                          >
+                            <option value="created">Created</option>
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="delivered">Delivered</option>
+                          </select>
                         </div>
                       </div>
 
