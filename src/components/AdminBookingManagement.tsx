@@ -638,7 +638,11 @@ const AdminBookingManagement: React.FC = () => {
   const [mutationState, setMutationState] = useState<Record<string, MutationFlags>>({});
 
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'>('both');
+  const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'|'offline'>('both');
+  const [offlineOrders, setOfflineOrders] = useState<Booking[]>([]);
+  const [filteredOfflineOrders, setFilteredOfflineOrders] = useState<Booking[]>([]);
+  const [offlineSearchTerm, setOfflineSearchTerm] = useState("");
+  const [offlineStatusFilter, setOfflineStatusFilter] = useState("all");
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
   const [riders, setRiders] = useState<Array<{ _id: string; name: string; phone: string; live_location_link?: string; location?: { lat: number; lng: number } }>>([]);
@@ -853,8 +857,15 @@ const AdminBookingManagement: React.FC = () => {
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
         setBookings(processed);
-        const a = processed.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
-        const b = processed.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+
+        // Separate offline and online orders
+        const offline = processed.filter(b => (b as any).is_offline_order === true);
+        const online = processed.filter(b => (b as any).is_offline_order !== true);
+
+        setOfflineOrders(offline);
+
+        const a = online.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
+        const b = online.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
         setBucketA(a);
         setBucketB(b);
       }
@@ -977,6 +988,10 @@ const AdminBookingManagement: React.FC = () => {
   useEffect(() => {
     filterReadyOrders();
   }, [readySearchTerm, readyStatusFilter, bucketB]); // Removed selectedMonths
+
+  useEffect(() => {
+    filterOfflineOrders();
+  }, [offlineSearchTerm, offlineStatusFilter, offlineOrders]);
 
   // Geocode booking address and calculate vendor distances
   // Prioritize existing coordinates from Google Maps, then geocode the address
@@ -1166,6 +1181,31 @@ const AdminBookingManagement: React.FC = () => {
 
     setFilteredBookings(filtered);
     rebucketBookings(bookings);
+  };
+
+  const filterOfflineOrders = () => {
+    let filtered = offlineOrders;
+
+    if (offlineSearchTerm) {
+      filtered = filtered.filter((booking) =>
+        booking.custom_order_id?.toLowerCase().includes(offlineSearchTerm.toLowerCase()) ||
+        booking.customer_name?.toLowerCase().includes(offlineSearchTerm.toLowerCase()) ||
+        booking.customer_phone?.includes(offlineSearchTerm) ||
+        booking.service?.toLowerCase().includes(offlineSearchTerm.toLowerCase()),
+      );
+    }
+
+    if (offlineStatusFilter !== "all") {
+      filtered = filtered.filter((booking) => normalizeStatus(booking.status) === offlineStatusFilter);
+    }
+
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at || 0);
+      const dateB = new Date(b.created_at || 0);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    setFilteredOfflineOrders(filtered);
   };
 
   const applyBookingUpdate = (bookingId: string, update: Partial<Booking>) => {
@@ -1408,8 +1448,12 @@ const AdminBookingManagement: React.FC = () => {
         <div className="flex items-center justify-between px-3 py-2 bg-white border-b">
           <div className="flex items-center gap-3">
             <Button size="sm" variant="ghost" onClick={() => setViewMode('both')}>Back</Button>
-            <h3 className="text-lg font-semibold">{viewMode === 'pickup' ? 'Pickup / Vendor Flow' : 'Ready for Delivery'}</h3>
-            <span className="text-sm text-gray-500">{viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders</span>
+            <h3 className="text-lg font-semibold">
+              {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : 'Ready for Delivery'}
+            </h3>
+            <span className="text-sm text-gray-500">
+              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
+            </span>
           </div>
           <div>
             <Button size="sm" variant="outline" onClick={fetchBookings}><RefreshCw className="mr-2 h-4 w-4"/> Refresh</Button>
@@ -1456,7 +1500,7 @@ const AdminBookingManagement: React.FC = () => {
       </Card>
 
       <div className={viewMode === 'both' ? 'mb-4 flex items-center gap-3' : 'hidden'}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setViewMode('both')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'both' ? 'bg-white shadow-sm' : 'bg-transparent')}>
             <Package className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">All</span>
@@ -1473,6 +1517,12 @@ const AdminBookingManagement: React.FC = () => {
             <Clock className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium">Ready/Delivered</span>
             <span className="ml-2 text-xs text-gray-500">{filteredReadyOrders.length}</span>
+          </button>
+
+          <button onClick={() => setViewMode('offline')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'offline' ? 'bg-purple-50 shadow-sm border-purple-300' : 'bg-transparent')}>
+            <Store className="h-4 w-4 text-purple-600" />
+            <span className="text-sm font-medium text-purple-700">Offline Orders</span>
+            <span className="ml-2 text-xs text-purple-500">{filteredOfflineOrders.length}</span>
           </button>
         </div>
       </div>

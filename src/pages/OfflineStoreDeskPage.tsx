@@ -50,6 +50,10 @@ export default function OfflineStoreDeskPage() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "create">("dashboard");
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+  const [offlineOrders, setOfflineOrders] = useState<Order[]>([]);
+  const [onlineOrders, setOnlineOrders] = useState<Order[]>([]);
+  const [filteredOfflineOrders, setFilteredOfflineOrders] = useState<Order[]>([]);
+  const [filteredOnlineOrders, setFilteredOnlineOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "oldest">("recent");
@@ -57,6 +61,8 @@ export default function OfflineStoreDeskPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [userWallet, setUserWallet] = useState<number>(0);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
 
   // Check authentication
   useEffect(() => {
@@ -101,6 +107,8 @@ export default function OfflineStoreDeskPage() {
 
       if (data.success) {
         setOrders(data.orders || []);
+        setOfflineOrders(data.offlineOrders || []);
+        setOnlineOrders(data.onlineOrders || []);
       } else {
         toast.error(data.error || "Failed to fetch orders");
       }
@@ -119,10 +127,17 @@ export default function OfflineStoreDeskPage() {
 
   // Search and filter orders
   useEffect(() => {
-    let filtered = orders;
+    let filteredOffline = offlineOrders;
+    let filteredOnline = onlineOrders;
 
     if (searchTerm) {
-      filtered = filtered.filter(
+      filteredOffline = filteredOffline.filter(
+        (order) =>
+          order.custom_order_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.customer_phone.includes(searchTerm)
+      );
+      filteredOnline = filteredOnline.filter(
         (order) =>
           order.custom_order_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
           order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -130,8 +145,10 @@ export default function OfflineStoreDeskPage() {
       );
     }
 
-    setFilteredOrders(filtered);
-  }, [orders, searchTerm]);
+    setFilteredOfflineOrders(filteredOffline);
+    setFilteredOnlineOrders(filteredOnline);
+    setFilteredOrders([...filteredOffline, ...filteredOnline]);
+  }, [offlineOrders, onlineOrders, searchTerm]);
 
   const handleLogout = () => {
     localStorage.removeItem("offline_store_token");
@@ -332,22 +349,22 @@ export default function OfflineStoreDeskPage() {
         ) : (
           <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <Card className="p-4">
                 <p className="text-sm text-gray-600">Total Orders</p>
                 <p className="text-2xl font-bold">{orders.length}</p>
               </Card>
               <Card className="p-4">
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {orders.filter((o) => o.status === "pending" || o.status === "created").length}
-                </p>
+                <p className="text-sm text-gray-600">Offline Orders</p>
+                <p className="text-2xl font-bold text-purple-600">{offlineOrders.length}</p>
               </Card>
               <Card className="p-4">
-                <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {orders.filter((o) => o.status === "completed").length}
-                </p>
+                <p className="text-sm text-gray-600">Online Orders</p>
+                <p className="text-2xl font-bold text-blue-600">{onlineOrders.length}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-gray-600">Wallet Balance</p>
+                <p className="text-2xl font-bold text-green-600">₹{userWallet}</p>
               </Card>
               <Card className="p-4">
                 <p className="text-sm text-gray-600">Total Revenue</p>
@@ -400,12 +417,42 @@ export default function OfflineStoreDeskPage() {
               </div>
             </Card>
 
-            {/* Orders Table */}
+            {/* Discount Box */}
+            <Card className="p-4 bg-blue-50">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Apply Discount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                    placeholder="Enter discount amount"
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <Button
+                  className="self-end bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={() => {
+                    if (discountAmount > 0) {
+                      toast.success(`Discount of ₹${discountAmount} applied!`);
+                      setDiscountAmount(0);
+                    }
+                  }}
+                >
+                  Apply
+                </Button>
+              </div>
+            </Card>
+
+            {/* Orders Buckets */}
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <p className="text-gray-600">Loading orders...</p>
               </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : filteredOfflineOrders.length === 0 && filteredOnlineOrders.length === 0 ? (
               <Card className="p-12 text-center">
                 <p className="text-gray-600 mb-4">No orders yet</p>
                 <Button
@@ -417,13 +464,43 @@ export default function OfflineStoreDeskPage() {
                 </Button>
               </Card>
             ) : (
-              <OrderListView 
-                orders={filteredOrders}
-                onViewOrder={handleViewOrder}
-                formatDate={formatDate}
-                formatTime={formatTime}
-                getStatusColor={getStatusColor}
-              />
+              <div className="space-y-6">
+                {/* Offline Orders Bucket */}
+                {filteredOfflineOrders.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-purple-700 flex items-center gap-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                        Offline Orders ({filteredOfflineOrders.length})
+                      </span>
+                    </h3>
+                    <OrderListView
+                      orders={filteredOfflineOrders}
+                      onViewOrder={handleViewOrder}
+                      formatDate={formatDate}
+                      formatTime={formatTime}
+                      getStatusColor={getStatusColor}
+                    />
+                  </div>
+                )}
+
+                {/* Online Orders Bucket */}
+                {filteredOnlineOrders.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-blue-700 flex items-center gap-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        Online Orders ({filteredOnlineOrders.length})
+                      </span>
+                    </h3>
+                    <OrderListView
+                      orders={filteredOnlineOrders}
+                      onViewOrder={handleViewOrder}
+                      formatDate={formatDate}
+                      formatTime={formatTime}
+                      getStatusColor={getStatusColor}
+                    />
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Order Detail Modal */}

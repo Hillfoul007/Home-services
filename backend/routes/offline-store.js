@@ -412,42 +412,83 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
   }
 });
 
-// Get offline store's orders
+// Get offline store's orders (both offline and online assigned orders)
 router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
   try {
     const storeId = req.offlineStore._id;
-    const { sortBy = "recent", filterStatus } = req.query;
+    const vendorId = req.offlineStore.vendor_id_str; // For vendors logging in
+    const { sortBy = "recent", filterStatus, orderType } = req.query;
 
-    let query = { 
-      $or: [
-        { offline_store_id: storeId },
-        { customer_id: storeId, is_offline_order: true }
-      ]
-    };
+    let offlineOrders = [];
+    let onlineOrders = [];
 
-    if (filterStatus) {
-      query.status = filterStatus;
+    // Get offline orders if vendor/store
+    if (!orderType || orderType === "offline") {
+      let offlineQuery = {
+        $or: [
+          { offline_store_id: storeId },
+          { customer_id: storeId, is_offline_order: true }
+        ]
+      };
+
+      if (filterStatus) {
+        offlineQuery.status = filterStatus;
+      }
+
+      if (sortBy === "oldest") {
+        offlineOrders = await Booking.find(offlineQuery)
+          .sort({ created_at: 1 })
+          .select(
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      } else {
+        offlineOrders = await Booking.find(offlineQuery)
+          .sort({ created_at: -1 })
+          .select(
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      }
     }
 
-    let orders;
+    // Get online assigned orders for vendors
+    if (req.offlineStore.is_vendor && (!orderType || orderType === "online")) {
+      let onlineQuery = {
+        assignedVendor: vendorId,
+        is_offline_order: { $ne: true }
+      };
+
+      if (filterStatus) {
+        onlineQuery.status = filterStatus;
+      }
+
+      if (sortBy === "oldest") {
+        onlineOrders = await Booking.find(onlineQuery)
+          .sort({ created_at: 1 })
+          .select(
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      } else {
+        onlineOrders = await Booking.find(onlineQuery)
+          .sort({ created_at: -1 })
+          .select(
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      }
+    }
+
+    // Combine and sort
+    const allOrders = [...offlineOrders, ...onlineOrders];
     if (sortBy === "oldest") {
-      orders = await Booking.find(query)
-        .sort({ created_at: 1 })
-        .select(
-          "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus"
-        );
+      allOrders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     } else {
-      // Default: recent first
-      orders = await Booking.find(query)
-        .sort({ created_at: -1 })
-        .select(
-          "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus"
-        );
+      allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
     res.json({
       success: true,
-      orders: orders || [],
+      orders: allOrders || [],
+      offlineOrders: offlineOrders || [],
+      onlineOrders: onlineOrders || [],
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
