@@ -579,6 +579,48 @@ router.put("/order/:orderId/status", verifyOfflineStoreToken, async (req, res) =
   }
 });
 
+// Lookup customer by phone to get wallet balance
+router.get("/customer-lookup", async (req, res) => {
+  try {
+    const { phone } = req.query;
+
+    if (!phone || phone.length !== 10) {
+      return res.status(400).json({
+        success: false,
+        error: "Valid 10-digit phone number required",
+      });
+    }
+
+    const customer = await User.findOne({
+      phone,
+      wallet_balance: { $gt: 0 }
+    }).select("_id phone name wallet_balance");
+
+    if (customer) {
+      res.json({
+        success: true,
+        customer: {
+          _id: customer._id,
+          phone: customer.phone,
+          name: customer.name || "Customer",
+          wallet_balance: customer.wallet_balance || 0,
+        },
+      });
+    } else {
+      res.json({
+        success: true,
+        customer: null,
+      });
+    }
+  } catch (error) {
+    console.error("Error looking up customer:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 // Update offline order with full details (items, amounts, etc.)
 router.put("/order/:orderId/update", verifyOfflineStoreToken, async (req, res) => {
   try {

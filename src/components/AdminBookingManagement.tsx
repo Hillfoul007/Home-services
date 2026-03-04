@@ -1184,7 +1184,8 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const filterOfflineOrders = () => {
-    let filtered = offlineOrders;
+    // Only include orders marked as offline
+    let filtered = offlineOrders.filter(b => (b as any).is_offline_order === true);
 
     if (offlineSearchTerm) {
       filtered = filtered.filter((booking) =>
