@@ -1903,6 +1903,129 @@ const AdminBookingManagement: React.FC = () => {
         )}
       </div>
 
+      {viewMode === 'offline' && (
+        <div className="grid grid-cols-1 gap-6">
+          <div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Offline Orders Management</h3>
+                <p className="text-sm text-gray-500">Orders created at the store desk</p>
+              </div>
+              <div className="text-right bg-purple-50 p-3 rounded-lg border border-purple-200">
+                <div className="text-xs text-gray-600 font-medium">Total Value</div>
+                <div className="text-2xl font-bold text-purple-700">₹{calculateTotalPrice(filteredOfflineOrders).toLocaleString('en-IN')}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
+              <div className="flex-1">
+                <Label htmlFor="offline-search">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+                  <Input
+                    id="offline-search"
+                    placeholder="Search by order ID, customer name, or phone..."
+                    value={offlineSearchTerm}
+                    onChange={(e) => setOfflineSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="md:w-56">
+                <Label htmlFor="offline-status-filter">Filter by Status</Label>
+                <Select value={offlineStatusFilter} onValueChange={setOfflineStatusFilter}>
+                  <SelectTrigger id="offline-status-filter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    {ORDER_FLOW_STEPS.map((step) => (
+                      <SelectItem key={step.value} value={step.value}>
+                        {step.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-4">
+              {filteredOfflineOrders.length > 0 ? (
+                filteredOfflineOrders.map(booking => (
+                  <Card key={booking._id} className="transition-shadow hover:shadow-md">
+                    <CardContent className="pt-6">
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-purple-600" />
+                            <span className="font-medium">#{booking.custom_order_id}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">{booking.customer_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">{booking.customer_phone}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Calendar className="h-4 w-4" />
+                            {formatScheduledDateTime(booking)}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                            {getStatusIcon(booking.status)}
+                            <span>{getStatusLabel(booking.status)}</span>
+                          </Badge>
+                          <div className="flex items-center gap-2 text-sm">
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingBooking(booking);
+                              setShowEditDialog(true);
+                            }}
+                          >
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setViewingBooking(booking);
+                              setShowViewDialog(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No offline orders found
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {completedOrders.length > 0 && (
         <div className="mt-6 mb-6">
           <Card>

@@ -579,4 +579,84 @@ router.put("/order/:orderId/status", verifyOfflineStoreToken, async (req, res) =
   }
 });
 
+// Update offline order with full details (items, amounts, etc.)
+router.put("/order/:orderId/update", verifyOfflineStoreToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, customer_name, customer_phone, item_prices, total_price, discount_amount, notes } = req.body;
+    const storeId = req.offlineStore._id;
+
+    const order = await Booking.findOne({
+      $or: [
+        { _id: orderId, offline_store_id: storeId },
+        { _id: orderId, customer_id: storeId, is_offline_order: true }
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: "Order not found",
+      });
+    }
+
+    const indianDate = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+
+    // Update fields
+    if (customer_name) order.customer_name = customer_name;
+    if (customer_phone) order.customer_phone = customer_phone;
+    if (status) order.status = status;
+    if (notes) order.notes = notes;
+
+    // Update pricing
+    if (item_prices && Array.isArray(item_prices)) {
+      order.item_prices = item_prices.map((item) => ({
+        service_name: item.service_name || item.name,
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price || item.price || 0,
+        total_price: item.total_price || (item.quantity || 1) * (item.unit_price || item.price || 0),
+      }));
+    }
+
+    if (total_price !== undefined) {
+      order.total_price = total_price;
+    }
+
+    if (discount_amount !== undefined) {
+      order.discount_amount = discount_amount;
+    }
+
+    // Calculate final amount
+    if (item_prices && Array.isArray(item_prices)) {
+      const calculatedTotal = item_prices.reduce((sum, item) => {
+        return sum + (item.total_price || (item.quantity || 1) * (item.unit_price || item.price || 0));
+      }, 0);
+      order.total_price = calculatedTotal;
+    }
+
+    order.final_amount = (order.total_price || 0) - (order.discount_amount || 0);
+    if (order.final_amount < 0) {
+      order.final_amount = 0;
+    }
+
+    order.updated_at = indianDate;
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: "Order updated successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("Error updating order:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
