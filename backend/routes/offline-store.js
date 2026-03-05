@@ -312,7 +312,7 @@ router.post("/vendor-login", async (req, res) => {
 // Create offline store order
 router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
   try {
-    const { customer_name, customer_phone, services, address, total_price } =
+    const { customer_name, customer_phone, services, address, total_price, discount_amount, wallet_applied, final_amount } =
       req.body;
 
     if (!customer_name || !customer_phone || !services || !Array.isArray(services)) {
@@ -366,7 +366,9 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
       })),
       address: address || "Store Address",
       total_price: total_price || 0,
-      final_amount: total_price || 0,
+      discount_amount: discount_amount || 0,
+      wallet_applied: wallet_applied || 0,
+      final_amount: final_amount || (total_price || 0),
       status: "created",
       riderStatus: "unassigned",
       payment_status: "pending",
@@ -426,7 +428,7 @@ router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
     if (!orderType || orderType === "offline") {
       let offlineQuery = {
         $or: [
-          { offline_store_id: storeId },
+          { offline_store_id: storeId, is_offline_order: true },
           { customer_id: storeId, is_offline_order: true }
         ]
       };
