@@ -858,7 +858,7 @@ const AdminBookingManagement: React.FC = () => {
         }));
         setBookings(processed);
 
-        // Separate offline and online orders
+        // Separate offline and online orders - ONLY include true offline orders
         const offline = processed.filter(b => (b as any).is_offline_order === true);
         const online = processed.filter(b => (b as any).is_offline_order !== true);
 

@@ -44,6 +44,8 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
   const [discountAmount, setDiscountAmount] = useState(0);
   const [usedWalletAmount, setUsedWalletAmount] = useState(0);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
+  const [discountValue, setDiscountValue] = useState(0);
 
   // Fetch website services on mount
   useEffect(() => {
@@ -152,9 +154,18 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
     return services.reduce((sum, service) => sum + service.total_price, 0);
   };
 
+  const getDiscountAmount = () => {
+    const subtotal = calculateTotal();
+    if (discountType === "percentage") {
+      return (subtotal * discountValue) / 100;
+    }
+    return discountValue;
+  };
+
   const calculateFinalAmount = () => {
     const subtotal = calculateTotal();
-    const afterDiscount = subtotal - discountAmount;
+    const discount = getDiscountAmount();
+    const afterDiscount = subtotal - discount;
     const final = afterDiscount - usedWalletAmount;
     return Math.max(0, final);
   };
@@ -193,6 +204,7 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
     setLoading(true);
     try {
       const subtotal = calculateTotal();
+      const discount = getDiscountAmount();
       const response = await fetch("/api/offline-store/create-order", {
         method: "POST",
         headers: {
@@ -205,7 +217,8 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
           services: services,
           address: address,
           total_price: subtotal,
-          discount_amount: discountAmount,
+          discount_amount: discount,
+          discount_percent: discountType === "percentage" ? discountValue : 0,
           wallet_applied: usedWalletAmount,
           final_amount: calculateFinalAmount(),
         }),
@@ -222,7 +235,8 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
         setServices([
           { service_name: "", quantity: 1, unit_price: 0, total_price: 0 },
         ]);
-        setDiscountAmount(0);
+        setDiscountValue(0);
+        setDiscountType("amount");
         setUsedWalletAmount(0);
         setCustomerData(null);
         onOrderCreated();
@@ -377,13 +391,13 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
         </div>
 
         {/* Wallet and Discount Section */}
-        {customerData && (
-          <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-            <div className="flex items-center gap-2 mb-3">
-              <Wallet className="w-5 h-5 text-green-600" />
-              <h3 className="font-semibold text-green-700">Customer Wallet</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
+          {customerData && (
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Wallet className="w-5 h-5 text-green-600" />
+                <h3 className="font-semibold text-green-700">Customer Wallet</h3>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Available Balance: ₹{customerData.wallet_balance.toFixed(2)}
@@ -398,45 +412,60 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
                   className="border-green-300"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Discount Amount (₹)
-                </label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={discountAmount}
-                  onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                  placeholder="Enter discount amount"
-                  className="border-orange-300"
-                />
+            </div>
+          )}
+
+          {!customerData && customerPhone.length === 10 && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-gray-600">No wallet found for this customer</p>
+            </div>
+          )}
+
+          {/* Discount with Amount/Percentage Toggle */}
+          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Apply Discount
+            </label>
+            <div className="flex gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => { setDiscountType("amount"); setDiscountValue(0); }}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  discountType === "amount"
+                    ? "bg-orange-600 text-white"
+                    : "bg-white text-orange-600 border border-orange-300"
+                }`}
+              >
+                Amount (₹)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDiscountType("percentage"); setDiscountValue(0); }}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  discountType === "percentage"
+                    ? "bg-orange-600 text-white"
+                    : "bg-white text-orange-600 border border-orange-300"
+                }`}
+              >
+                Percentage (%)
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min="0"
+                max={discountType === "percentage" ? 100 : undefined}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(Math.max(0, parseFloat(e.target.value) || 0))}
+                placeholder={discountType === "percentage" ? "Enter percentage (0-100)" : "Enter discount amount"}
+                className="border-orange-300"
+              />
+              <div className="px-4 py-2 bg-white border border-orange-300 rounded-lg text-sm font-semibold text-orange-600 whitespace-nowrap">
+                ₹{getDiscountAmount().toFixed(2)}
               </div>
             </div>
           </div>
-        )}
-
-        {!customerData && customerPhone.length === 10 && (
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <p className="text-sm text-gray-600">No wallet found for this customer</p>
-          </div>
-        )}
-
-        {/* Discount without wallet */}
-        {!customerData && (
-          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Discount Amount (₹)
-            </label>
-            <Input
-              type="number"
-              min="0"
-              value={discountAmount}
-              onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-              placeholder="Enter discount amount"
-              className="border-orange-300"
-            />
-          </div>
-        )}
+        </div>
 
         {/* Total */}
         <div className="flex justify-end">
@@ -446,10 +475,12 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
                 <span className="text-gray-700">Subtotal:</span>
                 <span className="font-semibold">₹{calculateTotal().toFixed(2)}</span>
               </div>
-              {discountAmount > 0 && (
+              {getDiscountAmount() > 0 && (
                 <div className="flex justify-between items-center text-orange-600">
-                  <span className="text-sm">Discount:</span>
-                  <span className="font-semibold">-₹{discountAmount.toFixed(2)}</span>
+                  <span className="text-sm">
+                    Discount {discountType === "percentage" ? `(${discountValue}%)` : ""}:
+                  </span>
+                  <span className="font-semibold">-₹{getDiscountAmount().toFixed(2)}</span>
                 </div>
               )}
               {usedWalletAmount > 0 && (

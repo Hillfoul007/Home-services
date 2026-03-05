@@ -456,26 +456,33 @@ router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
     if (req.offlineStore.is_vendor && (!orderType || orderType === "online")) {
       let onlineQuery = {
         assignedVendor: vendorId,
-        is_offline_order: { $ne: true }
+        $or: [
+          { is_offline_order: false },
+          { is_offline_order: { $exists: false } }
+        ]
       };
 
       if (filterStatus) {
         onlineQuery.status = filterStatus;
       }
 
+      console.log("📦 Online query for vendor:", vendorId, onlineQuery);
+
       if (sortBy === "oldest") {
         onlineOrders = await Booking.find(onlineQuery)
           .sort({ created_at: 1 })
           .select(
-            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
           );
       } else {
         onlineOrders = await Booking.find(onlineQuery)
           .sort({ created_at: -1 })
           .select(
-            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
           );
       }
+
+      console.log("📦 Found online orders:", onlineOrders.length);
     }
 
     // Combine and sort
