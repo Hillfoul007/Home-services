@@ -356,13 +356,83 @@ const bookingSchema = new mongoose.Schema(
 );
 
 // Generate custom order ID - moved inside schema statics
-bookingSchema.statics.generateCustomOrderId = async function () {
+bookingSchema.statics.generateCustomOrderId = async function (isOfflineOrder = false) {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const yearMonth = `${year}${month}`;
 
-  console.log("🔢 Generating custom order ID for year-month:", yearMonth);
+  console.log("🔢 Generating custom order ID for year-month:", yearMonth, "- Offline:", isOfflineOrder);
+
+  // Handle offline orders with different format: OFF202603A0001
+  if (isOfflineOrder) {
+    const latestOfflineBooking = await this.findOne(
+      {
+        is_offline_order: true,
+        custom_order_id: {
+          $regex: `^OFF${yearMonth}`,
+          $exists: true,
+          $ne: null,
+        },
+      },
+      null,
+      { sort: { custom_order_id: -1 } },
+    );
+
+    console.log(
+      "🔍 Latest offline booking found:",
+      latestOfflineBooking ? latestOfflineBooking.custom_order_id : "none",
+    );
+
+    let letter = "A";
+    let sequence = 1;
+
+    if (latestOfflineBooking && latestOfflineBooking.custom_order_id) {
+      try {
+        const lastOrderId = latestOfflineBooking.custom_order_id;
+        const lastLetter = lastOrderId.charAt(8);
+        const lastSequence = parseInt(lastOrderId.slice(-4));
+
+        console.log("📊 Last offline order details:", {
+          lastOrderId,
+          lastLetter,
+          lastSequence,
+        });
+
+        if (!isNaN(lastSequence)) {
+          if (lastSequence >= 9999) {
+            letter = String.fromCharCode(lastLetter.charCodeAt(0) + 1);
+            sequence = 1;
+          } else {
+            letter = lastLetter;
+            sequence = lastSequence + 1;
+          }
+        }
+      } catch (parseError) {
+        console.warn(
+          "⚠️ Error parsing last offline order ID, using defaults:",
+          parseError,
+        );
+      }
+    }
+
+    const sequenceStr = String(sequence).padStart(4, "0");
+    const newOrderId = `OFF${yearMonth}${letter}${sequenceStr}`;
+
+    console.log("✨ Generated new offline order ID:", newOrderId);
+
+    const existingBooking = await this.findOne({ custom_order_id: newOrderId });
+    if (existingBooking) {
+      console.warn("⚠️ Generated ID already exists, incrementing...");
+      sequence++;
+      const fallbackSequenceStr = String(sequence).padStart(4, "0");
+      const fallbackOrderId = `OFF${yearMonth}${letter}${fallbackSequenceStr}`;
+      console.log("🔄 Fallback offline order ID:", fallbackOrderId);
+      return fallbackOrderId;
+    }
+
+    return newOrderId;
+  }
 
   // Use a more robust query to find the latest booking for this month
   const latestBooking = await this.findOne(
@@ -458,7 +528,7 @@ bookingSchema.pre("save", async function (next) {
 
       while (retryCount < maxRetries) {
         try {
-          const generatedId = await this.constructor.generateCustomOrderId();
+          const generatedId = await this.constructor.generateCustomOrderId(this.is_offline_order);
           this.custom_order_id = generatedId;
           console.log("✅ Generated custom order ID:", this.custom_order_id);
 

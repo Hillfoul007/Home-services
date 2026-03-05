@@ -312,7 +312,7 @@ router.post("/vendor-login", async (req, res) => {
 // Create offline store order
 router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
   try {
-    const { customer_name, customer_phone, services, address, total_price } =
+    const { customer_name, customer_phone, services, address, total_price, discount_amount, wallet_applied, final_amount } =
       req.body;
 
     if (!customer_name || !customer_phone || !services || !Array.isArray(services)) {
@@ -366,7 +366,9 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
       })),
       address: address || "Store Address",
       total_price: total_price || 0,
-      final_amount: total_price || 0,
+      discount_amount: discount_amount || 0,
+      wallet_applied: wallet_applied || 0,
+      final_amount: final_amount || (total_price || 0),
       status: "created",
       riderStatus: "unassigned",
       payment_status: "pending",
@@ -412,42 +414,90 @@ router.post("/create-order", verifyOfflineStoreToken, async (req, res) => {
   }
 });
 
-// Get offline store's orders
+// Get offline store's orders (both offline and online assigned orders)
 router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
   try {
     const storeId = req.offlineStore._id;
-    const { sortBy = "recent", filterStatus } = req.query;
+    const vendorId = req.offlineStore.vendor_id_str; // For vendors logging in
+    const { sortBy = "recent", filterStatus, orderType } = req.query;
 
-    let query = { 
-      $or: [
-        { offline_store_id: storeId },
-        { customer_id: storeId, is_offline_order: true }
-      ]
-    };
+    let offlineOrders = [];
+    let onlineOrders = [];
 
-    if (filterStatus) {
-      query.status = filterStatus;
+    // Get offline orders if vendor/store
+    if (!orderType || orderType === "offline") {
+      let offlineQuery = {
+        $or: [
+          { offline_store_id: storeId, is_offline_order: true },
+          { customer_id: storeId, is_offline_order: true }
+        ]
+      };
+
+      if (filterStatus) {
+        offlineQuery.status = filterStatus;
+      }
+
+      if (sortBy === "oldest") {
+        offlineOrders = await Booking.find(offlineQuery)
+          .sort({ created_at: 1 })
+          .select(
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      } else {
+        offlineOrders = await Booking.find(offlineQuery)
+          .sort({ created_at: -1 })
+          .select(
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      }
     }
 
-    let orders;
+    // Get online assigned orders for vendors
+    if (req.offlineStore.is_vendor && (!orderType || orderType === "online")) {
+      let onlineQuery = {
+        assignedVendor: vendorId,
+        $or: [
+          { is_offline_order: false },
+          { is_offline_order: { $exists: false } }
+        ]
+      };
+
+      if (filterStatus) {
+        onlineQuery.status = filterStatus;
+      }
+
+      console.log("📦 Online query for vendor:", vendorId, onlineQuery);
+
+      if (sortBy === "oldest") {
+        onlineOrders = await Booking.find(onlineQuery)
+          .sort({ created_at: 1 })
+          .select(
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      } else {
+        onlineOrders = await Booking.find(onlineQuery)
+          .sort({ created_at: -1 })
+          .select(
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+          );
+      }
+
+      console.log("📦 Found online orders:", onlineOrders.length);
+    }
+
+    // Combine and sort
+    const allOrders = [...offlineOrders, ...onlineOrders];
     if (sortBy === "oldest") {
-      orders = await Booking.find(query)
-        .sort({ created_at: 1 })
-        .select(
-          "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus"
-        );
+      allOrders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     } else {
-      // Default: recent first
-      orders = await Booking.find(query)
-        .sort({ created_at: -1 })
-        .select(
-          "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus"
-        );
+      allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
     res.json({
       success: true,
-      orders: orders || [],
+      orders: allOrders || [],
+      offlineOrders: offlineOrders || [],
+      onlineOrders: onlineOrders || [],
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -527,6 +577,128 @@ router.put("/order/:orderId/status", verifyOfflineStoreToken, async (req, res) =
     res.json({
       success: true,
       message: "Order status updated",
+      order,
+    });
+  } catch (error) {
+    console.error("Error updating order:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Lookup customer by phone to get wallet balance
+router.get("/customer-lookup", async (req, res) => {
+  try {
+    const { phone } = req.query;
+
+    if (!phone || phone.length !== 10) {
+      return res.status(400).json({
+        success: false,
+        error: "Valid 10-digit phone number required",
+      });
+    }
+
+    const customer = await User.findOne({
+      phone,
+      wallet_balance: { $gt: 0 }
+    }).select("_id phone name wallet_balance");
+
+    if (customer) {
+      res.json({
+        success: true,
+        customer: {
+          _id: customer._id,
+          phone: customer.phone,
+          name: customer.name || "Customer",
+          wallet_balance: customer.wallet_balance || 0,
+        },
+      });
+    } else {
+      res.json({
+        success: true,
+        customer: null,
+      });
+    }
+  } catch (error) {
+    console.error("Error looking up customer:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Update offline order with full details (items, amounts, etc.)
+router.put("/order/:orderId/update", verifyOfflineStoreToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, customer_name, customer_phone, item_prices, total_price, discount_amount, notes } = req.body;
+    const storeId = req.offlineStore._id;
+
+    const order = await Booking.findOne({
+      $or: [
+        { _id: orderId, offline_store_id: storeId },
+        { _id: orderId, customer_id: storeId, is_offline_order: true }
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: "Order not found",
+      });
+    }
+
+    const indianDate = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+
+    // Update fields
+    if (customer_name) order.customer_name = customer_name;
+    if (customer_phone) order.customer_phone = customer_phone;
+    if (status) order.status = status;
+    if (notes) order.notes = notes;
+
+    // Update pricing
+    if (item_prices && Array.isArray(item_prices)) {
+      order.item_prices = item_prices.map((item) => ({
+        service_name: item.service_name || item.name,
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price || item.price || 0,
+        total_price: item.total_price || (item.quantity || 1) * (item.unit_price || item.price || 0),
+      }));
+    }
+
+    if (total_price !== undefined) {
+      order.total_price = total_price;
+    }
+
+    if (discount_amount !== undefined) {
+      order.discount_amount = discount_amount;
+    }
+
+    // Calculate final amount
+    if (item_prices && Array.isArray(item_prices)) {
+      const calculatedTotal = item_prices.reduce((sum, item) => {
+        return sum + (item.total_price || (item.quantity || 1) * (item.unit_price || item.price || 0));
+      }, 0);
+      order.total_price = calculatedTotal;
+    }
+
+    order.final_amount = (order.total_price || 0) - (order.discount_amount || 0);
+    if (order.final_amount < 0) {
+      order.final_amount = 0;
+    }
+
+    order.updated_at = indianDate;
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: "Order updated successfully",
       order,
     });
   } catch (error) {

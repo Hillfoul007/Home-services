@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Plus, Trash2, Save, Search } from "lucide-react";
+import { Plus, Trash2, Save, Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 interface WebsiteService {
@@ -20,6 +20,13 @@ interface Service {
   total_price: number;
 }
 
+interface CustomerData {
+  _id: string;
+  phone: string;
+  name: string;
+  wallet_balance: number;
+}
+
 interface OrderInputFormProps {
   onOrderCreated: () => void;
 }
@@ -33,6 +40,12 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
   ]);
   const [loading, setLoading] = useState(false);
   const [websiteServices, setWebsiteServices] = useState<WebsiteService[]>([]);
+  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [usedWalletAmount, setUsedWalletAmount] = useState(0);
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
+  const [discountValue, setDiscountValue] = useState(0);
 
   // Fetch website services on mount
   useEffect(() => {
@@ -65,6 +78,36 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
 
     fetchWebsiteServices();
   }, []);
+
+  // Lookup customer by phone to get wallet balance
+  const lookupCustomer = async (phone: string) => {
+    if (!phone || phone.length !== 10) {
+      setCustomerData(null);
+      return;
+    }
+
+    setSearchingCustomer(true);
+    try {
+      const response = await fetch(`/api/offline-store/customer-lookup?phone=${phone}`);
+      const data = await response.json();
+
+      if (data.success && data.customer) {
+        setCustomerData(data.customer);
+        if (data.customer.wallet_balance > 0) {
+          toast.success(`Customer found! Wallet: ₹${data.customer.wallet_balance}`);
+        } else {
+          toast.info("Customer found but no wallet balance");
+        }
+      } else {
+        setCustomerData(null);
+      }
+    } catch (error) {
+      console.error("Error looking up customer:", error);
+      setCustomerData(null);
+    } finally {
+      setSearchingCustomer(false);
+    }
+  };
 
   const handleServiceChange = (
     index: number,
@@ -111,6 +154,34 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
     return services.reduce((sum, service) => sum + service.total_price, 0);
   };
 
+  const getDiscountAmount = () => {
+    const subtotal = calculateTotal();
+    if (discountType === "percentage") {
+      return (subtotal * discountValue) / 100;
+    }
+    return discountValue;
+  };
+
+  const calculateFinalAmount = () => {
+    const subtotal = calculateTotal();
+    const discount = getDiscountAmount();
+    const afterDiscount = subtotal - discount;
+    const final = afterDiscount - usedWalletAmount;
+    return Math.max(0, final);
+  };
+
+  const handleCustomerPhoneChange = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, "").slice(0, 10);
+    setCustomerPhone(cleaned);
+
+    // Lookup customer after 10 digits are entered
+    if (cleaned.length === 10) {
+      lookupCustomer(cleaned);
+    } else {
+      setCustomerData(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -132,6 +203,8 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
 
     setLoading(true);
     try {
+      const subtotal = calculateTotal();
+      const discount = getDiscountAmount();
       const response = await fetch("/api/offline-store/create-order", {
         method: "POST",
         headers: {
@@ -143,7 +216,11 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
           customer_phone: customerPhone,
           services: services,
           address: address,
-          total_price: calculateTotal(),
+          total_price: subtotal,
+          discount_amount: discount,
+          discount_percent: discountType === "percentage" ? discountValue : 0,
+          wallet_applied: usedWalletAmount,
+          final_amount: calculateFinalAmount(),
         }),
       });
 
@@ -158,6 +235,10 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
         setServices([
           { service_name: "", quantity: 1, unit_price: 0, total_price: 0 },
         ]);
+        setDiscountValue(0);
+        setDiscountType("amount");
+        setUsedWalletAmount(0);
+        setCustomerData(null);
         onOrderCreated();
       } else {
         toast.error(data.error || "Failed to create order");
@@ -192,18 +273,19 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number *
+                Phone Number * <span className="text-xs text-gray-500">(Auto-lookup wallet)</span>
               </label>
-              <Input
-                type="tel"
-                placeholder="Enter 10-digit phone number"
-                value={customerPhone}
-                onChange={(e) =>
-                  setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
-                }
-                maxLength={10}
-                required
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="tel"
+                  placeholder="Enter 10-digit phone number"
+                  value={customerPhone}
+                  onChange={(e) => handleCustomerPhoneChange(e.target.value)}
+                  maxLength={10}
+                  required
+                />
+                {searchingCustomer && <Button disabled type="button" className="px-4">Searching...</Button>}
+              </div>
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -308,18 +390,111 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
           </div>
         </div>
 
+        {/* Wallet and Discount Section */}
+        <div className="space-y-4">
+          {customerData && (
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Wallet className="w-5 h-5 text-green-600" />
+                <h3 className="font-semibold text-green-700">Customer Wallet</h3>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Available Balance: ₹{customerData.wallet_balance.toFixed(2)}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max={customerData.wallet_balance}
+                  value={usedWalletAmount}
+                  onChange={(e) => setUsedWalletAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                  placeholder="Amount to use from wallet"
+                  className="border-green-300"
+                />
+              </div>
+            </div>
+          )}
+
+          {!customerData && customerPhone.length === 10 && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-gray-600">No wallet found for this customer</p>
+            </div>
+          )}
+
+          {/* Discount with Amount/Percentage Toggle */}
+          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Apply Discount
+            </label>
+            <div className="flex gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => { setDiscountType("amount"); setDiscountValue(0); }}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  discountType === "amount"
+                    ? "bg-orange-600 text-white"
+                    : "bg-white text-orange-600 border border-orange-300"
+                }`}
+              >
+                Amount (₹)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDiscountType("percentage"); setDiscountValue(0); }}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  discountType === "percentage"
+                    ? "bg-orange-600 text-white"
+                    : "bg-white text-orange-600 border border-orange-300"
+                }`}
+              >
+                Percentage (%)
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min="0"
+                max={discountType === "percentage" ? 100 : undefined}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(Math.max(0, parseFloat(e.target.value) || 0))}
+                placeholder={discountType === "percentage" ? "Enter percentage (0-100)" : "Enter discount amount"}
+                className="border-orange-300"
+              />
+              <div className="px-4 py-2 bg-white border border-orange-300 rounded-lg text-sm font-semibold text-orange-600 whitespace-nowrap">
+                ₹{getDiscountAmount().toFixed(2)}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Total */}
         <div className="flex justify-end">
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 min-w-[250px]">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-gray-700">Subtotal:</span>
-              <span className="font-semibold">₹{calculateTotal().toFixed(2)}</span>
-            </div>
-            <div className="border-t border-blue-200 pt-3 flex justify-between items-center">
-              <span className="text-lg font-bold text-blue-600">Total:</span>
-              <span className="text-2xl font-bold text-blue-600">
-                ₹{calculateTotal().toFixed(2)}
-              </span>
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 min-w-[300px]">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Subtotal:</span>
+                <span className="font-semibold">₹{calculateTotal().toFixed(2)}</span>
+              </div>
+              {getDiscountAmount() > 0 && (
+                <div className="flex justify-between items-center text-orange-600">
+                  <span className="text-sm">
+                    Discount {discountType === "percentage" ? `(${discountValue}%)` : ""}:
+                  </span>
+                  <span className="font-semibold">-₹{getDiscountAmount().toFixed(2)}</span>
+                </div>
+              )}
+              {usedWalletAmount > 0 && (
+                <div className="flex justify-between items-center text-green-600">
+                  <span className="text-sm">Wallet Used:</span>
+                  <span className="font-semibold">-₹{usedWalletAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="border-t border-blue-200 pt-3 flex justify-between items-center">
+                <span className="text-lg font-bold text-blue-600">Final Amount:</span>
+                <span className="text-2xl font-bold text-blue-600">
+                  ₹{calculateFinalAmount().toFixed(2)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
