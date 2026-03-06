@@ -62,7 +62,6 @@ export default function OfflineStoreDeskPage() {
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [userWallet, setUserWallet] = useState<number>(0);
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
 
   // Check authentication
   useEffect(() => {
@@ -417,35 +416,6 @@ export default function OfflineStoreDeskPage() {
               </div>
             </Card>
 
-            {/* Discount Box */}
-            <Card className="p-4 bg-blue-50">
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Apply Discount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={discountAmount}
-                    onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                    placeholder="Enter discount amount"
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <Button
-                  className="self-end bg-blue-600 text-white hover:bg-blue-700"
-                  onClick={() => {
-                    if (discountAmount > 0) {
-                      toast.success(`Discount of ₹${discountAmount} applied!`);
-                      setDiscountAmount(0);
-                    }
-                  }}
-                >
-                  Apply
-                </Button>
-              </div>
-            </Card>
 
             {/* Orders Buckets */}
             {loading ? (
