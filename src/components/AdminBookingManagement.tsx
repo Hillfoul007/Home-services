@@ -848,7 +848,7 @@ const AdminBookingManagement: React.FC = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(`/admin/bookings?limit=100`);
+      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; offlineOrders?: Booking[] }>(`/admin/bookings?limit=100`);
       if (res.data) {
         const allBookings = [...(res.data.bucketA || []), ...(res.data.bucketB || [])];
         const processed = allBookings.map((b: any) => ({
@@ -858,15 +858,17 @@ const AdminBookingManagement: React.FC = () => {
         }));
         setBookings(processed);
 
-        // Separate offline and online orders - ONLY include true offline orders
-        const offline = processed.filter(b => (b as any).is_offline_order === true);
-        const online = processed.filter(b => (b as any).is_offline_order !== true);
-
-        setOfflineOrders(offline);
+        // Use offline orders directly from API response
+        const offlineProcessed = (res.data.offlineOrders || []).map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+        setOfflineOrders(offlineProcessed);
 
         // Bucket filtering - only online orders assigned to vendors
-        const a = online.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)) && (b as any).assignedVendor);
-        const b = online.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)) && (b as any).assignedVendor);
+        const a = (res.data.bucketA || []).filter(b => (b as any).assignedVendor);
+        const b = (res.data.bucketB || []).filter(b => (b as any).assignedVendor);
         setBucketA(a);
         setBucketB(b);
       }
@@ -927,14 +929,14 @@ const AdminBookingManagement: React.FC = () => {
       try {
         const sinceParam = lastPollAt || getISTTimestamp();
         console.log("🔄 Polling for booking updates since:", sinceParam);
-        const response = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[] }>(
+        const response = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; offlineOrders?: Booking[] }>(
           `/admin/bookings?modified_since=${encodeURIComponent(sinceParam)}&limit=100`,
         );
 
         if (cancelled) return;
 
         if (response.data) {
-          const updates: Booking[] = [...(response.data.bucketA || []), ...(response.data.bucketB || [])];
+          const updates: Booking[] = [...(response.data.bucketA || []), ...(response.data.bucketB || []), ...(response.data.offlineOrders || [])];
           console.log(`🔄 Poll returned ${updates.length} updated bookings`);
           if (updates.length > 0) {
             updates.forEach((b) => {

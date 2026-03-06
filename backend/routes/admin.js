@@ -916,11 +916,22 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     bucketA.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
     bucketB.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
 
-    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}`);
+    // Fetch offline orders separately
+    const offlineQuery = { is_offline_order: true };
+    const offlineBookings = await Booking.find(offlineQuery)
+      .populate("customer_id", "full_name phone email")
+      .populate("rider_id", "full_name phone")
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .select("+item_prices +charges_breakdown +is_offline_order +assignedVendor +assignedVendorDetails");
+
+    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}. Offline orders: ${offlineBookings.length}`);
 
     res.json({
       bucketA,
       bucketB,
+      offlineOrders: offlineBookings,
       bookings: status && status !== "all" ? bookings : undefined,
       pagination: {
         total,
