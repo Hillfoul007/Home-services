@@ -864,8 +864,9 @@ const AdminBookingManagement: React.FC = () => {
 
         setOfflineOrders(offline);
 
-        const a = online.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
-        const b = online.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+        // Bucket filtering - only online orders assigned to vendors
+        const a = online.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)) && (b as any).assignedVendor);
+        const b = online.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)) && (b as any).assignedVendor);
         setBucketA(a);
         setBucketB(b);
       }
