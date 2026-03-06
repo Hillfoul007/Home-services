@@ -1969,6 +1969,12 @@ const AdminBookingManagement: React.FC = () => {
                             <Phone className="h-4 w-4 text-gray-400" />
                             <span className="text-sm">{booking.customer_phone}</span>
                           </div>
+                          {booking.assignedVendorDetails?.name && (
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                              <Store className="h-4 w-4 text-blue-600" />
+                              <span className="text-sm font-medium text-blue-600">{booking.assignedVendorDetails.name}</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-2">

@@ -830,7 +830,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       "delivered",
     ])];
 
-    let query = {};
+    let query = { is_offline_order: { $ne: true } }; // Exclude offline orders from buckets
 
     // If a specific status filter is provided, respect it
     const hasExplicitStatusFilter = !!(status && status !== "all");
@@ -896,13 +896,13 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
-      .select("+item_prices +charges_breakdown");
+      .select("+item_prices +charges_breakdown +is_offline_order +assignedVendor +assignedVendorDetails");
 
     const total = await Booking.countDocuments(query);
 
-    // Split into buckets
-    const bucketA = bookings.filter((b) => BUCKET_A.includes(b.status));
-    const bucketB = bookings.filter((b) => BUCKET_B.includes(b.status));
+    // Split into buckets - exclude offline orders from buckets
+    const bucketA = bookings.filter((b) => BUCKET_A.includes(b.status) && b.is_offline_order !== true);
+    const bucketB = bookings.filter((b) => BUCKET_B.includes(b.status) && b.is_offline_order !== true);
 
     // Sort buckets by nearest pickup time (scheduled_date + scheduled_time)
     const parsePickupTime = (b) => {
@@ -3597,7 +3597,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     });
 
     // Build filter
-    const filter = {};
+    const filter = { is_offline_order: { $ne: true } }; // Exclude offline orders
 
     // Filter by status if provided
     if (status && status !== "all") {
@@ -3636,7 +3636,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     // Fetch bookings with pagination
     const bookings = await Booking.find(filter)
       .select(
-        "_id custom_order_id name phone service services status final_amount scheduled_date scheduled_time delivery_date delivery_time address assignedVendor total_price"
+        "_id custom_order_id name phone service services status final_amount scheduled_date scheduled_time delivery_date delivery_time address assignedVendor total_price is_offline_order"
       )
       .sort({ scheduled_date: -1, created_at: -1 })
       .limit(parseInt(limit))

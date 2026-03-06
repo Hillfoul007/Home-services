@@ -441,13 +441,13 @@ router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
         offlineOrders = await Booking.find(offlineQuery)
           .sort({ created_at: 1 })
           .select(
-            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order assignedVendor assignedVendorDetails"
           );
       } else {
         offlineOrders = await Booking.find(offlineQuery)
           .sort({ created_at: -1 })
           .select(
-            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order assignedVendor assignedVendorDetails"
           );
       }
     }
