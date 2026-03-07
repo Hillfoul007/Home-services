@@ -1805,7 +1805,7 @@ const AdminBookingManagement: React.FC = () => {
                         </Badge>
                         <div className="flex items-center gap-2 text-sm">
                           <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="font-medium">���{booking.final_amount ?? booking.total_price}</span>
+                          <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
                         </div>
                       </div>
 
