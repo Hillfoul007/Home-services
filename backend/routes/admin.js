@@ -1711,7 +1711,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.json({
         message: 'Vendor assigned successfully (demo mode)',
-        order: { _id: orderId, assignedVendor: vendorWithDistanceData.name },
+        order: { _id: orderId, assignedVendor: vendorWithDistanceData.vendor_id || vendorWithDistanceData.name },
         vendor: vendorWithDistanceData
       });
     }
@@ -1724,7 +1724,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
         return res.status(404).json({ message: 'Quick pickup not found' });
       }
 
-      order.assigned_vendor = vendorWithDistanceData.name;
+      order.assigned_vendor = vendorWithDistanceData.vendor_id || vendorWithDistanceData.name;
       order.assigned_vendor_details = vendorWithDistanceData;
       await order.save();
     } else {
@@ -1733,7 +1733,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
         return res.status(404).json({ message: 'Booking not found' });
       }
 
-      order.assignedVendor = vendorWithDistanceData.name;
+      order.assignedVendor = vendorWithDistanceData.vendor_id || vendorWithDistanceData.name;
       order.assignedVendorDetails = vendorWithDistanceData;
       // Progress status when vendor assigned (only if not already beyond this stage)
       if (!["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"].includes(order.status)) {
