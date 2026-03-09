@@ -287,6 +287,8 @@ router.post("/vendor-login", async (req, res) => {
       { expiresIn: "30d" }
     );
 
+    console.log(`✅ Vendor login successful - vendor_id: ${vendor.vendor_id}, _id: ${vendor._id}`);
+
     res.json({
       success: true,
       message: "Vendor login successful",
@@ -454,35 +456,56 @@ router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
 
     // Get online assigned orders for vendors
     if (req.offlineStore.is_vendor && (!orderType || orderType === "online")) {
+      // Query for orders assigned by vendor_id, name, or MongoDB ID (for backward compatibility)
       let onlineQuery = {
-        assignedVendor: vendorId,
-        $or: [
-          { is_offline_order: false },
-          { is_offline_order: { $exists: false } }
+        $and: [
+          {
+            $or: [
+              { assignedVendor: vendorId },  // Assigned by vendor_id (new format)
+              { assignedVendor: req.offlineStore.name },  // Assigned by vendor name (old format)
+              { assignedVendor: req.offlineStore._id.toString() }  // Assigned by MongoDB ID
+            ]
+          },
+          {
+            $or: [
+              { is_offline_order: false },
+              { is_offline_order: { $exists: false } }
+            ]
+          }
         ]
       };
 
       if (filterStatus) {
-        onlineQuery.status = filterStatus;
+        onlineQuery.$and.push({ status: filterStatus });
       }
 
-      console.log("📦 Online query for vendor:", vendorId, onlineQuery);
+      console.log("📦 Online query for vendor:", vendorId, "Name:", req.offlineStore.name, "ID:", req.offlineStore._id.toString());
+
+      // Debug: Check what assignedVendor values exist in database for this vendor
+      const allOnlineOrders = await Booking.find({
+        $or: [
+          { is_offline_order: false },
+          { is_offline_order: { $exists: false } }
+        ]
+      }).select("assignedVendor custom_order_id").limit(10);
+
+      console.log("📊 Sample online orders in DB (assignedVendor values):", allOnlineOrders.map(o => ({ id: o.custom_order_id, vendor: o.assignedVendor })));
 
       if (sortBy === "oldest") {
         onlineOrders = await Booking.find(onlineQuery)
           .sort({ created_at: 1 })
           .select(
-            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order assignedVendor"
           );
       } else {
         onlineOrders = await Booking.find(onlineQuery)
           .sort({ created_at: -1 })
           .select(
-            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order assignedVendor"
           );
       }
 
-      console.log("📦 Found online orders:", onlineOrders.length);
+      console.log("📦 Found online orders:", onlineOrders.length, "for vendor:", vendorId);
     }
 
     // Combine and sort
