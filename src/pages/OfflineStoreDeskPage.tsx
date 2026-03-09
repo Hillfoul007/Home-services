@@ -352,23 +352,6 @@ export default function OfflineStoreDeskPage() {
     return colors[status] || "bg-gray-100 text-gray-800";
   };
 
-  const handleDeleteOrder = async (orderId: string) => {
-    if (!window.confirm("Are you sure you want to delete this order?")) {
-      return;
-    }
-
-    const token = localStorage.getItem("offline_store_token");
-    if (!token) return;
-
-    try {
-      // This would need a delete endpoint on the backend
-      toast.success("Order deleted");
-      fetchOrders();
-    } catch (error) {
-      toast.error("Failed to delete order");
-    }
-  };
-
   const exportToCSV = () => {
     const headers = [
       "Order ID",
