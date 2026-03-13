@@ -65,6 +65,7 @@ export default function OfflineStoreDeskPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedOrder, setEditedOrder] = useState<any>(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [showInactiveOrders, setShowInactiveOrders] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -352,6 +353,40 @@ export default function OfflineStoreDeskPage() {
     return colors[status] || "bg-gray-100 text-gray-800";
   };
 
+  const getOrderPriority = (order: Order) => {
+    // Lower number = higher priority
+    const statusPriority: Record<string, number> = {
+      created: 1,      // Just created
+      pending: 2,      // Waiting action
+      confirmed: 3,    // Confirmed but not done
+      completed: 4,    // Completed
+      cancelled: 5,    // Cancelled
+      delivered: 5,    // Delivered
+    };
+    return statusPriority[order.status] || 999;
+  };
+
+  const sortByPriority = (orders: Order[]) => {
+    return [...orders].sort((a, b) => {
+      const priorityDiff = getOrderPriority(a) - getOrderPriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+      // If same priority, sort by recent first
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  };
+
+  const isActiveOrder = (order: Order) => {
+    return !["completed", "cancelled", "delivered"].includes(order.status);
+  };
+
+  const getActiveOrders = (orders: Order[]) => {
+    return sortByPriority(orders.filter(isActiveOrder));
+  };
+
+  const getInactiveOrders = (orders: Order[]) => {
+    return sortByPriority(orders.filter((o) => !isActiveOrder(o)));
+  };
+
   const exportToCSV = () => {
     const headers = [
       "Order ID",
@@ -523,7 +558,7 @@ export default function OfflineStoreDeskPage() {
             </Card>
 
 
-            {/* Orders Buckets */}
+            {/* Orders Display */}
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <p className="text-gray-600">Loading orders...</p>
@@ -541,39 +576,97 @@ export default function OfflineStoreDeskPage() {
               </Card>
             ) : (
               <div className="space-y-6">
-                {/* Offline Orders Bucket */}
-                {filteredOfflineOrders.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-purple-700 flex items-center gap-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                        Offline Orders ({filteredOfflineOrders.length})
-                      </span>
-                    </h3>
-                    <OrderListView
-                      orders={filteredOfflineOrders}
-                      onViewOrder={handleViewOrder}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                      getStatusColor={getStatusColor}
-                    />
-                  </div>
-                )}
+                {/* Active Orders Section */}
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                      🔴 Active Orders
+                    </span>
+                  </h3>
 
-                {/* Online Orders Bucket */}
-                {filteredOnlineOrders.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-blue-700 flex items-center gap-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                        Online Orders ({filteredOnlineOrders.length})
+                  {/* Offline Active Orders */}
+                  {getActiveOrders(filteredOfflineOrders).length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600 font-medium px-2">Offline ({getActiveOrders(filteredOfflineOrders).length})</p>
+                      <OrderListView
+                        orders={getActiveOrders(filteredOfflineOrders)}
+                        onViewOrder={handleViewOrder}
+                        formatDate={formatDate}
+                        formatTime={formatTime}
+                        getStatusColor={getStatusColor}
+                      />
+                    </div>
+                  )}
+
+                  {/* Online Active Orders */}
+                  {getActiveOrders(filteredOnlineOrders).length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600 font-medium px-2">Online ({getActiveOrders(filteredOnlineOrders).length})</p>
+                      <OrderListView
+                        orders={getActiveOrders(filteredOnlineOrders)}
+                        onViewOrder={handleViewOrder}
+                        formatDate={formatDate}
+                        formatTime={formatTime}
+                        getStatusColor={getStatusColor}
+                      />
+                    </div>
+                  )}
+
+                  {getActiveOrders(filteredOfflineOrders).length === 0 && getActiveOrders(filteredOnlineOrders).length === 0 && (
+                    <Card className="p-6 text-center bg-green-50 border-green-200">
+                      <p className="text-green-700 font-medium">✓ No active orders - all caught up!</p>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Inactive Orders Section (Collapsed) */}
+                {(getInactiveOrders(filteredOfflineOrders).length > 0 || getInactiveOrders(filteredOnlineOrders).length > 0) && (
+                  <div className="border-t pt-6">
+                    <button
+                      onClick={() => setShowInactiveOrders(!showInactiveOrders)}
+                      className="flex items-center justify-between w-full px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                    >
+                      <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-200 text-gray-800">
+                          📦 Inactive Orders ({getInactiveOrders(filteredOfflineOrders).length + getInactiveOrders(filteredOnlineOrders).length})
+                        </span>
+                      </h3>
+                      <span className={`text-gray-600 transform transition-transform ${showInactiveOrders ? "rotate-180" : ""}`}>
+                        ▼
                       </span>
-                    </h3>
-                    <OrderListView
-                      orders={filteredOnlineOrders}
-                      onViewOrder={handleViewOrder}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                      getStatusColor={getStatusColor}
-                    />
+                    </button>
+
+                    {showInactiveOrders && (
+                      <div className="mt-4 space-y-4">
+                        {/* Offline Inactive Orders */}
+                        {getInactiveOrders(filteredOfflineOrders).length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-600 font-medium px-2">Offline ({getInactiveOrders(filteredOfflineOrders).length})</p>
+                            <OrderListView
+                              orders={getInactiveOrders(filteredOfflineOrders)}
+                              onViewOrder={handleViewOrder}
+                              formatDate={formatDate}
+                              formatTime={formatTime}
+                              getStatusColor={getStatusColor}
+                            />
+                          </div>
+                        )}
+
+                        {/* Online Inactive Orders */}
+                        {getInactiveOrders(filteredOnlineOrders).length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-600 font-medium px-2">Online ({getInactiveOrders(filteredOnlineOrders).length})</p>
+                            <OrderListView
+                              orders={getInactiveOrders(filteredOnlineOrders)}
+                              onViewOrder={handleViewOrder}
+                              formatDate={formatDate}
+                              formatTime={formatTime}
+                              getStatusColor={getStatusColor}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

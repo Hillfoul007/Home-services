@@ -19,6 +19,7 @@ import {
   Loader,
 } from "lucide-react";
 import { toast } from "sonner";
+import { referralService } from "@/services/referralService";
 
 interface ReferralEarnModalProps {
   isOpen: boolean;
@@ -70,7 +71,7 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
     if (isOpen && currentUser) {
       loadReferralData();
     }
-  }, [isOpen, currentUser?.phone]);
+  }, [isOpen, currentUser?.phone, currentUser?._id]);
 
   const generateReferralCode = (user: any): string => {
     // Generate a referral code from phone number: last 6 digits + random suffix
@@ -87,39 +88,59 @@ const ReferralEarnModal: React.FC<ReferralEarnModalProps> = ({
     return code;
   };
 
-  const loadReferralData = () => {
+  const loadReferralData = async () => {
     if (!currentUser) return;
 
     try {
       setLoading(true);
 
-      // Generate referral code from user data
-      const code = currentUser.referral_code || generateReferralCode(currentUser);
+      const userId = currentUser._id || currentUser.phone;
+
+      // Fetch referral code from backend or generate locally
+      let code = currentUser.referral_code;
+      if (!code) {
+        const codeResult = await referralService.getReferralCode(userId);
+        code = codeResult.success ? codeResult.referral_code : generateReferralCode(currentUser);
+      }
       setReferralCode(code);
 
-      // Set default stats (no API call needed)
-      setStats({
-        total_referrals: 0,
-        completed_referrals: 0,
-        pending_referrals: 0,
-        earnings: 0,
-        referrals: [],
-      });
+      // Fetch referral stats from backend
+      const backendStats = await referralService.getReferralStats(userId);
 
-      // Generate share link locally
-      const appUrl = window.location.origin;
-      const shareText = `Hey! 🎉 Join me on Laundrify! Use my referral code *${code}* to get ₹50 bonus on your first order. I'll also earn ₹100 when you complete your first order! 💰`;
-      const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText + `\n\nOpen: ${appUrl}?ref=${code}`)}`;
-      const appLink = `${appUrl}?ref=${code}`;
-      const copyText = `${shareText}\n\n${appLink}`;
+      if (backendStats) {
+        setStats(backendStats);
+      } else {
+        // Fallback to empty stats if fetch fails
+        setStats({
+          total_referrals: 0,
+          completed_referrals: 0,
+          pending_referrals: 0,
+          earnings: 0,
+          referrals: [],
+        });
+      }
 
-      setShareLink({
-        referral_code: code,
-        share_text: shareText,
-        whatsapp_link: whatsappLink,
-        app_link: appLink,
-        copy_text: copyText,
-      });
+      // Generate share link locally or fetch from backend
+      let shareLink = await referralService.getShareLink(userId);
+
+      if (!shareLink) {
+        // Fallback: generate share link locally
+        const appUrl = window.location.origin;
+        const shareText = `Hey! 🎉 Join me on Laundrify! Use my referral code *${code}* to get ₹50 bonus on your first order. I'll also earn ₹100 when you complete your first order! 💰`;
+        const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText + `\n\nOpen: ${appUrl}?ref=${code}`)}`;
+        const appLink = `${appUrl}?ref=${code}`;
+        const copyText = `${shareText}\n\n${appLink}`;
+
+        shareLink = {
+          referral_code: code,
+          share_text: shareText,
+          whatsapp_link: whatsappLink,
+          app_link: appLink,
+          copy_text: copyText,
+        };
+      }
+
+      setShareLink(shareLink);
     } catch (error) {
       console.error("Error loading referral data:", error);
       toast.error("Failed to load referral data");
