@@ -289,7 +289,10 @@ router.post("/save-user", async (req, res) => {
       try {
         const referrer = await User.findOne({ referral_code: referral_code.toUpperCase() });
 
-        if (referrer && referrer._id.toString() !== user._id.toString()) {
+        // Check if referrer has completed their first order
+        const hasCompletedFirstOrder = referrer && referrer.has_completed_first_order === true;
+
+        if (referrer && referrer._id.toString() !== user._id.toString() && hasCompletedFirstOrder) {
           user.referred_by = referrer._id;
           referrer.referral_stats.total_referrals += 1;
           referrer.referral_stats.last_referral_date = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
@@ -304,7 +307,7 @@ router.post("/save-user", async (req, res) => {
             referee_id: user._id,
             referral_code: referral_code.toUpperCase(),
             status: "pending",
-            referrer_reward: 100,
+            referrer_reward: 50,
             referee_reward: 50,
           });
           await newReferral.save();
@@ -320,7 +323,7 @@ router.post("/save-user", async (req, res) => {
           });
           log("Credited ₹50 referral bonus to referee");
         } else {
-          log("Invalid referral code or same user");
+          log("Invalid referral code, same user, or referrer hasn't completed first order");
         }
       } catch (referralError) {
         log("Error processing referral:", referralError.message);
@@ -436,7 +439,10 @@ router.post("/register", async (req, res) => {
       try {
         const referrer = await User.findOne({ referral_code: referral_code.toUpperCase() });
 
-        if (referrer && referrer._id.toString() !== user._id.toString()) {
+        // Check if referrer has completed their first order
+        const hasCompletedFirstOrder = referrer && referrer.has_completed_first_order === true;
+
+        if (referrer && referrer._id.toString() !== user._id.toString() && hasCompletedFirstOrder) {
           user.referred_by = referrer._id;
           referrer.referral_stats.total_referrals += 1;
           referrer.referral_stats.last_referral_date = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
@@ -451,7 +457,7 @@ router.post("/register", async (req, res) => {
             referee_id: user._id,
             referral_code: referral_code.toUpperCase(),
             status: "pending",
-            referrer_reward: 100,
+            referrer_reward: 50,
             referee_reward: 50,
           });
           await newReferral.save();
@@ -467,7 +473,7 @@ router.post("/register", async (req, res) => {
           });
           log("Credited ₹50 referral bonus to referee");
         } else {
-          log("Invalid referral code or same user");
+          log("Invalid referral code, same user, or referrer hasn't completed first order");
         }
       } catch (referralError) {
         log("Error processing referral:", referralError.message);

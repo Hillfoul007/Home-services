@@ -36,7 +36,7 @@ const referralSchema = new mongoose.Schema(
     // Reward amounts (in rupees)
     referrer_reward: {
       type: Number,
-      default: 100,
+      default: 50,
     },
     referee_reward: {
       type: Number,

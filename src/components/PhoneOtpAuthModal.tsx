@@ -17,7 +17,6 @@ import {
   Shield,
   MessageSquare,
   X,
-  Gift,
 } from "lucide-react";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -32,14 +31,12 @@ interface PhoneOtpAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: any) => void;
-  referralCode?: string;
 }
 
 const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  referralCode,
 }) => {
   // All hooks must be declared at the top before any early returns
   const [hasError, setHasError] = React.useState(false);
@@ -193,7 +190,14 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
 
         // Save user to MongoDB backend for persistence across sessions
         try {
-          await dvhostingSmsService.saveUserToBackend(result.user, referralCode);
+          // Get pending referral code from localStorage if available
+          const pendingReferralCode = localStorage.getItem("pending_referral_code");
+          if (pendingReferralCode) {
+            console.log("📝 Using pending referral code:", pendingReferralCode);
+          }
+          await dvhostingSmsService.saveUserToBackend(result.user, pendingReferralCode || undefined);
+          // Clear pending referral code after use
+          localStorage.removeItem("pending_referral_code");
         } catch (userSaveError) {
           // Silent fail for user save to backend
           console.error("Error saving user to backend:", userSaveError);
@@ -250,23 +254,6 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
               </Button>
             </div>
 
-            {/* Referral Info Banner */}
-            {referralCode && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <Gift className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-green-900">
-                      Special Offer!
-                    </p>
-                    <p className="text-sm text-green-700 mt-1">
-                      You'll get ₹50 bonus on your first order with code:{" "}
-                      <span className="font-bold">{referralCode}</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Mobile content will be added here */}
             <div className="space-y-4">
