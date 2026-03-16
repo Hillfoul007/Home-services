@@ -188,6 +188,16 @@ const userSchema = new mongoose.Schema(
         default: () => new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
       },
     }],
+    
+    // Subscription Packages
+    package_balance: {
+      type: Number,
+      default: 0,
+    },
+    package_validity: {
+      type: Date,
+      default: null,
+    },
 
     // Referral System
     referral_code: {

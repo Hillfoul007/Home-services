@@ -5,6 +5,8 @@ const User = require("../models/User");
 const Rider = require("../models/Rider");
 const QuickPickup = require("../models/QuickPickup");
 const Vendor = require("../models/Vendor");
+const Package = require("../models/Package");
+const UserPackage = require("../models/UserPackage");
 const riderNotificationService = require("../services/riderNotificationService");
 
 const router = express.Router();
@@ -312,6 +314,148 @@ router.get("/users/search", verifyAdminAccess, async (req, res) => {
     res.json({ users });
   } catch (error) {
     console.error("❌ Error searching users:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ============= PACKAGES MANAGEMENT =============
+
+// Get all packages
+router.get("/packages", verifyAdminAccess, async (req, res) => {
+  try {
+    const packages = await Package.find().sort({ created_at: -1 });
+    res.json({ success: true, packages });
+  } catch (error) {
+    console.error("❌ Error fetching packages:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create a new package
+router.post("/packages", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, description, price, wallet_amount, validity_days } = req.body;
+    
+    if (!name || isNaN(price) || isNaN(wallet_amount) || isNaN(validity_days)) {
+      return res.status(400).json({ error: "Missing required package fields" });
+    }
+
+    const newPackage = new Package({
+      name,
+      description,
+      price,
+      wallet_amount,
+      validity_days,
+    });
+
+    await newPackage.save();
+    console.log("✅ Admin created new package:", newPackage._id);
+    res.status(201).json({ success: true, package: newPackage });
+  } catch (error) {
+    console.error("❌ Error creating package:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update a package
+router.put("/packages/:id", verifyAdminAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const updatedPackage = await Package.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedPackage) {
+      return res.status(404).json({ error: "Package not found" });
+    }
+
+    console.log("✅ Admin updated package:", id);
+    res.json({ success: true, package: updatedPackage });
+  } catch (error) {
+    console.error("❌ Error updating package:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Assign a package to a user
+router.post("/users/:userId/assign-package", verifyAdminAccess, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { packageId } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const pkg = await Package.findById(packageId);
+    if (!pkg) {
+      return res.status(404).json({ error: "Package not found" });
+    }
+
+    if (!pkg.is_active) {
+      return res.status(400).json({ error: "Cannot assign an inactive package" });
+    }
+
+    // Calculate validity dates
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const validityStart = new Date(indianTime);
+    const validityEnd = new Date(indianTime);
+    validityEnd.setDate(validityEnd.getDate() + pkg.validity_days);
+
+    // Create UserPackage record
+    const userPackage = new UserPackage({
+      user_id: user._id,
+      package_id: pkg._id,
+      purchase_price: pkg.price,
+      amount_credited: pkg.wallet_amount,
+      validity_start: validityStart,
+      validity_end: validityEnd,
+    });
+
+    await userPackage.save();
+
+    // Update User's package balance and validity
+    // If they already have an active package, we add the balance and extend validity
+    const now = new Date(indianTime);
+    if (user.package_validity && user.package_validity > now) {
+      // Extend existing active package
+      user.package_balance = (user.package_balance || 0) + pkg.wallet_amount;
+      // Extend validity from the current expiry date or from today whichever is further
+      const newExpiry = new Date(Math.max(user.package_validity.getTime(), now.getTime()));
+      newExpiry.setDate(newExpiry.getDate() + pkg.validity_days);
+      user.package_validity = newExpiry;
+      console.log(`✅ Extending package validity to ${newExpiry}`);
+    } else {
+      // Start fresh
+      user.package_balance = pkg.wallet_amount;
+      user.package_validity = validityEnd;
+      console.log(`✅ Starting new package validity to ${validityEnd}`);
+    }
+
+    // Add a transaction record in the wallet transactions for transparency (even though it's separate balance)
+    user.wallet_transactions.push({
+      type: "credit",
+      amount: pkg.wallet_amount,
+      description: `Package Assigned: ${pkg.name} (${pkg.validity_days} days validity)`,
+      created_at: validityStart,
+    });
+
+    await user.save();
+
+    console.log(`✅ Admin assigned package ${pkg.name} to user ${user.phone}`);
+    res.json({ 
+      success: true, 
+      message: "Package assigned successfully",
+      package_balance: user.package_balance,
+      package_validity: user.package_validity 
+    });
+  } catch (error) {
+    console.error("❌ Error assigning package:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

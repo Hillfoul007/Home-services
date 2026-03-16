@@ -273,5 +273,26 @@ class ApiClient {
 // Create and export the API client instance
 export const apiClient = new ApiClient(API_BASE_URL);
 
+// Admin API
+export const adminApi = {
+  // Packages Management
+  getPackages: () => apiClient['request']('/admin/packages'),
+  
+  createPackage: (data: any) => apiClient['request']('/admin/packages', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  
+  updatePackage: (id: string, data: any) => apiClient['request'](`/admin/packages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  
+  assignPackage: (userId: string, packageId: string) => apiClient['request'](`/admin/users/${userId}/assign-package`, {
+    method: 'POST',
+    body: JSON.stringify({ packageId })
+  })
+};
+
 // Export types for better TypeScript support
 export type { ApiResponse };

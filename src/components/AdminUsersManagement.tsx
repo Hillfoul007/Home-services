@@ -23,9 +23,11 @@ import {
   Trash2,
   AlertCircle,
   RefreshCw,
+  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { adminApi } from "@/lib/api";
 
 interface User {
   _id: string;
@@ -43,6 +45,13 @@ const AdminUsersManagement: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+
+  // Package assignment state
+  const [showPackageDialog, setShowPackageDialog] = useState(false);
+  const [assigningUser, setAssigningUser] = useState<User | null>(null);
+  const [availablePackages, setAvailablePackages] = useState<any[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -79,6 +88,48 @@ const AdminUsersManagement: React.FC = () => {
     await loadUsers();
     setRefreshing(false);
     toast.success("Users refreshed");
+  };
+
+  const loadPackages = async () => {
+    try {
+      const response: any = await adminApi.getPackages();
+      if (response.data?.success) {
+         // Only show active packages
+        setAvailablePackages(response.data.packages.filter((p: any) => p.is_active));
+      }
+    } catch (error) {
+      console.error("Failed to load packages for assignment:", error);
+    }
+  };
+
+  const handleOpenPackageDialog = (user: User) => {
+    setAssigningUser(user);
+    setSelectedPackageId("");
+    setShowPackageDialog(true);
+    if (availablePackages.length === 0) {
+      loadPackages();
+    }
+  };
+
+  const handleAssignPackage = async () => {
+    if (!assigningUser || !selectedPackageId) return;
+
+    try {
+      setIsAssigning(true);
+      const response: any = await adminApi.assignPackage(assigningUser._id, selectedPackageId);
+      
+      if (response.data?.success) {
+        toast.success(`Package assigned to ${assigningUser.name || 'user'}`);
+        setShowPackageDialog(false);
+        setAssigningUser(null);
+      } else {
+        toast.error(response.data?.error || "Failed to assign package");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Error assigning package");
+    } finally {
+      setIsAssigning(false);
+    }
   };
 
   const handleOpenDeleteDialog = (user: User) => {
@@ -205,7 +256,16 @@ const AdminUsersManagement: React.FC = () => {
                         ? new Date(user.created_at).toLocaleDateString("en-IN")
                         : "N/A"}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenPackageDialog(user)}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Package className="h-4 w-4 mr-1" />
+                        Package
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -258,6 +318,54 @@ const AdminUsersManagement: React.FC = () => {
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Package Assignment Dialog */}
+      <Dialog open={showPackageDialog} onOpenChange={setShowPackageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Subscription Package</DialogTitle>
+            <DialogDescription>
+              Select a package to assign to {assigningUser?.name || "this user"}. This will credit their package balance.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Package</label>
+              <select
+                className="w-full border-gray-300 rounded-md shadow-sm p-2 text-sm border focus:ring-blue-500 focus:border-blue-500"
+                value={selectedPackageId}
+                onChange={(e) => setSelectedPackageId(e.target.value)}
+              >
+                <option value="" disabled>-- Choose a package --</option>
+                {availablePackages.map((pkg) => (
+                  <option key={pkg._id} value={pkg._id}>
+                    {pkg.name} (₹{pkg.price} for ₹{pkg.wallet_amount} credit)
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedPackageId && (
+              <div className="bg-blue-50 text-blue-800 p-3 rounded text-sm">
+                The user will receive wallet credits that expire based on the package validity rules.
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPackageDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignPackage}
+              disabled={!selectedPackageId || isAssigning}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isAssigning ? "Assigning..." : "Assign Package"}
             </Button>
           </DialogFooter>
         </DialogContent>

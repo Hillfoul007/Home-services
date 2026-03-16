@@ -57,7 +57,7 @@ const SimpleReferModal: React.FC<SimpleReferModalProps> = ({
     }
 
     const appUrl = window.location.origin;
-    const message = `Hey! 👋 I'm using Laundrify for laundry services. Sign up with my code *${referralCode}* and get ₹50 instantly! We both get ₹50 in our wallets when you complete your first order. Download here: ${appUrl}?ref=${referralCode}`;
+    const message = `Hey! 👋 I'm using Laundrify for laundry services. Sign up with my code *${referralCode}* and get ₹50 instantly in your wallet! I also get ₹50 when you complete your first order. Download here: ${appUrl}?ref=${referralCode}`;
 
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");

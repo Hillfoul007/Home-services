@@ -42,13 +42,14 @@ import AdminBannerManagement from "./AdminBannerManagement";
 import AdminMapAnalytics from "./AdminMapAnalytics";
 import AdminRiderManagement from "./AdminRiderManagement";
 import AdminDailyOrdersView from "./AdminDailyOrdersView";
+import AdminPackages from "../pages/AdminPackages";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -376,6 +377,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Users</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("packages")}
+              variant={activeTab === "packages" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Packages</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("pgs")}
               variant={activeTab === "pgs" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -460,6 +469,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-purple-900 text-sm"><strong>✓ Users Management:</strong> View all customer accounts and delete users if needed. Deleting a user will also remove all associated bookings.</p>
             </div>
             <AdminUsersManagement />
+          </TabsContent>
+
+          <TabsContent value="packages">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+              <p className="text-orange-900 text-sm"><strong>✓ Packages:</strong> Create and manage subscription packages. Assign packages to users to add wallet balance with a strict validity period.</p>
+            </div>
+            <AdminPackages />
           </TabsContent>
 
           <TabsContent value="pgs">

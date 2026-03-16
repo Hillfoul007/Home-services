@@ -100,9 +100,21 @@ router.get("/balance/:userId", async (req, res) => {
       });
     }
 
+    // Check if package is still valid
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const now = new Date(indianTime);
+    let activePackageBalance = user.package_balance || 0;
+    
+    // Reset to 0 if expired
+    if (user.package_validity && user.package_validity < now) {
+      activePackageBalance = 0;
+    }
+
     res.json({
       success: true,
       wallet_balance: user.wallet_balance || 0,
+      package_balance: activePackageBalance,
+      package_validity: user.package_validity,
       wallet_transactions: user.wallet_transactions || []
     });
   } catch (error) {
@@ -579,27 +591,75 @@ router.post("/debit-for-booking", async (req, res) => {
       });
     }
 
-    if ((user.wallet_balance || 0) < amount) {
+    // Check package validity
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const now = new Date(indianTime);
+    
+    const isPackageValid = user.package_validity && user.package_validity >= now;
+    const packageBalance = isPackageValid ? (user.package_balance || 0) : 0;
+    const walletBalance = user.wallet_balance || 0;
+    
+    const totalAvailable = packageBalance + walletBalance;
+
+    if (totalAvailable < amount) {
       return res.status(400).json({
         success: false,
-        error: "Insufficient wallet balance"
+        error: "Insufficient total balance (Wallet + Package)"
       });
     }
 
-    user.wallet_balance -= amount;
-    user.wallet_transactions.push({
-      type: "debit",
-      amount,
-      description: "Cashback used in booking",
-      booking_id,
-      created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
-    });
+    let remainingToDeduct = amount;
+    let deductedFromPackage = 0;
+    let deductedFromWallet = 0;
+
+    // Deduct from package first
+    if (packageBalance > 0) {
+      if (packageBalance >= remainingToDeduct) {
+        deductedFromPackage = remainingToDeduct;
+        user.package_balance -= remainingToDeduct;
+        remainingToDeduct = 0;
+      } else {
+        deductedFromPackage = packageBalance;
+        user.package_balance = 0;
+        remainingToDeduct -= packageBalance;
+      }
+    }
+
+    // Deduct remaining from wallet
+    if (remainingToDeduct > 0) {
+      deductedFromWallet = remainingToDeduct;
+      user.wallet_balance -= remainingToDeduct;
+    }
+
+    // Record transactions
+    if (deductedFromPackage > 0) {
+      user.wallet_transactions.push({
+        type: "debit",
+        amount: deductedFromPackage,
+        description: "Package balance used for booking",
+        booking_id,
+        created_at: new Date(indianTime)
+      });
+    }
+
+    if (deductedFromWallet > 0) {
+      user.wallet_transactions.push({
+        type: "debit",
+        amount: deductedFromWallet,
+        description: "Wallet balance used for booking",
+        booking_id,
+        created_at: new Date(indianTime)
+      });
+    }
 
     await user.save();
 
     res.json({
       success: true,
-      wallet_balance: user.wallet_balance
+      wallet_balance: user.wallet_balance,
+      package_balance: user.package_balance,
+      deducted_from_package: deductedFromPackage,
+      deducted_from_wallet: deductedFromWallet
     });
   } catch (error) {
     console.error("Error debiting wallet:", error);
