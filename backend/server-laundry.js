@@ -407,6 +407,16 @@ try {
   console.error("❌ Full admin routes error:", error);
 }
 
+// Packages routes (User facing)
+try {
+  const packageRoutes = require("./routes/packages");
+  app.use("/api/packages", packageRoutes);
+  console.log("🔗 Packages routes registered at /api/packages");
+} catch (error) {
+  console.error("❌ Failed to load Packages routes:", error.message);
+  console.error("❌ Full packages routes error:", error);
+}
+
 // Quick Pickup routes (new)
 try {
   const quickPickupRoutes = require("./routes/quick-pickup");

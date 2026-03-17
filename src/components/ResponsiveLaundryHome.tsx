@@ -62,10 +62,7 @@ import { BookingService } from "@/services/bookingService";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
 import { useCustomerNotifications } from "@/hooks/useCustomerNotifications";
-import debugCustomerVerification from "@/utils/debugCustomerVerification";
-import { initializeMobileVerificationFallback, cleanupMobileVerificationFallback } from "@/utils/mobileVerificationFallback";
 import clearTestVerifications from "@/utils/clearTestVerifications";
-import debugMobileVerificationBanner from "@/utils/debugMobileVerification";
 import { debugVerificationSystem } from "@/utils/debugVerification";
 import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
@@ -77,6 +74,7 @@ import "@/styles/mobile-gesture-support.css";
 import "@/styles/premium-app-ui.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
+import UserPackages from "./UserPackages";
 
 interface ResponsiveLaundryHomeProps {
   currentUser?: any;
@@ -108,6 +106,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [showQuickPickupAfterLogin, setShowQuickPickupAfterLogin] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
+  const [showUserPackages, setShowUserPackages] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
@@ -425,41 +424,21 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
       // Only check when user is authenticated
       checkOnStartup();
 
-      // Mobile-specific debug and verification check (simplified to prevent excessive API calls)
+      // Mobile-specific debug and verification check
       if (window.innerWidth < 768) {
-        console.log('📱 Mobile device detected - running verification debug');
-
-        // Initialize mobile fallback system
-        initializeMobileVerificationFallback();
-
-        // Simplified verification check without creating test data
-        setTimeout(() => {
-          debugCustomerVerification();
-          debugMobileVerificationBanner();
-
-          // Only check for existing verifications
-          setTimeout(async () => {
-            console.log('📱 Mobile: Checking for existing pending verifications...');
-            const hasPending = await checkPendingVerifications();
-            if (hasPending) {
-              console.log('📱 Mobile: Found pending verifications, showing popup...');
-              showVerificationPopup();
-            }
-            // Removed test verification creation to prevent API spam
-          }, 2000); // Increased delay to prevent rush
-        }, 1000);
+        // Only check for existing verifications
+        setTimeout(async () => {
+          console.log('📱 Mobile: Checking for existing pending verifications...');
+          const hasPending = await checkPendingVerifications();
+          if (hasPending) {
+            console.log('📱 Mobile: Found pending verifications, showing popup...');
+            showVerificationPopup();
+          }
+        }, 1000); 
       }
     }
   }, [currentUser?.phone]); // Only depend on user phone to avoid excessive re-runs
 
-  // Cleanup mobile verification fallback on unmount
-  useEffect(() => {
-    return () => {
-      if (window.innerWidth < 768) {
-        cleanupMobileVerificationFallback();
-      }
-    };
-  }, []);
 
   // Load active orders from user bookings
   useEffect(() => {
@@ -1221,13 +1200,18 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </button>
         </div>
 
-        {/* Customer Verification Popup */}
         <CustomerVerificationPopup
           isOpen={isVerificationPopupOpen}
           onClose={hideVerificationPopup}
           verification={currentVerification}
           onVerificationComplete={handleVerificationComplete}
         />
+
+        {showUserPackages && currentUser && (
+          <div className="fixed inset-0 z-50 bg-white">
+            <UserPackages currentUser={currentUser} onClose={() => setShowUserPackages(false)} />
+          </div>
+        )}
       </div>
     );
   }
@@ -1331,10 +1315,16 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
               </div>
 
               {currentUser && (
-                <Button variant="ghost" size="sm" onClick={handleViewBookings}>
-                  <Package className="h-4 w-4 mr-2" />
-                  Bookings
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowUserPackages(true)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
+                    <Package className="h-4 w-4 mr-2" />
+                    Packages
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleViewBookings}>
+                    <ShoppingBag className="h-4 w-4 mr-2" />
+                    Bookings
+                  </Button>
+                </div>
               )}
 
               {currentUser && (
@@ -1353,6 +1343,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   currentUser={currentUser}
                   onLogout={handleLogout}
                   onViewBookings={handleViewBookings}
+                  onViewPackages={() => setShowUserPackages(true)}
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
@@ -1644,6 +1635,14 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           }}
           onSuccess={handleAuthSuccess}
         />
+
+        {showUserPackages && currentUser && (
+          <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
+             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+                <UserPackages currentUser={currentUser} onClose={() => setShowUserPackages(false)} />
+             </div>
+          </div>
+        )}
 
         {/* Removed local booking history modal - using main navigation */}
 

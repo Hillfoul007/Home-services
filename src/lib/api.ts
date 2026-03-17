@@ -273,6 +273,33 @@ class ApiClient {
 // Create and export the API client instance
 export const apiClient = new ApiClient(API_BASE_URL);
 
+// Export package-related API methods
+export const packageApi = {
+  // Get all active packages
+  getPackages: () => apiClient['request']('/packages'),
+  
+  // Get packages historical data and current balance for a user
+  getUserPackages: (userId: string) => apiClient['request'](`/packages/my-packages/${userId}`),
+  
+  // Create Razorpay order for purchasing a package
+  createOrder: (data: { packageId: string; userId: string }) => apiClient['request']('/packages/create-order', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  
+  // Verify Razorpay payment and fulfill package purchase
+  verifyPayment: (data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    packageId: string;
+    userId: string;
+  }) => apiClient['request']('/packages/verify-payment', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  })
+};
+
 // Admin API
 export const adminApi = {
   // Packages Management
@@ -291,7 +318,10 @@ export const adminApi = {
   assignPackage: (userId: string, packageId: string) => apiClient['request'](`/admin/users/${userId}/assign-package`, {
     method: 'POST',
     body: JSON.stringify({ packageId })
-  })
+  }),
+  
+  // Get all assigned user packages (History)
+  getAllUserPackages: () => apiClient['request']('/admin/users-packages')
 };
 
 // Export types for better TypeScript support

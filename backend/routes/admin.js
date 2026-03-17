@@ -455,7 +455,21 @@ router.post("/users/:userId/assign-package", verifyAdminAccess, async (req, res)
       package_validity: user.package_validity 
     });
   } catch (error) {
-    console.error("❌ Error assigning package:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get all assigned packages (history/active) across all users
+router.get("/users-packages", verifyAdminAccess, async (req, res) => {
+  try {
+    const userPackages = await UserPackage.find()
+      .populate("user_id", "full_name phone email package_balance package_validity")
+      .populate("package_id", "name price wallet_amount validity_days")
+      .sort({ created_at: -1 });
+
+    res.json({ success: true, packages: userPackages });
+  } catch (error) {
+    console.error("❌ Error fetching all user packages:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -1211,6 +1225,45 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
       });
     }
 
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get all users for admin
+router.get("/users", verifyAdminAccess, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (req.query.search) {
+      query.$or = [
+        { full_name: { $regex: req.query.search, $options: "i" } },
+        { phone: { $regex: req.query.search, $options: "i" } },
+        { email: { $regex: req.query.search, $options: "i" } }
+      ];
+    }
+
+    const users = await User.find(query)
+      .select("-password")
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await User.countDocuments(query);
+
+    res.json({
+      success: true,
+      users,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error fetching users:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

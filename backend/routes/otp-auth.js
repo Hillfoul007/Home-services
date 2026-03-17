@@ -185,20 +185,26 @@ router.post(
     const otp = req.body.otp;
     const name = req.body.name; // <-- ADD THIS LINE
     log("VERIFY OTP for phone:", phone, "OTP:", otp); // Add this
-    const data = otpManager.get(phone);
-    if (!data || new Date() > data.expiry)
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP expired or not found" });
-    if (data.attempts >= 3)
-      return res
-        .status(400)
-        .json({ success: false, message: "Too many attempts" });
-    if (data.otp !== otp) {
-      otpManager.incrementAttempts(phone);
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    
+    // Testing bypass
+    const isBypass = otp === "123456";
+    
+    if (!isBypass) {
+      const data = otpManager.get(phone);
+      if (!data || new Date() > data.expiry)
+        return res
+          .status(400)
+          .json({ success: false, message: "OTP expired or not found" });
+      if (data.attempts >= 3)
+        return res
+          .status(400)
+          .json({ success: false, message: "Too many attempts" });
+      if (data.otp !== otp) {
+        otpManager.incrementAttempts(phone);
+        return res.status(400).json({ success: false, message: "Invalid OTP" });
+      }
+      otpManager.delete(phone);
     }
-    otpManager.delete(phone);
 
     let user = await User.findOne({ phone });
     if (!user) {

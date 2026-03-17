@@ -60,7 +60,7 @@ const AdminUsersManagement: React.FC = () => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.adminRequest<any>("/users");
+      const response = await apiClient.adminRequest<any>("/admin/users");
 
       if (response.error) {
         throw new Error(response.error);

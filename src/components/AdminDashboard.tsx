@@ -43,13 +43,14 @@ import AdminMapAnalytics from "./AdminMapAnalytics";
 import AdminRiderManagement from "./AdminRiderManagement";
 import AdminDailyOrdersView from "./AdminDailyOrdersView";
 import AdminPackages from "../pages/AdminPackages";
+import AdminAssignedPackages from "./AdminAssignedPackages";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -385,6 +386,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Packages</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("assigned-packages")}
+              variant={activeTab === "assigned-packages" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">User Packages</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("pgs")}
               variant={activeTab === "pgs" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -476,6 +485,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-orange-900 text-sm"><strong>✓ Packages:</strong> Create and manage subscription packages. Assign packages to users to add wallet balance with a strict validity period.</p>
             </div>
             <AdminPackages />
+          </TabsContent>
+
+          <TabsContent value="assigned-packages">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+              <p className="text-indigo-900 text-sm"><strong>✓ User Packages:</strong> View all assigned subscription packages. Check active balances and validity dates for users.</p>
+            </div>
+            <AdminAssignedPackages />
           </TabsContent>
 
           <TabsContent value="pgs">
