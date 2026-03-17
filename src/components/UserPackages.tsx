@@ -220,28 +220,39 @@ export default function UserPackages({ currentUser, onClose }: UserPackagesProps
         </div>
         
         {/* History */}
-        {userPackages.length > 0 && (
-          <div className="mt-8">
-            <h3 className="text-lg font-bold mb-4 text-slate-800">Purchase History</h3>
+        <div className="mt-8">
+          <h3 className="text-lg font-bold mb-4 text-slate-800">Your Packages</h3>
+          {userPackages.length > 0 ? (
             <div className="space-y-3">
                {userPackages.map(up => (
-                 <div key={up._id} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                 <div key={up._id} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center relative overflow-hidden">
+                   {new Date(up.validity_end) < new Date() && (
+                     <div className="absolute top-0 right-0 bottom-0 w-1 bg-red-400"></div>
+                   )}
+                   {new Date(up.validity_end) >= new Date() && (
+                     <div className="absolute top-0 right-0 bottom-0 w-1 bg-green-400"></div>
+                   )}
                    <div>
-                     <p className="font-medium text-slate-800">{up.package_id?.name || 'Unknown Package'}</p>
+                     <p className="font-medium text-slate-800">{up.package_id?.name || 'Assigned Package'}</p>
                      <p className="text-xs text-slate-500">
                        Credited: ₹{up.amount_credited}
                      </p>
                    </div>
                    <div className="text-right">
-                     <p className="text-sm text-slate-600">
-                       Valid till {new Date(up.validity_end).toLocaleDateString()}
+                     <p className={`text-sm ${new Date(up.validity_end) < new Date() ? 'text-red-500' : 'text-slate-600'}`}>
+                       {new Date(up.validity_end) < new Date() ? 'Expired' : 'Valid till'} {new Date(up.validity_end).toLocaleDateString()}
                      </p>
                    </div>
                  </div>
                ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+              <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-slate-500 text-sm">You haven't purchased or been assigned any packages yet.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
