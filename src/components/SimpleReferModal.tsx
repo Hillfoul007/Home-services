@@ -108,14 +108,14 @@ const SimpleReferModal: React.FC<SimpleReferModalProps> = ({
           <div className="flex-1">
             <p className="text-sm text-gray-600 mb-1">Share this code</p>
             <p className="text-3xl font-bold text-green-600 font-mono">
-              {referralCode}
+              {referralCode || "Generating..."}
             </p>
           </div>
           <Button
             size="sm"
             onClick={handleCopyCode}
-            disabled={copying}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={copying || !referralCode}
+            className="bg-green-600 hover:bg-green-700 text-white shadow-sm transition-all active:scale-95"
           >
             <Copy className="h-4 w-4 mr-2" />
             {copying ? "Copied!" : "Copy"}

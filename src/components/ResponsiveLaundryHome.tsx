@@ -905,7 +905,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   <Button
                     onClick={() => {
                       setShowMobileMenu(false);
-                      setShowUserPackages(true);
+                      setTimeout(() => setShowUserPackages(true), 300);
                     }}
                     variant="ghost"
                     className="w-full justify-start text-gray-700"
@@ -918,7 +918,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   <Button
                     onClick={() => {
                       setShowMobileMenu(false);
-                      setShowReferralModal(true);
+                      setTimeout(() => setShowReferralModal(true), 300);
                     }}
                     variant="ghost"
                     className="w-full justify-start text-gray-700"
