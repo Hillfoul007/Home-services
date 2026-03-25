@@ -17,9 +17,10 @@ const razorpay = new Razorpay({
 // GET /packages - List all active packages for users to browse
 router.get("/", async (req, res) => {
   try {
-    const packages = await Package.find({ is_active: true }).sort({
+    const packages = await Package.find({}).sort({
       price: 1,
     });
+    console.log(`📦 User packages endpoint: found ${packages.length} packages`);
     res.json({ success: true, packages });
   } catch (error) {
     console.error("Error fetching packages:", error);

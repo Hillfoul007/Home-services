@@ -46,8 +46,14 @@ export default function UserPackages({ currentUser, onClose }: UserPackagesProps
         packageApi.getUserPackages(currentUser._id)
       ]);
 
+      console.log("📦 Package API response:", JSON.stringify(pkgsRes));
+      console.log("📦 User package API response:", JSON.stringify(userPkgsRes));
+
       if (pkgsRes.data?.success) {
-        setPackages(pkgsRes.data.packages);
+        setPackages(pkgsRes.data.packages || []);
+        console.log(`📦 Found ${(pkgsRes.data.packages || []).length} available packages`);
+      } else {
+        console.warn("📦 Package fetch returned non-success:", pkgsRes);
       }
 
       if (userPkgsRes.data?.success) {
