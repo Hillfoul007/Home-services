@@ -1218,9 +1218,9 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
   // Desktop Interface
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Desktop Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
+      <header className="glass-panel !rounded-none !border-x-0 !border-t-0 sticky top-0 z-50 mb-2">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1371,7 +1371,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
         {/* Active Order Status Bar - Zomato Style */}
         {activeOrder && !loadingActiveOrder && (
-          <div className="mb-8 p-6 bg-white rounded-2xl shadow-md border border-blue-100">
+          <div className="mb-8 p-6 glass-panel border-blue-100">
             <div className="mb-4">
               <h3 className="text-lg font-bold text-gray-900 mb-2">Your Active Order</h3>
               <p className="text-sm text-gray-600">
@@ -1520,7 +1520,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 return (
                   <Card
                     key={service.id}
-                    className="border-0 shadow-lg rounded-2xl overflow-hidden hover:shadow-xl transition-shadow"
+                    className="card-compact overflow-hidden border-0"
                   >
                     <CardContent className="p-6">
                       <div className="aspect-square bg-gradient-to-br from-laundrify-mint/20 to-laundrify-mint/40 rounded-xl mb-4 flex items-center justify-center">

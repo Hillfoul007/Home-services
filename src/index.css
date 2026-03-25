@@ -138,11 +138,15 @@
   }
 
   .btn-primary {
-    @apply gradient-primary text-white px-4 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200;
+    @apply gradient-primary text-white px-5 py-2.5 rounded-xl font-medium shadow-md shadow-laundrify-purple/20 hover:shadow-lg hover:shadow-laundrify-purple/40 hover:-translate-y-0.5 transition-all duration-300 active:scale-95;
   }
 
   .card-compact {
-    @apply bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200;
+    @apply bg-white rounded-2xl border border-gray-100 shadow-premium hover:shadow-premium-hover transition-all duration-300;
+  }
+  
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-lg border border-white/40 shadow-glass rounded-2xl;
   }
 
   /* PWA safe area utilities */

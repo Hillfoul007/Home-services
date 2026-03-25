@@ -11,6 +11,19 @@ const rateLimit = require("express-rate-limit");
 // Load environment variables
 dotenv.config();
 
+// Initialize Firebase Admin for Push Notifications
+const admin = require("firebase-admin");
+try {
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault()
+    });
+    console.log("🔥 Firebase Admin initialized successfully.");
+  }
+} catch (error) {
+  console.log("⚠️ Firebase Admin initialization skipped (no credentials found). Push notifications will operate in mock mode.");
+}
+
 // Load production configuration
 const productionConfig = require("./config/production");
 
@@ -514,18 +527,103 @@ try {
 
 // Google Sheets integration removed
 
+const User = require("./models/User");
+const admin = require("firebase-admin");
+
+// Initialize Firebase Admin (Only if credentials exist)
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log("🔥 Firebase Admin Initialized");
+  } else {
+    console.log("⚠️ FIREBASE_SERVICE_ACCOUNT not set. Push notifications will be mocked.");
+  }
+} catch (error) {
+  console.error("❌ Failed to initialize Firebase Admin:", error.message);
+}
+
 // Push notification endpoints
-app.post("/api/push/subscribe", (req, res) => {
-  // Store push subscription in database
-  // In production, save this to your user's profile
-  console.log("Push subscription received:", req.body);
-  res.json({ success: true });
+app.post("/api/push/subscribe", async (req, res) => {
+  try {
+    const { token, userId } = req.body;
+    if (userId && token) {
+      await User.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
+      console.log(`📱 Saved FCM token for user ${userId}`);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Push subscribe error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
-app.post("/api/push/unsubscribe", (req, res) => {
-  // Remove push subscription from database
-  console.log("Push unsubscribe request");
-  res.json({ success: true });
+app.post("/api/push/unsubscribe", async (req, res) => {
+  try {
+    const { token, userId } = req.body;
+    if (userId && token) {
+      await User.findByIdAndUpdate(userId, { $pull: { fcmTokens: token } });
+      console.log(`📱 Removed FCM token for user ${userId}`);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Push unsubscribe error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/admin/push-all", async (req, res) => {
+  try {
+    const { title, body, route } = req.body;
+    // Check admin token/auth here if needed
+    
+    // Get all users with FCM tokens
+    const users = await User.find({ fcmTokens: { $exists: true, $not: { $size: 0 } } }, 'fcmTokens');
+    
+    let allTokens = [];
+    users.forEach(u => {
+      allTokens = allTokens.concat(u.fcmTokens);
+    });
+    
+    if (allTokens.length === 0) {
+      return res.json({ success: true, message: "No registered devices found.", sentCount: 0 });
+    }
+    
+    // Check if Firebase Admin is initialized
+    if (admin.apps.length > 0) {
+      const message = {
+        notification: { title, body },
+        data: { route: route || '/' },
+        tokens: allTokens,
+      };
+      
+      const response = await admin.messaging().sendEachForMulticast(message);
+      console.log(`🔥 Sent push to ${response.successCount} devices. Failed: ${response.failureCount}`);
+      
+      // Optional: remove failed tokens (if error.code === 'messaging/invalid-registration-token')
+      return res.json({ success: true, sentCount: response.successCount, failedCount: response.failureCount });
+    } else {
+      console.log(`🔔 Mock Push Notification to ${allTokens.length} devices => Title: ${title}, Body: ${body}`);
+      return res.json({ success: true, sentCount: allTokens.length, mockMode: true });
+    }
+  } catch (error) {
+    console.error("❌ Push all error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Mobile App Version checking endpoint
+app.get("/api/config/mobile-app-version", (req, res) => {
+  res.json({
+    latestVersion: "1.0.0",
+    minRequiredVersion: "1.0.0", // Change this to force updates
+    updateUrl: {
+      android: "https://play.google.com/store/apps/details?id=com.laundrify.app",
+      ios: "https://apps.apple.com/app/laundrify/id123456789" // Replace with actual IDs
+    }
+  });
 });
 
 // Helper function to get IST timestamp

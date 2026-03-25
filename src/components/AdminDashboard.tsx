@@ -27,6 +27,7 @@ import {
   Truck,
   Image,
   MapPin as MapIcon,
+  Bell,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
@@ -44,13 +45,14 @@ import AdminRiderManagement from "./AdminRiderManagement";
 import AdminDailyOrdersView from "./AdminDailyOrdersView";
 import AdminPackages from "../pages/AdminPackages";
 import AdminAssignedPackages from "./AdminAssignedPackages";
+import AdminPushNotifications from "./AdminPushNotifications";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -426,6 +428,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Banners</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("push-notifications")}
+              variant={activeTab === "push-notifications" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0 bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-200"
+            >
+              <Bell className="h-4 w-4" />
+              <span className="hidden sm:inline">Push Alerts</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("map-analytics")}
               variant={activeTab === "map-analytics" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -514,6 +524,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-blue-900 text-sm"><strong>✓ Banner Management:</strong> Create and manage website banners. Set custom display durations, redirect URLs, and track clicks and impressions. Banners rotate automatically on the homepage.</p>
             </div>
             <AdminBannerManagement />
+          </TabsContent>
+
+          <TabsContent value="push-notifications">
+            <AdminPushNotifications />
           </TabsContent>
 
           <TabsContent value="map-analytics">

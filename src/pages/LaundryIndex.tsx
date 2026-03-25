@@ -11,6 +11,7 @@ import LaundrifySplashLoader from "@/components/LaundrifySplashLoader";
 import { DVHostingSmsService } from "../services/dvhostingSmsService";
 import PushNotificationService from "../services/pushNotificationService";
 import { LocationTrackingService } from "../services/locationTrackingService";
+import { MobilePushService } from "../services/MobilePushService";
 
 import { useNotifications } from "@/contexts/NotificationContext";
 import {
@@ -341,6 +342,12 @@ const LaundryIndex = () => {
 
             // Ensure auth service has the latest data
             authService.setCurrentUser(storedUser, token);
+
+            // Initialize mobile push notifications if on native platform
+            try {
+              MobilePushService.getInstance().initialize(storedUser._id || storedUser.id);
+            } catch(e) {}
+
             return; // Exit early - user is authenticated
           }
         } catch (parseError) {
@@ -360,6 +367,11 @@ const LaundryIndex = () => {
           name: user.name,
           isVerified: user.isVerified,
         });
+
+        // Initialize mobile push notifications if on native platform
+        try {
+          MobilePushService.getInstance().initialize(user._id || user.id);
+        } catch(e) {}
       } else {
         // Only log state, never automatically clear login
         console.log("ℹ️ No valid authentication data found");
@@ -620,6 +632,11 @@ const getDetailedLocationInfo = async (
 
     console.log("✅ User logged in successfully:", user.name || user.phone);
     console.log("📍 Redirecting to:", targetView);
+
+    // Initialize mobile push notifications if on native platform
+    try {
+      MobilePushService.getInstance().initialize(user._id || user.id);
+    } catch(e) {}
 
     // Save user location if we have stored location data
     try {

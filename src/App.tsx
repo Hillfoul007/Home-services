@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { NotificationProvider } from "@/contexts/NotificationContext";
@@ -21,6 +21,10 @@ import {
 } from "@/utils/authPersistence";
 import { initializePWAUpdates } from "@/utils/swCleanup";
 import "@/utils/testEnvironment"; // Auto-run environment tests in development
+import ForceUpdateModal from "@/components/ForceUpdateModal";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
+import { getApiUrl } from "@/config/env";
 import VendorLogin from "@/pages/vendor/VendorLogin";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import VendorOrderDetails from "@/pages/vendor/VendorOrderDetails";
@@ -57,8 +61,60 @@ function AnalyticsTracker() {
 }
 
 function App() {
+  const [updateConfig, setUpdateConfig] = useState<{
+    isOpen: boolean;
+    latestVersion: string;
+    updateUrl: { android?: string; ios?: string };
+  }>({
+    isOpen: false,
+    latestVersion: "",
+    updateUrl: {},
+  });
+
+  // helper function to compare semantic versions 
+  const compareVersions = (v1: string, v2: string) => {
+    const p1 = v1.split('.').map(Number);
+    const p2 = v2.split('.').map(Number);
+    for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+      const num1 = p1[i] || 0;
+      const num2 = p2[i] || 0;
+      if (num1 > num2) return 1;
+      if (num1 < num2) return -1;
+    }
+    return 0;
+  };
+
   // Initialize authentication persistence and restore user session
   useEffect(() => {
+    const checkAppUpdates = async () => {
+      // Only check on native platforms (iOS/Android via Capacitor)
+      if (!Capacitor.isNativePlatform()) return;
+
+      try {
+        const url = `${getApiUrl().replace(/\/$/, '')}/config/mobile-app-version`;
+        const response = await fetch(url);
+        
+        if (response.ok) {
+          const configDetails = await response.json();
+          const { minRequiredVersion, latestVersion, updateUrl } = configDetails;
+
+          const appInfo = await CapacitorApp.getInfo();
+          const currentVersion = appInfo.version;
+
+          if (compareVersions(currentVersion, minRequiredVersion) < 0) {
+            console.warn(`[App Update] App is outdated. Current: ${currentVersion}, Min Required: ${minRequiredVersion}`);
+            setUpdateConfig({
+              isOpen: true,
+              latestVersion,
+              updateUrl,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check for app updates:", error);
+      }
+    };
+
     const initializeAuth = async () => {
       // Auto-clear cart on deploy (only once)
       const versionKey = "catalogue-version-v2";
@@ -76,6 +132,9 @@ function App() {
 
       // Restore authentication state from localStorage
       await restoreAuthState();
+      
+      // After auth restores, check for forces updates
+      await checkAppUpdates();
     };
 
     initializeAuth();
@@ -117,6 +176,11 @@ function App() {
             <Toaster />
             <SonnerToaster />
             <MapsPerformanceIndicator />
+            <ForceUpdateModal 
+              isOpen={updateConfig.isOpen}
+              latestVersion={updateConfig.latestVersion}
+              updateUrl={updateConfig.updateUrl}
+            />
           </div>
         </Router>
       </NotificationProvider>
