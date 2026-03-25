@@ -11,19 +11,6 @@ const rateLimit = require("express-rate-limit");
 // Load environment variables
 dotenv.config();
 
-// Initialize Firebase Admin for Push Notifications
-const admin = require("firebase-admin");
-try {
-  if (admin.apps.length === 0) {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault()
-    });
-    console.log("🔥 Firebase Admin initialized successfully.");
-  }
-} catch (error) {
-  console.log("⚠️ Firebase Admin initialization skipped (no credentials found). Push notifications will operate in mock mode.");
-}
-
 // Load production configuration
 const productionConfig = require("./config/production");
 
