@@ -849,6 +849,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   currentUser={currentUser}
                   onLogout={handleLogout}
                   onViewBookings={handleViewBookings}
+                  onViewPackages={() => setShowUserPackages(true)}
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
@@ -897,6 +898,19 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   <ShoppingBag className="mr-3 h-4 w-4" />
                   Browse Services
                 </Button>
+                {currentUser && (
+                  <Button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowUserPackages(true);
+                    }}
+                    variant="ghost"
+                    className="w-full justify-start text-gray-700"
+                  >
+                    <Package className="mr-3 h-4 w-4" />
+                    My Packages
+                  </Button>
+                )}
               </div>
             </div>
           )}
