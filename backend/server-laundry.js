@@ -7,6 +7,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
+const Notification = require("./models/Notification");
 
 // Load environment variables
 dotenv.config();
@@ -566,19 +567,37 @@ app.post("/api/admin/push-all", async (req, res) => {
     const { title, body, route } = req.body;
     // Check admin token/auth here if needed
     
-    // Get all users with FCM tokens
-    const users = await User.find({ fcmTokens: { $exists: true, $not: { $size: 0 } } }, 'fcmTokens');
+    // 1. Fetch all users to create in-app DB notifications
+    const allUsers = await User.find({}, '_id');
+    const dbNotifications = allUsers.map(u => ({
+      user_id: u._id,
+      title,
+      message: body,
+      type: 'general',
+      data: { route: route || '/' },
+      priority: 'high'
+    }));
+    
+    // Insert DB Notifications in bulk
+    if (dbNotifications.length > 0) {
+      await Notification.insertMany(dbNotifications);
+      console.log(`✅ Saved in-app notification for ${dbNotifications.length} users in DB`);
+    }
+    
+    // 2. Fetch users with actual FCM tokens for native push
+    const usersWithTokens = await User.find({ fcmTokens: { $exists: true, $not: { $size: 0 } } }, 'fcmTokens');
     
     let allTokens = [];
-    users.forEach(u => {
+    usersWithTokens.forEach(u => {
       allTokens = allTokens.concat(u.fcmTokens);
     });
     
     if (allTokens.length === 0) {
-      return res.json({ success: true, message: "No registered devices found.", sentCount: 0 });
+      // Return success because we sent in-app notifications
+      return res.json({ success: true, message: "Pushed to all users (in-app only, no registered devices found for native push).", sentCount: allUsers.length, mockMode: true });
     }
     
-    // Check if Firebase Admin is initialized
+    // 3. Send via Firebase Admin if initialized
     if (admin.apps.length > 0) {
       const message = {
         notification: { title, body },
@@ -587,13 +606,12 @@ app.post("/api/admin/push-all", async (req, res) => {
       };
       
       const response = await admin.messaging().sendEachForMulticast(message);
-      console.log(`🔥 Sent push to ${response.successCount} devices. Failed: ${response.failureCount}`);
+      console.log(`🔥 Sent push to ${response.successCount} native devices. Failed: ${response.failureCount}`);
       
-      // Optional: remove failed tokens (if error.code === 'messaging/invalid-registration-token')
-      return res.json({ success: true, sentCount: response.successCount, failedCount: response.failureCount });
+      return res.json({ success: true, sentCount: allUsers.length, failedCount: response.failureCount });
     } else {
       console.log(`🔔 Mock Push Notification to ${allTokens.length} devices => Title: ${title}, Body: ${body}`);
-      return res.json({ success: true, sentCount: allTokens.length, mockMode: true });
+      return res.json({ success: true, sentCount: allUsers.length, mockMode: true });
     }
   } catch (error) {
     console.error("❌ Push all error:", error);
