@@ -168,15 +168,11 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 shrink-0 mx-1">
+          <TabsList className="grid w-full grid-cols-2 shrink-0 mx-1">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="wallet">
               <Wallet className="h-4 w-4 mr-2" />
               Wallet
-            </TabsTrigger>
-            <TabsTrigger value="referral">
-              <Gift className="h-4 w-4 mr-2" />
-              Refer
             </TabsTrigger>
           </TabsList>
 
@@ -398,18 +394,6 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                   </div>
                 </>
               )}
-            </div>
-          </TabsContent>
-
-          {/* Refer & Earn Tab */}
-          <TabsContent value="referral" className="flex-1 overflow-y-auto">
-            <div className="p-4 max-h-[calc(90vh-180px)] overflow-y-auto">
-              <SimpleReferModal
-                referralCode={currentUser?.referral_code}
-                userHasCompletedFirstOrder={currentUser?.has_completed_first_order === true}
-                referredCount={currentUser?.referral_stats?.total_referrals || 0}
-                earnings={currentUser?.referral_stats?.earned_amount || 0}
-              />
             </div>
           </TabsContent>
         </Tabs>

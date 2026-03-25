@@ -181,7 +181,7 @@ router.get("/share-link/:userId", async (req, res) => {
     const appUrl = process.env.APP_URL || "https://laundrify.app";
     
     // Share text for copying
-    const shareText = `Hey! 🎉 Join me on ${appName}! Use my referral code *${referralCode}* to get ₹50 bonus on your first order. I'll also earn ₹100 when you complete your first order! 💰`;
+    const shareText = `Hey! 🎉 Join me on ${appName}! Use my referral code *${referralCode}* to get ₹50 bonus on your first order. I'll also earn ₹50 when you complete your first order! 💰`;
     
     // WhatsApp share link (opens login with referral code)
     const shareLink = `https://wa.me/?text=${encodeURIComponent(shareText)}`;

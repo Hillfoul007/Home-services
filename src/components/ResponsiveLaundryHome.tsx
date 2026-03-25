@@ -75,6 +75,7 @@ import "@/styles/premium-app-ui.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
 import UserPackages from "./UserPackages";
+import ReferralModal from "./ReferralModal";
 
 interface ResponsiveLaundryHomeProps {
   currentUser?: any;
@@ -107,6 +108,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
   const [showUserPackages, setShowUserPackages] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
@@ -850,6 +852,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   onLogout={handleLogout}
                   onViewBookings={handleViewBookings}
                   onViewPackages={() => setShowUserPackages(true)}
+                  onViewReferral={() => setShowReferralModal(true)}
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
@@ -909,6 +912,19 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   >
                     <Package className="mr-3 h-4 w-4" />
                     My Packages
+                  </Button>
+                )}
+                {currentUser && (
+                  <Button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowReferralModal(true);
+                    }}
+                    variant="ghost"
+                    className="w-full justify-start text-gray-700"
+                  >
+                    <Gift className="mr-3 h-4 w-4 text-pink-500" />
+                    Refer & Earn
                   </Button>
                 )}
               </div>
@@ -1358,6 +1374,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   onLogout={handleLogout}
                   onViewBookings={handleViewBookings}
                   onViewPackages={() => setShowUserPackages(true)}
+                  onViewReferral={() => setShowReferralModal(true)}
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
@@ -1651,11 +1668,19 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
         />
 
         {showUserPackages && currentUser && (
-          <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
-             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+          <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm transition-all duration-300">
+             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                 <UserPackages currentUser={currentUser} onClose={() => setShowUserPackages(false)} />
              </div>
           </div>
+        )}
+
+        {currentUser && (
+          <ReferralModal 
+            isOpen={showReferralModal} 
+            onClose={() => setShowReferralModal(false)} 
+            currentUser={currentUser} 
+          />
         )}
 
         {/* Removed local booking history modal - using main navigation */}

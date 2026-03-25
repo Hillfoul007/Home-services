@@ -187,40 +187,61 @@ export default function UserPackages({ currentUser, onClose }: UserPackagesProps
               <p className="text-slate-500">No packages available at the moment.</p>
             </div>
           ) : (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {packages.map(pkg => (
-                  <Card key={pkg._id} className="overflow-hidden border-slate-200 premium-service-card group">
-                     <CardHeader className="bg-slate-50 pb-4 border-b">
-                        <div className="flex justify-between items-start">
-                           <div>
-                              <CardTitle className="text-lg font-bold text-slate-800">{pkg.name}</CardTitle>
-                              <CardDescription className="text-sm mt-1">{pkg.description}</CardDescription>
-                           </div>
-                           <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-none shrink-0 ml-2">
-                             {pkg.validity_days} Days
-                           </Badge>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+               {packages.map((pkg, idx) => {
+                  const gradients = [
+                    "from-rose-400 to-red-500",
+                    "from-blue-400 to-indigo-500",
+                    "from-emerald-400 to-teal-500",
+                    "from-amber-400 to-orange-500",
+                    "from-fuchsia-400 to-purple-500"
+                  ];
+                  const gradient = gradients[idx % gradients.length];
+                  const lightGradient = gradient.replace(/400/g, "50").replace(/500/g, "100");
+                  
+                  return (
+                    <div 
+                      key={pkg._id} 
+                      className={`relative overflow-hidden rounded-2xl border border-slate-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br ${lightGradient} bg-opacity-10`}
+                    >
+                      {/* Decorative header gradient */}
+                      <div className={`h-2 w-full bg-gradient-to-r ${gradient}`}></div>
+                      
+                      <div className="p-5">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="text-xl font-black text-slate-800 tracking-tight">{pkg.name}</h4>
+                            <p className="text-sm text-slate-500 mt-1 font-medium">{pkg.description}</p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${gradient} text-white shadow-sm shrink-0 ml-2`}>
+                            {pkg.validity_days} Days
+                          </div>
                         </div>
-                     </CardHeader>
-                     <CardContent className="pt-4 flex items-center justify-between">
-                        <div>
-                           <p className="text-sm text-slate-500 mb-1">Pay</p>
-                           <p className="text-2xl font-bold text-slate-800">₹{pkg.price}</p>
+                        
+                        <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 mb-5 relative overflow-hidden">
+                          <div className="flex justify-between items-center relative z-10">
+                            <div>
+                               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Pay</p>
+                               <p className="text-3xl font-black text-slate-800 leading-none">₹{pkg.price}</p>
+                            </div>
+                            <div className="text-right">
+                               <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1">Get Credit</p>
+                               <p className="text-3xl font-black text-emerald-600 leading-none">₹{pkg.wallet_amount}</p>
+                            </div>
+                          </div>
+                          <div className={`absolute -right-4 -bottom-4 w-16 h-16 rounded-full bg-gradient-to-r ${gradient} opacity-10 blur-xl`}></div>
                         </div>
-                        <div className="text-right">
-                           <p className="text-sm text-slate-500 mb-1">Get Wallet Credit</p>
-                           <p className="text-2xl font-bold text-green-600">₹{pkg.wallet_amount}</p>
-                        </div>
-                     </CardContent>
-                     <CardFooter className="pt-0">
+                        
                         <Button 
                            onClick={() => handlePurchase(pkg)} 
-                           className="w-full premium-add-button"
+                           className={`w-full text-base font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 bg-gradient-to-r ${gradient} border-0 h-12 rounded-xl`}
                         >
-                           Buy Package
+                           Get Package
                         </Button>
-                     </CardFooter>
-                  </Card>
-               ))}
+                      </div>
+                    </div>
+                  );
+               })}
              </div>
           )}
         </div>
