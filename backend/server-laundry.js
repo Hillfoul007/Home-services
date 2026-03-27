@@ -622,10 +622,10 @@ app.post("/api/admin/push-all", async (req, res) => {
 // Mobile App Version checking endpoint
 app.get("/api/config/mobile-app-version", (req, res) => {
   res.json({
-    latestVersion: "1.0.0",
-    minRequiredVersion: "1.0.0", // Change this to force updates
+    latestVersion: "1.5",
+    minRequiredVersion: "1.0", // Change this to force updates
     updateUrl: {
-      android: "https://play.google.com/store/apps/details?id=com.laundrify.app",
+      android: "https://play.google.com/store/apps/details?id=com.laundrify.laundry.app",
       ios: "https://apps.apple.com/app/laundrify/id123456789" // Replace with actual IDs
     }
   });
