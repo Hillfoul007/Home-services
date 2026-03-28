@@ -633,7 +633,28 @@ app.post("/api/admin/push-all", async (req, res) => {
       for (const tokenChunk of chunks) {
         const message = {
           notification: { title, body },
-          data: { route: route || '/' },
+          data: { 
+            route: route || '/',
+            title,
+            body
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              channelId: 'laundrify_notifications',
+              priority: 'high',
+              visibility: 'public'
+            }
+          },
+          apns: {
+            payload: {
+              aps: {
+                alert: { title, body },
+                sound: 'default',
+                badge: 1
+              }
+            }
+          },
           tokens: tokenChunk,
         };
         

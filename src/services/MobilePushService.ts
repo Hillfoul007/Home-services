@@ -34,6 +34,19 @@ export class MobilePushService {
         return;
       }
 
+      // Create a high priority channel for Android pop-ups
+      if (Capacitor.getPlatform() === 'android') {
+        await PushNotifications.createChannel({
+          id: 'laundrify_notifications',
+          name: 'Laundrify Notifications',
+          description: 'General notifications for laundrify',
+          importance: 5, // High importance for pop-ups
+          visibility: 1, // Public
+          sound: 'default',
+          vibration: true
+        });
+      }
+
       await PushNotifications.register();
 
       this.addListeners(userId);

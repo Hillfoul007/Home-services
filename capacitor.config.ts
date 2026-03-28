@@ -4,7 +4,11 @@ const config: CapacitorConfig = {
   appId: 'com.laundrify.laundry.app',
   appName: 'Laundrify',
   webDir: 'dist',
-  bundledWebRuntime: false
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"]
+    }
+  }
 };
 
 export default config;
