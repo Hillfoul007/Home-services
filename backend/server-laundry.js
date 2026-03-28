@@ -667,7 +667,6 @@ app.post("/api/admin/push-all", async (req, res) => {
 
 // Mobile App Version checking endpoint
 app.get("/api/config/mobile-app-version", (req, res) => {
-app.get("/api/config/mobile-app-version", (req, res) => {
   res.json({
     latestVersion: process.env.APP_LATEST_VERSION || "1.9",
     minRequiredVersion: process.env.APP_MIN_REQUIRED_VERSION || "1.0",
