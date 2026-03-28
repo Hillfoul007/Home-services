@@ -1,64 +1,65 @@
 {
   "project_info": {
-    "project_number": "744458843032",
-    "project_id": "laundrify-rider",
-    "storage_bucket": "laundrify-rider.firebasestorage.app"
+    "project_number": "336406578207",
+    "project_id": "taskapp-d8200",
+    "storage_bucket": "taskapp-d8200.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:744458843032:android:4740aeb1cb3b834d33b1ed",
+        "mobilesdk_app_id": "1:336406578207:android:ec6dc542da71838e1f012a",
         "android_client_info": {
           "package_name": "com.laundrify"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "336406578207-jngbls457k5g4s0ajnrr1q3ihiv5pt0r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyB4NsdWLVezY1cWwu1wzHIVHMiXC5YuAlg"
+          "current_key": "AIzaSyC469OmLyfYpVV8f8jG1YmEcEiV45dcCRo"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "336406578207-jngbls457k5g4s0ajnrr1q3ihiv5pt0r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:744458843032:android:d29561bfd5a8148a33b1ed",
+        "mobilesdk_app_id": "1:336406578207:android:3f4c09ec757dd2161f012a",
         "android_client_info": {
           "package_name": "com.laundrify.laundry.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "336406578207-jngbls457k5g4s0ajnrr1q3ihiv5pt0r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyB4NsdWLVezY1cWwu1wzHIVHMiXC5YuAlg"
+          "current_key": "AIzaSyC469OmLyfYpVV8f8jG1YmEcEiV45dcCRo"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:744458843032:android:dcc61a08c201bfcc33b1ed",
-        "android_client_info": {
-          "package_name": "com.laundrify.rider"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyB4NsdWLVezY1cWwu1wzHIVHMiXC5YuAlg"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "336406578207-jngbls457k5g4s0ajnrr1q3ihiv5pt0r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

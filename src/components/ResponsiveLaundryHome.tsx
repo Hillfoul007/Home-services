@@ -1733,6 +1733,13 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </Button>
         </div>
 
+        {/* Referral Modal */}
+        <ReferralModal
+          isOpen={showReferralModal}
+          onClose={() => setShowReferralModal(false)}
+          currentUser={currentUser}
+        />
+
         {/* Customer Verification Popup */}
         <CustomerVerificationPopup
           isOpen={isVerificationPopupOpen}

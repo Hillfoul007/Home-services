@@ -580,9 +580,9 @@ app.post("/api/push/unsubscribe", async (req, res) => {
 app.post("/api/admin/push-all", async (req, res) => {
   try {
     const { title, body, route } = req.body;
-    // Check admin token/auth here if needed
+    console.log(`📣 Push Broadcast Triggered: "${title}"`);
     
-    // 1. Fetch all users to create in-app DB notifications
+    // 1. Fetch all users for in-app notifications
     const allUsers = await User.find({}, '_id');
     const dbNotifications = allUsers.map(u => ({
       user_id: u._id,
@@ -593,45 +593,71 @@ app.post("/api/admin/push-all", async (req, res) => {
       priority: 'high'
     }));
     
-    // Insert DB Notifications in bulk
     if (dbNotifications.length > 0) {
       await Notification.insertMany(dbNotifications);
-      console.log(`✅ Saved in-app notification for ${dbNotifications.length} users in DB`);
+      console.log(`✅ Saved in-app notification for ${dbNotifications.length} users`);
     }
     
-    // 2. Fetch all device tokens globally
+    // 2. Fetch all unique device tokens
     const allDeviceTokens = await DeviceToken.find({}, 'token');
     let allTokens = allDeviceTokens.map(dt => dt.token);
     
-    // Also grab tokens from User array just in case some are floating
     const usersWithTokens = await User.find({ fcmTokens: { $exists: true, $not: { $size: 0 } } }, 'fcmTokens');
     usersWithTokens.forEach(u => {
       allTokens = allTokens.concat(u.fcmTokens);
     });
     
-    // Make tokens array unique
-    allTokens = [...new Set(allTokens)];
+    allTokens = [...new Set(allTokens)].filter(t => t && typeof t === 'string');
     
     if (allTokens.length === 0) {
-      // Return success because we sent in-app notifications
-      return res.json({ success: true, message: "Pushed to all users (in-app only, no registered devices found for native push).", sentCount: allUsers.length, mockMode: true });
+      return res.json({ 
+        success: true, 
+        message: "Notifications saved in-app, but no registered devices found for native push.", 
+        sentCount: allUsers.length, 
+        nativeCount: 0,
+        mockMode: true 
+      });
     }
     
     // 3. Send via Firebase Admin if initialized
     if (admin.apps.length > 0) {
-      const message = {
-        notification: { title, body },
-        data: { route: route || '/' },
-        tokens: allTokens,
-      };
+      // FCM allows max 500 tokens per multicast call
+      const chunks = [];
+      for (let i = 0; i < allTokens.length; i += 500) {
+        chunks.push(allTokens.slice(i, i + 500));
+      }
       
-      const response = await admin.messaging().sendEachForMulticast(message);
-      console.log(`🔥 Sent push to ${response.successCount} native devices. Failed: ${response.failureCount}`);
+      let successCount = 0;
+      let failureCount = 0;
       
-      return res.json({ success: true, sentCount: allUsers.length, failedCount: response.failureCount });
+      for (const tokenChunk of chunks) {
+        const message = {
+          notification: { title, body },
+          data: { route: route || '/' },
+          tokens: tokenChunk,
+        };
+        
+        const response = await admin.messaging().sendEachForMulticast(message);
+        successCount += response.successCount;
+        failureCount += response.failureCount;
+      }
+      
+      console.log(`🔥 Native Push Results: ${successCount} success, ${failureCount} failure`);
+      return res.json({ 
+        success: true, 
+        sentCount: allUsers.length, 
+        nativeCount: successCount,
+        failedCount: failureCount 
+      });
     } else {
-      console.log(`🔔 Mock Push Notification to ${allTokens.length} devices => Title: ${title}, Body: ${body}`);
-      return res.json({ success: true, sentCount: allUsers.length, mockMode: true });
+      console.log(`🔔 Firebase Admin not initialized. Mocking push to ${allTokens.length} devices.`);
+      return res.json({ 
+        success: true, 
+        message: "Firebase credentials missing. Notifications only sent in-app.",
+        sentCount: allUsers.length, 
+        nativeCount: 0,
+        mockMode: true 
+      });
     }
   } catch (error) {
     console.error("❌ Push all error:", error);

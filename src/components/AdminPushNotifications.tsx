@@ -13,7 +13,12 @@ const AdminPushNotifications: React.FC = () => {
   const [body, setBody] = useState("");
   const [route, setRoute] = useState("/");
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<{ sent: number; failed?: number } | null>(null);
+  const [stats, setStats] = useState<{ 
+    sent: number; 
+    failed?: number; 
+    native?: number; 
+    isMock?: boolean;
+  } | null>(null);
 
   const handleSendPush = async () => {
     if (!title.trim() || !body.trim()) {
@@ -28,23 +33,27 @@ const AdminPushNotifications: React.FC = () => {
       const response = await apiClient.adminRequest<{
         success: boolean;
         sentCount: number;
+        nativeCount?: number;
         failedCount?: number;
         mockMode?: boolean;
+        error?: string;
       }>("/admin/push-all", {
         method: "POST",
         body: { title, body, route },
       });
 
       if (response && response.data && response.data.success) {
-        toast.success(`Successfully sent to ${response.data.sentCount} devices!`);
-        setStats({ sent: response.data.sentCount, failed: response.data.failedCount });
         if (response.data.mockMode) {
-          toast.info("Sent in Mock Mode (Firebase Admin not configured)");
+          toast.warning("In-app notifications saved, but native push is DISABLED (Firebase not configured in backend).");
+          setStats({ sent: response.data.sentCount, failed: 0, isMock: true });
+        } else {
+          toast.success(`Successfully sent to ${response.data.sentCount} users and ${response.data.nativeCount || 0} native devices!`);
+          setStats({ sent: response.data.sentCount, failed: response.data.failedCount, native: response.data.nativeCount });
         }
         setTitle("");
         setBody("");
       } else {
-        toast.error("Failed to send push notifications");
+        toast.error(response?.data?.error || "Failed to send push notifications");
       }
     } catch (error) {
       console.error("Push notification error:", error);
@@ -129,8 +138,14 @@ const AdminPushNotifications: React.FC = () => {
               <div>
                 <h4 className="font-semibold text-green-900">Broadcast Complete</h4>
                 <p className="text-sm text-green-700">
-                  Successfully delivered to {stats.sent} devices.
-                  {stats.failed !== undefined && stats.failed > 0 && ` Failed to deliver to ${stats.failed} inactive devices.`}
+                  {stats.isMock ? (
+                    <span className="text-amber-600 font-medium">⚠️ Native push is DISABLED. Notifications only saved in-app.</span>
+                  ) : (
+                    <>
+                      Successfully delivered to {stats.sent} users and {stats.native || 0} native devices.
+                      {stats.failed !== undefined && stats.failed > 0 && ` Failed to deliver to ${stats.failed} inactive devices.`}
+                    </>
+                  )}
                 </p>
               </div>
             </div>
