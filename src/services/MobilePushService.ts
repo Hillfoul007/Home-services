@@ -15,7 +15,7 @@ export class MobilePushService {
     return MobilePushService.instance;
   }
 
-  public async initialize(userId: string) {
+  public async initialize(userId?: string) {
     if (this.isInitialized) return;
     
     if (!Capacitor.isNativePlatform()) {
@@ -43,7 +43,7 @@ export class MobilePushService {
     }
   }
 
-  private addListeners(userId: string) {
+  private addListeners(userId?: string) {
     PushNotifications.addListener('registration', async (token: Token) => {
       console.log('Mobile Push registration success, token: ' + token.value);
       try {

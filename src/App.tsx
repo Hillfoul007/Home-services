@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -125,6 +125,11 @@ function App() {
 
       // Initialize auth persistence handlers (storage events, page lifecycle, etc.)
       initializeAuthPersistence();
+
+      // Initialize global push notifications for all devices
+      import("@/services/MobilePushService").then((mod) => {
+        mod.default.getInstance().initialize();
+      });
 
       // Initialize PWA updates and service worker cleanup
       // Disabled: causes service worker loading issues

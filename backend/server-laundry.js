@@ -516,6 +516,7 @@ try {
 // Google Sheets integration removed
 
 const User = require("./models/User");
+const DeviceToken = require("./models/DeviceToken");
 const admin = require("firebase-admin");
 
 // Initialize Firebase Admin (Only if credentials exist)
@@ -537,9 +538,23 @@ try {
 app.post("/api/push/subscribe", async (req, res) => {
   try {
     const { token, userId } = req.body;
-    if (userId && token) {
-      await User.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
-      console.log(`📱 Saved FCM token for user ${userId}`);
+    if (token) {
+      // Upsert global device token
+      await DeviceToken.findOneAndUpdate(
+        { token },
+        { 
+          token, 
+          ...(userId ? { userId } : {}),
+          lastActive: new Date() 
+        },
+        { upsert: true, new: true }
+      );
+      console.log(`📱 Saved global FCM token. ${userId ? 'Linked to user: ' + userId : 'Anonymous usage'}`);
+      
+      // Also attach to User document if available
+      if (userId) {
+        await User.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
+      }
     }
     res.json({ success: true });
   } catch (error) {
@@ -584,13 +599,18 @@ app.post("/api/admin/push-all", async (req, res) => {
       console.log(`✅ Saved in-app notification for ${dbNotifications.length} users in DB`);
     }
     
-    // 2. Fetch users with actual FCM tokens for native push
-    const usersWithTokens = await User.find({ fcmTokens: { $exists: true, $not: { $size: 0 } } }, 'fcmTokens');
+    // 2. Fetch all device tokens globally
+    const allDeviceTokens = await DeviceToken.find({}, 'token');
+    let allTokens = allDeviceTokens.map(dt => dt.token);
     
-    let allTokens = [];
+    // Also grab tokens from User array just in case some are floating
+    const usersWithTokens = await User.find({ fcmTokens: { $exists: true, $not: { $size: 0 } } }, 'fcmTokens');
     usersWithTokens.forEach(u => {
       allTokens = allTokens.concat(u.fcmTokens);
     });
+    
+    // Make tokens array unique
+    allTokens = [...new Set(allTokens)];
     
     if (allTokens.length === 0) {
       // Return success because we sent in-app notifications
