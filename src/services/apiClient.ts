@@ -86,11 +86,11 @@ export class ApiClient {
   }
 
   async getUser(phone: string): Promise<ApiResponse> {
-    return this.makeRequest(`/users/${phone}`);
+    return this.makeRequest(`/auth/users/${phone}`);
   }
 
   async updateUser(phone: string, updates: any): Promise<ApiResponse> {
-    return this.makeRequest(`/users/${phone}`, {
+    return this.makeRequest(`/auth/users/${phone}`, {
       method: "PUT",
       body: JSON.stringify(updates),
     });

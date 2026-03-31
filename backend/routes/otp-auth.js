@@ -573,6 +573,40 @@ router.post("/logout", (req, res) => {
   }
 });
 
+// GET /api/auth/users/:phone — lookup user by phone (used by frontend ReferralModal / UserService)
+router.get("/users/:phone", async (req, res) => {
+  try {
+    const cleanedPhone = cleanPhone(req.params.phone);
+    if (!cleanedPhone) {
+      return res.status(400).json({ success: false, message: "Phone number is required" });
+    }
+
+    const user = await User.findOne({ phone: cleanedPhone });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        _id: user._id,
+        phone: user.phone,
+        name: user.name,
+        email: user.email,
+        isVerified: user.isVerified,
+        referral_code: user.referral_code,
+        wallet_balance: user.wallet_balance,
+        referral_stats: user.referral_stats,
+        has_completed_first_order: user.has_completed_first_order,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    log("Error fetching user by phone:", error.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 router.get("/health", (req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.status(200).json({
