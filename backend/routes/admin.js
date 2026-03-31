@@ -1978,7 +1978,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
 // ==========================================
 
 // Get pending verifications for a customer
-router.get("/customer-verifications/:customerId", verifyAdminAccess, async (req, res) => {
+router.get("/customer-verifications/:customerId", async (req, res) => {
   try {
     const { customerId } = req.params;
     console.log('📋 Fetching pending verifications for customer:', customerId);
@@ -2036,7 +2036,7 @@ router.get("/customer-verifications/:customerId", verifyAdminAccess, async (req,
 });
 
 // Process verification response (approve/reject)
-router.post("/customer-verifications/:verificationId/respond", verifyAdminAccess, async (req, res) => {
+router.post("/customer-verifications/:verificationId/respond", async (req, res) => {
   try {
     const { verificationId } = req.params;
     const { approved, reason, orderId } = req.body;
@@ -2132,7 +2132,7 @@ router.post("/customer-verifications/:verificationId/respond", verifyAdminAccess
 });
 
 // Create a new verification (used by riders)
-router.post("/customer-verifications", verifyAdminAccess, async (req, res) => {
+router.post("/customer-verifications", async (req, res) => {
   try {
     const { customerId, orderId, orderData, type, priority } = req.body;
 
