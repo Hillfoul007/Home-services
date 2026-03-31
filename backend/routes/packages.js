@@ -8,10 +8,17 @@ const crypto = require("crypto");
 
 const router = express.Router();
 
-// Initialize Razorpay
+// Initialize Razorpay — fail fast if keys are missing rather than using placeholder values
+if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set in production");
+  } else {
+    console.warn("⚠️ Razorpay keys not configured — payment endpoints will fail");
+  }
+}
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "YOUR_KEY_ID",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || "YOUR_KEY_SECRET",
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
 });
 
 // GET /packages - List all active packages for users to browse
@@ -78,7 +85,10 @@ router.post("/verify-payment", async (req, res) => {
     } = req.body;
 
     // Verify signature
-    const secret = process.env.RAZORPAY_KEY_SECRET || "YOUR_KEY_SECRET";
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) {
+      return res.status(500).json({ success: false, message: "Payment verification not configured" });
+    }
     const generated_signature = crypto
       .createHmac("sha256", secret)
       .update(razorpay_order_id + "|" + razorpay_payment_id)

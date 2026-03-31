@@ -216,7 +216,6 @@ const LaundryIndex = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentLocation, setCurrentLocation] = useState<string>("");
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const authService = DVHostingSmsService.getInstance();
@@ -227,7 +226,7 @@ const LaundryIndex = () => {
   useWalletPolling({
     userId: currentUser?._id || currentUser?.phone,
     enabled: isLoggedIn,
-    pollInterval: 30000, // Poll every 30 seconds
+    pollInterval: 120000, // Poll every 2 minutes (pauses when tab is hidden)
   });
 
   // Initialize PWA and check auth state
@@ -241,7 +240,6 @@ const LaundryIndex = () => {
     const urlReferralCode = params.get("ref");
     if (urlReferralCode) {
       console.log("🎁 Referral code found in URL:", urlReferralCode);
-      setReferralCode(urlReferralCode);
       // Store for use in registration
       localStorage.setItem("pending_referral_code", urlReferralCode.toUpperCase());
       // Clean up URL
@@ -546,11 +544,20 @@ const getDetailedLocationInfo = async (
           setCurrentLocation(`${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
 
           // Prepare location data for saving
-          let locationData = {
+          let locationData: {
+            latitude: number;
+            longitude: number;
+            fullAddress: string;
+            detectionMethod: 'gps';
+            city?: string;
+            state?: string;
+            country?: string;
+            pincode?: string;
+          } = {
             latitude,
             longitude,
             fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-            detectionMethod: 'gps' as const,
+            detectionMethod: 'gps',
           };
 
           // Try to get readable address with multiple fallbacks
@@ -940,7 +947,7 @@ const getDetailedLocationInfo = async (
           const confirmationData = {
             bookingId: `local_${Date.now()}`,
             custom_order_id:
-              localResult.data?.custom_order_id ||
+              (localResult.booking as any)?.custom_order_id ||
               `CC${Date.now().toString().slice(-6)}`, // Add custom_order_id for local bookings
             services: detailedServices, // Use detailed services with quantities
             totalAmount: cartData.totalAmount,
@@ -1004,6 +1011,8 @@ const getDetailedLocationInfo = async (
       }
 
       addNotification(createErrorNotification(errorTitle, errorMessage));
+      // Re-throw so callers (e.g. LaundryCart) know the booking failed and can preserve cart state
+      throw error;
     } finally {
       setIsProcessingGlobalCheckout(false);
     }
@@ -1049,7 +1058,6 @@ const getDetailedLocationInfo = async (
                 // Return to the view they were trying to access
                 setCurrentView(previousView);
               }}
-              referralCode={referralCode || undefined}
             />
           </div>
         </div>

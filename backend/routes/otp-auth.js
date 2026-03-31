@@ -186,9 +186,9 @@ router.post(
     const name = req.body.name; // <-- ADD THIS LINE
     log("VERIFY OTP for phone:", phone, "OTP:", otp); // Add this
     
-    // Testing bypass
-    const isBypass = otp === "123456";
-    
+    // Testing bypass — only allowed in non-production environments
+    const isBypass = process.env.NODE_ENV !== "production" && otp === "123456";
+
     if (!isBypass) {
       const data = otpManager.get(phone);
       if (!data || new Date() > data.expiry)
@@ -303,7 +303,7 @@ router.post("/save-user", async (req, res) => {
           await referrer.save();
           log("User referred by:", referrer.phone);
 
-          // Create Referral document
+          // Create Referral document — reward is credited on first order completion, not at signup
           const Referral = require("../models/Referral");
           const newReferral = new Referral({
             referrer_id: referrer._id,
@@ -312,20 +312,10 @@ router.post("/save-user", async (req, res) => {
             status: "pending",
             referrer_reward: 50,
             referee_reward: 50,
-            referee_reward_credited: true,
+            referee_reward_credited: false, // credited on first order, not at signup
           });
           await newReferral.save();
-          log("Referral document created");
-
-          // Credit referee wallet immediately with ₹50
-          user.wallet_balance = (user.wallet_balance || 0) + 50;
-          user.wallet_transactions.push({
-            type: "credit",
-            amount: 50,
-            description: "Sign-up referral bonus",
-            created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
-          });
-          log("Credited ₹50 referral bonus to referee");
+          log("Referral document created — reward will be credited on first order completion");
         } else {
           log("Invalid referral code or same user");
         }
@@ -451,7 +441,7 @@ router.post("/register", async (req, res) => {
           await referrer.save();
           log("User referred by:", referrer.phone);
 
-          // Create Referral document
+          // Create Referral document — reward credited on first order completion, not at signup
           const Referral = require("../models/Referral");
           const newReferral = new Referral({
             referrer_id: referrer._id,
@@ -460,20 +450,10 @@ router.post("/register", async (req, res) => {
             status: "pending",
             referrer_reward: 50,
             referee_reward: 50,
-            referee_reward_credited: true,
+            referee_reward_credited: false, // credited on first order, not at signup
           });
           await newReferral.save();
-          log("Referral document created");
-
-          // Credit referee wallet immediately with ₹50
-          user.wallet_balance = (user.wallet_balance || 0) + 50;
-          user.wallet_transactions.push({
-            type: "credit",
-            amount: 50,
-            description: "Sign-up referral bonus",
-            created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
-          });
-          log("Credited ₹50 referral bonus to referee");
+          log("Referral document created — reward will be credited on first order completion");
         } else {
           log("Invalid referral code or same user");
         }

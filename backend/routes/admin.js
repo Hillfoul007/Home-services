@@ -8,6 +8,7 @@ const Vendor = require("../models/Vendor");
 const Package = require("../models/Package");
 const UserPackage = require("../models/UserPackage");
 const riderNotificationService = require("../services/riderNotificationService");
+const notificationService = require("../services/notificationService");
 
 const router = express.Router();
 
@@ -36,14 +37,25 @@ const calculateDistance = (coord1, coord2) => {
   return Math.round(distance * 100) / 100; // Round to 2 decimal places
 };
 
-// Middleware to verify admin access (simple for now)
+// Middleware to verify admin access
 const verifyAdminAccess = (req, res, next) => {
-  // In a production environment, you would implement proper admin authentication
-  // For now, we'll use a simple header check or token validation
-  const adminToken = req.headers["admin-token"] || req.headers["authorization"];
+  const adminSecret = process.env.ADMIN_SECRET;
 
-  // For demo purposes, we'll allow all requests
-  // In production, implement proper admin authentication
+  // In development without ADMIN_SECRET set, allow through with a warning
+  if (!adminSecret) {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(500).json({ success: false, message: "Admin access not configured" });
+    }
+    console.warn("⚠️ ADMIN_SECRET not set — admin routes are unprotected in development");
+    return next();
+  }
+
+  const providedToken = req.headers["admin-token"] || (req.headers["authorization"] || "").replace("Bearer ", "");
+
+  if (!providedToken || providedToken !== adminSecret) {
+    return res.status(401).json({ success: false, message: "Unauthorized: Invalid admin token" });
+  }
+
   next();
 };
 
@@ -1806,10 +1818,19 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
         order.status = 'confirmed';
         console.log(`�� Order status updated: pending ��� confirmed for order ${orderId}`);
 
-        // TODO: Send customer notification about order confirmation
-        // This would typically send an SMS or push notification to the customer
-        // For now, we'll log this for implementation later
-        console.log(`📱 Customer notification: Order ${order.custom_order_id || orderId} confirmed, rider assigned`);
+        // Notify customer that their order has been confirmed and a rider assigned
+        try {
+          const customerId = order.user_id || order.customer_id;
+          if (customerId) {
+            const confirmNotification = {
+              title: "Order Confirmed",
+              message: `Your order ${order.custom_order_id || orderId} has been confirmed and a rider has been assigned.`,
+            };
+            await notificationService.sendPushNotification(customerId, confirmNotification);
+          }
+        } catch (notifError) {
+          console.error("⚠️ Failed to send customer confirmation notification:", notifError.message);
+        }
       }
 
       // Add to rider's assigned orders

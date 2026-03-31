@@ -57,9 +57,9 @@ const ReferralModal: React.FC<ReferralModalProps> = ({
           </DialogTitle>
         </DialogHeader>
         <div className="p-6 pt-0">
-          <SimpleReferModal 
+          <SimpleReferModal
             referralCode={user?.referral_code}
-            userHasCompletedFirstOrder={true} 
+            userHasCompletedFirstOrder={user?.has_completed_first_order === true}
             referredCount={user?.referral_stats?.total_referrals || 0}
             earnings={user?.referral_stats?.earned_amount || 0}
           />

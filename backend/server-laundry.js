@@ -154,9 +154,9 @@ app.use(
         return callback(null, true);
       }
 
-      // Only log CORS blocks (actual issues)
+      // Block disallowed origins
       console.log(`🚫 CORS blocked origin: ${origin}`);
-      return callback(null, true); // Temporarily allow all origins for debugging
+      return callback(new Error(`CORS: Origin ${origin} not allowed`));
     },
     credentials: true, // Enable credentials for iOS
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -537,20 +537,22 @@ try {
 // Push notification endpoints
 app.post("/api/push/subscribe", async (req, res) => {
   try {
-    const { token, userId } = req.body;
+    const { token, userId, riderId } = req.body;
     if (token) {
-      // Upsert global device token
+      // Upsert device token, supporting both user and rider associations
       await DeviceToken.findOneAndUpdate(
         { token },
-        { 
-          token, 
+        {
+          token,
           ...(userId ? { userId } : {}),
-          lastActive: new Date() 
+          ...(riderId ? { riderId } : {}),
+          lastActive: new Date(),
         },
         { upsert: true, new: true }
       );
-      console.log(`📱 Saved global FCM token. ${userId ? 'Linked to user: ' + userId : 'Anonymous usage'}`);
-      
+      const owner = userId ? `user: ${userId}` : riderId ? `rider: ${riderId}` : "anonymous";
+      console.log(`📱 Saved FCM token for ${owner}`);
+
       // Also attach to User document if available
       if (userId) {
         await User.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });

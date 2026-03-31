@@ -595,96 +595,74 @@ router.post("/debit-for-booking", async (req, res) => {
     const { user_id, booking_id, amount } = req.body;
 
     if (!user_id || !booking_id || !amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid parameters"
-      });
+      return res.status(400).json({ success: false, error: "Invalid parameters" });
     }
 
+    // Read current balances to calculate split
     const user = await findUserById(user_id);
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found"
-      });
+      return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    // Check package validity
     const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
     const now = new Date(indianTime);
-    
+
     const isPackageValid = user.package_validity && user.package_validity >= now;
     const packageBalance = isPackageValid ? (user.package_balance || 0) : 0;
     const walletBalance = user.wallet_balance || 0;
-    
     const totalAvailable = packageBalance + walletBalance;
 
     if (totalAvailable < amount) {
-      return res.status(400).json({
-        success: false,
-        error: "Insufficient total balance (Wallet + Package)"
-      });
+      return res.status(400).json({ success: false, error: "Insufficient total balance (Wallet + Package)" });
     }
 
-    let remainingToDeduct = amount;
-    let deductedFromPackage = 0;
-    let deductedFromWallet = 0;
+    // Calculate split
+    const deductFromPackage = Math.min(packageBalance, amount);
+    const deductFromWallet = amount - deductFromPackage;
 
-    // Deduct from package first
-    if (packageBalance > 0) {
-      if (packageBalance >= remainingToDeduct) {
-        deductedFromPackage = remainingToDeduct;
-        user.package_balance -= remainingToDeduct;
-        remainingToDeduct = 0;
-      } else {
-        deductedFromPackage = packageBalance;
-        user.package_balance = 0;
-        remainingToDeduct -= packageBalance;
-      }
+    // Build transactions to append
+    const newTransactions = [];
+    if (deductFromPackage > 0) {
+      newTransactions.push({ type: "debit", amount: deductFromPackage, description: "Package balance used for booking", booking_id, created_at: new Date(indianTime) });
+    }
+    if (deductFromWallet > 0) {
+      newTransactions.push({ type: "debit", amount: deductFromWallet, description: "Wallet balance used for booking", booking_id, created_at: new Date(indianTime) });
     }
 
-    // Deduct remaining from wallet
-    if (remainingToDeduct > 0) {
-      deductedFromWallet = remainingToDeduct;
-      user.wallet_balance -= remainingToDeduct;
-    }
+    // Atomic update: only succeeds if wallet and package balances are still sufficient.
+    // $gte guards prevent over-deduction from concurrent requests.
+    const updateQuery = {
+      _id: user._id,
+      wallet_balance: { $gte: deductFromWallet },
+      ...(deductFromPackage > 0 ? { package_balance: { $gte: deductFromPackage } } : {}),
+    };
+    const updated = await User.findOneAndUpdate(
+      updateQuery,
+      {
+        $inc: {
+          wallet_balance: -deductFromWallet,
+          ...(deductFromPackage > 0 ? { package_balance: -deductFromPackage } : {}),
+        },
+        $push: { wallet_transactions: { $each: newTransactions } },
+      },
+      { new: true }
+    );
 
-    // Record transactions
-    if (deductedFromPackage > 0) {
-      user.wallet_transactions.push({
-        type: "debit",
-        amount: deductedFromPackage,
-        description: "Package balance used for booking",
-        booking_id,
-        created_at: new Date(indianTime)
-      });
+    if (!updated) {
+      // Balance changed between read and update — likely a concurrent request
+      return res.status(409).json({ success: false, error: "Balance changed during processing, please retry" });
     }
-
-    if (deductedFromWallet > 0) {
-      user.wallet_transactions.push({
-        type: "debit",
-        amount: deductedFromWallet,
-        description: "Wallet balance used for booking",
-        booking_id,
-        created_at: new Date(indianTime)
-      });
-    }
-
-    await user.save();
 
     res.json({
       success: true,
-      wallet_balance: user.wallet_balance,
-      package_balance: user.package_balance,
-      deducted_from_package: deductedFromPackage,
-      deducted_from_wallet: deductedFromWallet
+      wallet_balance: updated.wallet_balance,
+      package_balance: updated.package_balance,
+      deducted_from_package: deductFromPackage,
+      deducted_from_wallet: deductFromWallet,
     });
   } catch (error) {
     console.error("Error debiting wallet:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

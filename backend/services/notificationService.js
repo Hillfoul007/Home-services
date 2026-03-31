@@ -1,4 +1,7 @@
 const Notification = require("../models/Notification");
+const User = require("../models/User");
+const DeviceToken = require("../models/DeviceToken");
+const admin = require("firebase-admin");
 
 class NotificationService {
   // Create order update notification
@@ -14,10 +17,10 @@ class NotificationService {
       );
       
       console.log(`✅ Notification created: ${notification._id}`);
-      
-      // Here you could integrate with push notification services
-      // await this.sendPushNotification(userId, notification);
-      
+
+      // Send real push notification via FCM
+      await this.sendPushNotification(userId, notification);
+
       return notification;
     } catch (error) {
       console.error('❌ Failed to create order update notification:', error);
@@ -156,13 +159,49 @@ class NotificationService {
     return changes;
   }
 
-  // Send push notification (placeholder for future implementation)
+  // Send push notification via Firebase Cloud Messaging
   async sendPushNotification(userId, notification) {
-    // TODO: Integrate with push notification service (FCM, APNS, etc.)
-    console.log(`📱 Would send push notification to user ${userId}:`, {
-      title: notification.title,
-      message: notification.message
-    });
+    if (!admin.apps.length) {
+      console.warn("⚠️ Firebase not initialized — skipping push notification");
+      return { success: false, reason: "firebase_not_initialized" };
+    }
+
+    try {
+      // Collect FCM tokens: from User.fcmTokens and DeviceToken collection
+      const [user, deviceTokenDocs] = await Promise.all([
+        User.findById(userId, "fcmTokens").lean(),
+        DeviceToken.find({ userId }, "token").lean(),
+      ]);
+
+      const tokens = [
+        ...((user && user.fcmTokens) || []),
+        ...deviceTokenDocs.map((dt) => dt.token),
+      ];
+      const uniqueTokens = [...new Set(tokens)].filter(Boolean);
+
+      if (uniqueTokens.length === 0) {
+        console.log(`📱 No FCM tokens for user ${userId} — skipping push`);
+        return { success: true, skipped: true };
+      }
+
+      const message = {
+        notification: { title: notification.title, body: notification.message },
+        data: { route: "/" },
+        android: {
+          priority: "high",
+          notification: { channelId: "laundrify_notifications" },
+        },
+        apns: { payload: { aps: { sound: "default" } } },
+        tokens: uniqueTokens,
+      };
+
+      const response = await admin.messaging().sendEachForMulticast(message);
+      console.log(`🔥 Push sent to user ${userId}: ${response.successCount} ok, ${response.failureCount} failed`);
+      return { success: true, successCount: response.successCount, failureCount: response.failureCount };
+    } catch (error) {
+      console.error("❌ FCM push notification error:", error.message);
+      return { success: false, error: error.message };
+    }
   }
 
   // Clean up old notifications

@@ -70,10 +70,9 @@ export const useWalletPolling = ({
     }
   }, [userId, addNotification, onBalanceChange]);
 
-  // Set up polling interval
+  // Set up polling interval — pauses when browser tab is hidden
   useEffect(() => {
     if (!enabled || !userId) {
-      // Clear interval if disabled or no user
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -81,19 +80,40 @@ export const useWalletPolling = ({
       return;
     }
 
-    // Fetch balance immediately on mount
-    fetchBalance();
+    const startPolling = () => {
+      if (pollingIntervalRef.current) return; // already running
+      pollingIntervalRef.current = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          fetchBalance();
+        }
+      }, pollInterval);
+    };
 
-    // Set up polling interval
-    pollingIntervalRef.current = setInterval(() => {
-      fetchBalance();
-    }, pollInterval);
-
-    return () => {
+    const stopPolling = () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchBalance(); // fetch immediately when tab becomes visible again
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    // Fetch balance immediately on mount
+    fetchBalance();
+    startPolling();
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [enabled, userId, pollInterval, fetchBalance]);
 

@@ -1,19 +1,24 @@
 const mongoose = require('mongoose');
 
 const deviceTokenSchema = new mongoose.Schema({
-  token: { 
-    type: String, 
-    required: true, 
-    unique: true 
+  token: {
+    type: String,
+    required: true,
+    unique: true
   },
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: false 
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
   },
-  lastActive: { 
-    type: Date, 
-    default: Date.now 
+  riderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Rider',
+    required: false
+  },
+  lastActive: {
+    type: Date,
+    default: Date.now
   }
 }, { timestamps: true });
 
