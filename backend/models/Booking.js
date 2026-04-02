@@ -52,7 +52,7 @@ const bookingSchema = new mongoose.Schema(
     },
     riderStatus: {
       type: String,
-      enum: ["unassigned", "assigned", "accepted", "picked_up", "delivered", "completed"],
+      enum: ["unassigned", "assigned", "accepted", "in_transit", "picked_up", "delivered", "completed", "rejected_by_rider"],
       default: "unassigned",
     },
     assignedAt: {
@@ -72,6 +72,41 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
     completedAt: {
+      type: Date,
+      default: null,
+    },
+    readyAt: {
+      type: Date,
+      default: null,
+    },
+    // COD (Cash on Delivery) tracking
+    cod_collected: {
+      type: Boolean,
+      default: false,
+    },
+    cod_amount: {
+      type: Number,
+      default: 0,
+    },
+    cod_collected_at: {
+      type: Date,
+      default: null,
+    },
+    // SLA / breach tracking
+    sla_breach: {
+      type: Boolean,
+      default: false,
+    },
+    sla_deadline: {
+      type: Date,
+      default: null,
+    },
+    // Rejection reason (when rider rejects)
+    rejection_reason: {
+      type: String,
+      default: null,
+    },
+    rejectedAt: {
       type: Date,
       default: null,
     },
@@ -195,14 +230,16 @@ const bookingSchema = new mongoose.Schema(
       enum: [
         "created",
         "vendor_assigned",
+        "assigned",
         "pending",
         "confirmed",
         "pickup_assigned",
         "pickup_completed",
+        "in_progress",
         "ready_for_delivery",
         "delivery_assigned",
+        "in_transit",
         "delivered",
-        "in_progress",
         "delivered_to_vendor",
         "completed",
         "cancelled",
@@ -282,6 +319,36 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
     items_images: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.ObjectId,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    vendor_payment_slips: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.ObjectId,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    rider_pickup_slips: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.ObjectId,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    rider_payment_slips: {
       type: [
         {
           file_id: mongoose.Schema.Types.ObjectId,

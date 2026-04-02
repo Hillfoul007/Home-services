@@ -2230,6 +2230,259 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
 });
 
 
+// Desk login - vendor-created riders login with phone + password (no OTP)
+router.post('/desk-login', async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({ message: 'Phone and password are required' });
+    }
+
+    const rider = await Rider.findOne({ phone: phone.trim() });
+
+    if (!rider) {
+      return res.status(400).json({ message: 'Invalid phone or password' });
+    }
+
+    if (!rider.password) {
+      return res.status(400).json({ message: 'This account uses OTP login. Please use the rider app.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, rider.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid phone or password' });
+    }
+
+    if (rider.status !== 'approved') {
+      return res.status(403).json({ message: 'Your account is not active. Contact your vendor.' });
+    }
+
+    const token = jwt.sign(
+      { riderId: rider._id, phone: rider.phone },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    console.log(`✅ Rider desk login: ${rider.name}`);
+    res.json({
+      success: true,
+      token,
+      rider: {
+        _id: rider._id,
+        name: rider.name,
+        phone: rider.phone,
+        live_location_link: rider.live_location_link || null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Desk login error:', error);
+    res.status(500).json({ message: 'Login failed. Please try again.' });
+  }
+});
+
+// Upload pickup slip (item list photo) for an order
+router.post('/orders/:orderId/upload-pickup-slip', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found or not assigned to you' });
+    }
+
+    // Expect base64 image in body
+    const { image_base64, mime_type } = req.body;
+    if (!image_base64) {
+      return res.status(400).json({ message: 'image_base64 is required' });
+    }
+
+    const conn = require('mongoose').connection;
+    const { GridFSBucket, ObjectId } = require('mongoose').mongo;
+    const bucket = new GridFSBucket(conn.db);
+
+    const buffer = Buffer.from(image_base64, 'base64');
+    const filename = `rider_pickup_${orderId}_${Date.now()}.jpg`;
+    const uploadStream = bucket.openUploadStream(filename, {
+      metadata: { orderId, riderId: req.rider.riderId, type: 'pickup_slip' },
+    });
+
+    uploadStream.on('finish', async () => {
+      if (!order.rider_pickup_slips) order.rider_pickup_slips = [];
+      order.rider_pickup_slips.push({ file_id: uploadStream.id, filename, uploaded_at: new Date() });
+      await order.save();
+      res.json({ success: true, file_id: uploadStream.id.toString(), filename });
+    });
+
+    uploadStream.on('error', () => res.status(500).json({ message: 'Upload failed' }));
+    uploadStream.write(buffer);
+    uploadStream.end();
+  } catch (error) {
+    console.error('❌ Pickup slip upload error:', error);
+    res.status(500).json({ message: 'Upload failed' });
+  }
+});
+
+// Upload payment screenshot for an order (on delivery)
+router.post('/orders/:orderId/upload-payment-ss', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found or not assigned to you' });
+    }
+
+    const { image_base64, mime_type } = req.body;
+    if (!image_base64) {
+      return res.status(400).json({ message: 'image_base64 is required' });
+    }
+
+    const conn = require('mongoose').connection;
+    const { GridFSBucket } = require('mongoose').mongo;
+    const bucket = new GridFSBucket(conn.db);
+
+    const buffer = Buffer.from(image_base64, 'base64');
+    const filename = `rider_payment_${orderId}_${Date.now()}.jpg`;
+    const uploadStream = bucket.openUploadStream(filename, {
+      metadata: { orderId, riderId: req.rider.riderId, type: 'payment_ss' },
+    });
+
+    uploadStream.on('finish', async () => {
+      if (!order.rider_payment_slips) order.rider_payment_slips = [];
+      order.rider_payment_slips.push({ file_id: uploadStream.id, filename, uploaded_at: new Date() });
+      await order.save();
+      res.json({ success: true, file_id: uploadStream.id.toString(), filename });
+    });
+
+    uploadStream.on('error', () => res.status(500).json({ message: 'Upload failed' }));
+    uploadStream.write(buffer);
+    uploadStream.end();
+  } catch (error) {
+    console.error('❌ Payment SS upload error:', error);
+    res.status(500).json({ message: 'Upload failed' });
+  }
+});
+
+// ─── Desk orders endpoint: returns full booking docs for RiderDeskDashboard ───
+
+router.get('/desk-orders', verifyRiderToken, async (req, res) => {
+  try {
+    const riderId = req.rider.riderId;
+
+    const orders = await Booking.find({
+      assignedRider: riderId,
+      riderStatus: { $in: ['assigned', 'accepted', 'in_transit', 'picked_up'] },
+    })
+      .sort({ assignedAt: -1 })
+      .select(
+        '_id custom_order_id name phone address mapsLink status riderStatus ' +
+        'final_amount total_price item_prices assignedAt acceptedAt pickedUpAt ' +
+        'deliveredAt readyAt cod_collected cod_amount delivery_date scheduled_date ' +
+        'rider_pickup_slips rider_payment_slips created_at'
+      );
+
+    const doneOrders = await Booking.find({
+      assignedRider: riderId,
+      riderStatus: { $in: ['delivered', 'completed'] },
+    })
+      .sort({ deliveredAt: -1 })
+      .limit(20)
+      .select(
+        '_id custom_order_id name phone address status riderStatus final_amount ' +
+        'total_price item_prices deliveredAt completedAt cod_collected cod_amount'
+      );
+
+    res.json({
+      success: true,
+      active: orders,
+      done: doneOrders,
+    });
+  } catch (error) {
+    console.error('❌ Desk orders fetch error:', error);
+    res.status(500).json({ message: 'Failed to fetch orders', error: error.message });
+  }
+});
+
+// Mark COD payment collected for an order
+router.post('/orders/:orderId/cod-collected', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { amount, notes } = req.body;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      assignedRider: req.rider.riderId,
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    if (!['picked_up', 'in_transit', 'delivered'].includes(order.riderStatus)) {
+      return res.status(400).json({ message: 'Can only collect COD after picking up the order' });
+    }
+
+    const now = new Date();
+    order.cod_collected = true;
+    order.cod_amount = amount || order.final_amount || 0;
+    order.cod_collected_at = now;
+
+    if (notes) {
+      order.notes = order.notes ? `${order.notes}\nCOD: ${notes}` : `COD: ${notes}`;
+    }
+
+    await order.save();
+
+    console.log(`✅ COD collected for order ${orderId}: ₹${order.cod_amount}`);
+    res.json({ success: true, message: 'COD payment marked as collected', order });
+  } catch (error) {
+    console.error('❌ COD collection error:', error);
+    res.status(500).json({ message: 'Failed to record COD collection', error: error.message });
+  }
+});
+
+// Mark order as in-transit (rider on the way to customer)
+router.post('/orders/:orderId/in-transit', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      assignedRider: req.rider.riderId,
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    if (!['accepted', 'picked_up'].includes(order.riderStatus)) {
+      return res.status(400).json({ message: `Cannot mark in-transit from: ${order.riderStatus}` });
+    }
+
+    order.riderStatus = 'in_transit';
+    order.status = 'in_transit';
+    order.updated_at = new Date();
+
+    await order.save();
+
+    res.json({ success: true, message: 'Order marked in transit', order });
+  } catch (error) {
+    console.error('❌ In-transit error:', error);
+    res.status(500).json({ message: 'Failed to update order', error: error.message });
+  }
+});
+
 // Debug catch-all route for unmatched rider routes
 router.all('*', (req, res) => {
   console.log(`❌ Unmatched rider route: ${req.method} ${req.originalUrl}`);
