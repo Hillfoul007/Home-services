@@ -299,6 +299,11 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
 
     useEffect(() => {
       loadBookings();
+      // Auto-poll every 30 seconds so user sees live order status without manual refresh
+      const pollInterval = setInterval(() => {
+        if (currentUser) loadBookings();
+      }, 30000);
+      return () => clearInterval(pollInterval);
     }, [currentUser]);
 
     // Listen for booking refresh events

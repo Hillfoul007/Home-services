@@ -50,11 +50,15 @@ export default function RiderDashboard() {
     // Load assigned orders
     fetchAssignedOrders();
 
+    // Auto-poll every 30 seconds for new/updated orders
+    const pollInterval = setInterval(() => {
+      if (navigator.onLine) fetchAssignedOrders();
+    }, 30000);
+
     // Network status listeners
     const handleOnline = () => {
       setIsOnline(true);
       setLastFetchError(null);
-      // Retry fetching data when coming back online
       fetchAssignedOrders();
     };
 
@@ -66,6 +70,7 @@ export default function RiderDashboard() {
     window.addEventListener('offline', handleOffline);
 
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -679,24 +684,46 @@ export default function RiderDashboard() {
             )}
           </div>
 
-          {/* Smart assigned orders (prioritized by proximity when possible) */}
-          <div>
-            <h3 className="text-md font-medium">Active Orders</h3>
-            {assignedOrders.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No active orders right now.</div>
-            ) : (
-              assignedOrders.map((o) => (
-                <OrderCard
-                  key={`all_${o._id}`}
-                  order={o}
-                  currentLocation={currentLocation}
-                  onPickup={(id) => handleOrderAction(id, 'start')}
-                  onDeliver={(id) => handleOrderAction(id, 'complete')}
-                  onNavigate={(order) => openGoogleMapsNavigation(order)}
-                />
-              ))
-            )}
-          </div>
+          {/* Orders split by pickup / delivery */}
+          {assignedOrders.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No active orders right now.</div>
+          ) : (
+            <>
+              {/* TO PICKUP */}
+              {assignedOrders.filter((o: any) => o.status === 'pickup_assigned').length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-md font-semibold text-purple-700 flex items-center gap-1 mb-2">🧺 To Pickup <span className="text-xs bg-purple-100 px-2 py-0.5 rounded-full">{assignedOrders.filter((o: any) => o.status === 'pickup_assigned').length}</span></h3>
+                  {assignedOrders.filter((o: any) => o.status === 'pickup_assigned').map((o: any) => (
+                    <OrderCard
+                      key={`pick_${o._id}`}
+                      order={o}
+                      currentLocation={currentLocation}
+                      onPickup={(id) => handleOrderAction(id, 'start')}
+                      onDeliver={(id) => handleOrderAction(id, 'complete')}
+                      onNavigate={(order) => openGoogleMapsNavigation(order)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* TO DELIVER */}
+              {assignedOrders.filter((o: any) => o.status !== 'pickup_assigned').length > 0 && (
+                <div>
+                  <h3 className="text-md font-semibold text-orange-700 flex items-center gap-1 mb-2">🚚 To Deliver <span className="text-xs bg-orange-100 px-2 py-0.5 rounded-full">{assignedOrders.filter((o: any) => o.status !== 'pickup_assigned').length}</span></h3>
+                  {assignedOrders.filter((o: any) => o.status !== 'pickup_assigned').map((o: any) => (
+                    <OrderCard
+                      key={`del_${o._id}`}
+                      order={o}
+                      currentLocation={currentLocation}
+                      onPickup={(id) => handleOrderAction(id, 'start')}
+                      onDeliver={(id) => handleOrderAction(id, 'complete')}
+                      onNavigate={(order) => openGoogleMapsNavigation(order)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <aside className="lg:col-span-1">

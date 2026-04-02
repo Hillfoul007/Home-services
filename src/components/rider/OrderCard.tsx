@@ -12,6 +12,7 @@ type Order = {
   address?: string;
   pickupTime?: string;
   type?: string;
+  status?: string;
   riderStatus?: string;
   coordinates?: { lat?: number; lng?: number };
   vendorCoordinates?: { lat?: number; lng?: number } | null;
@@ -45,6 +46,8 @@ export default function OrderCard({
   onDeliver: (id: string) => void;
 }) {
   const statusLabel = order.riderStatus || 'unassigned';
+  const isPickup = order.status === 'pickup_assigned';
+  const isDelivery = order.status === 'delivery_assigned' || order.status === 'in_transit';
 
   const safeCall = async (fn: Function, ...args: any[]) => {
     try {
@@ -72,12 +75,16 @@ export default function OrderCard({
   const deliverEnabled = statusLabel === 'picked_up' && (vendorCoords ? (distanceToVendor !== null ? distanceToVendor <= 200 : false) : true);
 
   return (
-    <Card className="mb-3">
+    <Card className={`mb-3 border-l-4 ${isPickup ? 'border-l-purple-500' : isDelivery ? 'border-l-orange-500' : 'border-l-gray-300'}`}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div>
-            <div className="font-medium">{order.customerName || 'Customer'}</div>
-            <div className="text-xs text-muted-foreground">{order.bookingId || ''} • {order.type || ''}</div>
+            <div className="flex items-center gap-2">
+              {isPickup && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">🧺 PICKUP</span>}
+              {isDelivery && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">🚚 DELIVERY</span>}
+              <div className="font-medium">{order.customerName || 'Customer'}</div>
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">{order.bookingId || ''} • {order.type || ''}</div>
           </div>
           <div className="text-sm text-gray-600">{order.pickupTime || ''}</div>
         </CardTitle>

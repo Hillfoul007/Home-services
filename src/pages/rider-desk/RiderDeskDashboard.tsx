@@ -38,8 +38,6 @@ const RIDER_STATUS_COLORS: Record<string, string> = {
   completed:  "bg-gray-100 text-gray-600",
 };
 
-// Progress steps for the workflow stepper (no separate accept step)
-const WORKFLOW_STEPS = ["assigned", "in_transit", "picked_up", "delivered"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -324,29 +322,11 @@ const RiderDeskDashboard: React.FC = () => {
 
         {expanded && (
           <div className="border-t border-gray-50 px-4 py-3 space-y-4">
-            {/* ── workflow stepper ── */}
+            {/* ── assignment type banner ── */}
             {!isDone && (
-              <div className="flex items-center gap-0 overflow-x-auto pb-1">
-                {WORKFLOW_STEPS.map((step, idx) => {
-                  const stepIdx = WORKFLOW_STEPS.indexOf(rs);
-                  const isDone_ = idx < stepIdx;
-                  const isCurrent = step === rs;
-                  return (
-                    <React.Fragment key={step}>
-                      <div className="flex flex-col items-center shrink-0">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${isDone_ ? "bg-green-500 border-green-500 text-white" : isCurrent ? "bg-blue-500 border-blue-500 text-white" : "bg-white border-gray-300 text-gray-400"}`}>
-                          {isDone_ ? "✓" : idx + 1}
-                        </div>
-                        <span className={`text-xs mt-0.5 whitespace-nowrap ${isCurrent ? "text-blue-600 font-semibold" : isDone_ ? "text-green-600" : "text-gray-400"}`}>
-                          {RIDER_STATUS_LABELS[step] || step}
-                        </span>
-                      </div>
-                      {idx < WORKFLOW_STEPS.length - 1 && (
-                        <div className={`flex-1 h-0.5 min-w-4 mx-1 rounded ${idx < stepIdx ? "bg-green-400" : "bg-gray-200"}`} />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${isPickupOrder ? "bg-purple-50 text-purple-700" : "bg-orange-50 text-orange-700"}`}>
+                <span>{isPickupOrder ? "🧺" : "🚚"}</span>
+                <span>{isPickupOrder ? "Pickup — Upload slip & mark picked up" : "Delivery — Collect payment, upload SS & mark delivered"}</span>
               </div>
             )}
 
@@ -455,41 +435,32 @@ const RiderDeskDashboard: React.FC = () => {
             {/* ── actions (only on active orders) ── */}
             {!isDone && (
               <div className="space-y-2">
-                {/* Assigned/Accepted — go to customer, upload slip, mark picked up */}
-                {["assigned", "accepted"].includes(rs) && (
-                  <>
-                    <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPickupSlip ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
-                        disabled={uploading[order._id + "_pickup"]}
-                      />
-                      {uploading[order._id + "_pickup"] ? "Uploading..." : hasPickupSlip ? "✓ Slip Uploaded — Mark Picked Up" : "📷 Upload Item Slip & Mark Picked Up"}
-                    </label>
-                    <button
-                      onClick={() => markInTransit(order._id)}
-                      disabled={!!actionLoading[order._id + "_transit"]}
-                      className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold rounded-xl text-sm"
-                    >
-                      {actionLoading[order._id + "_transit"] ? "..." : "🚀 Start — Heading to Customer"}
-                    </button>
-                  </>
+                {/* PICKUP: just upload slip → auto-marks picked up */}
+                {isPickupOrder && (
+                  <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPickupSlip ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
+                      disabled={uploading[order._id + "_pickup"]}
+                    />
+                    {uploading[order._id + "_pickup"] ? "Uploading..." : hasPickupSlip ? "✓ Slip Uploaded — Picked Up!" : "📷 Upload Slip & Mark Picked Up"}
+                  </label>
                 )}
 
-                {/* In Transit or Picked up — collect COD + mark delivered */}
-                {["in_transit", "picked_up"].includes(rs) && (
+                {/* DELIVERY: collect payment + upload SS → auto-marks delivered */}
+                {isDeliveryOrder && (
                   <>
                     {!order.cod_collected && (
                       <button
                         onClick={() => { setCodModal(order._id); setCodAmount(String(amount)); }}
                         className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl text-sm"
                       >
-                        💰 Collect COD Payment (₹{amount.toLocaleString()})
+                        💰 Collect Payment (₹{amount.toLocaleString()})
                       </button>
                     )}
                     {order.cod_collected && (
                       <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
                         <span>✓</span>
-                        <span className="font-medium">COD Collected: ₹{(order.cod_amount || amount).toLocaleString()}</span>
+                        <span className="font-medium">Payment Collected: ₹{(order.cod_amount || amount).toLocaleString()}</span>
                       </div>
                     )}
                     <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPaymentSS ? "border-green-400 bg-green-50 text-green-700" : "border-orange-300 bg-orange-50 text-orange-700"}`}>
@@ -497,7 +468,7 @@ const RiderDeskDashboard: React.FC = () => {
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "payment"); e.target.value = ""; }}
                         disabled={uploading[order._id + "_payment"]}
                       />
-                      {uploading[order._id + "_payment"] ? "Uploading..." : hasPaymentSS ? "✓ Payment SS — Mark Delivered" : "💳 Upload Payment SS & Mark Delivered"}
+                      {uploading[order._id + "_payment"] ? "Uploading..." : hasPaymentSS ? "✓ SS Uploaded — Marked Delivered!" : "💳 Upload Payment SS & Mark Delivered"}
                     </label>
                   </>
                 )}
@@ -533,20 +504,22 @@ const RiderDeskDashboard: React.FC = () => {
       </header>
 
       <main className="p-4 max-w-lg mx-auto">
-        {/* summary + route optimiser bar */}
+        {/* summary bar */}
         {activeOrders.length > 0 && (
           <div className="mb-4 space-y-2">
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {["assigned", "accepted", "in_transit", "picked_up"].map(s => {
-                const cnt = activeOrders.filter(o => o.riderStatus === s).length;
-                if (cnt === 0) return null;
-                return (
-                  <div key={s} className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${RIDER_STATUS_COLORS[s]}`}>
-                    <span>{RIDER_STATUS_LABELS[s]}</span>
-                    <span className="font-bold">{cnt}</span>
-                  </div>
-                );
-              })}
+            <div className="flex gap-2 flex-wrap">
+              {activeOrders.filter(o => o.status === "pickup_assigned").length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                  <span>🧺 Pickup</span>
+                  <span className="font-bold">{activeOrders.filter(o => o.status === "pickup_assigned").length}</span>
+                </div>
+              )}
+              {activeOrders.filter(o => o.status !== "pickup_assigned").length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                  <span>🚚 Delivery</span>
+                  <span className="font-bold">{activeOrders.filter(o => o.status !== "pickup_assigned").length}</span>
+                </div>
+              )}
             </div>
             {activeOrders.length >= 2 && (
               <button
@@ -559,11 +532,7 @@ const RiderDeskDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Active orders */}
-        <h2 className="font-semibold text-gray-700 mb-3">
-          Active Orders{activeOrders.length > 0 && <span className="ml-1 text-green-600">({activeOrders.length})</span>}
-        </h2>
-
+        {/* Active orders split by type */}
         {activeOrders.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <div className="text-5xl mb-3">🛵</div>
@@ -571,7 +540,33 @@ const RiderDeskDashboard: React.FC = () => {
             <p className="text-sm mt-1">New orders will appear here automatically</p>
           </div>
         ) : (
-          activeOrders.map(o => renderOrder(o, false))
+          <>
+            {/* TO PICKUP */}
+            {activeOrders.filter(o => o.status === "pickup_assigned").length > 0 && (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base font-bold text-purple-700">🧺 To Pickup</span>
+                  <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    {activeOrders.filter(o => o.status === "pickup_assigned").length}
+                  </span>
+                </div>
+                {activeOrders.filter(o => o.status === "pickup_assigned").map(o => renderOrder(o, false))}
+              </>
+            )}
+
+            {/* TO DELIVER */}
+            {activeOrders.filter(o => o.status !== "pickup_assigned").length > 0 && (
+              <>
+                <div className="flex items-center gap-2 mt-4 mb-2">
+                  <span className="text-base font-bold text-orange-700">🚚 To Deliver</span>
+                  <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    {activeOrders.filter(o => o.status !== "pickup_assigned").length}
+                  </span>
+                </div>
+                {activeOrders.filter(o => o.status !== "pickup_assigned").map(o => renderOrder(o, false))}
+              </>
+            )}
+          </>
         )}
 
         {/* Done orders */}

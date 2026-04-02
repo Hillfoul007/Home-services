@@ -1764,27 +1764,34 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
     }
 
     // Apply status change
+    const now = new Date();
     switch (action) {
       case 'accept':
         order.riderStatus = 'accepted';
-        order.acceptedAt = new Date();
+        order.acceptedAt = now;
+        order.status = 'pickup_assigned';
         break;
       case 'start':
         order.riderStatus = 'picked_up';
-        order.pickedUpAt = new Date();
+        order.pickedUpAt = now;
+        order.status = 'pickup_completed';
         break;
       case 'complete':
-        order.riderStatus = 'completed';
-        order.completedAt = new Date();
+        order.riderStatus = 'delivered';
+        order.deliveredAt = now;
+        order.completedAt = now;
+        order.status = 'completed';
+        order.completed_at = now;
         break;
       case 'reject':
         // Unassign the rider and mark rejected by rider
         order.riderStatus = 'rejected_by_rider';
         order.rejectedBy = req.rider?.riderId || null;
-        order.rejectedAt = new Date();
+        order.rejectedAt = now;
         order.assignedRider = null;
         break;
     }
+    order.updated_at = now;
 
     try {
       await order.save();
