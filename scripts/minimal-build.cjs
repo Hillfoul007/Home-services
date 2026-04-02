@@ -6,7 +6,7 @@ const { spawn } = require('child_process');
 // Set optimized memory allocation for 512MB environments
 // Using 800MB heap (Node allows overcommit on modern systems)
 // Also enable aggressive garbage collection to prevent OOM during build
-process.env.NODE_OPTIONS = '--max-old-space-size=800 --expose-gc';
+process.env.NODE_OPTIONS = '--max-old-space-size=800';
 
 // Function to run command with minimal memory settings
 function runCommand(command, args = []) {
@@ -18,7 +18,7 @@ function runCommand(command, args = []) {
       shell: true,
       env: {
         ...process.env,
-        NODE_OPTIONS: '--max-old-space-size=800 --expose-gc --max-http-header-size=16384',
+        NODE_OPTIONS: '--max-old-space-size=800 --max-http-header-size=16384',
         // Enable aggressive garbage collection
         NODE_ENV: 'production',
         // Vite specific optimizations

@@ -71,18 +71,22 @@ interface Metrics {
 }
 
 interface DashboardSections {
-  ready_for_dispatch: Order[];
-  in_process: Order[];
-  in_transit: Order[];
+  created: Order[];
+  picked_up: Order[];
+  processing: Order[];
+  ready_for_delivery: Order[];
   delivered: Order[];
+  completed: Order[];
   cancelled: Order[];
 }
 
 interface DashboardCounts {
-  ready_for_dispatch: number;
-  in_process: number;
-  in_transit: number;
+  created: number;
+  picked_up: number;
+  processing: number;
+  ready_for_delivery: number;
   delivered: number;
+  completed: number;
   cancelled: number;
   total: number;
   breach: number;
@@ -91,32 +95,35 @@ interface DashboardCounts {
 // ─── Status labels / colours ──────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, string> = {
-  all: "All",
-  vendor_assigned: "Assigned",
+  created: "New Order",
+  vendor_assigned: "New Order",
+  pickup_assigned: "Pickup Assigned",
   pickup_completed: "Picked Up",
   in_progress: "Processing",
-  ready_for_delivery: "Ready",
-  delivery_assigned: "Assigned (Delivery)",
-  in_transit: "In Transit",
+  ready_for_delivery: "Ready for Delivery",
+  delivery_assigned: "Delivery Assigned",
+  in_transit: "Out for Delivery",
   delivered: "Delivered",
   completed: "Completed",
   cancelled: "Cancelled",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  vendor_assigned: "bg-yellow-100 text-yellow-800",
-  pickup_completed: "bg-blue-100 text-blue-800",
+  created: "bg-blue-100 text-blue-800",
+  vendor_assigned: "bg-blue-100 text-blue-800",
+  pickup_assigned: "bg-yellow-100 text-yellow-800",
+  pickup_completed: "bg-indigo-100 text-indigo-800",
   in_progress: "bg-purple-100 text-purple-800",
   ready_for_delivery: "bg-green-100 text-green-800",
-  delivery_assigned: "bg-indigo-100 text-indigo-800",
+  delivery_assigned: "bg-teal-100 text-teal-800",
   in_transit: "bg-orange-100 text-orange-800",
-  delivered: "bg-teal-100 text-teal-800",
+  delivered: "bg-emerald-100 text-emerald-800",
   completed: "bg-gray-100 text-gray-700",
   cancelled: "bg-red-100 text-red-800",
 };
 
 function statusBadge(status?: string) {
-  const s = status || "vendor_assigned";
+  const s = status || "created";
   const cls = STATUS_COLORS[s] || "bg-gray-100 text-gray-600";
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
@@ -125,14 +132,16 @@ function statusBadge(status?: string) {
   );
 }
 
-type SectionKey = "ready_for_dispatch" | "in_process" | "in_transit" | "delivered" | "cancelled";
+type SectionKey = "created" | "picked_up" | "processing" | "ready_for_delivery" | "delivered" | "completed" | "cancelled";
 
 const SECTION_CONFIG: { key: SectionKey; label: string; icon: string; color: string }[] = [
-  { key: "ready_for_dispatch", label: "Ready", icon: "📦", color: "text-green-600" },
-  { key: "in_process",         label: "In Process", icon: "⚙️", color: "text-purple-600" },
-  { key: "in_transit",         label: "In Transit", icon: "🛵", color: "text-orange-600" },
-  { key: "delivered",          label: "Delivered", icon: "✅", color: "text-teal-600" },
-  { key: "cancelled",          label: "Cancelled", icon: "❌", color: "text-red-500" },
+  { key: "created",           label: "Created",    icon: "🆕", color: "text-blue-600" },
+  { key: "picked_up",         label: "Picked Up",  icon: "🧺", color: "text-indigo-600" },
+  { key: "processing",        label: "Processing", icon: "⚙️", color: "text-purple-600" },
+  { key: "ready_for_delivery",label: "Ready",      icon: "📦", color: "text-green-600" },
+  { key: "delivered",         label: "Delivered",  icon: "🛵", color: "text-orange-600" },
+  { key: "completed",         label: "Completed",  icon: "✅", color: "text-teal-600" },
+  { key: "cancelled",         label: "Cancelled",  icon: "❌", color: "text-red-500" },
 ];
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -149,16 +158,16 @@ const DeskDashboard: React.FC = () => {
 
   // Dashboard data
   const [sections, setSections] = useState<DashboardSections>({
-    ready_for_dispatch: [], in_process: [], in_transit: [], delivered: [], cancelled: [],
+    created: [], picked_up: [], processing: [], ready_for_delivery: [], delivered: [], completed: [], cancelled: [],
   });
   const [counts, setCounts] = useState<DashboardCounts>({
-    ready_for_dispatch: 0, in_process: 0, in_transit: 0, delivered: 0, cancelled: 0, total: 0, breach: 0,
+    created: 0, picked_up: 0, processing: 0, ready_for_delivery: 0, delivered: 0, completed: 0, cancelled: 0, total: 0, breach: 0,
   });
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [metricsPeriod, setMetricsPeriod] = useState<"today" | "7d" | "30d">("7d");
 
   // Section view
-  const [activeSection, setActiveSection] = useState<SectionKey>("in_process");
+  const [activeSection, setActiveSection] = useState<SectionKey>("created");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Legacy all-orders for riders tab usage
@@ -171,7 +180,7 @@ const DeskDashboard: React.FC = () => {
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
   // Assignment modal
-  const [assignModal, setAssignModal] = useState<{ orderId: string; orderLabel: string } | null>(null);
+  const [assignModal, setAssignModal] = useState<{ orderId: string; orderLabel: string; type: "pickup" | "delivery" } | null>(null);
   const [assigningRiderId, setAssigningRiderId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
 
@@ -300,8 +309,8 @@ const DeskDashboard: React.FC = () => {
   };
 
   // ── assign rider ──
-  const openAssignModal = (orderId: string, orderLabel: string) => {
-    setAssignModal({ orderId, orderLabel });
+  const openAssignModal = (orderId: string, orderLabel: string, type: "pickup" | "delivery") => {
+    setAssignModal({ orderId, orderLabel, type });
     setAssigningRiderId("");
   };
 
@@ -312,11 +321,11 @@ const DeskDashboard: React.FC = () => {
       const res = await fetch(`${API}/orders/orders/${assignModal.orderId}/assign-rider`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders(token) },
-        body: JSON.stringify({ riderId: assigningRiderId }),
+        body: JSON.stringify({ riderId: assigningRiderId, assignmentType: assignModal.type }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Failed to assign rider"); return; }
-      toast.success("Rider assigned successfully");
+      toast.success(`Rider assigned for ${assignModal.type}!`);
       setAssignModal(null);
       fetchDashboard();
     } catch { toast.error("Network error"); }
@@ -428,6 +437,55 @@ const DeskDashboard: React.FC = () => {
     return `${Math.floor(hrs / 24)}d ago`;
   }
 
+  // ─── Image URL helpers ────────────────────────────────────────────────────
+
+  const itemsImageUrl = (orderId: string, fileId: string) =>
+    `/api/vendor/orders/public/orders/${orderId}/items-image/${fileId}`;
+
+  const paymentSlipUrl = (orderId: string, fileId: string) =>
+    `/api/vendor/orders/public/orders/${orderId}/payment-slip/${fileId}`;
+
+  const riderSlipUrl = (orderId: string, fileId: string) =>
+    `/api/riders/public/orders/${orderId}/slip/${fileId}`;
+
+  // ─── Render: uploaded images strip ───────────────────────────────────────
+
+  const renderImages = (order: Order) => {
+    const itemImgs = order.items_images || [];
+    const paySlips = order.vendor_payment_slips || [];
+    if (itemImgs.length === 0 && paySlips.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        {itemImgs.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1">📷 Item Photos</p>
+            <div className="flex gap-2 flex-wrap">
+              {itemImgs.map((img) => (
+                <a key={img.file_id} href={itemsImageUrl(order._id, img.file_id)} target="_blank" rel="noreferrer">
+                  <img src={itemsImageUrl(order._id, img.file_id)} alt="item"
+                    className="w-16 h-16 object-cover rounded-lg border border-gray-200 hover:opacity-80" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        {paySlips.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1">💳 Payment Slips</p>
+            <div className="flex gap-2 flex-wrap">
+              {paySlips.map((slip) => (
+                <a key={slip.file_id} href={paymentSlipUrl(order._id, slip.file_id)} target="_blank" rel="noreferrer">
+                  <img src={paymentSlipUrl(order._id, slip.file_id)} alt="slip"
+                    className="w-16 h-16 object-cover rounded-lg border border-gray-200 hover:opacity-80" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ─── Render: order card ───────────────────────────────────────────────────
 
   const renderOrderCard = (order: Order) => {
@@ -438,9 +496,12 @@ const DeskDashboard: React.FC = () => {
     const riderLocation = getRiderLocation(order);
     const isBreach = order._breach;
     const orderLabel = order.custom_order_id || order._id.slice(-6).toUpperCase();
-    const isInProcess = activeSection === "in_process";
-    const isReady = activeSection === "ready_for_dispatch";
-    const isInTransit = activeSection === "in_transit";
+    const isCreated = activeSection === "created";
+    const isPickedUp = activeSection === "picked_up";
+    const isProcessing = activeSection === "processing";
+    const isReadyForDelivery = activeSection === "ready_for_delivery";
+    const isDelivered = activeSection === "delivered";
+    const isCompleted = activeSection === "completed";
 
     return (
       <div key={order._id}
@@ -458,8 +519,10 @@ const DeskDashboard: React.FC = () => {
               )}
               {statusBadge(order.status)}
               {isBreach && (
-                <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">BREACH</span>
+                <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">⚠ BREACH</span>
               )}
+              {hasItemsImg && <span className="text-xs text-gray-400">📷</span>}
+              {hasPaySS && <span className="text-xs text-gray-400">💳</span>}
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <p className="text-xs text-gray-500 truncate">
@@ -515,14 +578,14 @@ const DeskDashboard: React.FC = () => {
               <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs space-y-1">
                 {order.scheduled_date && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Pickup</span>
+                    <span className="text-gray-500">Pickup Date</span>
                     <span className="font-medium">{order.scheduled_date}</span>
                   </div>
                 )}
                 {order.delivery_date && (
                   <div className="flex justify-between">
                     <span className={`${isBreach ? "text-red-500 font-semibold" : "text-gray-500"}`}>
-                      {isBreach ? "⚠ Delivery (OVERDUE)" : "Delivery"}
+                      {isBreach ? "⚠ Delivery (OVERDUE)" : "Delivery Date"}
                     </span>
                     <span className={`font-medium ${isBreach ? "text-red-600" : ""}`}>{order.delivery_date}</span>
                   </div>
@@ -536,14 +599,10 @@ const DeskDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* rider tracking (in-transit) */}
-            {isInTransit && riderLocation?.live_location_link && (
-              <a
-                href={riderLocation.live_location_link}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 w-full py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-sm font-medium text-orange-700"
-              >
+            {/* rider live tracking (delivered section) */}
+            {isDelivered && riderLocation?.live_location_link && (
+              <a href={riderLocation.live_location_link} target="_blank" rel="noreferrer"
+                className="flex items-center gap-2 w-full py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-sm font-medium text-orange-700">
                 <span>📡</span>
                 <span>Track Rider Live</span>
                 {riderLocation.lastLocationUpdate && (
@@ -573,45 +632,79 @@ const DeskDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* uploaded images/slips — visible in all sections */}
+            {renderImages(order)}
+
             {/* actions */}
             <div className="space-y-2">
-              {/* Assign Rider button (in_process and ready_for_dispatch sections) */}
-              {(isInProcess || isReady) && !order.isPGOrder && (
-                <button
-                  onClick={() => openAssignModal(order._id, orderLabel)}
-                  className={`w-full py-2 rounded-xl text-sm font-medium border ${riderName
-                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                    : "border-dashed border-blue-300 bg-blue-50 text-blue-700"
-                    }`}
-                >
-                  {riderName ? `🛵 Reassign (${riderName})` : "🛵 Assign Rider"}
-                </button>
+
+              {/* CREATED section: assign pickup rider + upload items SS */}
+              {isCreated && !order.isPGOrder && (
+                <>
+                  <button
+                    onClick={() => openAssignModal(order._id, orderLabel, "pickup")}
+                    className={`w-full py-2 rounded-xl text-sm font-medium border ${riderName
+                      ? "border-yellow-300 bg-yellow-50 text-yellow-800"
+                      : "border-dashed border-blue-300 bg-blue-50 text-blue-700"}`}
+                  >
+                    {riderName ? `🛵 Reassign Pickup (${riderName})` : "🛵 Assign Pickup Rider"}
+                  </button>
+                  <label className={`flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium cursor-pointer border-2 border-dashed ${hasItemsImg ? "border-green-400 bg-green-50 text-green-700" : "border-indigo-300 bg-indigo-50 text-indigo-700"}`}>
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsImage(order._id, f); e.target.value = ""; }}
+                      disabled={uploading[order._id + "_items"]}
+                    />
+                    {uploading[order._id + "_items"] ? "Uploading..." : hasItemsImg ? "✓ Order Photo (tap to replace)" : "📷 Upload Order Photo & Mark Picked Up"}
+                  </label>
+                </>
               )}
 
-              {/* Upload order SS + mark pickup */}
-              {order.status === "vendor_assigned" && (
-                <label className={`flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium cursor-pointer border-2 border-dashed ${hasItemsImg ? "border-green-400 bg-green-50 text-green-700" : "border-blue-300 bg-blue-50 text-blue-700"}`}>
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsImage(order._id, f); e.target.value = ""; }}
-                    disabled={uploading[order._id + "_items"]}
-                  />
-                  {uploading[order._id + "_items"] ? "Uploading..." : hasItemsImg ? "✓ Order SS (tap to replace)" : "📷 Upload Order SS & Mark Picked Up"}
-                </label>
+              {/* PICKED UP section: can also upload order photo if not done */}
+              {isPickedUp && !order.isPGOrder && (
+                <>
+                  {riderName && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800">
+                      <span>🛵</span>
+                      <span>Pickup Rider: <strong>{riderName}</strong></span>
+                    </div>
+                  )}
+                  {!hasItemsImg && (
+                    <label className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium cursor-pointer border-2 border-dashed border-indigo-300 bg-indigo-50 text-indigo-700">
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsImage(order._id, f); e.target.value = ""; }}
+                        disabled={uploading[order._id + "_items"]}
+                      />
+                      {uploading[order._id + "_items"] ? "Uploading..." : "📷 Upload Order Photo"}
+                    </label>
+                  )}
+                </>
               )}
 
-              {/* Mark ready for delivery */}
-              {["in_progress", "pickup_completed"].includes(order.status || "") && (
+              {/* PROCESSING section: mark ready for delivery */}
+              {isProcessing && (
                 <button
                   onClick={() => markReady(order._id)}
                   disabled={loading}
-                  className="w-full py-2 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium"
+                  className="w-full py-2.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold"
                 >
-                  Mark Ready for Delivery
+                  ✅ Mark Ready for Delivery
                 </button>
               )}
 
-              {/* Upload payment SS */}
-              {["delivered", "ready_for_delivery", "completed"].includes(order.status || "") && !order.isPGOrder && (
+              {/* READY FOR DELIVERY section: assign delivery rider */}
+              {isReadyForDelivery && !order.isPGOrder && (
+                <button
+                  onClick={() => openAssignModal(order._id, orderLabel, "delivery")}
+                  className={`w-full py-2 rounded-xl text-sm font-medium border ${riderName
+                    ? "border-teal-300 bg-teal-50 text-teal-800"
+                    : "border-dashed border-green-300 bg-green-50 text-green-700"}`}
+                >
+                  {riderName ? `🛵 Reassign Delivery (${riderName})` : "🛵 Assign Delivery Rider"}
+                </button>
+              )}
+
+              {/* DELIVERED / COMPLETED sections: upload payment SS */}
+              {(isDelivered || isCompleted) && !order.isPGOrder && (
                 <label className={`flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium cursor-pointer border-2 border-dashed ${hasPaySS ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
                   <input type="file" accept="image/*" className="hidden"
                     onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentSS(order._id, f); e.target.value = ""; }}
@@ -686,12 +779,28 @@ const DeskDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* ── phase overview boxes ── */}
+            <div className="grid grid-cols-4 gap-2 mb-4 sm:grid-cols-7">
+              {SECTION_CONFIG.map(({ key, label, icon }) => {
+                const cnt = counts[key] || 0;
+                const isAct = activeSection === key;
+                return (
+                  <button key={key} onClick={() => { setActiveSection(key); setExpandedId(null); }}
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all ${isAct ? "bg-blue-600 border-blue-600 text-white" : cnt > 0 ? "bg-white border-gray-200 text-gray-700" : "bg-gray-50 border-gray-100 text-gray-400"}`}>
+                    <span className="text-base leading-none">{icon}</span>
+                    <span className={`text-lg font-bold leading-tight mt-0.5 ${isAct ? "text-white" : cnt > 0 ? "text-gray-900" : "text-gray-300"}`}>{cnt}</span>
+                    <span className="text-xs leading-tight mt-0.5 truncate w-full">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             {/* ── section tabs ── */}
             <div className="flex gap-1 overflow-x-auto pb-1 mb-4 scrollbar-hide">
               {SECTION_CONFIG.map(({ key, label, icon, color }) => {
                 const count = counts[key] || 0;
                 const isActive = activeSection === key;
-                const hasBreach = key === "ready_for_dispatch" && counts.breach > 0;
+                const hasBreach = ["created", "picked_up", "processing"].includes(key) && counts.breach > 0;
 
                 return (
                   <button
@@ -719,14 +828,24 @@ const DeskDashboard: React.FC = () => {
 
             {/* ── section header context ── */}
             <div className="mb-3">
-              {activeSection === "ready_for_dispatch" && counts.breach > 0 && (
+              {counts.breach > 0 && ["created", "picked_up", "processing"].includes(activeSection) && (
                 <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-xs text-red-700 font-medium mb-2">
                   ⚠ {counts.breach} order{counts.breach > 1 ? "s" : ""} past delivery deadline
                 </div>
               )}
-              {activeSection === "in_transit" && sectionOrders.length > 0 && (
+              {activeSection === "created" && sectionOrders.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2 text-xs text-blue-700 font-medium mb-2">
+                  🆕 {sectionOrders.length} new order{sectionOrders.length > 1 ? "s" : ""} — assign pickup rider
+                </div>
+              )}
+              {activeSection === "ready_for_delivery" && sectionOrders.length > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2 text-xs text-green-700 font-medium mb-2">
+                  📦 {sectionOrders.length} order{sectionOrders.length > 1 ? "s" : ""} ready — assign delivery rider
+                </div>
+              )}
+              {activeSection === "delivered" && sectionOrders.length > 0 && (
                 <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2 text-xs text-orange-700 font-medium mb-2">
-                  🛵 {sectionOrders.length} order{sectionOrders.length > 1 ? "s" : ""} currently in transit
+                  🛵 {sectionOrders.length} order{sectionOrders.length > 1 ? "s" : ""} out for delivery
                 </div>
               )}
             </div>
@@ -739,10 +858,12 @@ const DeskDashboard: React.FC = () => {
                 </div>
                 <p className="font-medium">No orders in this section</p>
                 <p className="text-sm mt-1">
-                  {activeSection === "in_process" && "Orders assigned to you will appear here"}
-                  {activeSection === "ready_for_dispatch" && "Mark orders ready to see them here"}
-                  {activeSection === "in_transit" && "Orders picked up by rider will appear here"}
-                  {activeSection === "delivered" && "Completed deliveries will appear here"}
+                  {activeSection === "created" && "New orders assigned to you will appear here"}
+                  {activeSection === "picked_up" && "Orders picked up by rider will appear here"}
+                  {activeSection === "processing" && "Orders being processed at laundry will appear here"}
+                  {activeSection === "ready_for_delivery" && "Mark orders ready to see them here"}
+                  {activeSection === "delivered" && "Orders out for delivery will appear here"}
+                  {activeSection === "completed" && "Completed deliveries will appear here"}
                   {activeSection === "cancelled" && "Cancelled orders will appear here"}
                 </p>
               </div>
@@ -857,7 +978,14 @@ const DeskDashboard: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900">Assign Rider</h3>
+              <div>
+                <h3 className="font-bold text-gray-900">
+                  {assignModal.type === "pickup" ? "🧺 Assign Pickup Rider" : "🚚 Assign Delivery Rider"}
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {assignModal.type === "pickup" ? "Rider will collect from customer" : "Rider will deliver to customer"}
+                </p>
+              </div>
               <button onClick={() => setAssignModal(null)} className="text-gray-400 text-2xl leading-none">&times;</button>
             </div>
             <p className="text-sm text-gray-500 mb-4">Order: <span className="font-semibold text-gray-800">{assignModal.orderLabel}</span></p>
@@ -896,7 +1024,7 @@ const DeskDashboard: React.FC = () => {
               disabled={!assigningRiderId || assignLoading}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl font-semibold text-sm"
             >
-              {assignLoading ? "Assigning..." : "Assign Rider"}
+              {assignLoading ? "Assigning..." : assignModal.type === "pickup" ? "Assign Pickup Rider" : "Assign Delivery Rider"}
             </button>
           </div>
         </div>

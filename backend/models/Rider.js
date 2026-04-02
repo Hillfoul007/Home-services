@@ -15,13 +15,19 @@ const riderSchema = new mongoose.Schema(
     },
     aadharNumber: {
       type: String,
-      required: [true, "Aadhar number is required"],
+      required: false,
       trim: true,
       unique: true,
+      sparse: true, // Allow multiple null values
     },
     password: {
       type: String,
       required: false, // Password is optional for OTP-based authentication
+    },
+    created_by_vendor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
+      default: null,
     },
     aadharImageUrl: {
       type: String,

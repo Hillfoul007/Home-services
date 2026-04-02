@@ -40,17 +40,24 @@ function getSectionForOrder(order) {
   const rs = order.riderStatus;
 
   if (s === "cancelled") return "cancelled";
-  if (["delivered", "completed"].includes(s)) return "delivered";
+  if (s === "completed") return "completed";
 
-  // In transit = rider has picked up the order and is heading to customer
-  if (rs === "in_transit" || rs === "picked_up") return "in_transit";
-  if (s === "delivery_assigned" && ["accepted", "in_transit", "picked_up"].includes(rs)) return "in_transit";
+  // Delivered = order delivered to customer (in_transit counts as delivered phase)
+  if (s === "delivered") return "delivered";
+  if (s === "in_transit") return "delivered";
+  if (s === "delivery_assigned" && ["in_transit", "picked_up"].includes(rs)) return "delivered";
 
-  // Ready for dispatch = vendor marked order ready, waiting for rider pickup
-  if (s === "ready_for_delivery") return "ready_for_dispatch";
+  // Ready for delivery = ready but delivery rider not yet dispatched
+  if (["ready_for_delivery", "delivery_assigned"].includes(s)) return "ready_for_delivery";
 
-  // In process = everything being prepared or assigned but not ready yet
-  return "in_process";
+  // Processing = at laundry
+  if (s === "in_progress") return "processing";
+
+  // Picked up = rider picked up from customer, heading to laundry
+  if (["pickup_assigned", "pickup_completed"].includes(s)) return "picked_up";
+
+  // Created = new order, needs pickup rider assigned
+  return "created";
 }
 
 // Check if an order is breaching SLA (past expected delivery time)
@@ -123,10 +130,12 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
       .select("-special_instructions");
 
     const sections = {
-      ready_for_dispatch: [],
-      in_process: [],
-      in_transit: [],
+      created: [],
+      picked_up: [],
+      processing: [],
+      ready_for_delivery: [],
       delivered: [],
+      completed: [],
       cancelled: [],
     };
 
@@ -135,17 +144,21 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
       obj._breach = isBreach(order);
       obj._timeElapsed = timeElapsed(order.readyAt || order.created_at);
       const section = getSectionForOrder(order);
-      sections[section].push(obj);
+      if (sections[section]) sections[section].push(obj);
     }
 
     const counts = {
-      ready_for_dispatch: sections.ready_for_dispatch.length,
-      in_process: sections.in_process.length,
-      in_transit: sections.in_transit.length,
+      created: sections.created.length,
+      picked_up: sections.picked_up.length,
+      processing: sections.processing.length,
+      ready_for_delivery: sections.ready_for_delivery.length,
       delivered: sections.delivered.length,
+      completed: sections.completed.length,
       cancelled: sections.cancelled.length,
       total: allOrders.length,
-      breach: sections.ready_for_dispatch.filter(o => o._breach).length + sections.in_process.filter(o => o._breach).length,
+      breach: sections.created.filter(o => o._breach).length +
+              sections.picked_up.filter(o => o._breach).length +
+              sections.processing.filter(o => o._breach).length,
     };
 
     res.json({ success: true, sections, counts });
@@ -261,11 +274,17 @@ router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) 
     const now = indianNow();
     order.assignedRider = riderId;
     order.assignedRiderPhone = rider.phone;
-    order.riderStatus = "assigned";
+    // Auto-accept: skip the separate "accept" step so rider goes straight to work
+    order.riderStatus = "accepted";
     order.assignedAt = now;
+    order.acceptedAt = now;
 
-    // Advance order status if needed
-    if (order.status === "ready_for_delivery" || order.status === "in_progress") {
+    // Determine assignment type from current order status
+    if (["vendor_assigned", "created"].includes(order.status)) {
+      // Pickup assignment: rider picks up from customer and delivers to laundry
+      order.status = "pickup_assigned";
+    } else if (["ready_for_delivery", "in_progress"].includes(order.status)) {
+      // Delivery assignment: rider picks up from laundry and delivers to customer
       order.status = "delivery_assigned";
     }
 
@@ -281,9 +300,10 @@ router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) 
     // Add order to rider's assigned list
     await Rider.findByIdAndUpdate(riderId, { $addToSet: { assignedOrders: order._id } });
 
-    console.log(`✅ Rider ${rider.name} assigned to order ${orderId}`);
+    const assignmentType = order.status === "pickup_assigned" ? "pickup" : "delivery";
+    console.log(`✅ Rider ${rider.name} assigned for ${assignmentType} to order ${orderId}`);
 
-    res.json({ success: true, message: `Rider ${rider.name} assigned`, order });
+    res.json({ success: true, message: `Rider ${rider.name} assigned for ${assignmentType}`, assignmentType, order });
   } catch (error) {
     console.error("❌ Error assigning rider:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -299,7 +319,7 @@ router.put("/orders/:orderId/mark-ready", verifyVendorToken, async (req, res) =>
     const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    if (!["in_progress", "pickup_completed", "vendor_assigned"].includes(order.status)) {
+    if (!["in_progress", "pickup_completed", "vendor_assigned", "pickup_assigned"].includes(order.status)) {
       return res.status(400).json({ error: `Cannot mark ready from status: ${order.status}` });
     }
 
@@ -345,6 +365,36 @@ router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
     downloadStream.pipe(res);
   } catch (error) {
     console.error("❌ Error retrieving items image:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET public payment slip ──────────────────────────────────────────────────
+// Accessible without auth so admin/rider can view slips
+
+router.get("/public/orders/:orderId/payment-slip/:fileId", async (req, res) => {
+  try {
+    const { orderId, fileId } = req.params;
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+
+    const order = await Booking.findById(orderId).select("vendor_payment_slips rider_payment_slips rider_pickup_slips");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    const allSlips = [
+      ...(order.vendor_payment_slips || []),
+      ...(order.rider_payment_slips || []),
+      ...(order.rider_pickup_slips || []),
+    ];
+    const slipExists = allSlips.some(s => s.file_id.toString() === fileId);
+    if (!slipExists) return res.status(404).json({ error: "Slip not found for this order" });
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+    downloadStream.on("error", () => res.status(404).json({ error: "File not found" }));
+    res.setHeader("Content-Type", "image/jpeg");
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("❌ Error retrieving payment slip:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -468,9 +518,11 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
 
     const validTransitions = {
       vendor_assigned: ["pickup_completed"],
+      pickup_assigned: ["pickup_completed"],
       pickup_completed: ["in_progress"],
       in_progress: ["ready_for_delivery"],
-      ready_for_delivery: ["delivered"],
+      ready_for_delivery: ["delivery_assigned", "delivered"],
+      delivery_assigned: ["delivered"],
     };
 
     const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Kataria/Home-services/backend -name *payment* -o -name *razorpay* -o -name *notification*)",
+      "Bash(ls -lh /c/Users/Kataria/Home-services/*.aab)",
+      "Bash(grep -r \"console.log.*password\\\\|console.log.*secret\\\\|console.log.*key\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(find /c/Users/Kataria/Home-services -name *.json -type f -exec grep -l \"password\\\\|secret\\\\|key\" {})",
+      "Bash(2)",
+      "Bash(grep -rn \"eval\\\\|Function\\\\\\(\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.js$\")",
+      "Bash(unzip -l \"c:\\\\Users\\\\Kataria\\\\Home-services\\\\android\\\\app\\\\build\\\\outputs\\\\bundle\\\\release\\\\app-release.aab\")",
+      "Bash(find /c/Users/Kataria/Home-services/src -name *Cart* -o -name *cart* -o -name *Checkout*)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

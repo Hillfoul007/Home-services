@@ -21,27 +21,25 @@ function timeSince(dateStr?: string | null) {
 // ─── Status display ───────────────────────────────────────────────────────────
 
 const RIDER_STATUS_LABELS: Record<string, string> = {
-  assigned:         "Assigned",
-  accepted:         "Accepted",
-  in_transit:       "In Transit",
-  picked_up:        "Picked Up",
-  delivered:        "Delivered",
-  completed:        "Completed",
-  rejected_by_rider:"Rejected",
+  assigned:   "Assigned",
+  accepted:   "Ready",
+  in_transit: "In Transit",
+  picked_up:  "Picked Up",
+  delivered:  "Delivered",
+  completed:  "Completed",
 };
 
 const RIDER_STATUS_COLORS: Record<string, string> = {
-  assigned:          "bg-yellow-100 text-yellow-800",
-  accepted:          "bg-blue-100 text-blue-800",
-  in_transit:        "bg-orange-100 text-orange-800",
-  picked_up:         "bg-purple-100 text-purple-800",
-  delivered:         "bg-green-100 text-green-800",
-  completed:         "bg-gray-100 text-gray-600",
-  rejected_by_rider: "bg-red-100 text-red-700",
+  assigned:   "bg-yellow-100 text-yellow-800",
+  accepted:   "bg-blue-100 text-blue-800",
+  in_transit: "bg-orange-100 text-orange-800",
+  picked_up:  "bg-purple-100 text-purple-800",
+  delivered:  "bg-green-100 text-green-800",
+  completed:  "bg-gray-100 text-gray-600",
 };
 
-// Progress steps for the workflow stepper
-const WORKFLOW_STEPS = ["assigned", "accepted", "picked_up", "in_transit", "delivered"];
+// Progress steps for the workflow stepper (no separate accept step)
+const WORKFLOW_STEPS = ["assigned", "in_transit", "picked_up", "delivered"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,8 +64,10 @@ interface AssignedOrder {
   scheduled_date?: string;
   delivery_date?: string;
   item_prices?: { service_name: string; quantity: number; unit_price: number; total_price: number }[];
-  rider_pickup_slips?: { file_id: string }[];
-  rider_payment_slips?: { file_id: string }[];
+  rider_pickup_slips?: { file_id: string; filename?: string }[];
+  rider_payment_slips?: { file_id: string; filename?: string }[];
+  items_images?: { file_id: string; filename?: string }[];
+  vendor_payment_slips?: { file_id: string; filename?: string }[];
   cod_collected?: boolean;
   cod_amount?: number;
   assignedAt?: string;
@@ -89,10 +89,18 @@ const RiderDeskDashboard: React.FC = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-  const [rejectModal, setRejectModal] = useState<string | null>(null); // orderId
   const [codModal, setCodModal] = useState<string | null>(null); // orderId
   const [codAmount, setCodAmount] = useState("");
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const prevIds = useRef<Set<string>>(new Set());
+
+  // Get current location for navigation
+  useEffect(() => {
+    navigator.geolocation?.getCurrentPosition(
+      pos => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {} // silent if denied
+    );
+  }, []);
 
   useEffect(() => {
     if (!token) navigate("/rider-desk");
@@ -127,8 +135,30 @@ const RiderDeskDashboard: React.FC = () => {
     return () => clearInterval(id);
   }, [fetchOrders]);
 
-  // ── order action (accept / start / complete / reject) ──
-  const doAction = async (orderId: string, action: "accept" | "start" | "complete" | "reject") => {
+  // ── navigation helpers ──
+  const openMapsToAddress = (address: string, mapsLink?: string) => {
+    if (mapsLink) { window.open(mapsLink, "_blank"); return; }
+    const dest = encodeURIComponent(address);
+    const origin = currentLocation ? `${currentLocation.lat},${currentLocation.lng}` : "";
+    const url = origin
+      ? `https://www.google.com/maps/dir/${origin}/${dest}`
+      : `https://www.google.com/maps/search/?api=1&query=${dest}`;
+    window.open(url, "_blank");
+  };
+
+  const openOptimizedRoute = (orders: AssignedOrder[]) => {
+    const valid = orders.filter(o => o.address);
+    if (valid.length < 2) { toast.error("Need at least 2 orders with addresses"); return; }
+    const origin = currentLocation ? `${currentLocation.lat},${currentLocation.lng}` : "";
+    const waypoints = valid.slice(0, -1).map(o => encodeURIComponent(o.address!)).join("|");
+    const destination = encodeURIComponent(valid[valid.length - 1].address!);
+    const url = `https://www.google.com/maps/dir/?api=1${origin ? `&origin=${origin}` : ""}&destination=${destination}&travelmode=driving${waypoints ? `&waypoints=${waypoints}` : ""}`;
+    window.open(url, "_blank");
+    toast.success("Optimized route opened");
+  };
+
+  // ── order action (start / complete only — no accept/reject) ──
+  const doAction = async (orderId: string, action: "start" | "complete") => {
     setActionLoading(a => ({ ...a, [orderId]: true }));
     try {
       const res = await fetch("/api/riders/order-action", {
@@ -139,12 +169,15 @@ const RiderDeskDashboard: React.FC = () => {
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || "Failed"); return; }
       const labels: Record<string, string> = {
-        accept: "Order accepted",
-        start:  "Marked as picked up",
+        start: "Marked as picked up",
         complete: "Marked as delivered",
-        reject: "Order rejected",
       };
       toast.success(labels[action] || "Updated");
+      // After starting (picked up), open maps for next destination
+      if (action === "start") {
+        const order = activeOrders.find(o => o._id === orderId);
+        if (order?.address) setTimeout(() => openMapsToAddress(order.address!, order.mapsLink), 500);
+      }
       fetchOrders();
     } catch { toast.error("Network error"); }
     finally { setActionLoading(a => ({ ...a, [orderId]: false })); }
@@ -160,7 +193,9 @@ const RiderDeskDashboard: React.FC = () => {
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || "Failed"); return; }
-      toast.success("Marked In Transit");
+      toast.success("Marked In Transit — opening maps");
+      const order = activeOrders.find(o => o._id === orderId);
+      if (order?.address) setTimeout(() => openMapsToAddress(order.address!, order.mapsLink), 600);
       fetchOrders();
     } catch { toast.error("Network error"); }
     finally { setActionLoading(a => ({ ...a, [orderId + "_transit"]: false })); }
@@ -236,8 +271,15 @@ const RiderDeskDashboard: React.FC = () => {
     const rs = order.riderStatus || "assigned";
     const hasPickupSlip = (order.rider_pickup_slips?.length ?? 0) > 0;
     const hasPaymentSS = (order.rider_payment_slips?.length ?? 0) > 0;
+    const hasItemsImg = (order.items_images?.length ?? 0) > 0;
+    const hasVendorSlip = (order.vendor_payment_slips?.length ?? 0) > 0;
     const busy = actionLoading[order._id];
     const amount = (order.final_amount ?? order.total_price ?? 0);
+
+    // Determine assignment type from order status
+    const isPickupOrder = order.status === "pickup_assigned";
+    const isDeliveryOrder = ["delivery_assigned", "in_transit"].includes(order.status || "");
+    const assignmentLabel = isPickupOrder ? "🧺 Pickup" : isDeliveryOrder ? "🚚 Delivery" : "";
 
     return (
       <div key={order._id} className="bg-white rounded-xl border border-gray-100 shadow-sm mb-3 overflow-hidden">
@@ -254,6 +296,9 @@ const RiderDeskDashboard: React.FC = () => {
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${RIDER_STATUS_COLORS[rs] || "bg-gray-100 text-gray-600"}`}>
                 {RIDER_STATUS_LABELS[rs] || rs}
               </span>
+              {assignmentLabel && (
+                <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">{assignmentLabel}</span>
+              )}
               {order.cod_collected && (
                 <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">COD ✓</span>
               )}
@@ -265,6 +310,18 @@ const RiderDeskDashboard: React.FC = () => {
           <span className="text-gray-400 text-xs ml-2">{expanded ? "▲" : "▼"}</span>
         </button>
 
+        {/* ── Quick Navigate bar (always visible for active orders) ── */}
+        {!isDone && order.address && (
+          <div className="px-4 pb-3">
+            <button
+              onClick={() => openMapsToAddress(order.address!, order.mapsLink)}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+            >
+              <span>🗺️</span> Navigate to {isPickupOrder ? "Customer" : isDeliveryOrder ? "Customer" : "Address"}
+            </button>
+          </div>
+        )}
+
         {expanded && (
           <div className="border-t border-gray-50 px-4 py-3 space-y-4">
             {/* ── workflow stepper ── */}
@@ -272,7 +329,7 @@ const RiderDeskDashboard: React.FC = () => {
               <div className="flex items-center gap-0 overflow-x-auto pb-1">
                 {WORKFLOW_STEPS.map((step, idx) => {
                   const stepIdx = WORKFLOW_STEPS.indexOf(rs);
-                  const isDone_ = idx < stepIdx || (idx === stepIdx && rs !== "assigned");
+                  const isDone_ = idx < stepIdx;
                   const isCurrent = step === rs;
                   return (
                     <React.Fragment key={step}>
@@ -310,12 +367,6 @@ const RiderDeskDashboard: React.FC = () => {
                   <span className="text-gray-400 mt-0.5">📍</span>
                   <span className="text-gray-700 text-xs leading-relaxed">{order.address}</span>
                 </div>
-              )}
-              {order.mapsLink && (
-                <a href={order.mapsLink} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-white bg-blue-600 px-3 py-1.5 rounded-lg font-medium">
-                  Open in Maps
-                </a>
               )}
             </div>
 
@@ -356,39 +407,57 @@ const RiderDeskDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* ── uploaded slips & images — visible to rider ── */}
+            {(hasItemsImg || hasPickupSlip || hasPaymentSS || hasVendorSlip) && (
+              <div className="space-y-2">
+                {hasItemsImg && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">📷 Order Photos (Desk)</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {(order.items_images || []).map(img => (
+                        <a key={img.file_id} href={`/api/riders/public/orders/${order._id}/slip/${img.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`/api/riders/public/orders/${order._id}/slip/${img.file_id}`} alt="item"
+                            className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {hasPickupSlip && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">🧺 Pickup Slips</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {(order.rider_pickup_slips || []).map(s => (
+                        <a key={s.file_id} href={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="slip"
+                            className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(hasPaymentSS || hasVendorSlip) && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">💳 Payment Slips</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {[...(order.rider_payment_slips || []), ...(order.vendor_payment_slips || [])].map(s => (
+                        <a key={s.file_id} href={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="payment"
+                            className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── actions (only on active orders) ── */}
             {!isDone && (
               <div className="space-y-2">
-                {/* Accept */}
-                {rs === "assigned" && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => doAction(order._id, "accept")}
-                      disabled={busy}
-                      className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-xl text-sm"
-                    >
-                      {busy ? "..." : "Accept Order"}
-                    </button>
-                    <button
-                      onClick={() => setRejectModal(order._id)}
-                      disabled={busy}
-                      className="px-4 py-3 bg-red-50 hover:bg-red-100 disabled:opacity-60 text-red-600 font-semibold rounded-xl text-sm border border-red-200"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
-
-                {/* Mark In Transit (accepted state) */}
-                {rs === "accepted" && (
+                {/* Assigned/Accepted — go to customer, upload slip, mark picked up */}
+                {["assigned", "accepted"].includes(rs) && (
                   <>
-                    <button
-                      onClick={() => markInTransit(order._id)}
-                      disabled={!!actionLoading[order._id + "_transit"]}
-                      className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold rounded-xl text-sm"
-                    >
-                      {actionLoading[order._id + "_transit"] ? "..." : "Mark In Transit (Heading to Customer)"}
-                    </button>
                     <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPickupSlip ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
                       <input type="file" accept="image/*" className="hidden"
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
@@ -396,39 +465,18 @@ const RiderDeskDashboard: React.FC = () => {
                       />
                       {uploading[order._id + "_pickup"] ? "Uploading..." : hasPickupSlip ? "✓ Slip Uploaded — Mark Picked Up" : "📷 Upload Item Slip & Mark Picked Up"}
                     </label>
+                    <button
+                      onClick={() => markInTransit(order._id)}
+                      disabled={!!actionLoading[order._id + "_transit"]}
+                      className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold rounded-xl text-sm"
+                    >
+                      {actionLoading[order._id + "_transit"] ? "..." : "🚀 Start — Heading to Customer"}
+                    </button>
                   </>
                 )}
 
-                {/* In Transit — can upload pickup slip or mark delivered */}
-                {rs === "in_transit" && (
-                  <>
-                    {/* COD collection */}
-                    {!order.cod_collected && (
-                      <button
-                        onClick={() => { setCodModal(order._id); setCodAmount(String(amount)); }}
-                        className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl text-sm"
-                      >
-                        💰 Collect COD Payment (₹{amount.toLocaleString()})
-                      </button>
-                    )}
-                    {order.cod_collected && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
-                        <span>✓</span>
-                        <span className="font-medium">COD Collected: ₹{(order.cod_amount || amount).toLocaleString()}</span>
-                      </div>
-                    )}
-                    <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPaymentSS ? "border-green-400 bg-green-50 text-green-700" : "border-orange-300 bg-orange-50 text-orange-700"}`}>
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "payment"); e.target.value = ""; }}
-                        disabled={uploading[order._id + "_payment"]}
-                      />
-                      {uploading[order._id + "_payment"] ? "Uploading..." : hasPaymentSS ? "✓ Payment SS — Mark Delivered" : "💳 Upload Payment SS & Mark Delivered"}
-                    </label>
-                  </>
-                )}
-
-                {/* Picked up — collect COD + mark delivered */}
-                {rs === "picked_up" && (
+                {/* In Transit or Picked up — collect COD + mark delivered */}
+                {["in_transit", "picked_up"].includes(rs) && (
                   <>
                     {!order.cod_collected && (
                       <button
@@ -485,19 +533,29 @@ const RiderDeskDashboard: React.FC = () => {
       </header>
 
       <main className="p-4 max-w-lg mx-auto">
-        {/* summary bar */}
+        {/* summary + route optimiser bar */}
         {activeOrders.length > 0 && (
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
-            {["assigned", "accepted", "in_transit", "picked_up"].map(s => {
-              const cnt = activeOrders.filter(o => o.riderStatus === s).length;
-              if (cnt === 0) return null;
-              return (
-                <div key={s} className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${RIDER_STATUS_COLORS[s]}`}>
-                  <span>{RIDER_STATUS_LABELS[s]}</span>
-                  <span className="font-bold">{cnt}</span>
-                </div>
-              );
-            })}
+          <div className="mb-4 space-y-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {["assigned", "accepted", "in_transit", "picked_up"].map(s => {
+                const cnt = activeOrders.filter(o => o.riderStatus === s).length;
+                if (cnt === 0) return null;
+                return (
+                  <div key={s} className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${RIDER_STATUS_COLORS[s]}`}>
+                    <span>{RIDER_STATUS_LABELS[s]}</span>
+                    <span className="font-bold">{cnt}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {activeOrders.length >= 2 && (
+              <button
+                onClick={() => openOptimizedRoute(activeOrders)}
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                🗺️ Optimize Route for All {activeOrders.length} Orders
+              </button>
+            )}
           </div>
         )}
 
@@ -524,33 +582,6 @@ const RiderDeskDashboard: React.FC = () => {
           </>
         )}
       </main>
-
-      {/* ── Reject confirmation modal ── */}
-      {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-            <h3 className="font-bold text-gray-900 mb-2">Reject Order?</h3>
-            <p className="text-sm text-gray-500 mb-5">
-              This will unassign you from the order and notify the vendor. Are you sure?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setRejectModal(null)}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-700 rounded-xl font-medium text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { doAction(rejectModal, "reject"); setRejectModal(null); }}
-                disabled={actionLoading[rejectModal]}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm"
-              >
-                {actionLoading[rejectModal] ? "..." : "Reject Order"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── COD Collection modal ── */}
       {codModal && (
