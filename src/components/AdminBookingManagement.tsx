@@ -104,6 +104,16 @@ interface Booking {
     filename: string;
     uploaded_at: string;
   }>;
+  rider_pickup_slips?: Array<{
+    file_id: string;
+    filename: string;
+    uploaded_at?: string;
+  }>;
+  rider_payment_slips?: Array<{
+    file_id: string;
+    filename: string;
+    uploaded_at?: string;
+  }>;
 }
 
 const ORDER_FLOW_STEPS = [
@@ -2189,8 +2199,63 @@ const AdminBookingManagement: React.FC = () => {
                       <span className="font-medium">{viewingBooking.wallet_cashback}% = ₹{((viewingBooking.final_amount || 0) * viewingBooking.wallet_cashback / 100).toFixed(2)}</span>
                     </div>
                   )}
+                  {(viewingBooking.wallet_applied || 0) > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Wallet Applied:</span>
+                      <span>-₹{viewingBooking.wallet_applied}</span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Rider Slips & Payment Screenshots */}
+              {((viewingBooking.rider_pickup_slips?.length ?? 0) > 0 || (viewingBooking.rider_payment_slips?.length ?? 0) > 0) && (
+                <div className="border-t pt-4">
+                  <h4 className="mb-3 font-semibold text-gray-800">📸 Rider Uploads</h4>
+                  {(viewingBooking.rider_pickup_slips?.length ?? 0) > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-indigo-600 mb-2">🧾 Pickup Slip</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {viewingBooking.rider_pickup_slips!.map((slip) => (
+                          <a
+                            key={slip.file_id}
+                            href={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <img
+                              src={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                              alt="pickup slip"
+                              className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(viewingBooking.rider_payment_slips?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-green-600 mb-2">💳 Payment Screenshot</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {viewingBooking.rider_payment_slips!.map((slip) => (
+                          <a
+                            key={slip.file_id}
+                            href={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <img
+                              src={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                              alt="payment screenshot"
+                              className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

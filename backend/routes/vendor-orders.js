@@ -569,4 +569,110 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
   }
 });
 
+// ─── GET customer wallet balance for an order ─────────────────────────────────
+
+router.get("/orders/:orderId/customer-wallet", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name })
+      .select("phone customer_id customer_phone name customer_name");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    const User = require("../models/User");
+    const phone = order.phone || order.customer_phone;
+    let user = null;
+
+    if (order.customer_id && mongoose.Types.ObjectId.isValid(order.customer_id)) {
+      user = await User.findById(order.customer_id).select("wallet_balance name phone");
+    }
+    if (!user && phone) {
+      user = await User.findOne({ phone }).select("wallet_balance name phone");
+    }
+
+    res.json({
+      success: true,
+      wallet_balance: user?.wallet_balance || 0,
+      customer_name: user?.name || order.name || order.customer_name || "",
+    });
+  } catch (error) {
+    console.error("❌ Error fetching customer wallet:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── PUT save cart + move order to Processing ─────────────────────────────────
+
+router.put("/orders/:orderId/save-cart", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { item_prices, wallet_applied, discount_amount } = req.body;
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    if (!["pickup_assigned", "pickup_completed", "created", "vendor_assigned", "in_progress"].includes(order.status)) {
+      return res.status(400).json({ error: `Cannot edit cart from status: ${order.status}` });
+    }
+
+    const now = indianNow();
+
+    // Update items
+    if (item_prices && Array.isArray(item_prices)) {
+      order.item_prices = item_prices.map((item) => ({
+        service_name: item.service_name || "",
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price || 0,
+        total_price: item.total_price || (item.quantity || 1) * (item.unit_price || 0),
+      }));
+      order.total_price = order.item_prices.reduce((s, i) => s + i.total_price, 0);
+    }
+
+    if (discount_amount !== undefined) order.discount_amount = discount_amount || 0;
+
+    const walletAmt = wallet_applied || 0;
+    if (walletAmt > 0) {
+      // Deduct wallet from customer
+      const User = require("../models/User");
+      const phone = order.phone || order.customer_phone;
+      let user = null;
+      if (order.customer_id && mongoose.Types.ObjectId.isValid(order.customer_id)) {
+        user = await User.findById(order.customer_id);
+      }
+      if (!user && phone) {
+        user = await User.findOne({ phone });
+      }
+      if (user) {
+        const deductAmt = Math.min(walletAmt, user.wallet_balance || 0);
+        if (deductAmt > 0) {
+          user.wallet_balance = (user.wallet_balance || 0) - deductAmt;
+          user.wallet_transactions = user.wallet_transactions || [];
+          user.wallet_transactions.push({
+            type: "debit",
+            amount: deductAmt,
+            description: `Applied to order ${order.custom_order_id || order._id}`,
+            booking_id: order._id,
+            created_at: now,
+          });
+          await user.save();
+          order.cashback = deductAmt;
+          order.wallet_applied = deductAmt;
+        }
+      }
+    }
+
+    order.final_amount = Math.max(0, (order.total_price || 0) - (order.discount_amount || 0) - (order.wallet_applied || 0));
+    order.updated_at = now;
+
+    // Move to in_progress (Processing)
+    order.status = "in_progress";
+    order.status_history.push({ status: "in_progress", changed_at: now, changed_by: "vendor", vendor_id: req.vendor_id });
+
+    await order.save();
+    res.json({ success: true, message: "Cart saved and order moved to Processing", order });
+  } catch (error) {
+    console.error("❌ Error saving cart:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;

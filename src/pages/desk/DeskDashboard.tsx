@@ -48,6 +48,13 @@ interface Order {
   item_prices?: { service_name: string; quantity: number; unit_price: number; total_price: number }[];
   items_images?: { file_id: string; filename: string }[];
   vendor_payment_slips?: { file_id: string; filename: string }[];
+  rider_pickup_slips?: { file_id: string; filename: string; uploaded_at?: string }[];
+  rider_payment_slips?: { file_id: string; filename: string; uploaded_at?: string }[];
+  discount_amount?: number;
+  cashback?: number;
+  wallet_applied?: number;
+  customer_id?: string;
+  phone?: string;
   isPGOrder?: boolean;
   pg_name?: string;
   no_of_items?: number;
@@ -134,6 +141,8 @@ function statusBadge(status?: string) {
 
 type SectionKey = "created" | "picked_up" | "processing" | "ready_for_delivery" | "delivered" | "completed" | "cancelled";
 
+interface CartItem { service_name: string; quantity: number; unit_price: number; total_price: number; }
+
 const SECTION_CONFIG: { key: SectionKey; label: string; icon: string; color: string }[] = [
   { key: "created",           label: "Created",    icon: "🆕", color: "text-blue-600" },
   { key: "picked_up",         label: "Picked Up",  icon: "🧺", color: "text-indigo-600" },
@@ -183,6 +192,16 @@ const DeskDashboard: React.FC = () => {
   const [assignModal, setAssignModal] = useState<{ orderId: string; orderLabel: string; type: "pickup" | "delivery" } | null>(null);
   const [assigningRiderId, setAssigningRiderId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
+
+  // Cart editor state (for picked_up section)
+  const [cartEditing, setCartEditing] = useState<{
+    orderId: string;
+    items: CartItem[];
+    walletBalance: number;
+    walletApplied: number;
+    discountAmount: number;
+    saving: boolean;
+  } | null>(null);
 
   // Rider management
   const [riderForm, setRiderForm] = useState({ name: "", phone: "", live_location_link: "" });
@@ -370,6 +389,74 @@ const DeskDashboard: React.FC = () => {
     finally { setUploading(u => ({ ...u, [orderId + "_pay"]: false })); }
   };
 
+  // ── cart editor ──
+  const openCartEditor = async (order: Order) => {
+    const existingItems = (order.item_prices || []).map(i => ({ ...i }));
+    setCartEditing({
+      orderId: order._id,
+      items: existingItems.length > 0 ? existingItems : [{ service_name: "", quantity: 1, unit_price: 0, total_price: 0 }],
+      walletBalance: 0,
+      walletApplied: order.wallet_applied || 0,
+      discountAmount: order.discount_amount || 0,
+      saving: false,
+    });
+    // Fetch wallet balance
+    try {
+      const res = await fetch(`${API}/orders/${order._id}/customer-wallet`, { headers: authHeaders(token) });
+      if (res.ok) {
+        const data = await res.json();
+        setCartEditing(prev => prev ? { ...prev, walletBalance: data.wallet_balance || 0 } : prev);
+      }
+    } catch { /* silent */ }
+  };
+
+  const updateCartItem = (index: number, field: string, value: string | number) => {
+    setCartEditing(prev => {
+      if (!prev) return prev;
+      const items = prev.items.map((it, i) => {
+        if (i !== index) return it;
+        const updated = { ...it, [field]: value };
+        updated.total_price = (updated.quantity || 0) * (updated.unit_price || 0);
+        return updated;
+      });
+      return { ...prev, items };
+    });
+  };
+
+  const addCartItem = () => {
+    setCartEditing(prev => prev ? { ...prev, items: [...prev.items, { service_name: "", quantity: 1, unit_price: 0, total_price: 0 }] } : prev);
+  };
+
+  const removeCartItem = (index: number) => {
+    setCartEditing(prev => {
+      if (!prev) return prev;
+      const items = prev.items.filter((_, i) => i !== index);
+      return { ...prev, items: items.length > 0 ? items : [{ service_name: "", quantity: 1, unit_price: 0, total_price: 0 }] };
+    });
+  };
+
+  const saveCartAndProcess = async () => {
+    if (!cartEditing) return;
+    setCartEditing(prev => prev ? { ...prev, saving: true } : prev);
+    try {
+      const res = await fetch(`${API}/orders/${cartEditing.orderId}/save-cart`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify({
+          item_prices: cartEditing.items,
+          wallet_applied: cartEditing.walletApplied,
+          discount_amount: cartEditing.discountAmount,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed to save cart"); return; }
+      toast.success("Cart saved — order moved to Processing");
+      setCartEditing(null);
+      fetchDashboard();
+    } catch { toast.error("Network error"); }
+    finally { setCartEditing(prev => prev ? { ...prev, saving: false } : prev); }
+  };
+
   // ── rider management ──
   const handleCreateRider = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -453,9 +540,37 @@ const DeskDashboard: React.FC = () => {
   const renderImages = (order: Order) => {
     const itemImgs = order.items_images || [];
     const paySlips = order.vendor_payment_slips || [];
-    if (itemImgs.length === 0 && paySlips.length === 0) return null;
+    const riderPickupSlips = order.rider_pickup_slips || [];
+    const riderPaySlips = order.rider_payment_slips || [];
+    if (itemImgs.length === 0 && paySlips.length === 0 && riderPickupSlips.length === 0 && riderPaySlips.length === 0) return null;
     return (
       <div className="space-y-2">
+        {riderPickupSlips.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-indigo-600 mb-1">🧾 Rider Pickup Slip</p>
+            <div className="flex gap-2 flex-wrap">
+              {riderPickupSlips.map((slip) => (
+                <a key={slip.file_id} href={riderSlipUrl(order._id, slip.file_id)} target="_blank" rel="noreferrer">
+                  <img src={riderSlipUrl(order._id, slip.file_id)} alt="pickup slip"
+                    className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        {riderPaySlips.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-green-600 mb-1">💳 Rider Payment SS</p>
+            <div className="flex gap-2 flex-wrap">
+              {riderPaySlips.map((slip) => (
+                <a key={slip.file_id} href={riderSlipUrl(order._id, slip.file_id)} target="_blank" rel="noreferrer">
+                  <img src={riderSlipUrl(order._id, slip.file_id)} alt="payment ss"
+                    className="w-20 h-20 object-cover rounded-lg border-2 border-green-200 hover:opacity-80" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         {itemImgs.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-gray-500 mb-1">📷 Item Photos</p>
@@ -492,6 +607,8 @@ const DeskDashboard: React.FC = () => {
     const expanded = expandedId === order._id;
     const hasItemsImg = (order.items_images?.length ?? 0) > 0;
     const hasPaySS = (order.vendor_payment_slips?.length ?? 0) > 0;
+    const hasRiderSlip = (order.rider_pickup_slips?.length ?? 0) > 0;
+    const isCartEditing = cartEditing?.orderId === order._id;
     const riderName = getRiderName(order);
     const riderLocation = getRiderLocation(order);
     const isBreach = order._breach;
@@ -521,6 +638,7 @@ const DeskDashboard: React.FC = () => {
               {isBreach && (
                 <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">⚠ BREACH</span>
               )}
+              {hasRiderSlip && <span className="text-xs text-indigo-400">🧾</span>}
               {hasItemsImg && <span className="text-xs text-gray-400">📷</span>}
               {hasPaySS && <span className="text-xs text-gray-400">💳</span>}
             </div>
@@ -659,7 +777,7 @@ const DeskDashboard: React.FC = () => {
                 </>
               )}
 
-              {/* PICKED UP section: can also upload order photo if not done */}
+              {/* PICKED UP section: view rider slip + cart editor + wallet */}
               {isPickedUp && !order.isPGOrder && (
                 <>
                   {riderName && (
@@ -668,27 +786,212 @@ const DeskDashboard: React.FC = () => {
                       <span>Pickup Rider: <strong>{riderName}</strong></span>
                     </div>
                   )}
-                  {!hasItemsImg && (
-                    <label className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium cursor-pointer border-2 border-dashed border-indigo-300 bg-indigo-50 text-indigo-700">
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsImage(order._id, f); e.target.value = ""; }}
-                        disabled={uploading[order._id + "_items"]}
-                      />
-                      {uploading[order._id + "_items"] ? "Uploading..." : "📷 Upload Order Photo"}
-                    </label>
+
+                  {/* Rider uploaded pickup slip preview */}
+                  {hasRiderSlip && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-indigo-700 mb-2">🧾 Rider Pickup Slip</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {(order.rider_pickup_slips || []).map((slip) => (
+                          <a key={slip.file_id} href={riderSlipUrl(order._id, slip.file_id)} target="_blank" rel="noreferrer">
+                            <img src={riderSlipUrl(order._id, slip.file_id)} alt="slip"
+                              className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-300 hover:opacity-80" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cart editor or open button */}
+                  {!isCartEditing ? (
+                    <button
+                      onClick={() => openCartEditor(order)}
+                      className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold"
+                    >
+                      🛒 {(order.item_prices?.length ?? 0) > 0 ? "Edit Cart & Move to Processing" : "Create Cart & Move to Processing"}
+                    </button>
+                  ) : (
+                    <div className="border border-indigo-200 rounded-xl overflow-hidden">
+                      <div className="bg-indigo-600 px-4 py-2 flex items-center justify-between">
+                        <p className="text-white text-sm font-semibold">🛒 Cart Editor</p>
+                        <button onClick={() => setCartEditing(null)} className="text-indigo-200 text-lg leading-none">&times;</button>
+                      </div>
+                      <div className="p-3 space-y-2 bg-white">
+                        {/* Items list */}
+                        {cartEditing.items.map((item, i) => (
+                          <div key={i} className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              placeholder="Item name"
+                              value={item.service_name}
+                              onChange={e => updateCartItem(i, "service_name", e.target.value)}
+                              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            />
+                            <input
+                              type="number"
+                              placeholder="Qty"
+                              min="1"
+                              value={item.quantity}
+                              onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
+                              className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            />
+                            <input
+                              type="number"
+                              placeholder="Price"
+                              min="0"
+                              value={item.unit_price}
+                              onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
+                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            />
+                            <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
+                            <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                          </div>
+                        ))}
+                        <button onClick={addCartItem}
+                          className="w-full py-1.5 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 font-medium hover:bg-indigo-50">
+                          + Add Item
+                        </button>
+
+                        {/* Totals */}
+                        <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-xs mt-1">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Subtotal</span>
+                            <span className="font-medium">₹{cartEditing.items.reduce((s, i) => s + i.total_price, 0)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500">Discount (₹)</span>
+                            <input
+                              type="number" min="0" placeholder="0"
+                              value={cartEditing.discountAmount || ""}
+                              onChange={e => setCartEditing(prev => prev ? { ...prev, discountAmount: Number(e.target.value) } : prev)}
+                              className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            />
+                          </div>
+                          {/* Wallet */}
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500">
+                              Wallet
+                              {cartEditing.walletBalance > 0 && (
+                                <span className="ml-1 text-green-600 font-semibold">(Bal: ₹{cartEditing.walletBalance})</span>
+                              )}
+                            </span>
+                            <input
+                              type="number" min="0" max={cartEditing.walletBalance} placeholder="0"
+                              value={cartEditing.walletApplied || ""}
+                              onChange={e => setCartEditing(prev => prev ? { ...prev, walletApplied: Math.min(Number(e.target.value), prev.walletBalance) } : prev)}
+                              className="w-20 px-2 py-1 border border-green-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                            />
+                          </div>
+                          {cartEditing.walletBalance > 0 && (
+                            <button
+                              onClick={() => setCartEditing(prev => prev ? { ...prev, walletApplied: prev.walletBalance } : prev)}
+                              className="text-xs text-green-600 underline"
+                            >
+                              Use full wallet (₹{cartEditing.walletBalance})
+                            </button>
+                          )}
+                          <div className="flex justify-between font-bold border-t border-gray-200 pt-1.5">
+                            <span>Final Amount</span>
+                            <span className="text-indigo-700">
+                              ₹{Math.max(0,
+                                cartEditing.items.reduce((s, i) => s + i.total_price, 0)
+                                - (cartEditing.discountAmount || 0)
+                                - (cartEditing.walletApplied || 0)
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={saveCartAndProcess}
+                          disabled={cartEditing.saving || cartEditing.items.every(i => !i.service_name)}
+                          className="w-full py-2.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold"
+                        >
+                          {cartEditing.saving ? "Saving..." : "✅ Save Cart & Move to Processing"}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}
 
-              {/* PROCESSING section: mark ready for delivery */}
+              {/* PROCESSING section: edit cart + mark ready for delivery */}
               {isProcessing && (
-                <button
-                  onClick={() => markReady(order._id)}
-                  disabled={loading}
-                  className="w-full py-2.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold"
-                >
-                  ✅ Mark Ready for Delivery
-                </button>
+                <>
+                  {!isCartEditing ? (
+                    <button
+                      onClick={() => openCartEditor(order)}
+                      className="w-full py-2 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-700 text-sm font-medium"
+                    >
+                      🛒 Edit Cart
+                    </button>
+                  ) : (
+                    <div className="border border-indigo-200 rounded-xl overflow-hidden">
+                      <div className="bg-indigo-600 px-4 py-2 flex items-center justify-between">
+                        <p className="text-white text-sm font-semibold">🛒 Cart Editor</p>
+                        <button onClick={() => setCartEditing(null)} className="text-indigo-200 text-lg leading-none">&times;</button>
+                      </div>
+                      <div className="p-3 space-y-2 bg-white">
+                        {cartEditing.items.map((item, i) => (
+                          <div key={i} className="flex gap-2 items-center">
+                            <input type="text" placeholder="Item name" value={item.service_name}
+                              onChange={e => updateCartItem(i, "service_name", e.target.value)}
+                              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                            <input type="number" placeholder="Qty" min="1" value={item.quantity}
+                              onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
+                              className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                            <input type="number" placeholder="Price" min="0" value={item.unit_price}
+                              onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
+                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                            <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
+                            <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                          </div>
+                        ))}
+                        <button onClick={addCartItem}
+                          className="w-full py-1.5 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 font-medium hover:bg-indigo-50">
+                          + Add Item
+                        </button>
+                        <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-xs mt-1">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Subtotal</span>
+                            <span className="font-medium">₹{cartEditing.items.reduce((s, i) => s + i.total_price, 0)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500">Discount (₹)</span>
+                            <input type="number" min="0" placeholder="0" value={cartEditing.discountAmount || ""}
+                              onChange={e => setCartEditing(prev => prev ? { ...prev, discountAmount: Number(e.target.value) } : prev)}
+                              className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500">Wallet{cartEditing.walletBalance > 0 && <span className="ml-1 text-green-600 font-semibold">(Bal: ₹{cartEditing.walletBalance})</span>}</span>
+                            <input type="number" min="0" max={cartEditing.walletBalance} placeholder="0" value={cartEditing.walletApplied || ""}
+                              onChange={e => setCartEditing(prev => prev ? { ...prev, walletApplied: Math.min(Number(e.target.value), prev.walletBalance) } : prev)}
+                              className="w-20 px-2 py-1 border border-green-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-green-400" />
+                          </div>
+                          {cartEditing.walletBalance > 0 && (
+                            <button onClick={() => setCartEditing(prev => prev ? { ...prev, walletApplied: prev.walletBalance } : prev)}
+                              className="text-xs text-green-600 underline">Use full wallet (₹{cartEditing.walletBalance})</button>
+                          )}
+                          <div className="flex justify-between font-bold border-t border-gray-200 pt-1.5">
+                            <span>Final Amount</span>
+                            <span className="text-indigo-700">₹{Math.max(0, cartEditing.items.reduce((s, i) => s + i.total_price, 0) - (cartEditing.discountAmount || 0) - (cartEditing.walletApplied || 0))}</span>
+                          </div>
+                        </div>
+                        <button onClick={saveCartAndProcess} disabled={cartEditing.saving || cartEditing.items.every(i => !i.service_name)}
+                          className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold">
+                          {cartEditing.saving ? "Saving..." : "💾 Save Cart"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => markReady(order._id)}
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold"
+                  >
+                    ✅ Mark Ready for Delivery
+                  </button>
+                </>
               )}
 
               {/* READY FOR DELIVERY section: assign delivery rider */}
