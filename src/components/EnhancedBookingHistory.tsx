@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
@@ -86,6 +88,11 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
     const [contactBookingId, setContactBookingId] = useState<string | null>(
       null,
     );
+    const [showDeliveryEditDialog, setShowDeliveryEditDialog] = useState(false);
+    const [deliveryEditBooking, setDeliveryEditBooking] = useState<any>(null);
+    const [deliveryEditDate, setDeliveryEditDate] = useState("");
+    const [deliveryEditTime, setDeliveryEditTime] = useState("");
+    const [savingDelivery, setSavingDelivery] = useState(false);
 
     // ... (keeping all the existing methods unchanged) ...
     const loadBookings = async (forceRefresh = false) => {
@@ -651,6 +658,104 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
     const handleContactSupport = (bookingId: string) => {
       setContactBookingId(bookingId);
       setShowContactDialog(true);
+    };
+
+    const canEditDelivery = (booking: any) => {
+      const status = booking.status?.toLowerCase();
+      return (
+        status === "ready_for_delivery" ||
+        status === "ready-for-delivery" ||
+        status === "pickup_completed" ||
+        status === "pickup-completed" ||
+        status === "delivered_to_vendor" ||
+        status === "delivered-to-vendor" ||
+        status === "in_progress" ||
+        status === "in-progress" ||
+        status === "pending" ||
+        status === "confirmed" ||
+        status === "created"
+      );
+    };
+
+    const handleEditDelivery = (booking: any) => {
+      const bookingId = booking.id || booking._id;
+      setDeliveryEditBooking(booking);
+      // Pre-fill current delivery date/time
+      const currentDate = booking.deliveryDate || booking.delivery_date || "";
+      const currentTime = booking.deliveryTime || booking.delivery_time || "";
+      try {
+        if (currentDate) {
+          const d = new Date(currentDate);
+          if (!isNaN(d.getTime())) {
+            setDeliveryEditDate(d.toISOString().split("T")[0]);
+          } else {
+            setDeliveryEditDate("");
+          }
+        } else {
+          setDeliveryEditDate("");
+        }
+      } catch {
+        setDeliveryEditDate("");
+      }
+      setDeliveryEditTime(currentTime);
+      setShowDeliveryEditDialog(true);
+    };
+
+    const handleSaveDelivery = async () => {
+      if (!deliveryEditBooking) return;
+      if (!deliveryEditDate || !deliveryEditTime) {
+        addNotification(
+          createWarningNotification("Missing Info", "Please select both delivery date and time."),
+        );
+        return;
+      }
+
+      setSavingDelivery(true);
+      try {
+        const bookingId = deliveryEditBooking.id || deliveryEditBooking._id;
+        const bookingService = BookingService.getInstance();
+        const result = await bookingService.updateBooking(bookingId, {
+          delivery_date: deliveryEditDate,
+          deliveryDate: deliveryEditDate,
+          delivery_time: deliveryEditTime,
+          deliveryTime: deliveryEditTime,
+        });
+
+        if (result.success) {
+          // Update local state
+          setBookings((prev) =>
+            prev.map((b: any) => {
+              const bId = b.id || b._id;
+              if (bId === bookingId || String(bId) === String(bookingId)) {
+                return {
+                  ...b,
+                  deliveryDate: deliveryEditDate,
+                  delivery_date: deliveryEditDate,
+                  deliveryTime: deliveryEditTime,
+                  delivery_time: deliveryEditTime,
+                };
+              }
+              return b;
+            }),
+          );
+          setShowDeliveryEditDialog(false);
+          setDeliveryEditBooking(null);
+          addNotification(
+            createSuccessNotification("Updated", "Delivery date and time updated successfully."),
+          );
+        } else {
+          addNotification(
+            createErrorNotification("Update Failed", result.error || "Failed to update delivery schedule."),
+          );
+        }
+      } catch (error) {
+        console.error("Error updating delivery:", error);
+        addNotification(
+          createErrorNotification("Update Failed", "Network error. Please try again."),
+        );
+      } finally {
+        setSavingDelivery(false);
+      }
     };
 
     const formatDate = (dateStr: string) => {
@@ -1357,6 +1462,22 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                         <div className="space-y-2 pt-2 border-t">
                           {hasRealId ? (
                             <>
+                              {/* Edit Delivery Date/Time */}
+                              {canEditDelivery(booking) && (
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditDelivery(booking);
+                                  }}
+                                  variant="outline"
+                                  className="w-full text-xs py-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+                                  size="sm"
+                                >
+                                  <Edit className="h-3 w-3 mr-1" />
+                                  Edit Delivery Date & Time
+                                </Button>
+                              )}
+
                               <div className="grid grid-cols-1 gap-2">
                                 {canCancelBooking(booking) && (
                                   <AlertDialog>
@@ -1507,6 +1628,101 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
               >
                 <Phone className="h-4 w-4 mr-2" />
                 Call Now
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Delivery Date/Time Dialog */}
+        <Dialog open={showDeliveryEditDialog} onOpenChange={setShowDeliveryEditDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-blue-600" />
+                Edit Delivery Schedule
+              </DialogTitle>
+              <DialogDescription>
+                Update your preferred delivery date and time
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="delivery-date">Delivery Date</Label>
+                <Input
+                  id="delivery-date"
+                  type="date"
+                  value={deliveryEditDate}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setDeliveryEditDate(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="delivery-time">Delivery Time</Label>
+                <select
+                  id="delivery-time"
+                  value={deliveryEditTime}
+                  onChange={(e) => setDeliveryEditTime(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Select time slot</option>
+                  <option value="8:00 AM - 9:00 AM">8:00 AM - 9:00 AM</option>
+                  <option value="9:00 AM - 10:00 AM">9:00 AM - 10:00 AM</option>
+                  <option value="10:00 AM - 11:00 AM">10:00 AM - 11:00 AM</option>
+                  <option value="11:00 AM - 12:00 PM">11:00 AM - 12:00 PM</option>
+                  <option value="12:00 PM - 1:00 PM">12:00 PM - 1:00 PM</option>
+                  <option value="1:00 PM - 2:00 PM">1:00 PM - 2:00 PM</option>
+                  <option value="2:00 PM - 3:00 PM">2:00 PM - 3:00 PM</option>
+                  <option value="3:00 PM - 4:00 PM">3:00 PM - 4:00 PM</option>
+                  <option value="4:00 PM - 5:00 PM">4:00 PM - 5:00 PM</option>
+                  <option value="5:00 PM - 6:00 PM">5:00 PM - 6:00 PM</option>
+                  <option value="6:00 PM - 7:00 PM">6:00 PM - 7:00 PM</option>
+                  <option value="7:00 PM - 8:00 PM">7:00 PM - 8:00 PM</option>
+                  <option value="8:00 PM - 9:00 PM">8:00 PM - 9:00 PM</option>
+                </select>
+              </div>
+
+              {deliveryEditDate && deliveryEditTime && (
+                <div className="p-3 bg-blue-50 rounded-lg text-sm">
+                  <p className="text-blue-800 font-medium">Your delivery will be scheduled for:</p>
+                  <p className="text-blue-700 mt-1">
+                    {new Date(deliveryEditDate + 'T00:00:00').toLocaleDateString("en-IN", {
+                      weekday: "long", year: "numeric", month: "long", day: "numeric"
+                    })} at {deliveryEditTime}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeliveryEditDialog(false);
+                  setDeliveryEditBooking(null);
+                }}
+                disabled={savingDelivery}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveDelivery}
+                disabled={savingDelivery || !deliveryEditDate || !deliveryEditTime}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {savingDelivery ? (
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </div>
+                ) : (
+                  <>
+                    <Clock className="h-4 w-4 mr-2" />
+                    Save Delivery Schedule
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

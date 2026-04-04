@@ -6,7 +6,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import SimpleReferModal from "./SimpleReferModal";
-import { UserService } from "@/services/userService";
+import { DVHostingSmsService } from "@/services/dvhostingSmsService";
+import { getApiUrl } from "@/config/env";
 
 interface ReferralModalProps {
   isOpen: boolean;
@@ -23,28 +24,45 @@ const ReferralModal: React.FC<ReferralModalProps> = ({
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
-    // Refresh user data if referral code is missing
+    // Always refresh user data from backend when modal opens
+    // This ensures has_completed_first_order and referral_code are up to date
     const refreshUserData = async () => {
-      if (isOpen && initialUser?.phone && !initialUser?.referral_code) {
+      if (isOpen && initialUser?.phone) {
         setIsLoading(true);
         try {
-          const userService = UserService.getInstance();
-          const freshUser = await userService.getUser(initialUser.phone);
-          if (freshUser) {
-            setUser(freshUser);
+          const apiBaseUrl = getApiUrl();
+          const cleanPhone = initialUser.phone.replace(/\D/g, '').slice(-10);
+          const response = await fetch(`${apiBaseUrl}/auth/get-user-by-phone`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: cleanPhone }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.user) {
+              setUser(result.user);
+              // Also update localStorage so the rest of the app sees the fresh data
+              const dvService = DVHostingSmsService.getInstance();
+              const updatedUser = { ...initialUser, ...result.user };
+              dvService.setCurrentUser(updatedUser);
+            } else {
+              setUser(initialUser);
+            }
+          } else {
+            setUser(initialUser);
           }
         } catch (error) {
-          console.error("Failed to refresh user for referral code:", error);
+          console.error("Failed to refresh user for referral:", error);
+          setUser(initialUser);
         } finally {
           setIsLoading(false);
         }
-      } else if (isOpen) {
-        setUser(initialUser);
       }
     };
 
     refreshUserData();
-  }, [isOpen, initialUser]);
+  }, [isOpen, initialUser?.phone]);
 
   if (!isOpen) return null;
 

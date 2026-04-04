@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getApiUrl } from "@/config/env";
 
 const RiderDeskLogin: React.FC = () => {
   const [phone, setPhone] = useState("");
@@ -18,7 +19,7 @@ const RiderDeskLogin: React.FC = () => {
     if (!phone || !password) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/riders/desk-login", {
+      const res = await fetch(`${getApiUrl()}/riders/desk-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: phone.trim(), password }),

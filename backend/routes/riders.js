@@ -719,22 +719,36 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
 
     console.log(`👤 Rider ID: ${riderId}`);
 
+    // Show orders from last 30 days (active + recently completed) so rider sees full daily view
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
     const [regularOrders, quickPickups] = await Promise.all([
-      // Regular bookings assigned to this rider
+      // All bookings assigned to this rider (last 30 days, excluding cancelled)
       Booking.find({
         assignedRider: riderId,
-        riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] }
+        riderStatus: { $nin: ['cancelled'] },
+        $or: [
+          { assignedAt: { $gte: thirtyDaysAgo } },
+          { scheduled_date: { $gte: thirtyDaysAgo.toISOString().split('T')[0] } },
+          { riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] } }
+        ]
       })
       .populate('customer_id', 'name phone')
-      .sort({ assignedAt: -1 }),
+      .sort({ assignedAt: -1 })
+      .limit(100),
 
-      // Quick pickups assigned to this rider
+      // Quick pickups assigned to this rider (last 30 days)
       QuickPickup.find({
         rider_id: riderId,
-        status: { $in: ['assigned', 'accepted', 'picked_up'] }
+        status: { $nin: ['cancelled'] },
+        $or: [
+          { createdAt: { $gte: thirtyDaysAgo } },
+          { status: { $in: ['assigned', 'accepted', 'picked_up'] } }
+        ]
       })
       .populate('customer_id', 'name phone')
       .sort({ createdAt: -1 })
+      .limit(50)
     ]);
 
     console.log(`📦 Found ${regularOrders.length} bookings and ${quickPickups.length} quick pickups for rider ${riderId}`);
@@ -746,7 +760,14 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       customerName: order.name || order.customer_id?.name,
       customerPhone: order.phone || order.customer_id?.phone,
       address: order.address,
-      pickupTime: `${order.scheduled_date} ${order.scheduled_time}`,
+      coordinates: order.coordinates || null,
+      pickupTime: [order.scheduled_date, order.scheduled_time].filter(Boolean).join(' '),
+      scheduled_date: order.scheduled_date,
+      scheduled_time: order.scheduled_time,
+      deliveryTime: [order.delivery_date, order.delivery_time].filter(Boolean).join(' ') || 'TBD',
+      delivery_date: order.delivery_date,
+      delivery_time: order.delivery_time,
+      status: order.status,
       type: 'Regular',
       riderStatus: order.riderStatus,
       assignedAt: order.assignedAt,
@@ -762,7 +783,12 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       customerName: qp.customer_name || qp.customer_id?.name,
       customerPhone: qp.customer_phone || qp.customer_id?.phone,
       address: qp.address,
-      pickupTime: `${qp.pickup_date} ${qp.pickup_time}`,
+      coordinates: qp.coordinates || null,
+      pickupTime: [qp.pickup_date, qp.pickup_time].filter(Boolean).join(' '),
+      scheduled_date: qp.pickup_date,
+      scheduled_time: qp.pickup_time,
+      deliveryTime: 'Same Day',
+      status: qp.status,
       type: 'Quick Pickup',
       riderStatus: qp.status === 'assigned' ? 'assigned' : qp.status,
       assignedAt: qp.createdAt,
@@ -2212,18 +2238,53 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
 
     await booking.save();
 
-    // Optionally create a notification for the customer about status change
+    // Create notification for the customer about status change + push notification
     try {
       const Notification = require('../models/Notification');
       if (booking.customer_id) {
-        await Notification.create({
+        // Build status-specific notification content
+        let notifTitle = 'Order status updated';
+        let notifMessage = `Your order ${booking.custom_order_id || booking._id} status changed to ${booking.status}`;
+
+        const orderRef = booking.custom_order_id || booking._id;
+        switch (booking.status) {
+          case 'ready_for_delivery':
+            notifTitle = 'Your clothes are ready for delivery!';
+            notifMessage = `Great news! Order #${orderRef} is ready and will be delivered soon. You can edit your preferred delivery time from My Orders.`;
+            break;
+          case 'pickup_assigned':
+            notifTitle = 'Rider assigned for pickup';
+            notifMessage = `A rider has been assigned to pick up your order #${orderRef}.`;
+            break;
+          case 'pickup_completed':
+            notifTitle = 'Pickup completed';
+            notifMessage = `Your order #${orderRef} has been picked up and is being processed.`;
+            break;
+          case 'delivery_assigned':
+            notifTitle = 'Out for delivery';
+            notifMessage = `Your order #${orderRef} is out for delivery! It will reach you soon.`;
+            break;
+          case 'completed':
+            notifTitle = 'Order delivered';
+            notifMessage = `Your order #${orderRef} has been delivered successfully. Thank you!`;
+            break;
+        }
+
+        const notification = await Notification.create({
           user_id: booking.customer_id,
-          title: 'Order status updated',
-          message: `Your order ${booking.custom_order_id || booking._id} status changed to ${booking.status}`,
+          title: notifTitle,
+          message: notifMessage,
           type: 'booking_status',
           data: { bookingId: booking._id, status: booking.status },
           related_order: booking._id,
         });
+
+        // Send push notification via FCM
+        try {
+          await notificationService.sendPushNotification(booking.customer_id, notification);
+        } catch (pushErr) {
+          console.warn('⚠️ Push notification failed (non-critical):', pushErr.message);
+        }
       }
     } catch (notifErr) {
       console.warn('⚠️ Failed to create customer notification for status update', notifErr.message);

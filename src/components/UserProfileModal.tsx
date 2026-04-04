@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { User, Phone, Edit3, Save, X, Wallet, RefreshCw, TrendingUp, TrendingDown, Loader } from "lucide-react";
+import { User, Phone, Edit3, Save, X, Wallet, RefreshCw, TrendingUp, TrendingDown, Loader, CheckCircle } from "lucide-react";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { walletService, type WalletTransaction } from "@/services/walletService";
 import { toast } from "sonner";
@@ -40,6 +40,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     name: currentUser?.name || currentUser?.full_name || "",
     phone: currentUser?.phone || "",
   });
+
+  // Reset form data when modal opens with new user
+  useEffect(() => {
+    if (isOpen && currentUser) {
+      setFormData({
+        name: currentUser?.name || currentUser?.full_name || "",
+        phone: currentUser?.phone || "",
+      });
+      setIsEditing(false);
+      setActiveTab("profile");
+    }
+  }, [isOpen, currentUser?._id, currentUser?.phone]);
 
   // Load wallet data when modal opens
   useEffect(() => {
@@ -81,7 +93,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      alert("Please enter your name");
+      toast.error("Please enter your name");
       return;
     }
 
@@ -124,9 +136,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       onUserUpdate(updatedUser);
       setIsEditing(false);
+      toast.success("Profile updated!");
     } catch (error) {
       console.error("Error updating user:", error);
-      alert("Failed to update profile. Please try again.");
+      toast.error("Failed to update profile. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -140,202 +153,238 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setIsEditing(false);
   };
 
+  const displayName = currentUser?.name || currentUser?.full_name || "User";
+  const initials = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-blue-600" />
-            User Profile
-          </DialogTitle>
-        </DialogHeader>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="wallet">
-              <Wallet className="h-4 w-4 mr-2" />
-              Wallet
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile" className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              {isEditing ? (
-                <Input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="Enter your full name"
-                  required
-                />
-              ) : (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                  <span className="font-medium">
-                    {currentUser?.name || currentUser?.full_name || "Not set"}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditing(true)}
-                    className="p-2"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-hidden p-0 rounded-2xl">
+        {/* Profile Header with Avatar */}
+        <div className="bg-gradient-to-br from-blue-500 to-purple-600 px-6 pt-8 pb-6 text-white relative">
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+          >
+            <X className="h-4 w-4 text-white" />
+          </button>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-2xl font-bold flex-shrink-0">
+              {initials}
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <div className="flex items-center p-3 bg-gray-50 rounded-md">
-                <Phone className="h-4 w-4 text-gray-500 mr-2" />
-                <span className="font-mono">+91 {currentUser?.phone}</span>
-                <span className="ml-auto text-xs text-gray-500">Verified</span>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold truncate">{displayName}</h2>
+              <div className="flex items-center gap-1.5 text-white/80 text-sm">
+                <Phone className="h-3.5 w-3.5" />
+                <span>+91 {currentUser?.phone}</span>
+                <CheckCircle className="h-3.5 w-3.5 text-green-300 ml-1" />
               </div>
             </div>
+          </div>
+        </div>
 
-            {isEditing && (
-              <div className="flex gap-2 pt-4">
-                <Button
-                  onClick={handleSave}
-                  disabled={isLoading || !formData.name.trim()}
-                  className="flex-1"
-                >
-                  {isLoading ? (
+        {/* Tabs */}
+        <div className="overflow-y-auto max-h-[calc(85vh-140px)]">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 rounded-none border-b bg-gray-50 h-11">
+              <TabsTrigger value="profile" className="rounded-none data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm">
+                Profile
+              </TabsTrigger>
+              <TabsTrigger value="wallet" className="rounded-none data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm">
+                <Wallet className="h-4 w-4 mr-1.5" />
+                Wallet
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Profile Tab */}
+            <TabsContent value="profile" className="p-5 space-y-4 mt-0">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name</Label>
+                {isEditing ? (
+                  <Input
+                    id="name"
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="Enter your full name"
+                    className="h-11"
+                    autoFocus
+                    required
+                  />
+                ) : (
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Saving...
-                    </div>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleCancel}
-                  disabled={isLoading}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-              </div>
-            )}
-
-            {!isEditing && (
-              <div className="pt-4">
-                <Button variant="outline" onClick={onClose} className="w-full">
-                  Close
-                </Button>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Wallet Tab */}
-          <TabsContent value="wallet" className="space-y-4 mt-4">
-            {walletLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader className="h-6 w-6 animate-spin text-green-600" />
-              </div>
-            ) : (
-              <>
-                {/* Wallet Balance Card */}
-                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-green-600 rounded-lg">
-                        <Wallet className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600">Wallet Balance</p>
-                        <p className="text-2xl font-bold text-green-600">
-                          ₹{walletBalance.toFixed(2)}
-                        </p>
-                      </div>
+                      <User className="h-4 w-4 text-gray-400" />
+                      <span className="font-medium text-gray-800">
+                        {displayName}
+                      </span>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleRefreshWallet}
-                      className="text-green-700 hover:bg-green-100"
+                      onClick={() => setIsEditing(true)}
+                      className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     >
-                      <RefreshCw className="h-4 w-4" />
+                      <Edit3 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-gray-600">Available for cashback and discounts</p>
-                </Card>
+                )}
+              </div>
 
-                {/* Transaction History */}
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-gray-900">Transaction History</h3>
-                  {walletTransactions.length > 0 ? (
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {walletTransactions.map((transaction, index) => (
-                        <div
-                          key={`${transaction.created_at}-${index}`}
-                          className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div
-                              className={`p-2 rounded-lg flex-shrink-0 ${
-                                transaction.type === "credit"
-                                  ? "bg-green-100"
-                                  : "bg-red-100"
-                              }`}
-                            >
-                              {transaction.type === "credit" ? (
-                                <TrendingUp className="h-4 w-4 text-green-600" />
-                              ) : (
-                                <TrendingDown className="h-4 w-4 text-red-600" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {transaction.description}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {formatDateTimeIST(transaction.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                          <p
-                            className={`text-sm font-semibold ml-2 flex-shrink-0 ${
-                              transaction.type === "credit"
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {transaction.type === "credit" ? "+" : "-"}₹
-                            {transaction.amount.toFixed(2)}
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-sm font-medium text-gray-700">Phone Number</Label>
+                <div className="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <Phone className="h-4 w-4 text-gray-400 mr-2" />
+                  <span className="font-mono text-gray-800">+91 {currentUser?.phone}</span>
+                  <span className="ml-auto text-xs text-green-600 font-medium flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Verified
+                  </span>
+                </div>
+              </div>
+
+              {isEditing ? (
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={handleSave}
+                    disabled={isLoading || !formData.name.trim()}
+                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Saving...
+                      </div>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCancel}
+                    disabled={isLoading}
+                    className="h-11"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div className="pt-2">
+                  <Button variant="outline" onClick={onClose} className="w-full h-11">
+                    Close
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Wallet Tab */}
+            <TabsContent value="wallet" className="p-5 space-y-4 mt-0">
+              {walletLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader className="h-6 w-6 animate-spin text-green-600" />
+                </div>
+              ) : (
+                <>
+                  {/* Wallet Balance Card */}
+                  <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-green-600 rounded-xl">
+                          <Wallet className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Wallet Balance</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            ₹{walletBalance.toFixed(2)}
                           </p>
                         </div>
-                      ))}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRefreshWallet}
+                        className="text-green-700 hover:bg-green-100 rounded-lg"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="text-center py-6 text-gray-500">
-                      <p className="text-sm">No transactions yet</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Start ordering to earn cashback!
-                      </p>
-                    </div>
-                  )}
-                </div>
+                    <p className="text-xs text-gray-500">Available for cashback and discounts</p>
+                  </Card>
 
-                <Button variant="outline" onClick={onClose} className="w-full mt-4">
-                  Close
-                </Button>
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
+                  {/* Transaction History */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-gray-900">Transaction History</h3>
+                    {walletTransactions.length > 0 ? (
+                      <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                        {walletTransactions.map((transaction, index) => (
+                          <div
+                            key={`${transaction.created_at}-${index}`}
+                            className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div
+                                className={`p-2 rounded-lg flex-shrink-0 ${
+                                  transaction.type === "credit"
+                                    ? "bg-green-100"
+                                    : "bg-red-100"
+                                }`}
+                              >
+                                {transaction.type === "credit" ? (
+                                  <TrendingUp className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <TrendingDown className="h-4 w-4 text-red-600" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {transaction.description}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {formatDateTimeIST(transaction.created_at)}
+                                </p>
+                              </div>
+                            </div>
+                            <p
+                              className={`text-sm font-semibold ml-2 flex-shrink-0 ${
+                                transaction.type === "credit"
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {transaction.type === "credit" ? "+" : "-"}₹
+                              {transaction.amount.toFixed(2)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Wallet className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm font-medium">No transactions yet</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Start ordering to earn cashback!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button variant="outline" onClick={onClose} className="w-full h-11 mt-2">
+                    Close
+                  </Button>
+                </>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );

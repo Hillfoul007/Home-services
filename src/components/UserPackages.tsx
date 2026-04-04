@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Package } from "lucide-react";
+import { Package, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -143,18 +143,19 @@ export default function UserPackages({ currentUser, onClose }: UserPackagesProps
   const isExpired = validity ? new Date(validity) < new Date() : true;
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative z-50">
-      <div className="flex items-center justify-between p-4 bg-white shadow-sm shrink-0">
-        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+    <div className="flex flex-col h-full bg-slate-50 relative">
+      <div className="flex items-center justify-between p-4 bg-white shadow-sm shrink-0 sticky top-0 z-10 border-b border-slate-100">
+        <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
           <Package className="w-5 h-5 text-indigo-600" />
           Subscription Packages
         </h2>
-        <Button variant="ghost" onClick={onClose} size="sm">
+        <Button variant="ghost" onClick={onClose} size="sm" className="text-slate-500 hover:text-slate-700">
+          <X className="w-4 h-4 mr-1" />
           Close
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-8">
         
         {/* Current Active Package Status */}
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-md relative overflow-hidden">
@@ -197,12 +198,11 @@ export default function UserPackages({ currentUser, onClose }: UserPackagesProps
                     "from-fuchsia-400 to-purple-500"
                   ];
                   const gradient = gradients[idx % gradients.length];
-                  const lightGradient = gradient.replace(/400/g, "50").replace(/500/g, "100");
                   
                   return (
                     <div 
                       key={pkg._id} 
-                      className={`relative overflow-hidden rounded-2xl border border-slate-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br ${lightGradient} bg-opacity-10`}
+                      className={`relative overflow-hidden rounded-2xl border border-slate-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white`}
                     >
                       {/* Decorative header gradient */}
                       <div className={`h-2 w-full bg-gradient-to-r ${gradient}`}></div>

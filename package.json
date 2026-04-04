@@ -36,6 +36,10 @@
     "build:android": "npm run build && npx cap copy android && npx cap sync android",
     "generate:keystore": "bash scripts/generate-keystore.sh",
     "build:aab": "bash scripts/build-android-aab.sh",
+    "build:aab:user": "bash scripts/build-user-aab.sh",
+    "build:aab:rider": "bash scripts/build-rider-aab.sh",
+    "build:aab:desk": "bash scripts/build-desk-aab.sh",
+    "build:aab:all": "npm run build:aab:user && npm run build:aab:rider && npm run build:aab:desk",
     "migrate:wallet": "node backend/scripts/init-wallet-balance.js"
   },
   "dependencies": {

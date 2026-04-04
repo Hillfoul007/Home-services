@@ -9,8 +9,8 @@ APP_FLAVOR="desk"
 DIST_DIR="dist-${APP_FLAVOR}"
 APP_ID="com.laundrify.desk.app"
 APP_NAME="Laundrify Desk"
-VERSION_CODE=20
-VERSION_NAME="2.9"
+VERSION_CODE=23
+VERSION_NAME="2.12"
 DEFAULT_APP_ID="com.laundrify.laundry.app"
 DEFAULT_APP_NAME="Laundrify"
 
@@ -53,7 +53,7 @@ rm -rf "$DIST_DIR"
 powershell.exe -Command "Copy-Item -Path 'dist' -Destination '$DIST_DIR' -Recurse"
 
 # Inject hash-based route redirect so app starts at /#/desk/dashboard (HashRouter)
-REDIRECT_SCRIPT='<script>if(!window.location.hash||window.location.hash==="#/"||window.location.hash==="#"){window.location.hash="#/desk";}<\/script>'
+REDIRECT_SCRIPT='<script>if(!window.location.hash||window.location.hash==="#/"||window.location.hash==="#"){window.location.hash="#/desk/dashboard";}<\/script>'
 if [[ "$OSTYPE" == "darwin"* ]]; then
   sed -i '' "s%</head>%${REDIRECT_SCRIPT}</head>%" "${DIST_DIR}/index.html"
 else

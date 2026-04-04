@@ -7,6 +7,18 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Phone, Lock, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Detect if running inside Capacitor native app
+const isCapacitorNative = (): boolean => {
+  try {
+    const cap = (window as any).Capacitor;
+    if (cap?.isNativePlatform?.()) return true;
+    if (cap && cap.getPlatform && cap.getPlatform() !== 'web') return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 // Helper function to get the correct API URL for rider endpoints
 const getRiderApiUrl = (endpoint: string): string => {
   const isDev = import.meta.env.DEV;
@@ -14,31 +26,28 @@ const getRiderApiUrl = (endpoint: string): string => {
   const isLocalhost = hostname.includes("localhost") || hostname.includes("127.0.0.1");
   const isRenderCom = hostname.includes("onrender.com");
   const isLaundrifyDomain = hostname.includes("laundrify.online");
+  const BACKEND_BASE = 'https://home-services-5alb.onrender.com/api/riders';
 
-  console.log('🔍 Rider API URL Detection:', {
-    isDev,
-    hostname,
-    isLocalhost,
-    isRenderCom,
-    isLaundrifyDomain,
-    mode: import.meta.env.MODE,
-    origin: window.location.origin
-  });
-
-  // Force correct backend URL based on environment
-  if (isLocalhost && isDev) {
-    // Local development - use proxy
-    console.log('🏠 Using local proxy for rider API');
-    return `/api/riders${endpoint}`;
-  } else if (isRenderCom || isLaundrifyDomain || !isLocalhost) {
-    // Any hosted environment - use backend server
-    const backendUrl = 'https://home-services-5alb.onrender.com/api/riders' + endpoint;
-    console.log('🌐 Using backend server for rider API:', backendUrl);
-    return backendUrl;
+  // Capacitor native app always uses production backend
+  if (isCapacitorNative()) {
+    console.log('📱 Capacitor native - using production backend for rider API');
+    return BACKEND_BASE + endpoint;
   }
 
-  // Fallback
-  return `/api/riders${endpoint}`;
+  // Local development with dev server - use vite proxy
+  if (isLocalhost && isDev) {
+    console.log('🏠 Using local proxy for rider API');
+    return `/api/riders${endpoint}`;
+  }
+
+  // Any hosted/production environment - use backend server
+  if (isRenderCom || isLaundrifyDomain || !isLocalhost) {
+    console.log('🌐 Using backend server for rider API');
+    return BACKEND_BASE + endpoint;
+  }
+
+  // Fallback to production backend (not relative URL)
+  return BACKEND_BASE + endpoint;
 };
 
 export default function RiderLogin() {
@@ -58,21 +67,16 @@ export default function RiderLogin() {
 
   const testBackendConnectivity = async () => {
     try {
-      // Test if backend is reachable
-      const testResponse = await fetch('/api/health', {
+      // Test if backend is reachable using the correct rider API URL
+      const testUrl = getRiderApiUrl('/test');
+      const testResponse = await fetch(testUrl, {
         method: 'GET',
-        timeout: 5000
       });
       console.log('🔍 Backend Health Check:', {
         status: testResponse.status,
         url: testResponse.url,
         accessible: testResponse.ok
       });
-
-      if (testResponse.status === 404) {
-        console.log('🔍 Health endpoint not found - assuming development mode');
-        return false; // Backend not available in dev mode
-      }
 
       return testResponse.ok;
     } catch (error) {
@@ -95,7 +99,7 @@ export default function RiderLogin() {
     const backendAccessible = await testBackendConnectivity();
 
     if (!backendAccessible) {
-      toast.error('Backend server is not accessible. Rider system requires local development environment.');
+      toast.error('Cannot connect to server. Please check your internet connection.');
       setIsLoading(false);
       return;
     }
@@ -103,39 +107,9 @@ export default function RiderLogin() {
     try {
       const apiUrl = getRiderApiUrl('/login');
       console.log('🔍 Rider Login Debug:', {
-        hostname: window.location.hostname,
-        origin: window.location.origin,
-        href: window.location.href,
-        isDev: import.meta.env.DEV,
-        isProd: import.meta.env.PROD,
-        mode: import.meta.env.MODE,
         apiUrl,
-        fullResolvedUrl: new URL(apiUrl, window.location.origin).href,
         credentials: { phone: credentials.phone, password: '[REDACTED]' },
-        // Also check the API client configuration
-        apiClientInfo: window.apiClient?.getConnectionStatus?.() || 'API client not available'
       });
-
-      // First test if rider routes are available
-      try {
-        const testResponse = await fetch(getRiderApiUrl('/test'), {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        });
-
-        if (!testResponse.ok) {
-          toast.error('Rider routes not available on this backend. Please check deployment.');
-          setIsLoading(false);
-          return;
-        }
-
-        console.log('✅ Rider routes available');
-      } catch (testError) {
-        console.error('❌ Rider routes test failed:', testError);
-        toast.error('Cannot connect to rider API. Please check backend deployment.');
-        setIsLoading(false);
-        return;
-      }
 
       const response = await fetch(apiUrl, {
         method: 'POST',

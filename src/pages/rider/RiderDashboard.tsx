@@ -37,6 +37,7 @@ export default function RiderDashboard() {
   const [locationWatcher, setLocationWatcher] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastFetchError, setLastFetchError] = useState<string | null>(null);
+  const prevOrderCount = React.useRef<number>(0);
 
   useEffect(() => {
     // Load rider data
@@ -284,10 +285,10 @@ export default function RiderDashboard() {
 
         setAllAssignedOrders(sorted);
 
-        // Smart filtering: show only active/relevant orders to rider to reduce clutter
+        // Show all assigned orders (active + today's completed) — backend now controls the 30-day window
         const visible = sorted.filter((o: any) => {
           const s = (o.riderStatus || 'assigned').toLowerCase();
-          return ['assigned','accepted','on_the_way','picked_up','pending'].includes(s);
+          return s !== 'cancelled';
         });
 
         // If we have current location, prioritize by proximity to pickup
@@ -332,6 +333,30 @@ export default function RiderDashboard() {
 
         setAssignedOrders(finalVisible);
         setLastFetchError(null); // Clear any previous errors
+
+        // Notify rider of new order assignments
+        const newCount = finalVisible.filter((o: any) => {
+          const s = (o.riderStatus || '').toLowerCase();
+          return s === 'assigned' || s === 'pending';
+        }).length;
+        if (prevOrderCount.current > 0 && newCount > prevOrderCount.current) {
+          const diff = newCount - prevOrderCount.current;
+          toast.success(`🆕 ${diff} new order${diff > 1 ? 's' : ''} assigned to you!`, { duration: 8000 });
+          try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(660, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.5);
+          } catch { /* audio not supported */ }
+        }
+        prevOrderCount.current = newCount;
 
         // Compute upcoming orders within next 2 hours
         const now = Date.now();

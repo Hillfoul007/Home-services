@@ -42,6 +42,35 @@ import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
 
+// Redirect guard: ensures native Capacitor apps land on the correct route
+// based on their app ID, regardless of stale build-injected redirects
+function AppRedirectGuard() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const hash = location.pathname;
+    // Map app IDs to their correct starting routes
+    const appRoutes: Record<string, { prefix: string; login: string }> = {
+      "com.laundrify.desk.app":  { prefix: "/desk",       login: "/desk" },
+      "com.laundrify.rider.app": { prefix: "/rider-desk",  login: "/rider-desk" },
+      "com.laundrify.laundry.app": { prefix: "/",          login: "/" },
+    };
+
+    CapacitorApp.getInfo().then(({ id }) => {
+      const route = appRoutes[id];
+      if (!route) return;
+      // If the current route doesn't belong to this app, redirect to the app's login
+      if (route.prefix !== "/" && !hash.startsWith(route.prefix)) {
+        window.location.hash = `#${route.login}`;
+      }
+    }).catch(() => {});
+  }, []);
+
+  return null;
+}
+
 // Component to track route changes
 function AnalyticsTracker() {
   const location = useLocation();
@@ -153,6 +182,7 @@ function App() {
     <ErrorBoundary>
       <NotificationProvider>
         <Router>
+          <AppRedirectGuard />
           <AnalyticsTracker />
           <div className="App">
             <Routes>

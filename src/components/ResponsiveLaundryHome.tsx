@@ -13,6 +13,7 @@ import {
   Mic,
   User,
   Package,
+  Wallet,
   Plus,
   Minus,
   Menu,
@@ -76,6 +77,8 @@ import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
 import UserPackages from "./UserPackages";
 import ReferralModal from "./ReferralModal";
+import WalletBadge from "./WalletBadge";
+import WalletModal from "./WalletModal";
 
 interface ResponsiveLaundryHomeProps {
   currentUser?: any;
@@ -109,6 +112,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
   const [showUserPackages, setShowUserPackages] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
@@ -841,6 +845,12 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 </Button>
               )}
               {currentUser && (
+                <WalletBadge
+                  onClick={() => setShowWalletModal(true)}
+                  showRefresh={false}
+                />
+              )}
+              {currentUser && (
                 <NotificationBell
                   userId={currentUser._id || currentUser.phone}
                   className="premium-icon-button"
@@ -901,6 +911,19 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   <ShoppingBag className="mr-3 h-4 w-4" />
                   Browse Services
                 </Button>
+                {currentUser && (
+                  <Button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setTimeout(() => setShowWalletModal(true), 300);
+                    }}
+                    variant="ghost"
+                    className="w-full justify-start text-gray-700"
+                  >
+                    <Wallet className="mr-3 h-4 w-4 text-green-600" />
+                    My Wallet
+                  </Button>
+                )}
                 {currentUser && (
                   <Button
                     onClick={() => {
@@ -1675,14 +1698,6 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </div>
         )}
 
-        {currentUser && (
-          <ReferralModal 
-            isOpen={showReferralModal} 
-            onClose={() => setShowReferralModal(false)} 
-            currentUser={currentUser} 
-          />
-        )}
-
         {/* Removed local booking history modal - using main navigation */}
 
         {/* Debug Panel */}
@@ -1732,6 +1747,13 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             <MessageCircle className="h-5 w-5" />
           </Button>
         </div>
+
+        {/* Wallet Modal */}
+        <WalletModal
+          isOpen={showWalletModal}
+          onClose={() => setShowWalletModal(false)}
+          currentUser={currentUser}
+        />
 
         {/* Referral Modal */}
         <ReferralModal

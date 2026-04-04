@@ -11,6 +11,11 @@ type Order = {
   customerPhone?: string;
   address?: string;
   pickupTime?: string;
+  deliveryTime?: string;
+  scheduled_date?: string;
+  scheduled_time?: string;
+  delivery_date?: string;
+  delivery_time?: string;
   type?: string;
   status?: string;
   riderStatus?: string;
@@ -86,7 +91,14 @@ export default function OrderCard({
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">{order.bookingId || ''} • {order.type || ''}</div>
           </div>
-          <div className="text-sm text-gray-600">{order.pickupTime || ''}</div>
+          <div className="text-xs text-gray-600 text-right space-y-0.5">
+            {order.pickupTime && (
+              <div><span className="font-semibold text-purple-600">Pickup:</span> {order.pickupTime}</div>
+            )}
+            {(order.deliveryTime || order.delivery_date) && (
+              <div><span className="font-semibold text-orange-600">Delivery:</span> {order.deliveryTime || `${order.delivery_date || ''} ${order.delivery_time || ''}`.trim() || 'TBD'}</div>
+            )}
+          </div>
         </CardTitle>
         <CardDescription className="mt-2 text-sm">
           <div className="flex items-start gap-2">
