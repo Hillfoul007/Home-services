@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { laundryServices } from "@/data/laundryServices";
+import { getApiUrl } from "@/config/env";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const API = "/api/vendor";
+const API = `${getApiUrl()}/vendor`;
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
@@ -163,7 +165,7 @@ const DeskDashboard: React.FC = () => {
   })();
 
   // Tabs
-  const [tab, setTab] = useState<"orders" | "riders" | "profile">("orders");
+  const [tab, setTab] = useState<"orders" | "riders" | "optimize" | "profile">("orders");
 
   // Dashboard data
   const [sections, setSections] = useState<DashboardSections>({
@@ -202,6 +204,8 @@ const DeskDashboard: React.FC = () => {
     discountAmount: number;
     saving: boolean;
   } | null>(null);
+  // Item autocomplete search state per row index
+  const [itemSearch, setItemSearch] = useState<Record<number, string>>({});
 
   // Rider management
   const [riderForm, setRiderForm] = useState({ name: "", phone: "", live_location_link: "" });
@@ -238,7 +242,21 @@ const DeskDashboard: React.FC = () => {
 
         const incoming = allIds.filter(id => !prevOrderIds.current.has(id));
         if (prevOrderIds.current.size > 0 && incoming.length > 0) {
-          toast.info(`${incoming.length} new order${incoming.length > 1 ? "s" : ""} arrived!`);
+          toast.info(`🆕 ${incoming.length} new order${incoming.length > 1 ? "s" : ""} arrived!`, { duration: 6000 });
+          // Play notification sound
+          try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.4);
+          } catch { /* audio not supported */ }
         }
         prevOrderIds.current = new Set(allIds);
       }
@@ -293,7 +311,7 @@ const DeskDashboard: React.FC = () => {
       let url: string;
       let method = "PUT";
       if (isPG) {
-        url = `/api/pg-orders/${orderId}/status`;
+        url = `${getApiUrl()}/pg-orders/${orderId}/status`;
         method = "PATCH";
       } else {
         url = `${API}/orders/orders/${orderId}/status`;
@@ -527,13 +545,13 @@ const DeskDashboard: React.FC = () => {
   // ─── Image URL helpers ────────────────────────────────────────────────────
 
   const itemsImageUrl = (orderId: string, fileId: string) =>
-    `/api/vendor/orders/public/orders/${orderId}/items-image/${fileId}`;
+    `${getApiUrl()}/vendor/orders/public/orders/${orderId}/items-image/${fileId}`;
 
   const paymentSlipUrl = (orderId: string, fileId: string) =>
-    `/api/vendor/orders/public/orders/${orderId}/payment-slip/${fileId}`;
+    `${getApiUrl()}/vendor/orders/public/orders/${orderId}/payment-slip/${fileId}`;
 
   const riderSlipUrl = (orderId: string, fileId: string) =>
-    `/api/riders/public/orders/${orderId}/slip/${fileId}`;
+    `${getApiUrl()}/riders/public/orders/${orderId}/slip/${fileId}`;
 
   // ─── Render: uploaded images strip ───────────────────────────────────────
 
@@ -717,8 +735,8 @@ const DeskDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* rider live tracking (delivered section) */}
-            {isDelivered && riderLocation?.live_location_link && (
+            {/* rider live tracking (all sections with assigned rider) */}
+            {riderLocation?.live_location_link && (
               <a href={riderLocation.live_location_link} target="_blank" rel="noreferrer"
                 className="flex items-center gap-2 w-full py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-sm font-medium text-orange-700">
                 <span>📡</span>
@@ -818,35 +836,68 @@ const DeskDashboard: React.FC = () => {
                       </div>
                       <div className="p-3 space-y-2 bg-white">
                         {/* Items list */}
-                        {cartEditing.items.map((item, i) => (
-                          <div key={i} className="flex gap-2 items-center">
-                            <input
-                              type="text"
-                              placeholder="Item name"
-                              value={item.service_name}
-                              onChange={e => updateCartItem(i, "service_name", e.target.value)}
-                              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Qty"
-                              min="1"
-                              value={item.quantity}
-                              onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
-                              className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Price"
-                              min="0"
-                              value={item.unit_price}
-                              onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
-                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                            />
-                            <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
-                            <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                        {cartEditing.items.map((item, i) => {
+                          const searchVal = itemSearch[i] ?? item.service_name;
+                          const suggestions = searchVal.length > 0
+                            ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal.toLowerCase())).slice(0, 6)
+                            : laundryServices.slice(0, 6);
+                          return (
+                          <div key={i} className="space-y-1">
+                            <div className="flex gap-2 items-center">
+                              <div className="flex-1 relative">
+                                <input
+                                  type="text"
+                                  placeholder="Type or select item..."
+                                  value={searchVal}
+                                  onChange={e => {
+                                    setItemSearch(prev => ({ ...prev, [i]: e.target.value }));
+                                    updateCartItem(i, "service_name", e.target.value);
+                                  }}
+                                  onFocus={() => setItemSearch(prev => ({ ...prev, [i]: item.service_name }))}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                                />
+                                {itemSearch[i] !== undefined && (
+                                  <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                    {suggestions.map(s => (
+                                      <button key={s.id} type="button"
+                                        onMouseDown={e => { e.preventDefault();
+                                          updateCartItem(i, "service_name", s.name);
+                                          if (!item.unit_price) updateCartItem(i, "unit_price", s.price);
+                                          setItemSearch(prev => { const n = { ...prev }; delete n[i]; return n; });
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 flex justify-between items-center">
+                                        <span>{s.name}</span>
+                                        <span className="text-gray-400">₹{s.price}/{s.unit}</span>
+                                      </button>
+                                    ))}
+                                    {suggestions.length === 0 && (
+                                      <div className="px-3 py-2 text-xs text-gray-400">No match — custom item will be used</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <input
+                                type="number"
+                                placeholder="Qty"
+                                min="1"
+                                value={item.quantity}
+                                onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
+                                className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                              />
+                              <input
+                                type="number"
+                                placeholder="Price"
+                                min="0"
+                                value={item.unit_price}
+                                onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
+                                className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                              />
+                              <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
+                              <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                            </div>
                           </div>
-                        ))}
+                          );
+                        })}
                         <button onClick={addCartItem}
                           className="w-full py-1.5 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 font-medium hover:bg-indigo-50">
                           + Add Item
@@ -932,21 +983,55 @@ const DeskDashboard: React.FC = () => {
                         <button onClick={() => setCartEditing(null)} className="text-indigo-200 text-lg leading-none">&times;</button>
                       </div>
                       <div className="p-3 space-y-2 bg-white">
-                        {cartEditing.items.map((item, i) => (
-                          <div key={i} className="flex gap-2 items-center">
-                            <input type="text" placeholder="Item name" value={item.service_name}
-                              onChange={e => updateCartItem(i, "service_name", e.target.value)}
-                              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                            <input type="number" placeholder="Qty" min="1" value={item.quantity}
-                              onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
-                              className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                            <input type="number" placeholder="Price" min="0" value={item.unit_price}
-                              onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
-                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                            <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
-                            <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                        {cartEditing.items.map((item, i) => {
+                          const searchVal2 = itemSearch[i] ?? item.service_name;
+                          const suggestions2 = searchVal2.length > 0
+                            ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal2.toLowerCase())).slice(0, 6)
+                            : laundryServices.slice(0, 6);
+                          return (
+                          <div key={i} className="space-y-1">
+                            <div className="flex gap-2 items-center">
+                              <div className="flex-1 relative">
+                                <input type="text" placeholder="Type or select item..."
+                                  value={searchVal2}
+                                  onChange={e => {
+                                    setItemSearch(prev => ({ ...prev, [i]: e.target.value }));
+                                    updateCartItem(i, "service_name", e.target.value);
+                                  }}
+                                  onFocus={() => setItemSearch(prev => ({ ...prev, [i]: item.service_name }))}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                                {itemSearch[i] !== undefined && (
+                                  <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                    {suggestions2.map(s => (
+                                      <button key={s.id} type="button"
+                                        onMouseDown={e => { e.preventDefault();
+                                          updateCartItem(i, "service_name", s.name);
+                                          if (!item.unit_price) updateCartItem(i, "unit_price", s.price);
+                                          setItemSearch(prev => { const n = { ...prev }; delete n[i]; return n; });
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 flex justify-between items-center">
+                                        <span>{s.name}</span>
+                                        <span className="text-gray-400">₹{s.price}/{s.unit}</span>
+                                      </button>
+                                    ))}
+                                    {suggestions2.length === 0 && (
+                                      <div className="px-3 py-2 text-xs text-gray-400">No match — custom item will be used</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <input type="number" placeholder="Qty" min="1" value={item.quantity}
+                                onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
+                                className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                              <input type="number" placeholder="Price" min="0" value={item.unit_price}
+                                onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
+                                className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                              <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
+                              <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                            </div>
                           </div>
-                        ))}
+                          );
+                        })}
                         <button onClick={addCartItem}
                           className="w-full py-1.5 border-2 border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 font-medium hover:bg-indigo-50">
                           + Add Item
@@ -1040,13 +1125,13 @@ const DeskDashboard: React.FC = () => {
 
       {/* ── tab bar ── */}
       <nav className="bg-white border-b border-gray-100 flex">
-        {(["orders", "riders", "profile"] as const).map((t) => (
+        {(["orders", "riders", "optimize", "profile"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${tab === t ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500"}`}
           >
-            {t === "orders" ? `Orders (${counts.total})` : t}
+            {t === "orders" ? `Orders (${counts.total})` : t === "optimize" ? "Optimize" : t}
           </button>
         ))}
       </nav>
@@ -1081,22 +1166,6 @@ const DeskDashboard: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* ── phase overview boxes ── */}
-            <div className="grid grid-cols-4 gap-2 mb-4 sm:grid-cols-7">
-              {SECTION_CONFIG.map(({ key, label, icon }) => {
-                const cnt = counts[key] || 0;
-                const isAct = activeSection === key;
-                return (
-                  <button key={key} onClick={() => { setActiveSection(key); setExpandedId(null); }}
-                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all ${isAct ? "bg-blue-600 border-blue-600 text-white" : cnt > 0 ? "bg-white border-gray-200 text-gray-700" : "bg-gray-50 border-gray-100 text-gray-400"}`}>
-                    <span className="text-base leading-none">{icon}</span>
-                    <span className={`text-lg font-bold leading-tight mt-0.5 ${isAct ? "text-white" : cnt > 0 ? "text-gray-900" : "text-gray-300"}`}>{cnt}</span>
-                    <span className="text-xs leading-tight mt-0.5 truncate w-full">{label}</span>
-                  </button>
-                );
-              })}
-            </div>
 
             {/* ── section tabs ── */}
             <div className="flex gap-1 overflow-x-auto pb-1 mb-4 scrollbar-hide">
@@ -1251,6 +1320,16 @@ const DeskDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* ══ OPTIMIZE TAB ══ */}
+        {tab === "optimize" && (
+          <OptimizeTab
+            sections={sections}
+            riders={availableRiders}
+            token={token}
+            fetchDashboard={fetchDashboard}
+          />
+        )}
+
         {/* ══ PROFILE TAB ══ */}
         {tab === "profile" && vendorInfo && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
@@ -1335,6 +1414,173 @@ const DeskDashboard: React.FC = () => {
     </div>
   );
 };
+
+// ─── Optimize Tab ────────────────────────────────────────────────────────────
+
+function OptimizeTab({
+  sections,
+  riders,
+  token,
+  fetchDashboard,
+}: {
+  sections: DashboardSections;
+  riders: RiderRef[];
+  token: string;
+  fetchDashboard: () => void;
+}) {
+  // Group orders by nearby addresses for pickup (created) and delivery (ready_for_delivery)
+  const pickupOrders = sections.created.filter(o => o.address);
+  const deliveryOrders = sections.ready_for_delivery.filter(o => o.address);
+
+  // Simple grouping: group by first significant part of address (area/locality)
+  const groupByArea = (orders: Order[]) => {
+    const groups: Record<string, Order[]> = {};
+    orders.forEach(o => {
+      if (!o.address) return;
+      // Extract area: take the part after the first comma or use first 30 chars
+      const parts = o.address.split(",").map(p => p.trim());
+      const area = parts.length >= 2 ? parts[parts.length - 2] : parts[0].substring(0, 30);
+      const key = area.toLowerCase().trim();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(o);
+    });
+    // Only return groups with 2+ orders (these can be combined)
+    return Object.entries(groups)
+      .filter(([, orders]) => orders.length >= 2)
+      .sort((a, b) => b[1].length - a[1].length);
+  };
+
+  const pickupGroups = groupByArea(pickupOrders);
+  const deliveryGroups = groupByArea(deliveryOrders);
+  const hasGroups = pickupGroups.length > 0 || deliveryGroups.length > 0;
+
+  const openGroupRoute = (orders: Order[]) => {
+    if (orders.length < 2) return;
+    const waypoints = orders.slice(0, -1).map(o => encodeURIComponent(o.address!)).join("|");
+    const destination = encodeURIComponent(orders[orders.length - 1].address!);
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving${waypoints ? `&waypoints=${waypoints}` : ""}`;
+    window.open(url, "_blank");
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <h2 className="font-semibold text-gray-800 mb-1">Route Optimizer</h2>
+        <p className="text-xs text-gray-500 mb-4">Combine nearby orders for efficient pickup or delivery by the same rider.</p>
+
+        {!hasGroups ? (
+          <div className="text-center py-10 text-gray-400">
+            <div className="text-4xl mb-3">🗺️</div>
+            <p className="font-medium">No nearby orders to combine</p>
+            <p className="text-sm mt-1">When 2+ orders share a similar area, they'll appear here for batching.</p>
+          </div>
+        ) : (
+          <>
+            {/* Pickup groups */}
+            {pickupGroups.length > 0 && (
+              <div className="mb-5">
+                <h3 className="text-sm font-bold text-purple-700 mb-2">🧺 Pickup — Nearby Orders</h3>
+                {pickupGroups.map(([area, orders]) => (
+                  <div key={area} className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-purple-800">📍 {area} ({orders.length} orders)</span>
+                      <button
+                        onClick={() => openGroupRoute(orders)}
+                        className="text-xs bg-purple-600 text-white px-3 py-1 rounded-lg font-medium"
+                      >
+                        🗺️ Route
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {orders.map(o => (
+                        <div key={o._id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs">
+                          <div>
+                            <span className="font-semibold">{o.custom_order_id || o._id.slice(-6).toUpperCase()}</span>
+                            <span className="text-gray-500 ml-2">{o.name}</span>
+                          </div>
+                          <span className="text-gray-400">₹{(o.final_amount ?? o.total_price ?? 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-purple-600 mt-2 font-medium">
+                      Assign same rider for all {orders.length} pickups to save time.
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Delivery groups */}
+            {deliveryGroups.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-green-700 mb-2">🚚 Delivery — Nearby Orders</h3>
+                {deliveryGroups.map(([area, orders]) => (
+                  <div key={area} className="bg-green-50 border border-green-200 rounded-xl p-3 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-green-800">📍 {area} ({orders.length} orders)</span>
+                      <button
+                        onClick={() => openGroupRoute(orders)}
+                        className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg font-medium"
+                      >
+                        🗺️ Route
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {orders.map(o => (
+                        <div key={o._id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs">
+                          <div>
+                            <span className="font-semibold">{o.custom_order_id || o._id.slice(-6).toUpperCase()}</span>
+                            <span className="text-gray-500 ml-2">{o.name}</span>
+                          </div>
+                          <span className="text-gray-400">₹{(o.final_amount ?? o.total_price ?? 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-green-600 mt-2 font-medium">
+                      Assign same rider for all {orders.length} deliveries to optimize route.
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Live Rider Tracking */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <h2 className="font-semibold text-gray-800 mb-3">📡 Live Rider Tracking</h2>
+        {riders.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">No riders available</p>
+        ) : (
+          <div className="space-y-2">
+            {riders.map(r => (
+              <div key={r._id} className="flex items-center justify-between px-3 py-3 border border-gray-100 rounded-xl">
+                <div>
+                  <p className="font-medium text-sm text-gray-900">{r.name}</p>
+                  <p className="text-xs text-gray-500">{r.phone}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {r.isActive ? "Active" : "Offline"}
+                  </span>
+                  {r.live_location_link ? (
+                    <a href={r.live_location_link} target="_blank" rel="noreferrer"
+                      className="text-xs bg-orange-100 text-orange-700 px-3 py-1.5 rounded-lg font-semibold">
+                      📡 Track
+                    </a>
+                  ) : (
+                    <span className="text-xs text-gray-400">No GPS</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getApiUrl } from "@/config/env";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ const RiderDeskDashboard: React.FC = () => {
   const fetchOrders = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch("/api/riders/desk-orders", { headers: authHeaders(token) });
+      const res = await fetch(`${getApiUrl()}/riders/desk-orders`, { headers: authHeaders(token) });
       if (res.status === 401) { navigate("/rider-desk"); return; }
       const data = await res.json();
 
@@ -118,7 +119,21 @@ const RiderDeskDashboard: React.FC = () => {
 
         const incoming = active.filter(o => !prevIds.current.has(o._id));
         if (prevIds.current.size > 0 && incoming.length > 0) {
-          toast.info(`${incoming.length} new order${incoming.length > 1 ? "s" : ""} assigned!`);
+          toast.info(`🆕 ${incoming.length} new order${incoming.length > 1 ? "s" : ""} assigned!`, { duration: 6000 });
+          // Play notification sound
+          try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.4);
+          } catch { /* audio not supported */ }
         }
         prevIds.current = new Set(active.map(o => o._id));
         setActiveOrders(active);
@@ -159,7 +174,7 @@ const RiderDeskDashboard: React.FC = () => {
   const doAction = async (orderId: string, action: "start" | "complete") => {
     setActionLoading(a => ({ ...a, [orderId]: true }));
     try {
-      const res = await fetch("/api/riders/order-action", {
+      const res = await fetch(`${getApiUrl()}/riders/order-action`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify({ orderId, action }),
@@ -185,7 +200,7 @@ const RiderDeskDashboard: React.FC = () => {
   const markInTransit = async (orderId: string) => {
     setActionLoading(a => ({ ...a, [orderId + "_transit"]: true }));
     try {
-      const res = await fetch(`/api/riders/orders/${orderId}/in-transit`, {
+      const res = await fetch(`${getApiUrl()}/riders/orders/${orderId}/in-transit`, {
         method: "POST",
         headers: authHeaders(token),
       });
@@ -206,7 +221,7 @@ const RiderDeskDashboard: React.FC = () => {
 
     setActionLoading(a => ({ ...a, [orderId + "_cod"]: true }));
     try {
-      const res = await fetch(`/api/riders/orders/${orderId}/cod-collected`, {
+      const res = await fetch(`${getApiUrl()}/riders/orders/${orderId}/cod-collected`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify({ amount }),
@@ -232,8 +247,8 @@ const RiderDeskDashboard: React.FC = () => {
       try {
         const base64 = (reader.result as string).split(",")[1];
         const endpoint = type === "pickup"
-          ? `/api/riders/orders/${orderId}/upload-pickup-slip`
-          : `/api/riders/orders/${orderId}/upload-payment-ss`;
+          ? `${getApiUrl()}/riders/orders/${orderId}/upload-pickup-slip`
+          : `${getApiUrl()}/riders/orders/${orderId}/upload-payment-ss`;
 
         const res = await fetch(endpoint, {
           method: "POST",
@@ -395,8 +410,8 @@ const RiderDeskDashboard: React.FC = () => {
                     <p className="text-xs font-semibold text-gray-500 mb-1">📷 Order Photos (Desk)</p>
                     <div className="flex gap-2 flex-wrap">
                       {(order.items_images || []).map(img => (
-                        <a key={img.file_id} href={`/api/riders/public/orders/${order._id}/slip/${img.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`/api/riders/public/orders/${order._id}/slip/${img.file_id}`} alt="item"
+                        <a key={img.file_id} href={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${img.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${img.file_id}`} alt="item"
                             className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
                         </a>
                       ))}
@@ -408,8 +423,8 @@ const RiderDeskDashboard: React.FC = () => {
                     <p className="text-xs font-semibold text-gray-500 mb-1">🧺 Pickup Slips</p>
                     <div className="flex gap-2 flex-wrap">
                       {(order.rider_pickup_slips || []).map(s => (
-                        <a key={s.file_id} href={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="slip"
+                        <a key={s.file_id} href={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="slip"
                             className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
                         </a>
                       ))}
@@ -421,8 +436,8 @@ const RiderDeskDashboard: React.FC = () => {
                     <p className="text-xs font-semibold text-gray-500 mb-1">💳 Payment Slips</p>
                     <div className="flex gap-2 flex-wrap">
                       {[...(order.rider_payment_slips || []), ...(order.vendor_payment_slips || [])].map(s => (
-                        <a key={s.file_id} href={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`/api/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="payment"
+                        <a key={s.file_id} href={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="payment"
                             className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
                         </a>
                       ))}
@@ -437,13 +452,22 @@ const RiderDeskDashboard: React.FC = () => {
               <div className="space-y-2">
                 {/* PICKUP: just upload slip → auto-marks picked up */}
                 {isPickupOrder && (
-                  <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPickupSlip ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
-                    <input type="file" accept="image/*" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
-                      disabled={uploading[order._id + "_pickup"]}
-                    />
-                    {uploading[order._id + "_pickup"] ? "Uploading..." : hasPickupSlip ? "✓ Slip Uploaded — Picked Up!" : "📷 Upload Slip & Mark Picked Up"}
-                  </label>
+                  <div className="space-y-2">
+                    <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPickupSlip ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
+                      <input type="file" accept="image/*" capture="environment" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
+                        disabled={uploading[order._id + "_pickup"]}
+                      />
+                      {uploading[order._id + "_pickup"] ? "Uploading..." : hasPickupSlip ? "✓ Slip Uploaded — Picked Up!" : "📸 Take Photo & Mark Picked Up"}
+                    </label>
+                    <label className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium cursor-pointer border border-gray-300 bg-gray-50 text-gray-700">
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
+                        disabled={uploading[order._id + "_pickup"]}
+                      />
+                      🖼️ Choose from Gallery
+                    </label>
+                  </div>
                 )}
 
                 {/* DELIVERY: collect payment + upload SS → auto-marks delivered */}
@@ -464,11 +488,18 @@ const RiderDeskDashboard: React.FC = () => {
                       </div>
                     )}
                     <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPaymentSS ? "border-green-400 bg-green-50 text-green-700" : "border-orange-300 bg-orange-50 text-orange-700"}`}>
+                      <input type="file" accept="image/*" capture="environment" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "payment"); e.target.value = ""; }}
+                        disabled={uploading[order._id + "_payment"]}
+                      />
+                      {uploading[order._id + "_payment"] ? "Uploading..." : hasPaymentSS ? "✓ SS Uploaded — Marked Delivered!" : "📸 Take Payment Photo & Mark Delivered"}
+                    </label>
+                    <label className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium cursor-pointer border border-gray-300 bg-gray-50 text-gray-700">
                       <input type="file" accept="image/*" className="hidden"
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "payment"); e.target.value = ""; }}
                         disabled={uploading[order._id + "_payment"]}
                       />
-                      {uploading[order._id + "_payment"] ? "Uploading..." : hasPaymentSS ? "✓ SS Uploaded — Marked Delivered!" : "💳 Upload Payment SS & Mark Delivered"}
+                      🖼️ Choose from Gallery
                     </label>
                   </>
                 )}
