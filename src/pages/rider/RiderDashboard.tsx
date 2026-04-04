@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import RiderLayout from '@/components/rider/RiderLayout';
 import RiderNotifications from '@/components/rider/RiderNotifications';
 import { getRiderApiUrl } from '@/lib/riderApi';
+import { useRiderLocation } from '@/contexts/RiderLocationContext';
 import OrderCard from '@/components/rider/OrderCard';
 import TrainingVideo from '@/components/rider/TrainingVideo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -27,14 +28,13 @@ import { Input } from '@/components/ui/input';
 
 export default function RiderDashboard() {
   const navigate = useNavigate();
+  const { currentLocation } = useRiderLocation();
   const [rider, setRider] = useState<any>(null);
   const [isActive, setIsActive] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [assignedOrders, setAssignedOrders] = useState<any[]>([]);
   const [upcomingOrders, setUpcomingOrders] = useState<any[]>([]);
   const [allAssignedOrders, setAllAssignedOrders] = useState<any[]>([]);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-  const [locationWatcher, setLocationWatcher] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastFetchError, setLastFetchError] = useState<string | null>(null);
   const prevOrderCount = React.useRef<number>(0);
@@ -99,119 +99,13 @@ export default function RiderDashboard() {
     return () => window.removeEventListener('globalVerificationStatusChanged', handler as EventListener);
   }, []);
 
-  useEffect(() => {
-    if (isActive) {
-      startLocationTracking();
-    } else {
-      stopLocationTracking();
-    }
-    return () => {
-      if (locationWatcher) {
-        navigator.geolocation.clearWatch(locationWatcher);
-      }
-    };
-  }, [isActive]);
-
-  const startLocationTracking = () => {
-    if (navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          setCurrentLocation(location);
-          // Send location to backend
-          updateLocationOnServer(location);
-        },
-        (error) => {
-          console.error('Location error:', error);
-          toast.error('Location access required for active status');
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 30000
-        }
-      );
-      setLocationWatcher(watchId);
-    }
-  };
-
-  const stopLocationTracking = () => {
-    if (locationWatcher) {
-      navigator.geolocation.clearWatch(locationWatcher);
-      setLocationWatcher(null);
-    }
-  };
-
-
-  const updateLocationOnServer = async (location: {lat: number, lng: number}) => {
-    try {
-      const token = localStorage.getItem('riderToken');
-
-      if (!token || !rider) {
-        console.log('No token or rider data, skipping location update');
-        return;
-      }
-
-      // Skip if offline
-      if (!navigator.onLine) {
-        console.log('Offline - location update will be retried when online');
-        return;
-      }
-
-      const apiUrl = getRiderApiUrl('/location');
-      console.log('🔍 Updating location:', apiUrl);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          riderId: rider._id,
-          location,
-          timestamp: new Date().toISOString()
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.warn('Location update failed:', response.status, response.statusText);
-      }
-    } catch (error) {
-      if ((error as any).name === 'AbortError') {
-        console.warn('Location update timed out');
-      } else {
-        console.error('Failed to update location:', error);
-      }
-      // Don't show error to user for location updates as they're background operations
-    }
-  };
+  // Location tracking is now handled globally by RiderLocationContext
+  // GPS runs from login until logout, regardless of active/inactive status
 
   const toggleActiveStatus = async () => {
     if (!isActive && !currentLocation) {
-      // Request location permission first
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject);
-        });
-        
-        setCurrentLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-      } catch (error) {
-        toast.error('Location access is required to go active');
-        return;
-      }
+      toast.error('Waiting for GPS location. Please ensure location is enabled.');
+      return;
     }
 
     try {

@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/sheet';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { RiderLocationProvider } from '@/contexts/RiderLocationContext';
 
 interface RiderLayoutProps {
   children?: React.ReactNode;
@@ -149,6 +150,8 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
   };
 
   const handleLogout = () => {
+    // Stop GPS tracking before clearing auth
+    window.dispatchEvent(new Event('riderLogout'));
     localStorage.removeItem('riderAuth');
     localStorage.removeItem('riderToken');
     setRider(null);
@@ -167,6 +170,7 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
   const isActive = location.pathname;
 
   return (
+    <RiderLocationProvider>
     <div className="min-h-screen bg-gray-50 rider-mobile-layout">
       {rider && (
         <header className="bg-white shadow-sm border-b sticky top-0 z-50 rider-header-mobile rider-safe-area-top">
@@ -391,5 +395,6 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
       </nav>
 
     </div>
+    </RiderLocationProvider>
   );
 }
