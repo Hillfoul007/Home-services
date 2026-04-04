@@ -101,8 +101,9 @@ app.use("/api/pg-orders", (req, res, next) => {
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  // Check if origin is allowed
-  const isAllowed = !origin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
+  // Check if origin is allowed (always allow Capacitor native app origins)
+  const isCapacitorOrigin = origin === 'https://localhost' || origin === 'capacitor://localhost' || origin === 'http://localhost';
+  const isAllowed = !origin || isCapacitorOrigin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
     productionConfig.ALLOWED_ORIGINS.some(allowedOrigin => {
       if (allowedOrigin.includes('*')) {
         const pattern = allowedOrigin.replace(/\*/g, '.*');
@@ -132,6 +133,11 @@ app.use(
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) {
+        return callback(null, true);
+      }
+
+      // Always allow Capacitor native app origins (Android & iOS)
+      if (origin === 'https://localhost' || origin === 'capacitor://localhost' || origin === 'http://localhost') {
         return callback(null, true);
       }
 
@@ -182,8 +188,9 @@ app.use(
 app.options('*', (req, res) => {
   const origin = req.headers.origin;
 
-  // Check if origin is allowed
-  const isAllowed = !origin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
+  // Check if origin is allowed (always allow Capacitor native app origins)
+  const isCapacitorOrigin = origin === 'https://localhost' || origin === 'capacitor://localhost' || origin === 'http://localhost';
+  const isAllowed = !origin || isCapacitorOrigin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
     productionConfig.ALLOWED_ORIGINS.some(allowedOrigin => {
       if (allowedOrigin.includes('*')) {
         const pattern = allowedOrigin.replace(/\*/g, '.*');
