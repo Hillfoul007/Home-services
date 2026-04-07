@@ -802,14 +802,17 @@ const getDetailedLocationInfo = async (
         additional_details: cartData.instructions || "",
         total_price: cartData.original_total || cartData.totalAmount,
         discount_amount: cartData.discount_amount || 0,
-        final_amount: cartData.totalAmount,
+        final_amount: cartData.final_amount ?? cartData.totalAmount,
         coupon_code: cartData.coupon_code || null,
         special_instructions: cartData.instructions || "",
+        cashback: cartData.wallet_applied || 0,
+        wallet_applied: cartData.wallet_applied || 0,
         charges_breakdown: cartData.charges_breakdown || {
           base_price: cartData.original_total || cartData.totalAmount,
           delivery_fee: 0,
           handling_fee: 0,
           discount: cartData.discount_amount || 0,
+          wallet_applied: cartData.wallet_applied || 0,
         },
         // Save item prices for accurate booking history display
         item_prices: itemPrices,

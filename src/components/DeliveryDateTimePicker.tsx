@@ -129,15 +129,15 @@ const DeliveryDateTimePicker: React.FC<DeliveryDateTimePickerProps> = ({
     return dates;
   };
 
-  // Generate time slots for delivery (8 AM to 9 PM, 1-hour intervals)
+  // Generate time slots for delivery (9 AM to 8 PM, 1-hour intervals)
   const generateDeliveryTimeSlots = () => {
     const slots = [];
     const earliestDateTime = getEarliestDeliveryDateTime();
     const selectedIsEarliest =
       selectedDeliveryDate && isSameDay(selectedDeliveryDate, earliestDateTime);
 
-    // Generate slots from 8 AM to 9 PM (1-hour intervals)
-    for (let hour = 8; hour <= 21; hour++) {
+    // Generate slots from 9 AM to 8 PM (1-hour intervals)
+    for (let hour = 9; hour <= 20; hour++) {
       const timeString = `${hour.toString().padStart(2, "0")}:00`;
       const displayTime = format(
         new Date(`2000-01-01T${timeString}`),

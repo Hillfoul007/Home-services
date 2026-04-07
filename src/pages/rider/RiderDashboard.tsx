@@ -231,7 +231,7 @@ export default function RiderDashboard() {
         // Notify rider of new order assignments
         const activeOrders = finalVisible.filter((o: any) => {
           const s = (o.status || '').toLowerCase();
-          return s === 'pickup_assigned' || s === 'delivery_assigned' || s === 'created' || s === 'vendor_assigned' || s === 'in_transit' || s === 'ready_for_delivery';
+          return s === 'pickup_assigned' || s === 'created' || s === 'vendor_assigned';
         });
         const newCount = activeOrders.length;
         if (prevOrderCount.current > 0 && newCount > prevOrderCount.current) {

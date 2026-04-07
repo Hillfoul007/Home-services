@@ -64,6 +64,8 @@ router.post("/", async (req, res) => {
       special_instructions,
       charges_breakdown,
       item_prices: requestItemPrices,
+      cashback: requestCashback,
+      wallet_applied: requestWalletApplied,
     } = req.body;
 
     // Validation
@@ -563,6 +565,7 @@ router.post("/", async (req, res) => {
       discount_amount: finalDiscount,
       final_amount: finalAmount,
       coupon_code: coupon_code || null,
+      cashback: Number(requestCashback || requestWalletApplied || 0),
       special_instructions,
       charges_breakdown,
       item_prices, // Store individual service prices
@@ -600,6 +603,35 @@ router.post("/", async (req, res) => {
       booking._id,
     );
     console.log("🆔 Generated custom order ID:", booking.custom_order_id);
+
+    // Deduct wallet balance if wallet was applied
+    const walletAppliedAmount = Number(requestCashback || requestWalletApplied || 0);
+    if (walletAppliedAmount > 0 && customer) {
+      try {
+        console.log(`💰 Deducting ₹${walletAppliedAmount} from wallet for customer ${customer._id}`);
+        const currentBalance = customer.wallet_balance || 0;
+        const newBalance = Math.max(0, currentBalance - walletAppliedAmount);
+        customer.wallet_balance = newBalance;
+
+        // Add wallet transaction record
+        if (!customer.wallet_transactions) {
+          customer.wallet_transactions = [];
+        }
+        customer.wallet_transactions.push({
+          type: "debit",
+          amount: walletAppliedAmount,
+          description: `Applied to booking ${booking.custom_order_id || booking._id}`,
+          booking_id: booking._id,
+          date: indianDate,
+        });
+
+        await customer.save();
+        console.log(`✅ Wallet deducted: ₹${currentBalance} → ₹${newBalance}`);
+      } catch (walletError) {
+        console.error("❌ Failed to deduct wallet balance:", walletError);
+        // Don't fail the booking if wallet deduction fails
+      }
+    }
 
     // Check if this customer is using a referral discount
     try {
@@ -1438,16 +1470,23 @@ router.put("/:bookingId", async (req, res) => {
       });
 
       // Direct ObjectId match
-      if (booking.customer_id.toString() === userId) {
+      if (booking.customer_id && booking.customer_id.toString() === userId) {
         canUpdate = true;
         console.log("✅ Direct ObjectId match - customer can update");
       }
 
-      // Phone number matching
+      // Phone number matching and cross-user lookup
       if (!canUpdate) {
         try {
           const bookingCustomer = await User.findById(booking.customer_id);
-          if (bookingCustomer && bookingCustomer.phone) {
+
+          // Also try to find the requesting user by their ID
+          let requestingUser = null;
+          if (mongoose.Types.ObjectId.isValid(userId)) {
+            requestingUser = await User.findById(userId);
+          }
+
+          if (bookingCustomer) {
             let requestingUserPhone = null;
 
             // Extract phone from various formats
@@ -1458,15 +1497,47 @@ router.put("/:bookingId", async (req, res) => {
               if (extractedPhone.match(/^\d{10,}$/)) {
                 requestingUserPhone = extractedPhone;
               }
+            } else if (requestingUser && requestingUser.phone) {
+              requestingUserPhone = requestingUser.phone;
             }
 
-            if (requestingUserPhone && bookingCustomer.phone === requestingUserPhone) {
+            // Match by phone number
+            if (requestingUserPhone && bookingCustomer.phone && bookingCustomer.phone === requestingUserPhone) {
               canUpdate = true;
               console.log("✅ Phone number match - customer can update");
+            }
+
+            // Match if requesting user's phone matches booking customer's phone
+            if (!canUpdate && requestingUser && requestingUser.phone && bookingCustomer.phone) {
+              if (requestingUser.phone === bookingCustomer.phone) {
+                canUpdate = true;
+                console.log("✅ Cross-user phone match - same customer can update");
+              }
             }
           }
         } catch (userError) {
           console.warn("Failed to lookup user for authorization:", userError);
+        }
+      }
+
+      // Also check if booking has a phone field that matches the requesting user
+      if (!canUpdate && booking.phone) {
+        try {
+          let requestingUser = null;
+          if (mongoose.Types.ObjectId.isValid(userId)) {
+            requestingUser = await User.findById(userId);
+          }
+          if (requestingUser && requestingUser.phone === booking.phone) {
+            canUpdate = true;
+            console.log("✅ Booking phone matches requesting user - can update");
+          }
+          // Direct phone match
+          if (userId && userId.match(/^\d{10,}$/) && userId === booking.phone) {
+            canUpdate = true;
+            console.log("✅ Direct phone match with booking phone - can update");
+          }
+        } catch (e) {
+          console.warn("Phone check failed:", e);
         }
       }
     }

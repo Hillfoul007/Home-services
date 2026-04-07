@@ -497,6 +497,20 @@ const formatDate = (dateString?: string | Date) => {
   return formatDateTimeIST(dateString as any);
 };
 
+const parseTimeString = (timeStr: string): { hours: number; minutes: number } => {
+  const ampmMatch = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (ampmMatch) {
+    let hours = parseInt(ampmMatch[1], 10);
+    const minutes = parseInt(ampmMatch[2], 10);
+    const isPM = ampmMatch[3].toUpperCase() === 'PM';
+    if (isPM && hours !== 12) hours += 12;
+    if (!isPM && hours === 12) hours = 0;
+    return { hours, minutes };
+  }
+  const parts = timeStr.split(':').map(Number);
+  return { hours: parts[0] || 0, minutes: parts[1] || 0 };
+};
+
 const getScheduledDateTime = (booking: Booking): Date => {
   try {
     const dateStr = booking.scheduled_date || '';
@@ -504,7 +518,7 @@ const getScheduledDateTime = (booking: Booking): Date => {
 
     if (!dateStr) return new Date(0);
 
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    const { hours, minutes } = parseTimeString(timeStr);
     const dateObj = new Date(dateStr);
     dateObj.setHours(hours || 0, minutes || 0, 0, 0);
     return dateObj;
@@ -520,7 +534,7 @@ const getDeliveryDateTime = (booking: Booking): Date => {
 
     if (!dateStr) return new Date(0);
 
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    const { hours, minutes } = parseTimeString(timeStr);
     const dateObj = new Date(dateStr);
     dateObj.setHours(hours || 0, minutes || 0, 0, 0);
     return dateObj;
@@ -532,12 +546,12 @@ const getDeliveryDateTime = (booking: Booking): Date => {
 const formatScheduledDateTime = (booking: Booking): string => {
   try {
     const dateStr = booking.scheduled_date || '';
-    const timeStr = booking.scheduled_time || '00:00';
+    const timeStr = booking.scheduled_time || '';
 
     if (!dateStr) return 'N/A';
 
     const dateObj = new Date(dateStr);
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    if (isNaN(dateObj.getTime())) return 'N/A';
 
     const dayMonth = dateObj.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -548,6 +562,25 @@ const formatScheduledDateTime = (booking: Booking): string => {
 
     if (!timeStr || timeStr === '00:00') {
       return dayMonth;
+    }
+
+    // Handle time in both "HH:mm" and "h:mm AM/PM" formats
+    let hours = 0, minutes = 0;
+    const ampmMatch = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampmMatch) {
+      hours = parseInt(ampmMatch[1], 10);
+      minutes = parseInt(ampmMatch[2], 10);
+      const isPM = ampmMatch[3].toUpperCase() === 'PM';
+      if (isPM && hours !== 12) hours += 12;
+      if (!isPM && hours === 12) hours = 0;
+    } else {
+      const parts = timeStr.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+    }
+
+    if (isNaN(hours) || isNaN(minutes)) {
+      return `${dayMonth}, ${timeStr}`;
     }
 
     const timeFormatted = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hours, minutes)

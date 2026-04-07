@@ -5,6 +5,7 @@ const Booking = require("../models/Booking");
 const PGOrder = require("../models/PGOrder");
 const Rider = require("../models/Rider");
 const Vendor = require("../models/Vendor");
+const User = require("../models/User");
 const mongoose = require("mongoose");
 const multer = require("multer");
 
@@ -364,6 +365,22 @@ router.put("/orders/:orderId/mark-ready", verifyVendorToken, async (req, res) =>
           title: "Your order is ready for delivery!",
           message: `Order ${order.custom_order_id || orderId} is ready. Set your delivery date and time now.`,
         });
+
+        // Also send SMS notification to customer
+        try {
+          const otpService = require("../services/otpService");
+          const customerPhone = order.phone || (await User.findById(customerId, "phone"))?.phone;
+          if (customerPhone) {
+            await otpService.sendSMS(
+              customerPhone,
+              `Your laundry order ${order.custom_order_id || orderId} is ready for delivery! Please open the app to set your preferred delivery date and time.`,
+              'order_ready'
+            );
+            console.log(`📱 SMS sent to customer ${customerPhone} for ready order`);
+          }
+        } catch (smsError) {
+          console.warn("⚠️ Failed to send ready-for-delivery SMS:", smsError.message);
+        }
 
         console.log(`📢 Notification sent to customer ${customerId} for ready order ${orderId}`);
       }

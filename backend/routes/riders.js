@@ -1800,7 +1800,9 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
       case 'start':
         order.riderStatus = 'picked_up';
         order.pickedUpAt = now;
-        order.status = 'pickup_completed';
+        order.completedAt = now;
+        order.completed_at = now;
+        order.status = 'completed';
         break;
       case 'complete':
         order.riderStatus = 'delivered';

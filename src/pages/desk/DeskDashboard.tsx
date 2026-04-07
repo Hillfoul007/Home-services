@@ -62,6 +62,7 @@ interface Order {
   no_of_items?: number;
   assignedRider?: RiderRef | string | null;
   assignedRiderPhone?: string;
+  coordinates?: { lat: number; lng: number };
   readyAt?: string;
   created_at?: string;
   _breach?: boolean;
@@ -542,6 +543,19 @@ const DeskDashboard: React.FC = () => {
     return `${Math.floor(hrs / 24)}d ago`;
   }
 
+  function formatOrderDate(dateStr?: string, timeStr?: string) {
+    if (!dateStr) return null;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const formatted = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      if (timeStr) return `${formatted}, ${timeStr}`;
+      return formatted;
+    } catch {
+      return dateStr;
+    }
+  }
+
   // ─── Image URL helpers ────────────────────────────────────────────────────
 
   const itemsImageUrl = (orderId: string, fileId: string) =>
@@ -555,12 +569,27 @@ const DeskDashboard: React.FC = () => {
 
   // ─── Render: uploaded images strip ───────────────────────────────────────
 
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+
   const renderImages = (order: Order) => {
     const itemImgs = order.items_images || [];
     const paySlips = order.vendor_payment_slips || [];
     const riderPickupSlips = order.rider_pickup_slips || [];
     const riderPaySlips = order.rider_payment_slips || [];
     if (itemImgs.length === 0 && paySlips.length === 0 && riderPickupSlips.length === 0 && riderPaySlips.length === 0) return null;
+
+    const ImageThumb = ({ src, alt, borderColor = "border-gray-200" }: { src: string; alt: string; borderColor?: string }) => (
+      <button
+        onClick={(e) => { e.stopPropagation(); setFullscreenImage(src); }}
+        className="block touch-manipulation"
+      >
+        <img src={src} alt={alt}
+          className={`w-24 h-24 sm:w-20 sm:h-20 object-cover rounded-lg border-2 ${borderColor} active:opacity-70`}
+          loading="lazy"
+        />
+      </button>
+    );
+
     return (
       <div className="space-y-2">
         {riderPickupSlips.length > 0 && (
@@ -568,10 +597,7 @@ const DeskDashboard: React.FC = () => {
             <p className="text-xs font-semibold text-indigo-600 mb-1">🧾 Rider Pickup Slip</p>
             <div className="flex gap-2 flex-wrap">
               {riderPickupSlips.map((slip) => (
-                <a key={slip.file_id} href={riderSlipUrl(order._id, slip.file_id)} target="_blank" rel="noreferrer">
-                  <img src={riderSlipUrl(order._id, slip.file_id)} alt="pickup slip"
-                    className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80" />
-                </a>
+                <ImageThumb key={slip.file_id} src={riderSlipUrl(order._id, slip.file_id)} alt="pickup slip" borderColor="border-indigo-200" />
               ))}
             </div>
           </div>
@@ -581,10 +607,7 @@ const DeskDashboard: React.FC = () => {
             <p className="text-xs font-semibold text-green-600 mb-1">💳 Rider Payment SS</p>
             <div className="flex gap-2 flex-wrap">
               {riderPaySlips.map((slip) => (
-                <a key={slip.file_id} href={riderSlipUrl(order._id, slip.file_id)} target="_blank" rel="noreferrer">
-                  <img src={riderSlipUrl(order._id, slip.file_id)} alt="payment ss"
-                    className="w-20 h-20 object-cover rounded-lg border-2 border-green-200 hover:opacity-80" />
-                </a>
+                <ImageThumb key={slip.file_id} src={riderSlipUrl(order._id, slip.file_id)} alt="payment ss" borderColor="border-green-200" />
               ))}
             </div>
           </div>
@@ -594,10 +617,7 @@ const DeskDashboard: React.FC = () => {
             <p className="text-xs font-semibold text-gray-500 mb-1">📷 Item Photos</p>
             <div className="flex gap-2 flex-wrap">
               {itemImgs.map((img) => (
-                <a key={img.file_id} href={itemsImageUrl(order._id, img.file_id)} target="_blank" rel="noreferrer">
-                  <img src={itemsImageUrl(order._id, img.file_id)} alt="item"
-                    className="w-16 h-16 object-cover rounded-lg border border-gray-200 hover:opacity-80" />
-                </a>
+                <ImageThumb key={img.file_id} src={itemsImageUrl(order._id, img.file_id)} alt="item" />
               ))}
             </div>
           </div>
@@ -607,10 +627,7 @@ const DeskDashboard: React.FC = () => {
             <p className="text-xs font-semibold text-gray-500 mb-1">💳 Payment Slips</p>
             <div className="flex gap-2 flex-wrap">
               {paySlips.map((slip) => (
-                <a key={slip.file_id} href={paymentSlipUrl(order._id, slip.file_id)} target="_blank" rel="noreferrer">
-                  <img src={paymentSlipUrl(order._id, slip.file_id)} alt="slip"
-                    className="w-16 h-16 object-cover rounded-lg border border-gray-200 hover:opacity-80" />
-                </a>
+                <ImageThumb key={slip.file_id} src={paymentSlipUrl(order._id, slip.file_id)} alt="slip" />
               ))}
             </div>
           </div>
@@ -714,16 +731,16 @@ const DeskDashboard: React.FC = () => {
               <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs space-y-1">
                 {order.scheduled_date && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Pickup Date</span>
-                    <span className="font-medium">{order.scheduled_date}</span>
+                    <span className="text-gray-500">Pickup</span>
+                    <span className="font-medium">{formatOrderDate(order.scheduled_date, order.scheduled_time)}</span>
                   </div>
                 )}
                 {order.delivery_date && (
                   <div className="flex justify-between">
                     <span className={`${isBreach ? "text-red-500 font-semibold" : "text-gray-500"}`}>
-                      {isBreach ? "⚠ Delivery (OVERDUE)" : "Delivery Date"}
+                      {isBreach ? "⚠ Delivery (OVERDUE)" : "Delivery"}
                     </span>
-                    <span className={`font-medium ${isBreach ? "text-red-600" : ""}`}>{order.delivery_date}</span>
+                    <span className={`font-medium ${isBreach ? "text-red-600" : ""}`}>{formatOrderDate(order.delivery_date)}</span>
                   </div>
                 )}
                 {order.readyAt && (
@@ -736,7 +753,30 @@ const DeskDashboard: React.FC = () => {
             )}
 
             {/* rider live tracking (all sections with assigned rider) */}
-            {riderLocation?.live_location_link && (
+            {riderLocation && riderLocation.location?.lat && riderLocation.location?.lng ? (
+              <div className="w-full rounded-xl overflow-hidden border border-orange-200">
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 text-sm font-medium text-orange-700">
+                  <span>📡</span>
+                  <span>Rider Location ({riderLocation.name})</span>
+                  {riderLocation.lastLocationUpdate && (
+                    <span className="text-xs text-orange-500 ml-auto">
+                      {timeSince(riderLocation.lastLocationUpdate)}
+                    </span>
+                  )}
+                </div>
+                <iframe
+                  src={`https://www.google.com/maps?q=${riderLocation.location.lat},${riderLocation.location.lng}&z=15&output=embed`}
+                  className="w-full h-40 border-0"
+                  loading="lazy"
+                  allowFullScreen
+                  title="Rider Location"
+                />
+                <a href={`https://www.google.com/maps?q=${riderLocation.location.lat},${riderLocation.location.lng}`} target="_blank" rel="noreferrer"
+                  className="block text-center text-xs text-blue-600 py-1.5 bg-gray-50 font-medium">
+                  Open in Google Maps
+                </a>
+              </div>
+            ) : riderLocation?.live_location_link ? (
               <a href={riderLocation.live_location_link} target="_blank" rel="noreferrer"
                 className="flex items-center gap-2 w-full py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-sm font-medium text-orange-700">
                 <span>📡</span>
@@ -747,7 +787,7 @@ const DeskDashboard: React.FC = () => {
                   </span>
                 )}
               </a>
-            )}
+            ) : null}
 
             {/* items */}
             {order.item_prices && order.item_prices.length > 0 && (
@@ -1311,23 +1351,39 @@ const DeskDashboard: React.FC = () => {
                 <h2 className="font-semibold text-gray-800 px-4 pt-4 pb-2">Your Riders ({riders.length})</h2>
                 <div className="divide-y divide-gray-50">
                   {riders.map((r) => (
-                    <div key={r._id} className="px-4 py-3 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-sm text-gray-900">{r.name}</p>
-                        <a href={`tel:${r.phone}`} className="text-xs text-blue-600">{r.phone}</a>
-                        {r.live_location_link && (
-                          <a href={r.live_location_link} target="_blank" rel="noreferrer"
-                            className="block text-xs text-indigo-500 underline mt-0.5">Live Location</a>
-                        )}
+                    <div key={r._id} className="px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm text-gray-900">{r.name}</p>
+                          <a href={`tel:${r.phone}`} className="text-xs text-blue-600">{r.phone}</a>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                            {r.isActive ? "Active" : "Offline"}
+                          </span>
+                          <button onClick={() => resetPassword(r._id)} className="text-xs text-orange-600 underline">
+                            Reset Password
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                          {r.isActive ? "Active" : "Offline"}
-                        </span>
-                        <button onClick={() => resetPassword(r._id)} className="text-xs text-orange-600 underline">
-                          Reset Password
-                        </button>
-                      </div>
+                      {r.isActive && r.location?.lat && r.location?.lng && (
+                        <div className="mt-2 rounded-lg overflow-hidden border border-green-200">
+                          <iframe
+                            src={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}&z=15&output=embed`}
+                            className="w-full h-32 border-0"
+                            loading="lazy"
+                            title={`${r.name} location`}
+                          />
+                          {r.lastLocationUpdate && (
+                            <p className="text-[10px] text-gray-400 text-center py-1 bg-gray-50">
+                              Last updated: {timeSince(r.lastLocationUpdate)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {!r.isActive && (
+                        <p className="text-xs text-gray-400 mt-1">Location hidden (rider offline)</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1372,6 +1428,36 @@ const DeskDashboard: React.FC = () => {
       </main>
 
       {/* ── Rider Assignment Modal ── */}
+      {/* Fullscreen image viewer */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <button
+            onClick={() => setFullscreenImage(null)}
+            className="absolute top-4 right-4 text-white text-2xl font-bold bg-black/50 w-10 h-10 rounded-full flex items-center justify-center z-10"
+          >
+            &times;
+          </button>
+          <img
+            src={fullscreenImage}
+            alt="Full view"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <a
+            href={fullscreenImage}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute bottom-6 bg-white text-gray-900 px-6 py-2.5 rounded-xl font-semibold text-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Open Original
+          </a>
+        </div>
+      )}
+
       {assignModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4 pb-2 sm:pb-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-4 sm:p-5 shadow-xl max-h-[85vh] overflow-y-auto">
@@ -1445,28 +1531,74 @@ function OptimizeTab({
   fetchDashboard: () => void;
 }) {
   // Group orders by nearby addresses for pickup (created + pickup_assigned) and delivery (ready_for_delivery)
+  // Combine pickups and deliveries together for unified assignment
   const pickupOrders = [...sections.created, ...(sections.picked_up || [])].filter(o => o.address);
   const deliveryOrders = sections.ready_for_delivery.filter(o => o.address);
+  const allPendingOrders = [...pickupOrders, ...deliveryOrders];
 
-  // Simple grouping: group by first significant part of address (area/locality)
-  const groupByArea = (orders: Order[]) => {
-    const groups: Record<string, Order[]> = {};
-    orders.forEach(o => {
-      if (!o.address) return;
-      // Extract area: take the part after the first comma or use first 30 chars
+  // Haversine distance in km
+  const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  // Proximity-based grouping: group orders within 3km of each other
+  const groupByProximity = (orders: Order[]): [string, Order[]][] => {
+    const RADIUS_KM = 3;
+    const groups: { label: string; orders: Order[] }[] = [];
+    const assigned = new Set<string>();
+
+    // Orders with coordinates
+    const withCoords = orders.filter(o => o.coordinates?.lat && o.coordinates?.lng);
+    const withoutCoords = orders.filter(o => !o.coordinates?.lat || !o.coordinates?.lng);
+
+    // Group by proximity using coordinates
+    for (const order of withCoords) {
+      if (assigned.has(order._id)) continue;
+      const cluster: Order[] = [order];
+      assigned.add(order._id);
+
+      for (const other of withCoords) {
+        if (assigned.has(other._id)) continue;
+        const dist = haversineKm(order.coordinates!.lat, order.coordinates!.lng, other.coordinates!.lat, other.coordinates!.lng);
+        if (dist <= RADIUS_KM) {
+          cluster.push(other);
+          assigned.add(other._id);
+        }
+      }
+
+      // Get area name from address
+      const parts = order.address!.split(",").map(p => p.trim());
+      const label = parts.length >= 2 ? parts[parts.length - 2] : parts[0]?.substring(0, 30) || "Unknown";
+      groups.push({ label, orders: cluster });
+    }
+
+    // Fallback: group remaining orders by address text
+    const textGroups: Record<string, Order[]> = {};
+    for (const o of withoutCoords) {
+      if (!o.address) continue;
       const parts = o.address.split(",").map(p => p.trim());
       const area = parts.length >= 2 ? parts[parts.length - 2] : parts[0].substring(0, 30);
       const key = area.toLowerCase().trim();
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(o);
-    });
-    // Return all groups sorted by count (most orders first)
-    return Object.entries(groups)
-      .sort((a, b) => b[1].length - a[1].length);
+      if (!textGroups[key]) textGroups[key] = [];
+      textGroups[key].push(o);
+    }
+    for (const [area, orders] of Object.entries(textGroups)) {
+      groups.push({ label: area, orders });
+    }
+
+    return groups
+      .sort((a, b) => b.orders.length - a.orders.length)
+      .map(g => [g.label, g.orders] as [string, Order[]]);
   };
 
-  const pickupGroups = groupByArea(pickupOrders);
-  const deliveryGroups = groupByArea(deliveryOrders);
+  const pickupGroups = groupByProximity(pickupOrders);
+  const deliveryGroups = groupByProximity(deliveryOrders);
+  // Combined groups for unified rider assignment
+  const combinedGroups = groupByProximity(allPendingOrders);
   const hasGroups = pickupGroups.length > 0 || deliveryGroups.length > 0;
 
   const openGroupRoute = (orders: Order[]) => {
@@ -1527,7 +1659,7 @@ function OptimizeTab({
 
             {/* Delivery groups */}
             {deliveryGroups.length > 0 && (
-              <div>
+              <div className="mb-5">
                 <h3 className="text-sm font-bold text-green-700 mb-2">🚚 Delivery — Nearby Orders</h3>
                 {deliveryGroups.map(([area, orders]) => (
                   <div key={area} className="bg-green-50 border border-green-200 rounded-xl p-3 mb-3">
@@ -1558,6 +1690,58 @@ function OptimizeTab({
                 ))}
               </div>
             )}
+
+            {/* Combined pickup + delivery groups for single rider */}
+            {combinedGroups.filter(([, orders]) => orders.length >= 2).length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-blue-700 mb-2">🔄 Combined — Pickup + Delivery Nearby</h3>
+                <p className="text-xs text-gray-500 mb-3">Orders within 3km grouped together. Assign one rider for both pickup and delivery in the same area.</p>
+                {combinedGroups.filter(([, orders]) => orders.length >= 2).map(([area, orders]) => {
+                  const pickups = orders.filter(o => {
+                    const s = (o.status || '').toLowerCase();
+                    return s === 'created' || s === 'pickup_assigned' || s === 'picked_up' || s === 'vendor_assigned';
+                  });
+                  const deliveries = orders.filter(o => {
+                    const s = (o.status || '').toLowerCase();
+                    return s === 'ready_for_delivery' || s === 'delivery_assigned';
+                  });
+                  return (
+                    <div key={`combined_${area}`} className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-blue-800">📍 {area} ({orders.length} orders)</span>
+                        <button
+                          onClick={() => openGroupRoute(orders)}
+                          className="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg font-medium"
+                        >
+                          🗺️ Route
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        {orders.map(o => {
+                          const s = (o.status || '').toLowerCase();
+                          const isPickup = s === 'created' || s === 'pickup_assigned' || s === 'picked_up' || s === 'vendor_assigned';
+                          return (
+                            <div key={o._id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${isPickup ? "bg-purple-100 text-purple-700" : "bg-green-100 text-green-700"}`}>
+                                  {isPickup ? "PICKUP" : "DELIVERY"}
+                                </span>
+                                <span className="font-semibold">{o.custom_order_id || o._id.slice(-6).toUpperCase()}</span>
+                                <span className="text-gray-500">{o.name}</span>
+                              </div>
+                              <span className="text-gray-400">₹{(o.final_amount ?? o.total_price ?? 0)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-blue-600 mt-2 font-medium">
+                        {pickups.length} pickup{pickups.length !== 1 ? 's' : ''} + {deliveries.length} deliver{deliveries.length !== 1 ? 'ies' : 'y'} — assign one rider for this area.
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1579,13 +1763,15 @@ function OptimizeTab({
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                     {r.isActive ? "Active" : "Offline"}
                   </span>
-                  {r.live_location_link ? (
-                    <a href={r.live_location_link} target="_blank" rel="noreferrer"
+                  {r.isActive && r.location?.lat && r.location?.lng ? (
+                    <a href={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}`} target="_blank" rel="noreferrer"
                       className="text-xs bg-orange-100 text-orange-700 px-3 py-1.5 rounded-lg font-semibold">
-                      📡 Track
+                      📡 View on Map
                     </a>
+                  ) : r.isActive ? (
+                    <span className="text-xs text-gray-400">No location yet</span>
                   ) : (
-                    <span className="text-xs text-gray-400">No GPS</span>
+                    <span className="text-xs text-gray-400">Offline</span>
                   )}
                 </div>
               </div>
