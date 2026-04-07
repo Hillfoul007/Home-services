@@ -16,6 +16,7 @@ import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { walletService, type WalletTransaction } from "@/services/walletService";
 import { toast } from "sonner";
 import { formatDateTimeIST } from "@/utils/timeUtils";
+import { getApiUrl } from "@/config/env";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -111,7 +112,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       // Try to update in backend if available
       try {
-        const response = await fetch("/api/auth/save-user", {
+        const response = await fetch(`${getApiUrl()}/auth/save-user`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

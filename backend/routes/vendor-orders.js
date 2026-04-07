@@ -300,10 +300,10 @@ router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) 
     // Add order to rider's assigned list
     await Rider.findByIdAndUpdate(riderId, { $addToSet: { assignedOrders: order._id } });
 
-    const assignmentType = order.status === "pickup_assigned" ? "pickup" : "delivery";
-    console.log(`✅ Rider ${rider.name} assigned for ${assignmentType} to order ${orderId}`);
+    const finalType = order.status === "pickup_assigned" ? "pickup" : "delivery";
+    console.log(`✅ Rider ${rider.name} assigned for ${finalType} to order ${orderId}`);
 
-    res.json({ success: true, message: `Rider ${rider.name} assigned for ${assignmentType}`, assignmentType, order });
+    res.json({ success: true, message: `Rider ${rider.name} assigned for ${finalType}`, assignmentType: finalType, order });
   } catch (error) {
     console.error("❌ Error assigning rider:", error);
     res.status(500).json({ error: "Internal server error" });

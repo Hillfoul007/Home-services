@@ -67,7 +67,20 @@ export class BookingService {
     const hostname = window.location.hostname;
     const isLocalhost = hostname.includes("localhost") || hostname.includes("127.0.0.1");
 
-    if (isLocalhost) {
+    // Detect Capacitor native app - it runs on localhost but needs production backend
+    const isCapacitorNative = (() => {
+      try {
+        const cap = (window as any).Capacitor;
+        if (cap?.isNativePlatform?.()) return true;
+        if (cap && cap.getPlatform && cap.getPlatform() !== 'web') return true;
+        return false;
+      } catch { return false; }
+    })();
+
+    if (isCapacitorNative) {
+      // Capacitor serves from localhost internally but needs real backend
+      this.apiBaseUrl = "https://home-services-5alb.onrender.com/api";
+    } else if (isLocalhost) {
       this.apiBaseUrl = "http://localhost:3001/api";
     } else {
       // For all hosted environments, use production backend
@@ -77,6 +90,7 @@ export class BookingService {
     console.log("📡 BookingService API URL:", {
       hostname,
       isLocalhost,
+      isCapacitorNative,
       apiBaseUrl: this.apiBaseUrl
     });
   }

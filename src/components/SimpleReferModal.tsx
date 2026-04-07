@@ -11,6 +11,8 @@ interface SimpleReferModalProps {
   earnings?: number;
 }
 
+const APP_URL = "https://laundrify.online";
+
 const SimpleReferModal: React.FC<SimpleReferModalProps> = ({
   referralCode,
   userHasCompletedFirstOrder,
@@ -18,6 +20,13 @@ const SimpleReferModal: React.FC<SimpleReferModalProps> = ({
   earnings = 0,
 }) => {
   const [copying, setCopying] = useState(false);
+
+  // Use production URL for share links (not localhost on Capacitor)
+  const getShareUrl = () => {
+    const origin = window.location.origin;
+    const isCapacitor = origin.includes("localhost") || origin.includes("capacitor://");
+    return isCapacitor ? APP_URL : origin;
+  };
 
   const handleCopyCode = async () => {
     if (!referralCode) {
@@ -29,7 +38,18 @@ const SimpleReferModal: React.FC<SimpleReferModalProps> = ({
       await navigator.clipboard.writeText(referralCode);
       toast.success("Code copied! 📋");
     } catch (error) {
-      toast.error("Failed to copy code");
+      // Fallback for Capacitor/mobile where clipboard API may not work
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = referralCode;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        toast.success("Code copied! 📋");
+      } catch {
+        toast.error("Failed to copy code");
+      }
     } finally {
       setCopying(false);
     }
@@ -41,12 +61,24 @@ const SimpleReferModal: React.FC<SimpleReferModalProps> = ({
       return;
     }
     try {
-      const appUrl = window.location.origin;
+      const appUrl = getShareUrl();
       const link = `${appUrl}?ref=${referralCode}`;
       await navigator.clipboard.writeText(link);
       toast.success("Link copied! 📋");
     } catch (error) {
-      toast.error("Failed to copy link");
+      try {
+        const appUrl = getShareUrl();
+        const link = `${appUrl}?ref=${referralCode}`;
+        const textArea = document.createElement("textarea");
+        textArea.value = link;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        toast.success("Link copied! 📋");
+      } catch {
+        toast.error("Failed to copy link");
+      }
     }
   };
 
@@ -56,7 +88,7 @@ const SimpleReferModal: React.FC<SimpleReferModalProps> = ({
       return;
     }
 
-    const appUrl = window.location.origin;
+    const appUrl = getShareUrl();
     const message = `Hey! 👋 I'm using Laundrify for laundry services. Sign up with my code *${referralCode}* and get ₹50 instantly in your wallet! I also get ₹50 when you complete your first order. Download here: ${appUrl}?ref=${referralCode}`;
 
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;

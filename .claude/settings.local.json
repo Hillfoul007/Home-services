@@ -11,7 +11,8 @@
       "Bash(grep -E \"\\\\.js$\")",
       "Bash(unzip -l \"c:\\\\Users\\\\Kataria\\\\Home-services\\\\android\\\\app\\\\build\\\\outputs\\\\bundle\\\\release\\\\app-release.aab\")",
       "Bash(find /c/Users/Kataria/Home-services/src -name *Cart* -o -name *cart* -o -name *Checkout*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(bash scripts/build-rider-aab.sh)"
     ]
   }
 }

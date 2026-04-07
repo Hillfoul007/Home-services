@@ -13,9 +13,9 @@ export class ApiClient {
   private baseUrl: string;
 
   constructor() {
-    // Use relative path for proxy compatibility in development
-    const isProduction = window.location.hostname !== "localhost";
-    this.baseUrl = isProduction ? getApiUrl() : "/api";
+    // Always use getApiUrl() which handles Capacitor native detection
+    // On Capacitor, hostname is localhost but we need the production backend
+    this.baseUrl = getApiUrl();
   }
 
   public static getInstance(): ApiClient {

@@ -1,3 +1,5 @@
+import { getApiUrl } from '../config/env';
+
 // VAPID keys - Retrieved from environment variables
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
 
@@ -123,7 +125,7 @@ export class PushNotificationService {
     subscription: PushSubscription,
   ): Promise<void> {
     try {
-      const response = await fetch("/api/push/subscribe", {
+      const response = await fetch(`${getApiUrl()}/push/subscribe`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -142,7 +144,7 @@ export class PushNotificationService {
   // Remove subscription from server
   private async removeSubscriptionFromServer(): Promise<void> {
     try {
-      const response = await fetch("/api/push/unsubscribe", {
+      const response = await fetch(`${getApiUrl()}/push/unsubscribe`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
