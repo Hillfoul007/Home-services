@@ -842,7 +842,7 @@ const DeskDashboard: React.FC = () => {
                             ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal.toLowerCase()))
                             : laundryServices;
                           return (
-                          <div key={i} className="space-y-1">
+                          <div key={i} className="space-y-1 border border-gray-100 rounded-lg p-2">
                             <div className="flex gap-2 items-center">
                               <div className="flex-1 relative">
                                 <input
@@ -876,24 +876,29 @@ const DeskDashboard: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              <input
-                                type="number"
-                                placeholder="Qty"
-                                min="1"
-                                value={item.quantity}
-                                onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
-                                className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                              />
-                              <input
-                                type="number"
-                                placeholder="Price"
-                                min="0"
-                                value={item.unit_price}
-                                onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
-                                className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                              />
-                              <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
-                              <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                              <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1 shrink-0">✕</button>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <div className="flex-1 flex gap-2 items-center">
+                                <input
+                                  type="number"
+                                  placeholder="Qty"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                                />
+                                <span className="text-gray-400 text-xs shrink-0">×</span>
+                                <input
+                                  type="number"
+                                  placeholder="Price"
+                                  min="0"
+                                  value={item.unit_price}
+                                  onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                                />
+                              </div>
+                              <span className="text-xs font-semibold text-indigo-700 shrink-0">=&nbsp;₹{item.total_price}</span>
                             </div>
                           </div>
                           );
@@ -989,7 +994,7 @@ const DeskDashboard: React.FC = () => {
                             ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal2.toLowerCase()))
                             : laundryServices;
                           return (
-                          <div key={i} className="space-y-1">
+                          <div key={i} className="space-y-1 border border-gray-100 rounded-lg p-2">
                             <div className="flex gap-2 items-center">
                               <div className="flex-1 relative">
                                 <input type="text" placeholder="Type or select item..."
@@ -1020,14 +1025,19 @@ const DeskDashboard: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              <input type="number" placeholder="Qty" min="1" value={item.quantity}
-                                onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
-                                className="w-14 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                              <input type="number" placeholder="Price" min="0" value={item.unit_price}
-                                onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
-                                className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                              <span className="text-xs font-medium text-gray-700 w-16 text-right">₹{item.total_price}</span>
-                              <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1">✕</button>
+                              <button onClick={() => removeCartItem(i)} className="text-red-400 text-base leading-none px-1 shrink-0">✕</button>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <div className="flex-1 flex gap-2 items-center">
+                                <input type="number" placeholder="Qty" min="1" value={item.quantity}
+                                  onChange={e => updateCartItem(i, "quantity", Number(e.target.value))}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                                <span className="text-gray-400 text-xs shrink-0">×</span>
+                                <input type="number" placeholder="Price" min="0" value={item.unit_price}
+                                  onChange={e => updateCartItem(i, "unit_price", Number(e.target.value))}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                              </div>
+                              <span className="text-xs font-semibold text-indigo-700 shrink-0">=&nbsp;₹{item.total_price}</span>
                             </div>
                           </div>
                           );
