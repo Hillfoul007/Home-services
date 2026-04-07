@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
+import { getRiderApiUrl } from "@/lib/riderApi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,13 +93,55 @@ const RiderDeskDashboard: React.FC = () => {
   const [codAmount, setCodAmount] = useState("");
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const prevIds = useRef<Set<string>>(new Set());
+  const lastLocationSentRef = useRef<number>(0);
+  const watchIdRef = useRef<number | null>(null);
 
-  // Get current location for navigation
+  // Continuous GPS tracking — sends location to server every 30s
   useEffect(() => {
-    navigator.geolocation?.getCurrentPosition(
-      pos => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {} // silent if denied
+    if (!navigator.geolocation) return;
+
+    const sendLocationToServer = async (location: { lat: number; lng: number }) => {
+      const now = Date.now();
+      if (now - lastLocationSentRef.current < 30000) return;
+      lastLocationSentRef.current = now;
+
+      try {
+        const t = localStorage.getItem("rider_desk_token");
+        const info = localStorage.getItem("rider_desk_info");
+        if (!t || !info) return;
+        if (!navigator.onLine) return;
+
+        const rider = JSON.parse(info);
+        const apiUrl = getRiderApiUrl("/location");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+          body: JSON.stringify({ riderId: rider._id, location, timestamp: new Date().toISOString() }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch {
+        // silent — background update
+      }
+    };
+
+    const wid = navigator.geolocation.watchPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCurrentLocation(loc);
+        sendLocationToServer(loc);
+      },
+      () => {}, // silent if denied
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
+    watchIdRef.current = wid;
+
+    return () => {
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -272,6 +315,10 @@ const RiderDeskDashboard: React.FC = () => {
   };
 
   const logout = () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
     localStorage.removeItem("rider_desk_token");
     localStorage.removeItem("rider_desk_info");
     navigate("/rider-desk");
