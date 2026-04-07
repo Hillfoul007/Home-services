@@ -257,7 +257,7 @@ router.get("/available-riders", verifyVendorToken, async (req, res) => {
 router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { riderId } = req.body;
+    const { riderId, assignmentType } = req.body;
 
     if (!riderId) return res.status(400).json({ error: "riderId is required" });
 
@@ -279,11 +279,11 @@ router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) 
     order.assignedAt = now;
     order.acceptedAt = now;
 
-    // Determine assignment type from current order status
-    if (["vendor_assigned", "created"].includes(order.status)) {
+    // Use explicit assignmentType from body if provided, otherwise determine from order status
+    if (assignmentType === "pickup" || (!assignmentType && ["vendor_assigned", "created"].includes(order.status))) {
       // Pickup assignment: rider picks up from customer and delivers to laundry
       order.status = "pickup_assigned";
-    } else if (["ready_for_delivery", "in_progress"].includes(order.status)) {
+    } else if (assignmentType === "delivery" || (!assignmentType && ["ready_for_delivery", "in_progress"].includes(order.status))) {
       // Delivery assignment: rider picks up from laundry and delivers to customer
       order.status = "delivery_assigned";
     }
@@ -336,6 +336,41 @@ router.put("/orders/:orderId/mark-ready", verifyVendorToken, async (req, res) =>
     });
 
     await order.save();
+
+    // Send notification to customer: "Your order is ready for delivery"
+    try {
+      const notificationService = require("../services/notificationService");
+      const customerId = order.customer_id;
+      if (customerId) {
+        const Notification = require("../models/Notification");
+        await Notification.create({
+          user_id: customerId,
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Please set your preferred delivery date and time so we can deliver it to you.`,
+          type: "order_ready",
+          priority: "high",
+          action_required: true,
+          action_type: "set_delivery_date",
+          related_order: order._id,
+          data: {
+            orderId: order._id,
+            custom_order_id: order.custom_order_id,
+            status: "ready_for_delivery",
+          },
+        });
+
+        // Send push notification via FCM
+        await notificationService.sendPushNotification(customerId, {
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Set your delivery date and time now.`,
+        });
+
+        console.log(`📢 Notification sent to customer ${customerId} for ready order ${orderId}`);
+      }
+    } catch (notifError) {
+      console.warn("⚠️ Failed to send ready-for-delivery notification:", notifError.message);
+      // Don't fail the main operation
+    }
 
     console.log(`✅ Order ${orderId} marked ready for delivery`);
     res.json({ success: true, message: "Order marked ready for delivery", order });

@@ -420,7 +420,7 @@ const DeskDashboard: React.FC = () => {
     });
     // Fetch wallet balance
     try {
-      const res = await fetch(`${API}/orders/${order._id}/customer-wallet`, { headers: authHeaders(token) });
+      const res = await fetch(`${API}/orders/orders/${order._id}/customer-wallet`, { headers: authHeaders(token) });
       if (res.ok) {
         const data = await res.json();
         setCartEditing(prev => prev ? { ...prev, walletBalance: data.wallet_balance || 0 } : prev);
@@ -457,7 +457,7 @@ const DeskDashboard: React.FC = () => {
     if (!cartEditing) return;
     setCartEditing(prev => prev ? { ...prev, saving: true } : prev);
     try {
-      const res = await fetch(`${API}/orders/${cartEditing.orderId}/save-cart`, {
+      const res = await fetch(`${API}/orders/orders/${cartEditing.orderId}/save-cart`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify({
@@ -643,7 +643,7 @@ const DeskDashboard: React.FC = () => {
         className={`bg-white rounded-xl border shadow-sm mb-3 overflow-hidden ${isBreach ? "border-red-200" : "border-gray-100"}`}>
         {/* ── header ── */}
         <button
-          className="w-full text-left px-4 py-3 flex items-center justify-between gap-2"
+          className="w-full text-left px-3 sm:px-4 py-3 flex items-center justify-between gap-2 min-h-[56px] active:bg-gray-50"
           onClick={() => setExpandedId(expanded ? null : order._id)}
         >
           <div className="flex-1 min-w-0">
@@ -839,8 +839,8 @@ const DeskDashboard: React.FC = () => {
                         {cartEditing.items.map((item, i) => {
                           const searchVal = itemSearch[i] ?? item.service_name;
                           const suggestions = searchVal.length > 0
-                            ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal.toLowerCase())).slice(0, 6)
-                            : laundryServices.slice(0, 6);
+                            ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal.toLowerCase()))
+                            : laundryServices;
                           return (
                           <div key={i} className="space-y-1">
                             <div className="flex gap-2 items-center">
@@ -857,7 +857,7 @@ const DeskDashboard: React.FC = () => {
                                   className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
                                 />
                                 {itemSearch[i] !== undefined && (
-                                  <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                  <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                                     {suggestions.map(s => (
                                       <button key={s.id} type="button"
                                         onMouseDown={e => { e.preventDefault();
@@ -986,8 +986,8 @@ const DeskDashboard: React.FC = () => {
                         {cartEditing.items.map((item, i) => {
                           const searchVal2 = itemSearch[i] ?? item.service_name;
                           const suggestions2 = searchVal2.length > 0
-                            ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal2.toLowerCase())).slice(0, 6)
-                            : laundryServices.slice(0, 6);
+                            ? laundryServices.filter(s => s.name.toLowerCase().includes(searchVal2.toLowerCase()))
+                            : laundryServices;
                           return (
                           <div key={i} className="space-y-1">
                             <div className="flex gap-2 items-center">
@@ -1001,7 +1001,7 @@ const DeskDashboard: React.FC = () => {
                                   onFocus={() => setItemSearch(prev => ({ ...prev, [i]: item.service_name }))}
                                   className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400" />
                                 {itemSearch[i] !== undefined && (
-                                  <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                  <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                                     {suggestions2.map(s => (
                                       <button key={s.id} type="button"
                                         onMouseDown={e => { e.preventDefault();
@@ -1113,30 +1113,36 @@ const DeskDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ── top bar ── */}
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div>
-          <h1 className="font-bold text-gray-900 text-base">{vendorInfo?.name || "Vendor Desk"}</h1>
-          <p className="text-xs text-gray-400">{vendorInfo?.vendor_id}</p>
+      <header className="bg-white border-b border-gray-100 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-bold text-gray-900 text-sm sm:text-base truncate">{vendorInfo?.name || "Vendor Desk"}</h1>
+          <p className="text-[10px] sm:text-xs text-gray-400">{vendorInfo?.vendor_id}</p>
         </div>
-        <button onClick={logout} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5">
+        <button onClick={logout} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1.5 ml-2 shrink-0 active:bg-gray-100">
           Logout
         </button>
       </header>
 
-      {/* ── tab bar ── */}
-      <nav className="bg-white border-b border-gray-100 flex">
-        {(["orders", "riders", "optimize", "profile"] as const).map((t) => (
+      {/* ── tab bar - mobile friendly with icons ── */}
+      <nav className="bg-white border-b border-gray-100 flex sticky top-[52px] sm:top-[56px] z-10 shadow-sm">
+        {([
+          { key: "orders" as const, icon: "📋", label: `Orders (${counts.total})` },
+          { key: "riders" as const, icon: "🛵", label: "Riders" },
+          { key: "optimize" as const, icon: "🗺️", label: "Optimize" },
+          { key: "profile" as const, icon: "👤", label: "Profile" },
+        ]).map(({ key, icon, label }) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${tab === t ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500"}`}
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 min-h-[48px] ${tab === key ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50" : "text-gray-500 active:bg-gray-50"}`}
           >
-            {t === "orders" ? `Orders (${counts.total})` : t === "optimize" ? "Optimize" : t}
+            <span className="text-base sm:text-sm">{icon}</span>
+            <span className="text-[10px] sm:text-sm leading-tight">{label}</span>
           </button>
         ))}
       </nav>
 
-      <main className="p-4 max-w-2xl mx-auto">
+      <main className="p-3 sm:p-4 max-w-2xl mx-auto pb-6">
 
         {/* ══ ORDERS TAB ══ */}
         {tab === "orders" && (
@@ -1157,18 +1163,18 @@ const DeskDashboard: React.FC = () => {
                     ))}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <MetricCard label="Total Orders" value={metrics.total_orders} color="blue" />
-                  <MetricCard label="On-Time %" value={`${metrics.on_time_pct}%`}
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                  <MetricCard label="Orders" value={metrics.total_orders} color="blue" />
+                  <MetricCard label="On-Time" value={`${metrics.on_time_pct}%`}
                     color={metrics.on_time_pct >= 80 ? "green" : metrics.on_time_pct >= 60 ? "yellow" : "red"} />
-                  <MetricCard label="Breach Orders" value={counts.breach} color={counts.breach > 0 ? "red" : "green"} />
-                  <MetricCard label="Avg Delivery" value={`${metrics.avg_delivery_hrs}h`} color="purple" />
+                  <MetricCard label="Breach" value={counts.breach} color={counts.breach > 0 ? "red" : "green"} />
+                  <MetricCard label="Avg Hrs" value={`${metrics.avg_delivery_hrs}h`} color="purple" />
                 </div>
               </div>
             )}
 
             {/* ── section tabs ── */}
-            <div className="flex gap-1 overflow-x-auto pb-1 mb-4 scrollbar-hide">
+            <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-hide -mx-1 px-1">
               {SECTION_CONFIG.map(({ key, label, icon, color }) => {
                 const count = counts[key] || 0;
                 const isActive = activeSection === key;
@@ -1178,20 +1184,20 @@ const DeskDashboard: React.FC = () => {
                   <button
                     key={key}
                     onClick={() => { setActiveSection(key); setExpandedId(null); }}
-                    className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${isActive
-                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                    className={`shrink-0 flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl text-xs font-medium transition-all border min-h-[44px] active:scale-95 ${isActive
+                      ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                      : "bg-white text-gray-600 border-gray-200 active:bg-gray-50"
                       }`}
                   >
-                    <span>{icon}</span>
-                    <span className={isActive ? "text-white" : color}>{label}</span>
+                    <span className="text-sm">{icon}</span>
+                    <span className={`text-[11px] sm:text-xs ${isActive ? "text-white" : color}`}>{label}</span>
                     {count > 0 && (
-                      <span className={`text-xs px-1.5 py-0 rounded-full font-bold ${isActive ? "bg-white text-blue-600" : "bg-gray-100 text-gray-700"}`}>
+                      <span className={`text-[10px] sm:text-xs px-1.5 py-0 rounded-full font-bold ${isActive ? "bg-white text-blue-600" : "bg-gray-100 text-gray-700"}`}>
                         {count}
                       </span>
                     )}
                     {hasBreach && !isActive && (
-                      <span className="text-xs bg-red-500 text-white px-1 rounded-full">!</span>
+                      <span className="text-[10px] bg-red-500 text-white px-1 rounded-full">!</span>
                     )}
                   </button>
                 );
@@ -1357,8 +1363,8 @@ const DeskDashboard: React.FC = () => {
 
       {/* ── Rider Assignment Modal ── */}
       {assignModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-2 sm:px-4 pb-2 sm:pb-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-4 sm:p-5 shadow-xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold text-gray-900">
@@ -1428,8 +1434,8 @@ function OptimizeTab({
   token: string;
   fetchDashboard: () => void;
 }) {
-  // Group orders by nearby addresses for pickup (created) and delivery (ready_for_delivery)
-  const pickupOrders = sections.created.filter(o => o.address);
+  // Group orders by nearby addresses for pickup (created + pickup_assigned) and delivery (ready_for_delivery)
+  const pickupOrders = [...sections.created, ...(sections.picked_up || [])].filter(o => o.address);
   const deliveryOrders = sections.ready_for_delivery.filter(o => o.address);
 
   // Simple grouping: group by first significant part of address (area/locality)
@@ -1444,9 +1450,8 @@ function OptimizeTab({
       if (!groups[key]) groups[key] = [];
       groups[key].push(o);
     });
-    // Only return groups with 2+ orders (these can be combined)
+    // Return all groups sorted by count (most orders first)
     return Object.entries(groups)
-      .filter(([, orders]) => orders.length >= 2)
       .sort((a, b) => b[1].length - a[1].length);
   };
 
@@ -1593,9 +1598,9 @@ function MetricCard({ label, value, color }: { label: string; value: string | nu
     purple: "bg-purple-50 border-purple-100 text-purple-700",
   };
   return (
-    <div className={`rounded-xl border px-3 py-2.5 ${colorMap[color]}`}>
-      <p className="text-lg font-bold leading-none">{value}</p>
-      <p className="text-xs mt-1 opacity-80">{label}</p>
+    <div className={`rounded-xl border px-2 sm:px-3 py-2 sm:py-2.5 ${colorMap[color]}`}>
+      <p className="text-base sm:text-lg font-bold leading-none">{value}</p>
+      <p className="text-[10px] sm:text-xs mt-0.5 sm:mt-1 opacity-80 leading-tight">{label}</p>
     </div>
   );
 }

@@ -3,13 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bell, BellRing } from 'lucide-react';
 import UserNotifications from './UserNotifications';
+import { getApiUrl } from '@/config/env';
 
 interface NotificationBellProps {
   userId?: string;
   className?: string;
+  onSetDeliveryDate?: (orderId: string) => void;
 }
 
-const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className = '' }) => {
+const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className = '', onSetDeliveryDate }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +52,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-      const response = await fetch('/api/notifications/count', {
+      const response = await fetch(`${getApiUrl()}/notifications/count`, {
         headers: {
           'user-id': userId,
           'Content-Type': 'application/json',
@@ -137,6 +139,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
         userId={userId}
         isOpen={isOpen}
         onClose={handleClose}
+        onSetDeliveryDate={onSetDeliveryDate}
       />
     </>
   );

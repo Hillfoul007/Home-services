@@ -229,26 +229,56 @@ export default function RiderDashboard() {
         setLastFetchError(null); // Clear any previous errors
 
         // Notify rider of new order assignments
-        const newCount = finalVisible.filter((o: any) => {
-          const s = (o.riderStatus || '').toLowerCase();
-          return s === 'assigned' || s === 'pending';
-        }).length;
+        const activeOrders = finalVisible.filter((o: any) => {
+          const s = (o.status || '').toLowerCase();
+          return s === 'pickup_assigned' || s === 'delivery_assigned' || s === 'created' || s === 'vendor_assigned' || s === 'in_transit' || s === 'ready_for_delivery';
+        });
+        const newCount = activeOrders.length;
         if (prevOrderCount.current > 0 && newCount > prevOrderCount.current) {
           const diff = newCount - prevOrderCount.current;
-          toast.success(`🆕 ${diff} new order${diff > 1 ? 's' : ''} assigned to you!`, { duration: 8000 });
+          // Find the newest orders
+          const newOrders = activeOrders.slice(0, diff);
+          const isPickup = newOrders.some((o: any) => {
+            const s = (o.status || '').toLowerCase();
+            return s === 'pickup_assigned' || s === 'created' || s === 'vendor_assigned';
+          });
+          const taskType = isPickup ? 'pickup' : 'delivery';
+
+          toast.success(`🆕 ${diff} new ${taskType} order${diff > 1 ? 's' : ''} assigned!`, {
+            duration: 10000,
+            description: newOrders.map((o: any) => `${o.custom_order_id || o.bookingId || ''} - ${o.customerName || 'Customer'}`).join(', ')
+          });
+
+          // Play attention-grabbing notification sound (3 beeps)
           try {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.frequency.setValueAtTime(660, ctx.currentTime);
-            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.5);
+            for (let i = 0; i < 3; i++) {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.frequency.setValueAtTime(880, ctx.currentTime + i * 0.3);
+              osc.frequency.setValueAtTime(1100, ctx.currentTime + i * 0.3 + 0.1);
+              gain.gain.setValueAtTime(0.4, ctx.currentTime + i * 0.3);
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.3 + 0.25);
+              osc.start(ctx.currentTime + i * 0.3);
+              osc.stop(ctx.currentTime + i * 0.3 + 0.25);
+            }
           } catch { /* audio not supported */ }
+
+          // Also show browser notification if permission granted
+          try {
+            if (Notification.permission === 'granted') {
+              new Notification(`New ${taskType} order${diff > 1 ? 's' : ''}!`, {
+                body: newOrders.map((o: any) => `${o.custom_order_id || o.bookingId || ''} - ${o.customerName || ''} - ${o.address || ''}`).join('\n'),
+                icon: '/laundrify-exact-icon.svg',
+                tag: 'new-rider-order',
+                requireInteraction: true,
+              });
+            } else if (Notification.permission !== 'denied') {
+              Notification.requestPermission();
+            }
+          } catch { /* notifications not supported */ }
         }
         prevOrderCount.current = newCount;
 
@@ -567,20 +597,50 @@ export default function RiderDashboard() {
 
   return (
     <RiderLayout>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
             <div>
-              <h2 className="text-lg font-semibold">Assigned Orders</h2>
-              <div className="text-sm text-muted-foreground">Tap an order to view details or start delivery workflow</div>
+              <h2 className="text-base sm:text-lg font-semibold">Assigned Orders</h2>
+              <div className="text-xs sm:text-sm text-muted-foreground">Tap order for details</div>
             </div>
-            <div className="ml-4">
-              <Button size="sm" variant="ghost" onClick={() => navigate('/rider/history')}>Order History</Button>
+            <div>
+              <Button size="sm" variant="ghost" onClick={() => navigate('/rider/history')} className="text-xs h-8">Order History</Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(assignedOrders)} disabled={!currentLocation || assignedOrders.length < 2}>
-                Optimize Route
-              </Button>
+            <div className="flex items-center gap-1 sm:gap-2">
+              {/* Optimize pickup route */}
+              {(() => {
+                const pickups = assignedOrders.filter((o: any) => {
+                  const s = (o.status || '').toLowerCase();
+                  return s === 'pickup_assigned' || s === 'created' || s === 'vendor_assigned';
+                });
+                return pickups.length >= 2 ? (
+                  <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(pickups)} disabled={!currentLocation}
+                    className="text-xs px-2 py-1 border-purple-300 text-purple-700 hover:bg-purple-50">
+                    🧺 Optimize Pickups ({pickups.length})
+                  </Button>
+                ) : null;
+              })()}
+              {/* Optimize delivery route */}
+              {(() => {
+                const deliveries = assignedOrders.filter((o: any) => {
+                  const s = (o.status || '').toLowerCase();
+                  return s === 'delivery_assigned' || s === 'in_transit' || s === 'ready_for_delivery';
+                });
+                return deliveries.length >= 2 ? (
+                  <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(deliveries)} disabled={!currentLocation}
+                    className="text-xs px-2 py-1 border-orange-300 text-orange-700 hover:bg-orange-50">
+                    🚚 Optimize Deliveries ({deliveries.length})
+                  </Button>
+                ) : null;
+              })()}
+              {/* Fallback: optimize all if no separate groups */}
+              {assignedOrders.length >= 2 && (
+                <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(assignedOrders)} disabled={!currentLocation || assignedOrders.length < 2}
+                  className="text-xs px-2 py-1">
+                  🗺️ All Routes
+                </Button>
+              )}
             </div>
           </div>
 
@@ -603,44 +663,81 @@ export default function RiderDashboard() {
             )}
           </div>
 
-          {/* Orders split by pickup / delivery */}
+          {/* Orders split by pickup / delivery / completed */}
           {assignedOrders.length === 0 ? (
             <div className="text-sm text-muted-foreground">No active orders right now.</div>
           ) : (
             <>
-              {/* TO PICKUP */}
-              {assignedOrders.filter((o: any) => o.status === 'pickup_assigned').length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-md font-semibold text-purple-700 flex items-center gap-1 mb-2">🧺 To Pickup <span className="text-xs bg-purple-100 px-2 py-0.5 rounded-full">{assignedOrders.filter((o: any) => o.status === 'pickup_assigned').length}</span></h3>
-                  {assignedOrders.filter((o: any) => o.status === 'pickup_assigned').map((o: any) => (
-                    <OrderCard
-                      key={`pick_${o._id}`}
-                      order={o}
-                      currentLocation={currentLocation}
-                      onPickup={(id) => handleOrderAction(id, 'start')}
-                      onDeliver={(id) => handleOrderAction(id, 'complete')}
-                      onNavigate={(order) => openGoogleMapsNavigation(order)}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* TO PICKUP - orders where rider needs to collect from customer */}
+              {(() => {
+                const pickupOrders = assignedOrders.filter((o: any) => {
+                  const s = (o.status || '').toLowerCase();
+                  return s === 'pickup_assigned' || s === 'created' || s === 'vendor_assigned';
+                });
+                return pickupOrders.length > 0 ? (
+                  <div className="mb-4">
+                    <h3 className="text-md font-semibold text-purple-700 flex items-center gap-1 mb-2">🧺 To Pickup <span className="text-xs bg-purple-100 px-2 py-0.5 rounded-full">{pickupOrders.length}</span></h3>
+                    <p className="text-xs text-purple-500 mb-2">Collect from customer and bring to laundry</p>
+                    {pickupOrders.map((o: any) => (
+                      <OrderCard
+                        key={`pick_${o._id}`}
+                        order={o}
+                        currentLocation={currentLocation}
+                        onPickup={(id) => handleOrderAction(id, 'start')}
+                        onDeliver={(id) => handleOrderAction(id, 'complete')}
+                        onNavigate={(order) => openGoogleMapsNavigation(order)}
+                      />
+                    ))}
+                  </div>
+                ) : null;
+              })()}
 
-              {/* TO DELIVER */}
-              {assignedOrders.filter((o: any) => o.status !== 'pickup_assigned').length > 0 && (
-                <div>
-                  <h3 className="text-md font-semibold text-orange-700 flex items-center gap-1 mb-2">🚚 To Deliver <span className="text-xs bg-orange-100 px-2 py-0.5 rounded-full">{assignedOrders.filter((o: any) => o.status !== 'pickup_assigned').length}</span></h3>
-                  {assignedOrders.filter((o: any) => o.status !== 'pickup_assigned').map((o: any) => (
-                    <OrderCard
-                      key={`del_${o._id}`}
-                      order={o}
-                      currentLocation={currentLocation}
-                      onPickup={(id) => handleOrderAction(id, 'start')}
-                      onDeliver={(id) => handleOrderAction(id, 'complete')}
-                      onNavigate={(order) => openGoogleMapsNavigation(order)}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* TO DELIVER - orders where rider delivers cleaned items to customer */}
+              {(() => {
+                const deliveryOrders = assignedOrders.filter((o: any) => {
+                  const s = (o.status || '').toLowerCase();
+                  return s === 'delivery_assigned' || s === 'in_transit' || s === 'ready_for_delivery';
+                });
+                return deliveryOrders.length > 0 ? (
+                  <div className="mb-4">
+                    <h3 className="text-md font-semibold text-orange-700 flex items-center gap-1 mb-2">🚚 To Deliver <span className="text-xs bg-orange-100 px-2 py-0.5 rounded-full">{deliveryOrders.length}</span></h3>
+                    <p className="text-xs text-orange-500 mb-2">Deliver cleaned items back to customer</p>
+                    {deliveryOrders.map((o: any) => (
+                      <OrderCard
+                        key={`del_${o._id}`}
+                        order={o}
+                        currentLocation={currentLocation}
+                        onPickup={(id) => handleOrderAction(id, 'start')}
+                        onDeliver={(id) => handleOrderAction(id, 'complete')}
+                        onNavigate={(order) => openGoogleMapsNavigation(order)}
+                      />
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
+              {/* COMPLETED - recently completed orders */}
+              {(() => {
+                const completedOrders = assignedOrders.filter((o: any) => {
+                  const s = (o.status || '').toLowerCase();
+                  return s === 'delivered' || s === 'completed' || s === 'pickup_completed' || s === 'in_progress';
+                });
+                return completedOrders.length > 0 ? (
+                  <div>
+                    <h3 className="text-md font-semibold text-green-700 flex items-center gap-1 mb-2">✅ Done <span className="text-xs bg-green-100 px-2 py-0.5 rounded-full">{completedOrders.length}</span></h3>
+                    {completedOrders.map((o: any) => (
+                      <OrderCard
+                        key={`done_${o._id}`}
+                        order={o}
+                        currentLocation={currentLocation}
+                        onPickup={(id) => handleOrderAction(id, 'start')}
+                        onDeliver={(id) => handleOrderAction(id, 'complete')}
+                        onNavigate={(order) => openGoogleMapsNavigation(order)}
+                      />
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </>
           )}
         </div>

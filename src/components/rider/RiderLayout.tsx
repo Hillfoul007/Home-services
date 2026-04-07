@@ -372,27 +372,40 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
         </ErrorBoundary>
       </main>
 
-      {/* Mobile bottom nav - simple and always visible on small screens */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t lg:hidden z-50">
-        <div className="max-w-screen-xl mx-auto px-3 py-2 flex items-center justify-between">
-          <button onClick={() => handleNavigation('/rider/dashboard')} className="flex-1 text-center text-sm py-2">
-            <Activity className="mx-auto" />
-            <div className="text-xs mt-1">Home</div>
-          </button>
-          <button onClick={() => handleNavigation('/rider/orders')} className="flex-1 text-center text-sm py-2">
-            <Package className="mx-auto" />
-            <div className="text-xs mt-1">Orders</div>
-          </button>
-          <button onClick={() => handleNavigation('/rider/notifications')} className="flex-1 text-center text-sm py-2">
-            <Bell className="mx-auto" />
-            <div className="text-xs mt-1">Alerts</div>
-          </button>
-          <button onClick={() => handleNavigation('/rider/profile')} className="flex-1 text-center text-sm py-2">
-            <User className="mx-auto" />
-            <div className="text-xs mt-1">Profile</div>
-          </button>
+      {/* Mobile bottom nav - large touch targets, always visible on small screens */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg lg:hidden z-50 safe-area-bottom">
+        <div className="max-w-screen-xl mx-auto px-2 py-1 flex items-center justify-around">
+          {[
+            { path: '/rider/dashboard', icon: Activity, label: 'Home' },
+            { path: '/rider/orders', icon: Package, label: 'Orders' },
+            { path: '/rider/notifications', icon: Bell, label: 'Alerts', badge: unreadCount },
+            { path: '/rider/profile', icon: User, label: 'Profile' },
+          ].map(({ path, icon: Icon, label, badge }) => {
+            const active = isActive === path;
+            return (
+              <button
+                key={path}
+                onClick={() => handleNavigation(path)}
+                className={`flex-1 flex flex-col items-center py-2.5 px-1 rounded-lg transition-colors min-h-[56px] ${
+                  active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 active:bg-gray-100'
+                }`}
+              >
+                <div className="relative">
+                  <Icon className={`h-5 w-5 ${active ? 'text-blue-600' : ''}`} />
+                  {badge && badge > 0 ? (
+                    <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-bold">
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  ) : null}
+                </div>
+                <span className={`text-[11px] mt-1 font-medium ${active ? 'text-blue-600' : ''}`}>{label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
+      {/* Bottom nav spacer */}
+      <div className="h-16 lg:hidden" />
 
     </div>
     </RiderLocationProvider>

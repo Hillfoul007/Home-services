@@ -25,6 +25,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getApiUrl } from '@/config/env';
 
 interface Notification {
   _id: string;
@@ -63,9 +64,10 @@ interface UserNotificationsProps {
   userId: string;
   isOpen: boolean;
   onClose: () => void;
+  onSetDeliveryDate?: (orderId: string) => void;
 }
 
-const UserNotifications: React.FC<UserNotificationsProps> = ({ userId, isOpen, onClose }) => {
+const UserNotifications: React.FC<UserNotificationsProps> = ({ userId, isOpen, onClose, onSetDeliveryDate }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -80,7 +82,7 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ userId, isOpen, o
   const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/notifications', {
+      const response = await fetch(`${getApiUrl()}/notifications`, {
         headers: {
           'user-id': userId,
           'Content-Type': 'application/json',
@@ -104,7 +106,7 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ userId, isOpen, o
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+      const response = await fetch(`${getApiUrl()}/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'user-id': userId,
@@ -127,7 +129,7 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ userId, isOpen, o
 
   const approveChanges = async (notificationId: string, approved: boolean) => {
     try {
-      const response = await fetch(`/api/notifications/${notificationId}/approve`, {
+      const response = await fetch(`${getApiUrl()}/notifications/${notificationId}/approve`, {
         method: 'POST',
         headers: {
           'user-id': userId,
@@ -161,7 +163,7 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ userId, isOpen, o
 
   const deleteNotification = async (notificationId: string) => {
     try {
-      const response = await fetch(`/api/notifications/${notificationId}`, {
+      const response = await fetch(`${getApiUrl()}/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: {
           'user-id': userId,
@@ -368,6 +370,27 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ userId, isOpen, o
                       </Button>
 
                       {expandedNotifications.has(notification._id) && renderItemChanges(notification)}
+                    </div>
+                  )}
+
+                  {/* Set Delivery Date action for ready orders */}
+                  {notification.action_required && notification.action_type === 'set_delivery_date' && onSetDeliveryDate && (
+                    <div className="mt-4">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const orderId = notification.data?.orderId || (notification.related_order as any)?._id;
+                          if (orderId) {
+                            markAsRead(notification._id);
+                            onSetDeliveryDate(orderId);
+                            onClose();
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 w-full"
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        Set Delivery Date & Time
+                      </Button>
                     </div>
                   )}
 

@@ -952,6 +952,40 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
             </Card>
           ) : (
             <div className="space-y-3">
+              {/* Banner for ready-for-delivery orders */}
+              {(() => {
+                const readyOrders = bookings.filter((b: any) => {
+                  const s = (b.status || '').toLowerCase().replace(/-/g, '_');
+                  return s === 'ready_for_delivery';
+                });
+                return readyOrders.length > 0 ? (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-2">
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl">📦</div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-blue-900 text-sm">
+                          {readyOrders.length} order{readyOrders.length > 1 ? 's' : ''} ready for delivery!
+                        </h3>
+                        <p className="text-blue-700 text-xs mt-1">
+                          Set your preferred delivery date and time for each order below.
+                        </p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {readyOrders.map((b: any) => (
+                            <Button
+                              key={b.id || b._id}
+                              size="sm"
+                              onClick={() => handleEditDelivery(b)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
+                            >
+                              {b.custom_order_id || b.order_id || (b.id || b._id || '').slice(-6).toUpperCase()} - Set Date
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
               {bookings.map((booking: any, index) => {
                 const bookingId =
                   booking.id || booking._id || `booking_${index}`;
@@ -1462,19 +1496,25 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                         <div className="space-y-2 pt-2 border-t">
                           {hasRealId ? (
                             <>
-                              {/* Edit Delivery Date/Time */}
+                              {/* Edit Delivery Date/Time - prominent for ready orders */}
                               {canEditDelivery(booking) && (
                                 <Button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleEditDelivery(booking);
                                   }}
-                                  variant="outline"
-                                  className="w-full text-xs py-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+                                  variant={booking.status === 'ready_for_delivery' || booking.status === 'ready-for-delivery' ? 'default' : 'outline'}
+                                  className={`w-full py-2.5 text-sm font-medium ${
+                                    booking.status === 'ready_for_delivery' || booking.status === 'ready-for-delivery'
+                                      ? 'bg-blue-600 hover:bg-blue-700 text-white animate-pulse'
+                                      : 'border-blue-200 text-blue-600 hover:bg-blue-50 text-xs'
+                                  }`}
                                   size="sm"
                                 >
-                                  <Edit className="h-3 w-3 mr-1" />
-                                  Edit Delivery Date & Time
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  {booking.status === 'ready_for_delivery' || booking.status === 'ready-for-delivery'
+                                    ? 'Set Delivery Date & Time'
+                                    : 'Edit Delivery Date & Time'}
                                 </Button>
                               )}
 
