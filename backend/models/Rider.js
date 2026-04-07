@@ -106,7 +106,7 @@ const riderSchema = new mongoose.Schema(
 
 // Create indexes
 riderSchema.index({ phone: 1 });
-riderSchema.index({ aadharNumber: 1 });
+riderSchema.index({ aadharNumber: 1 }, { sparse: true });
 riderSchema.index({ isActive: 1 });
 riderSchema.index({ status: 1 });
 riderSchema.index({ rating: -1 });

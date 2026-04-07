@@ -82,6 +82,10 @@ router.post("/create", verifyVendorToken, async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error creating rider:", error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || "field";
+      return res.status(400).json({ error: `A rider with this ${field} already exists` });
+    }
     res.status(500).json({ error: "Internal server error" });
   }
 });

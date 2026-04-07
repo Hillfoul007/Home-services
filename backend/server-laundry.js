@@ -234,6 +234,21 @@ const connectDB = async () => {
       "✅ MongoDB connected successfully to:",
       mongoURI.replace(/\/\/[^:]+:[^@]+@/, "//***:***@"),
     );
+
+    // Fix: drop non-sparse aadharNumber index so multiple riders can have null
+    try {
+      const ridersCollection = mongoose.connection.collection("riders");
+      const indexes = await ridersCollection.indexes();
+      const badIndex = indexes.find(
+        (idx) => idx.key?.aadharNumber && !idx.sparse
+      );
+      if (badIndex) {
+        await ridersCollection.dropIndex(badIndex.name);
+        console.log("✅ Dropped non-sparse aadharNumber index:", badIndex.name);
+      }
+    } catch (indexErr) {
+      console.warn("⚠️ Could not fix aadharNumber index:", indexErr.message);
+    }
   } catch (error) {
     console.error("❌ MongoDB connection error:", error.message);
     console.log("⚠️ Running in mock mode without database");

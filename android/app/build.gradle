@@ -7,8 +7,8 @@ android {
         applicationId "com.laundrify.laundry.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 26
-        versionName "2.15"
+        versionCode 28
+        versionName "2.16"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -18,7 +18,7 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file(project.findProperty('MYAPP_RELEASE_STORE_FILE') ?: '../laundrify-release-keystore.jks')
+            storeFile file(project.findProperty('MYAPP_RELEASE_STORE_FILE') ?: '../../laundrify-release-keystore.jks')
             storePassword project.findProperty('MYAPP_RELEASE_STORE_PASSWORD') ?: System.getenv('MYAPP_RELEASE_STORE_PASSWORD')
             keyAlias project.findProperty('MYAPP_RELEASE_KEY_ALIAS') ?: 'laundrify-key'
             keyPassword project.findProperty('MYAPP_RELEASE_KEY_PASSWORD') ?: System.getenv('MYAPP_RELEASE_KEY_PASSWORD')
