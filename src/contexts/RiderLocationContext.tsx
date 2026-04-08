@@ -1,14 +1,17 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { getRiderApiUrl } from '@/lib/riderApi';
 
 interface RiderLocationContextType {
   currentLocation: { lat: number; lng: number } | null;
   isTracking: boolean;
+  locationError: string | null;
 }
 
 const RiderLocationContext = createContext<RiderLocationContextType>({
   currentLocation: null,
   isTracking: false,
+  locationError: null,
 });
 
 export const useRiderLocation = () => useContext(RiderLocationContext);
@@ -16,6 +19,7 @@ export const useRiderLocation = () => useContext(RiderLocationContext);
 export function RiderLocationProvider({ children }: { children: React.ReactNode }) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isTracking, setIsTracking] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const lastSentRef = useRef<number>(0);
 
@@ -58,9 +62,28 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
-  const startTracking = useCallback(() => {
+  const startTracking = useCallback(async () => {
     if (watchIdRef.current !== null) return; // Already tracking
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setLocationError('GPS not available on this device');
+      return;
+    }
+
+    // On Capacitor native (Android/iOS), request geolocation permission explicitly
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const perm = await Geolocation.requestPermissions();
+        if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
+          setLocationError('Location permission denied. Please enable it in settings.');
+          console.error('RiderLocationContext: Location permission denied');
+          return;
+        }
+        setLocationError(null);
+      } catch (e) {
+        console.warn('RiderLocationContext: Could not request Capacitor permissions, falling back to web API', e);
+      }
+    }
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -69,15 +92,22 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
           lng: position.coords.longitude,
         };
         setCurrentLocation(location);
+        setLocationError(null);
         updateLocationOnServer(location);
       },
       (error) => {
         console.error('RiderLocationContext: GPS error', error);
+        const msg = error.code === 1
+          ? 'Location permission denied. Enable in phone settings.'
+          : error.code === 2
+          ? 'GPS signal unavailable. Move to an open area.'
+          : 'Location timeout. Check GPS settings.';
+        setLocationError(msg);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 30000,
+        timeout: 15000,
+        maximumAge: 5000, // Accept max 5-second-old cached position
       }
     );
 
@@ -92,6 +122,7 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     }
     setIsTracking(false);
     setCurrentLocation(null);
+    setLocationError(null);
   }, []);
 
   // Start/stop tracking based on rider auth state
@@ -128,7 +159,7 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
   }, [startTracking, stopTracking]);
 
   return (
-    <RiderLocationContext.Provider value={{ currentLocation, isTracking }}>
+    <RiderLocationContext.Provider value={{ currentLocation, isTracking, locationError }}>
       {children}
     </RiderLocationContext.Provider>
   );

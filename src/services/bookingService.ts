@@ -1448,6 +1448,36 @@ export class BookingService {
         };
       }
 
+      // For delivery date / time updates, use the dedicated less-strict endpoint
+      if (
+        Object.keys(updates).every(k =>
+          ['delivery_date', 'deliveryDate', 'delivery_time', 'deliveryTime', 'updatedAt'].includes(k)
+        ) &&
+        (updates.deliveryDate || updates.deliveryTime)
+      ) {
+        console.log("🔄 Syncing delivery date update to backend:", { bookingId });
+        const deliveryResponse = await fetch(
+          `${this.apiBaseUrl}/bookings/${bookingId}/delivery-date`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              delivery_date: updates.deliveryDate,
+              delivery_time: updates.deliveryTime,
+              user_phone: currentUser.phone || "",
+              user_id: currentUser._id || currentUser.id || "",
+            }),
+          },
+        );
+        if (deliveryResponse.ok) {
+          const deliveryData = await deliveryResponse.json();
+          console.log("✅ Delivery date updated successfully");
+          return { success: true, booking: deliveryData.booking };
+        }
+        const errText = await deliveryResponse.text();
+        throw new Error(`HTTP ${deliveryResponse.status}: ${errText}`);
+      }
+
       // For other updates (like item quantities), use the general update endpoint
       console.log("🔄 Syncing general booking update to backend:", {
         bookingId,

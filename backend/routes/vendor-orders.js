@@ -125,7 +125,33 @@ router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
 
 router.get("/dashboard", verifyVendorToken, async (req, res) => {
   try {
-    const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
+    // Date-period filter: today | 7d | 30d (default: all / no filter)
+    const period = req.query.period; // 'today' | '7d' | '30d'
+    let dateFilter = {};
+    if (period === 'today') {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      dateFilter = { created_at: { $gte: start } };
+    } else if (period === '7d') {
+      dateFilter = { created_at: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } };
+    } else if (period === '30d') {
+      dateFilter = { created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } };
+    }
+
+    // Active orders (non-completed) are always shown regardless of date so nothing falls through
+    const activeStatuses = ['created', 'confirmed', 'vendor_assigned', 'pickup_assigned', 'pickup_completed', 'in_progress', 'ready_for_delivery', 'delivery_assigned'];
+    const query = {
+      assignedVendor: req.vendor_name,
+      $or: [
+        dateFilter && Object.keys(dateFilter).length ? dateFilter : { status: { $in: activeStatuses } },
+        { status: { $in: activeStatuses } },
+      ],
+    };
+
+    // If no period, just fetch all (original behaviour)
+    const findQuery = period ? query : { assignedVendor: req.vendor_name };
+
+    const allOrders = await Booking.find(findQuery)
       .populate("assignedRider", "name phone live_location_link location lastLocationUpdate isActive")
       .sort({ created_at: -1 })
       .select("-special_instructions");

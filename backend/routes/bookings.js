@@ -1437,6 +1437,64 @@ router.get("/:bookingId", async (req, res) => {
   }
 });
 
+// Delivery date update route — lenient auth: verifies phone matches booking
+router.patch("/:bookingId/delivery-date", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { delivery_date, delivery_time, user_phone } = req.body;
+    const userIdHeader = req.headers["user-id"] || req.body.user_id || "";
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    // Normalize phone for comparison (strip leading +91 / country codes)
+    const normalizePhone = (p) => p ? String(p).replace(/\D/g, '').slice(-10) : '';
+    const bookingPhone = normalizePhone(booking.phone);
+    const requestPhone = normalizePhone(user_phone || userIdHeader);
+
+    // Allow if phone matches, or if the customer_id matches the header
+    const phoneMatch = bookingPhone && requestPhone && bookingPhone === requestPhone;
+    const idMatch = booking.customer_id && booking.customer_id.toString() === userIdHeader;
+
+    // Also try extracting phone from "user_XXXXXXXXXX" format
+    const extractedPhone = userIdHeader.startsWith("user_") ? normalizePhone(userIdHeader.replace("user_", "")) : null;
+    const extractedMatch = extractedPhone && bookingPhone && bookingPhone === extractedPhone;
+
+    if (!phoneMatch && !idMatch && !extractedMatch) {
+      // Last resort: look up user by id and match phone
+      let resolved = false;
+      if (mongoose.Types.ObjectId.isValid(userIdHeader)) {
+        try {
+          const user = await User.findById(userIdHeader);
+          if (user && normalizePhone(user.phone) === bookingPhone) resolved = true;
+        } catch { /* ignore */ }
+      }
+      if (!resolved) {
+        console.log("❌ Delivery date update denied for bookingId:", bookingId, "phone:", requestPhone, "booking phone:", bookingPhone);
+        return res.status(403).json({ error: "Not authorized to update this booking" });
+      }
+    }
+
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const indianDate = new Date(indianTime);
+
+    const updateFields = { updated_at: indianDate, updatedAt: indianDate };
+    if (delivery_date) { updateFields.delivery_date = delivery_date; updateFields.deliveryDate = delivery_date; }
+    if (delivery_time) { updateFields.delivery_time = delivery_time; updateFields.deliveryTime = delivery_time; }
+
+    await Booking.findByIdAndUpdate(bookingId, { $set: updateFields });
+    console.log(`✅ Delivery date updated for ${bookingId}: ${delivery_date} ${delivery_time}`);
+    res.json({ success: true, message: "Delivery date updated" });
+  } catch (error) {
+    console.error("❌ Delivery date update error:", error);
+    res.status(500).json({ error: "Failed to update delivery date" });
+  }
+});
+
 // General booking update route (for item quantities and other fields)
 router.put("/:bookingId", async (req, res) => {
   try {

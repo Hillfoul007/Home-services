@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
+import { showLocalNotification } from "@/utils/nativeNotification";
 import { getRiderApiUrl } from "@/lib/riderApi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -177,6 +178,12 @@ const RiderDeskDashboard: React.FC = () => {
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.4);
           } catch { /* audio not supported */ }
+          try {
+            showLocalNotification(
+              `🆕 ${incoming.length} new order${incoming.length > 1 ? "s" : ""} assigned!`,
+              incoming.map(o => o.custom_order_id || o._id.slice(-6).toUpperCase()).join(', ')
+            );
+          } catch { /* silent */ }
         }
         prevIds.current = new Set(active.map(o => o._id));
         setActiveOrders(active);

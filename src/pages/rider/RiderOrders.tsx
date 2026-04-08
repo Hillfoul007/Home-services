@@ -32,8 +32,18 @@ import RiderLayout from '@/components/rider/RiderLayout';
 import CustomerVerificationService from '@/services/customerVerificationService';
 import globalVerificationManager from '@/utils/globalVerificationManager';
 import { getRiderApiUrl } from '@/lib/riderApi';
+import { getApiUrl } from '@/config/env';
 import analyticsService from '@/services/analyticsService';
 import { quickPickupService } from '@/services/quickPickupService';
+
+/** Convert a potentially relative /uploads/... path to a full backend URL */
+function toAbsolutePhotoUrl(path: string): string {
+  if (!path) return path;
+  if (path.startsWith('http')) return path;
+  // Strip /api suffix from API URL to get the backend origin
+  const apiBase = getApiUrl().replace(/\/api$/, '');
+  return `${apiBase}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 export default function RiderOrders() {
   const { orderId } = useParams();
@@ -1524,7 +1534,9 @@ export default function RiderOrders() {
 
           <div className="flex items-center gap-2 overflow-x-auto">
             {(order?.pickup_photos || pickupPhotos || []).map((p: string, i: number) => (
-              <img key={p + i} src={p} alt={`pickup-${i}`} className="h-20 w-20 object-cover rounded-md border" />
+              <a key={p + i} href={toAbsolutePhotoUrl(p)} target="_blank" rel="noreferrer">
+                <img src={toAbsolutePhotoUrl(p)} alt={`pickup-${i}`} className="h-20 w-20 object-cover rounded-md border" />
+              </a>
             ))}
             {((order?.pickup_photos || pickupPhotos || []).length === 0) && (
               <div className="text-xs text-gray-500">No pickup photos uploaded</div>
@@ -1543,7 +1555,9 @@ export default function RiderOrders() {
 
           <div className="flex items-center gap-2 overflow-x-auto">
             {(order?.delivery_photos || deliveryPhotos || []).map((p: string, i: number) => (
-              <img key={p + i} src={p} alt={`delivery-${i}`} className="h-20 w-20 object-cover rounded-md border" />
+              <a key={p + i} href={toAbsolutePhotoUrl(p)} target="_blank" rel="noreferrer">
+                <img src={toAbsolutePhotoUrl(p)} alt={`delivery-${i}`} className="h-20 w-20 object-cover rounded-md border" />
+              </a>
             ))}
             {((order?.delivery_photos || deliveryPhotos || []).length === 0) && (
               <div className="text-xs text-gray-500">No delivery photos uploaded</div>

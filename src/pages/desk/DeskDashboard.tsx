@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { laundryServices } from "@/data/laundryServices";
 import { getApiUrl } from "@/config/env";
+import { showLocalNotification } from "@/utils/nativeNotification";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -52,11 +53,12 @@ interface Order {
   vendor_payment_slips?: { file_id: string; filename: string }[];
   rider_pickup_slips?: { file_id: string; filename: string; uploaded_at?: string }[];
   rider_payment_slips?: { file_id: string; filename: string; uploaded_at?: string }[];
+  pickup_photos?: string[];
+  delivery_photos?: string[];
   discount_amount?: number;
   cashback?: number;
   wallet_applied?: number;
   customer_id?: string;
-  phone?: string;
   isPGOrder?: boolean;
   pg_name?: string;
   no_of_items?: number;
@@ -177,6 +179,7 @@ const DeskDashboard: React.FC = () => {
   });
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [metricsPeriod, setMetricsPeriod] = useState<"today" | "7d" | "30d">("7d");
+  const [ordersPeriod, setOrdersPeriod] = useState<"all" | "today" | "7d" | "30d">("all");
 
   // Section view
   const [activeSection, setActiveSection] = useState<SectionKey>("created");
@@ -233,8 +236,9 @@ const DeskDashboard: React.FC = () => {
   const fetchDashboard = useCallback(async () => {
     if (!token) return;
     try {
+      const dashPeriodParam = ordersPeriod !== 'all' ? `?period=${ordersPeriod}` : '';
       const [dashRes, metricsRes] = await Promise.all([
-        fetch(`${API}/orders/dashboard`, { headers: authHeaders(token) }),
+        fetch(`${API}/orders/dashboard${dashPeriodParam}`, { headers: authHeaders(token) }),
         fetch(`${API}/orders/metrics?period=${metricsPeriod}`, { headers: authHeaders(token) }),
       ]);
 
@@ -267,6 +271,13 @@ const DeskDashboard: React.FC = () => {
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.4);
           } catch { /* audio not supported */ }
+          // Show native or browser notification
+          try {
+            showLocalNotification(
+              `🆕 ${incoming.length} new order${incoming.length > 1 ? "s" : ""} arrived!`,
+              "Open the app to view and process new orders."
+            );
+          } catch { /* silent */ }
         }
         prevOrderIds.current = new Set(allIds);
       }
@@ -276,7 +287,7 @@ const DeskDashboard: React.FC = () => {
         if (mData.success) setMetrics(mData.metrics);
       }
     } catch { /* silent */ }
-  }, [token, navigate, metricsPeriod]);
+  }, [token, navigate, metricsPeriod, ordersPeriod]);
 
   // ── fetch riders ──
   const fetchRiders = useCallback(async () => {
@@ -309,7 +320,7 @@ const DeskDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboard();
-  }, [metricsPeriod]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [metricsPeriod, ordersPeriod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── current section orders ──
   const sectionOrders = sections[activeSection] || [];
@@ -576,6 +587,13 @@ const DeskDashboard: React.FC = () => {
   const riderSlipUrl = (orderId: string, fileId: string) =>
     `${getApiUrl()}/riders/public/orders/${orderId}/slip/${fileId}`;
 
+  const toAbsolutePhotoUrl = (path: string) => {
+    if (!path) return path;
+    if (path.startsWith('http')) return path;
+    const base = getApiUrl().replace(/\/api$/, '');
+    return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  };
+
   // ─── Render: uploaded images strip ───────────────────────────────────────
 
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
@@ -585,7 +603,9 @@ const DeskDashboard: React.FC = () => {
     const paySlips = order.vendor_payment_slips || [];
     const riderPickupSlips = order.rider_pickup_slips || [];
     const riderPaySlips = order.rider_payment_slips || [];
-    if (itemImgs.length === 0 && paySlips.length === 0 && riderPickupSlips.length === 0 && riderPaySlips.length === 0) return null;
+    const pickupPhotos = order.pickup_photos || [];
+    const deliveryPhotos = order.delivery_photos || [];
+    if (itemImgs.length === 0 && paySlips.length === 0 && riderPickupSlips.length === 0 && riderPaySlips.length === 0 && pickupPhotos.length === 0 && deliveryPhotos.length === 0) return null;
 
     const ImageThumb = ({ src, alt, borderColor = "border-gray-200" }: { src: string; alt: string; borderColor?: string }) => (
       <button
@@ -637,6 +657,26 @@ const DeskDashboard: React.FC = () => {
             <div className="flex gap-2 flex-wrap">
               {paySlips.map((slip) => (
                 <ImageThumb key={slip.file_id} src={paymentSlipUrl(order._id, slip.file_id)} alt="slip" />
+              ))}
+            </div>
+          </div>
+        )}
+        {pickupPhotos.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-purple-600 mb-1">🧺 Pickup Photos</p>
+            <div className="flex gap-2 flex-wrap">
+              {pickupPhotos.map((p, i) => (
+                <ImageThumb key={p + i} src={toAbsolutePhotoUrl(p)} alt="pickup photo" borderColor="border-purple-200" />
+              ))}
+            </div>
+          </div>
+        )}
+        {deliveryPhotos.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-orange-600 mb-1">🚚 Delivery Photos</p>
+            <div className="flex gap-2 flex-wrap">
+              {deliveryPhotos.map((p, i) => (
+                <ImageThumb key={p + i} src={toAbsolutePhotoUrl(p)} alt="delivery photo" borderColor="border-orange-200" />
               ))}
             </div>
           </div>
@@ -1261,6 +1301,20 @@ const DeskDashboard: React.FC = () => {
                   </button>
                 );
               })}
+            </div>
+
+            {/* ── orders date filter ── */}
+            <div className="flex items-center gap-1.5 mb-3">
+              <span className="text-xs text-gray-500 shrink-0">Filter:</span>
+              {(["all", "today", "7d", "30d"] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setOrdersPeriod(p)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ordersPeriod === p ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200"}`}
+                >
+                  {p === "all" ? "All" : p === "today" ? "Today" : p === "7d" ? "7 Days" : "30 Days"}
+                </button>
+              ))}
             </div>
 
             {/* ── section header context ── */}

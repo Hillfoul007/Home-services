@@ -21,6 +21,7 @@ import RiderLayout from '@/components/rider/RiderLayout';
 import RiderNotifications from '@/components/rider/RiderNotifications';
 import { getRiderApiUrl } from '@/lib/riderApi';
 import { useRiderLocation } from '@/contexts/RiderLocationContext';
+import { showLocalNotification } from '@/utils/nativeNotification';
 import OrderCard from '@/components/rider/OrderCard';
 import TrainingVideo from '@/components/rider/TrainingVideo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -28,7 +29,7 @@ import { Input } from '@/components/ui/input';
 
 export default function RiderDashboard() {
   const navigate = useNavigate();
-  const { currentLocation } = useRiderLocation();
+  const { currentLocation, locationError } = useRiderLocation();
   const [rider, setRider] = useState<any>(null);
   const [isActive, setIsActive] = useState(false);
   const [assignedOrders, setAssignedOrders] = useState<any[]>([]);
@@ -271,18 +272,12 @@ export default function RiderDashboard() {
             }
           } catch { /* audio not supported */ }
 
-          // Also show browser notification if permission granted
+          // Show native or browser notification
           try {
-            if (Notification.permission === 'granted') {
-              new Notification(`New ${taskType} order${diff > 1 ? 's' : ''}!`, {
-                body: newOrders.map((o: any) => `${o.custom_order_id || o.bookingId || ''} - ${o.customerName || ''} - ${o.address || ''}`).join('\n'),
-                icon: '/laundrify-exact-icon.svg',
-                tag: 'new-rider-order',
-                requireInteraction: true,
-              });
-            } else if (Notification.permission !== 'denied') {
-              Notification.requestPermission();
-            }
+            showLocalNotification(
+              `New ${taskType} order${diff > 1 ? 's' : ''}!`,
+              newOrders.map((o: any) => `${o.custom_order_id || o.bookingId || ''} - ${o.customerName || ''}`).join(', ')
+            );
           } catch { /* notifications not supported */ }
         }
         prevOrderCount.current = newCount;
@@ -602,6 +597,12 @@ export default function RiderDashboard() {
 
   return (
     <RiderLayout>
+      {locationError && (
+        <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium flex items-center gap-2">
+          <span>📍</span>
+          <span>{locationError}</span>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="lg:col-span-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">

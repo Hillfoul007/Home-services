@@ -1800,9 +1800,11 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
       case 'start':
         order.riderStatus = 'picked_up';
         order.pickedUpAt = now;
-        order.completedAt = now;
-        order.completed_at = now;
-        order.status = 'completed';
+        order.status = 'pickup_completed';
+        // Clear assignedRider so this order doesn't appear in the same rider's delivery list.
+        // Admin will assign a (possibly different) rider for the delivery phase.
+        order.assignedRider = null;
+        order.assignedRiderPhone = null;
         break;
       case 'complete':
         order.riderStatus = 'delivered';
@@ -2197,6 +2199,9 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
         booking.riderStatus = 'picked_up';
         booking.pickedUpAt = timestampNow;
         booking.status = 'pickup_completed';
+        // Clear rider assignment so the order doesn't show in delivery for this rider
+        booking.assignedRider = null;
+        booking.assignedRiderPhone = null;
         break;
       case 'delivered_to_vendor':
       case 'delivered_vendor':
@@ -2527,13 +2532,18 @@ router.post('/orders/:orderId/cod-collected', verifyRiderToken, async (req, res)
 
     const order = await Booking.findOne({
       _id: orderId,
-      assignedRider: req.rider.riderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+      ],
     });
 
-    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!order) return res.status(404).json({ message: 'Order not found or not assigned to you' });
 
-    if (!['picked_up', 'in_transit', 'delivered'].includes(order.riderStatus)) {
-      return res.status(400).json({ message: 'Can only collect COD after picking up the order' });
+    // Allow COD collection for any active delivery assignment
+    const allowedStatuses = ['assigned', 'accepted', 'picked_up', 'in_transit', 'delivered'];
+    if (!allowedStatuses.includes(order.riderStatus)) {
+      return res.status(400).json({ message: 'Cannot collect COD for this order status' });
     }
 
     const now = new Date();
