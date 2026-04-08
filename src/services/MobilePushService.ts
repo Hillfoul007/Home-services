@@ -15,7 +15,7 @@ export class MobilePushService {
     return MobilePushService.instance;
   }
 
-  public async initialize(userId?: string) {
+  public async initialize(userId?: string, opts?: { riderId?: string; vendorId?: string }) {
     if (this.isInitialized) return;
     
     if (!Capacitor.isNativePlatform()) {
@@ -49,20 +49,20 @@ export class MobilePushService {
 
       await PushNotifications.register();
 
-      this.addListeners(userId);
+      this.addListeners(userId, opts);
       this.isInitialized = true;
     } catch (e) {
       console.error('Error initializing Capacitor push notifications', e);
     }
   }
 
-  private addListeners(userId?: string) {
+  private addListeners(userId?: string, opts?: { riderId?: string; vendorId?: string }) {
     PushNotifications.addListener('registration', async (token: Token) => {
       console.log('Mobile Push registration success, token: ' + token.value);
       try {
         await apiClient.adminRequest('/push/subscribe', {
           method: 'POST',
-          body: { token: token.value, userId }
+          body: { token: token.value, userId, riderId: opts?.riderId, vendorId: opts?.vendorId }
         });
       } catch (err) {
         console.error('Failed to save mobile push token securely', err);

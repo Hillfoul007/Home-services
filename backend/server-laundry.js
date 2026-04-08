@@ -563,20 +563,21 @@ try {
 // Push notification endpoints
 app.post("/api/push/subscribe", async (req, res) => {
   try {
-    const { token, userId, riderId } = req.body;
+    const { token, userId, riderId, vendorId } = req.body;
     if (token) {
-      // Upsert device token, supporting both user and rider associations
+      // Upsert device token, supporting user, rider, and vendor associations
       await DeviceToken.findOneAndUpdate(
         { token },
         {
           token,
           ...(userId ? { userId } : {}),
           ...(riderId ? { riderId } : {}),
+          ...(vendorId ? { vendorId } : {}),
           lastActive: new Date(),
         },
         { upsert: true, new: true }
       );
-      const owner = userId ? `user: ${userId}` : riderId ? `rider: ${riderId}` : "anonymous";
+      const owner = userId ? `user: ${userId}` : riderId ? `rider: ${riderId}` : vendorId ? `vendor: ${vendorId}` : "anonymous";
       console.log(`📱 Saved FCM token for ${owner}`);
 
       // Also attach to User document if available

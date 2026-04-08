@@ -133,6 +133,14 @@ export default function RiderLogin() {
         localStorage.setItem('riderAuth', JSON.stringify(result.rider));
         localStorage.setItem('riderToken', result.token);
 
+        // Initialize mobile push notifications for rider
+        try {
+          const { MobilePushService } = await import('@/services/MobilePushService');
+          MobilePushService.getInstance().initialize(undefined, { riderId: result.rider._id || result.rider.id });
+        } catch (e) {
+          console.warn('Push notification init failed:', e);
+        }
+
         toast.success('Login successful!');
 
         navigate('/rider/dashboard');

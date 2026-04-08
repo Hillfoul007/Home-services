@@ -1469,10 +1469,16 @@ router.put("/:bookingId", async (req, res) => {
         bookingCustomerId: booking.customer_id,
       });
 
-      // Direct ObjectId match
+      // Direct ObjectId match - customer
       if (booking.customer_id && booking.customer_id.toString() === userId) {
         canUpdate = true;
         console.log("✅ Direct ObjectId match - customer can update");
+      }
+
+      // Direct ObjectId match - rider/provider assigned to booking
+      if (!canUpdate && booking.rider_id && booking.rider_id.toString() === userId) {
+        canUpdate = true;
+        console.log("✅ Direct ObjectId match - rider can update");
       }
 
       // Phone number matching and cross-user lookup
@@ -1646,10 +1652,16 @@ router.put("/:bookingId/cancel", async (req, res) => {
         bookingCustomerId: booking.customer_id,
       });
 
-      // Direct ObjectId match
+      // Direct ObjectId match - customer
       if (booking.customer_id.toString() === userId) {
         canCancel = true;
-        console.log("✅ Direct ObjectId match");
+        console.log("✅ Direct ObjectId match - customer");
+      }
+
+      // Direct ObjectId match - rider/provider assigned to booking
+      if (!canCancel && booking.rider_id && booking.rider_id.toString() === userId) {
+        canCancel = true;
+        console.log("✅ Direct ObjectId match - rider can cancel");
       }
 
       // Handle user_ prefix format

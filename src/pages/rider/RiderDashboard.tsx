@@ -46,6 +46,11 @@ export default function RiderDashboard() {
       const riderInfo = JSON.parse(riderData);
       setRider(riderInfo);
       setIsActive(riderInfo.isActive || false);
+
+      // Initialize mobile push notifications for rider
+      import('@/services/MobilePushService').then((mod) => {
+        mod.MobilePushService.getInstance().initialize(undefined, { riderId: riderInfo._id || riderInfo.id });
+      }).catch(() => {});
     }
 
     // Load assigned orders

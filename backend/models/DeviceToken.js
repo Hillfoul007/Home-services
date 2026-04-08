@@ -16,6 +16,11 @@ const deviceTokenSchema = new mongoose.Schema({
     ref: 'Rider',
     required: false
   },
+  vendorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vendor',
+    required: false
+  },
   lastActive: {
     type: Date,
     default: Date.now

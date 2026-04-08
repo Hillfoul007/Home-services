@@ -26,6 +26,15 @@ const DeskLogin: React.FC = () => {
       if (res?.success && res.token) {
         localStorage.setItem("desk_vendor_token", res.token);
         localStorage.setItem("desk_vendor_info", JSON.stringify(res.vendor));
+
+        // Initialize mobile push notifications for desk/vendor
+        try {
+          const { MobilePushService } = await import('@/services/MobilePushService');
+          MobilePushService.getInstance().initialize(undefined, { vendorId: res.vendor?._id || res.vendor?.id });
+        } catch (e) {
+          console.warn('Push notification init failed:', e);
+        }
+
         toast.success(`Welcome, ${res.vendor?.name || "Vendor"}!`);
         navigate("/desk/dashboard");
       } else {

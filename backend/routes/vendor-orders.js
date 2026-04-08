@@ -304,6 +304,29 @@ router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) 
     const finalType = order.status === "pickup_assigned" ? "pickup" : "delivery";
     console.log(`✅ Rider ${rider.name} assigned for ${finalType} to order ${orderId}`);
 
+    // Send push notification to rider about assignment
+    try {
+      const riderNotificationService = require("../services/riderNotificationService");
+      await riderNotificationService.createOrderAssignmentNotification(riderId, order, finalType);
+    } catch (notifErr) {
+      console.warn("⚠️ Failed to send rider assignment notification:", notifErr.message);
+    }
+
+    // Send push notification to desk/vendor about assignment
+    try {
+      const deskNotificationService = require("../services/deskNotificationService");
+      const vendor = await Vendor.findOne({ vendor_id: req.vendor_id });
+      if (vendor) {
+        await deskNotificationService.sendPushNotification(vendor._id, {
+          title: `Rider assigned for ${finalType}`,
+          message: `${rider.name} has been assigned for ${finalType} of order ${order.custom_order_id || orderId}.`,
+          data: { orderId: String(order._id), type: "rider_assigned" },
+        });
+      }
+    } catch (notifErr) {
+      console.warn("⚠️ Failed to send desk assignment notification:", notifErr.message);
+    }
+
     res.json({ success: true, message: `Rider ${rider.name} assigned for ${finalType}`, assignmentType: finalType, order });
   } catch (error) {
     console.error("❌ Error assigning rider:", error);

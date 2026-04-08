@@ -28,6 +28,15 @@ const RiderDeskLogin: React.FC = () => {
       if (!res.ok) { toast.error(data.message || "Login failed"); return; }
       localStorage.setItem("rider_desk_token", data.token);
       localStorage.setItem("rider_desk_info", JSON.stringify(data.rider));
+
+      // Initialize mobile push notifications for rider
+      try {
+        const { MobilePushService } = await import('@/services/MobilePushService');
+        MobilePushService.getInstance().initialize(undefined, { riderId: data.rider._id || data.rider.id });
+      } catch (e) {
+        console.warn('Push notification init failed:', e);
+      }
+
       toast.success(`Welcome, ${data.rider.name}!`);
       navigate("/rider-desk/dashboard");
     } catch { toast.error("Network error. Try again."); }

@@ -220,6 +220,15 @@ const DeskDashboard: React.FC = () => {
     if (!token) navigate("/desk");
   }, [token, navigate]);
 
+  // ── push notifications for desk app ──
+  useEffect(() => {
+    if (vendorInfo?._id || vendorInfo?.id) {
+      import('@/services/MobilePushService').then((mod) => {
+        mod.MobilePushService.getInstance().initialize(undefined, { vendorId: vendorInfo._id || vendorInfo.id });
+      }).catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── fetch dashboard ──
   const fetchDashboard = useCallback(async () => {
     if (!token) return;

@@ -19,9 +19,9 @@ class RiderNotificationService {
       
       // Send SMS notification to rider
       await this.sendSMSNotification(riderId, notification);
-      
-      // Here you could integrate with push notification services
-      // await this.sendPushNotification(riderId, notification);
+
+      // Send push notification to rider
+      await this.sendPushNotification(riderId, notification);
       
       return notification;
     } catch (error) {
