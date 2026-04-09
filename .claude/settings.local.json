@@ -16,7 +16,33 @@
       "mcp__code-review-graph__semantic_search_nodes_tool",
       "Read(//c/Users/Kataria/Home-services/**)",
       "Bash(grep -E \"\\\\.sh$|Makefile|build.*\\\\.js\")",
-      "Bash(powershell.exe -Command \"./gradlew.bat clean\")"
+      "Bash(powershell.exe -Command \"./gradlew.bat clean\")",
+      "mcp__code-review-graph__build_or_update_graph_tool",
+      "mcp__code-review-graph__get_architecture_overview_tool",
+      "Bash(grep -n \"push/subscribe\\\\|FCM\\\\|firebase\\\\|google-services\\\\|notification.*token\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(grep -n \"push/subscribe\\\\|adminRequest.*push\\\\|/push\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in deps.items\\(\\) if 'capacitor' in k.lower\\(\\) or 'geolocation' in k.lower\\(\\)]\")",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep -n \"pickup_completed\\\\|after.*pickup\\\\|auto.*assign\\\\|auto.*delivery\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(grep -v \"^#\\\\|//.*delivery_assigned\")",
+      "Bash(git add:*)",
+      "Bash(tasklist)",
+      "Bash([ ! -f /c/Users/Kataria/Home-services/android/app/build/outputs/bundle/release/app-release.aab ])",
+      "Bash(tasklist /fi \"imagename eq java.exe\")",
+      "Read(//c/java/jdk-20/**)",
+      "Read(//c/Users/Kataria/AppData/Local/Temp/jdk21//**)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Microsoft/jdk-21.0.10.7-hotspot\")",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node -e \"require\\('react-is'\\)\")",
+      "Bash(node -e \"require\\('react-is'\\); console.log\\('ok', require\\('react-is/package.json'\\).version\\)\")",
+      "Bash(ls c:/Users/Kataria/Home-services/*.config.*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
 }

@@ -138,18 +138,10 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
       dateFilter = { created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } };
     }
 
-    // Active orders (non-completed) are always shown regardless of date so nothing falls through
-    const activeStatuses = ['created', 'confirmed', 'vendor_assigned', 'pickup_assigned', 'pickup_completed', 'in_progress', 'ready_for_delivery', 'delivery_assigned'];
-    const query = {
-      assignedVendor: req.vendor_name,
-      $or: [
-        dateFilter && Object.keys(dateFilter).length ? dateFilter : { status: { $in: activeStatuses } },
-        { status: { $in: activeStatuses } },
-      ],
-    };
-
-    // If no period, just fetch all (original behaviour)
-    const findQuery = period ? query : { assignedVendor: req.vendor_name };
+    // Build query: when period is set, filter ALL orders (including active ones) by date
+    const findQuery = period
+      ? { assignedVendor: req.vendor_name, ...dateFilter }
+      : { assignedVendor: req.vendor_name };
 
     const allOrders = await Booking.find(findQuery)
       .populate("assignedRider", "name phone live_location_link location lastLocationUpdate isActive")

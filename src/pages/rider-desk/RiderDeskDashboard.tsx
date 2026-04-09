@@ -103,7 +103,7 @@ const RiderDeskDashboard: React.FC = () => {
 
     const sendLocationToServer = async (location: { lat: number; lng: number }) => {
       const now = Date.now();
-      if (now - lastLocationSentRef.current < 30000) return;
+      if (now - lastLocationSentRef.current < 15000) return;
       lastLocationSentRef.current = now;
 
       try {

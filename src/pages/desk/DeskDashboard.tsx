@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { laundryServices } from "@/data/laundryServices";
 import { getApiUrl } from "@/config/env";
 import { showLocalNotification } from "@/utils/nativeNotification";
+import RiderLiveMap from "@/components/RiderLiveMap";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -310,13 +311,11 @@ const DeskDashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboard();
     fetchRiders();
-    const id = setInterval(fetchDashboard, 15000);
-    return () => clearInterval(id);
+    const dashId = setInterval(fetchDashboard, 15000);
+    // Poll rider locations every 10s so the live map and order cards stay fresh
+    const ridersId = setInterval(fetchRiders, 10000);
+    return () => { clearInterval(dashId); clearInterval(ridersId); };
   }, [fetchDashboard, fetchRiders]);
-
-  useEffect(() => {
-    if (tab === "riders") fetchRiders();
-  }, [tab, fetchRiders]);
 
   useEffect(() => {
     fetchDashboard();
@@ -546,10 +545,15 @@ const DeskDashboard: React.FC = () => {
   };
 
   const getRiderLocation = (order: Order): RiderRef | null => {
-    if (order.assignedRider && typeof order.assignedRider === "object") {
-      return order.assignedRider as RiderRef;
+    if (!order.assignedRider) return null;
+    const base = typeof order.assignedRider === "object" ? order.assignedRider as RiderRef : null;
+    if (!base) return null;
+    // Prefer fresher location from riders state (polled every 10s)
+    const fresh = riders.find(r => r._id === base._id);
+    if (fresh) {
+      return { ...base, location: fresh.location, lastLocationUpdate: fresh.lastLocationUpdate, isActive: fresh.isActive };
     }
-    return null;
+    return base;
   };
 
   function timeSince(dateStr?: string) {
@@ -802,41 +806,34 @@ const DeskDashboard: React.FC = () => {
             )}
 
             {/* rider live tracking (all sections with assigned rider) */}
-            {riderLocation && riderLocation.location?.lat && riderLocation.location?.lng ? (
-              <div className="w-full rounded-xl overflow-hidden border border-orange-200">
-                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 text-sm font-medium text-orange-700">
-                  <span>📡</span>
-                  <span>Rider Location ({riderLocation.name})</span>
+            {riderLocation && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-orange-700">📡 {riderLocation.name}</span>
                   {riderLocation.lastLocationUpdate && (
-                    <span className="text-xs text-orange-500 ml-auto">
-                      {timeSince(riderLocation.lastLocationUpdate)}
+                    <span className="text-[10px] text-orange-400">
+                      updated {timeSince(riderLocation.lastLocationUpdate)}
                     </span>
                   )}
                 </div>
-                <iframe
-                  src={`https://www.google.com/maps?q=${riderLocation.location.lat},${riderLocation.location.lng}&z=15&output=embed`}
-                  className="w-full h-40 border-0"
-                  loading="lazy"
-                  allowFullScreen
-                  title="Rider Location"
-                />
-                <a href={`https://www.google.com/maps?q=${riderLocation.location.lat},${riderLocation.location.lng}`} target="_blank" rel="noreferrer"
-                  className="block text-center text-xs text-blue-600 py-1.5 bg-gray-50 font-medium">
-                  Open in Google Maps
-                </a>
-              </div>
-            ) : riderLocation?.live_location_link ? (
-              <a href={riderLocation.live_location_link} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2 w-full py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-sm font-medium text-orange-700">
-                <span>📡</span>
-                <span>Track Rider Live</span>
-                {riderLocation.lastLocationUpdate && (
-                  <span className="text-xs text-orange-500 ml-auto">
-                    Updated {timeSince(riderLocation.lastLocationUpdate)}
-                  </span>
+                {riderLocation.location?.lat && riderLocation.location?.lng ? (
+                  <RiderLiveMap
+                    riders={[riderLocation]}
+                    height="180px"
+                    compact
+                  />
+                ) : riderLocation.live_location_link ? (
+                  <a href={riderLocation.live_location_link} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-2 w-full py-2 px-3 bg-orange-50 border border-orange-200 rounded-xl text-sm font-medium text-orange-700">
+                    <span>📡</span><span>Track Rider Live</span>
+                  </a>
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-400">
+                    Location not shared yet — rider needs to open their app
+                  </div>
                 )}
-              </a>
-            ) : null}
+              </div>
+            )}
 
             {/* items */}
             {order.item_prices && order.item_prices.length > 0 && (
@@ -1367,6 +1364,26 @@ const DeskDashboard: React.FC = () => {
         {/* ══ RIDERS TAB ══ */}
         {tab === "riders" && (
           <div className="space-y-5">
+            {/* ── combined live map ── */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                <h2 className="font-semibold text-gray-800">
+                  🗺️ Live Rider Map
+                  {riders.filter(r => r.isActive && r.location?.lat && r.location?.lng).length > 0 && (
+                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                      {riders.filter(r => r.isActive && r.location?.lat && r.location?.lng).length} online
+                    </span>
+                  )}
+                </h2>
+              </div>
+              <div className="px-4 pb-4">
+                <RiderLiveMap
+                  riders={riders.filter(r => r.isActive)}
+                  height="280px"
+                />
+              </div>
+            </div>
+
             {/* credentials popup */}
             {newCreds && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4">
@@ -1431,12 +1448,15 @@ const DeskDashboard: React.FC = () => {
                       </div>
                       {r.isActive && r.location?.lat && r.location?.lng && (
                         <div className="mt-2 rounded-lg overflow-hidden border border-green-200">
-                          <iframe
-                            src={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}&z=15&output=embed`}
-                            className="w-full h-32 border-0"
-                            loading="lazy"
-                            title={`${r.name} location`}
-                          />
+                          <a
+                            href={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center justify-center gap-2 py-2 bg-green-50 text-sm font-medium text-green-700 hover:bg-green-100 active:bg-green-200 transition-colors"
+                          >
+                            <span>🗺️</span>
+                            <span>Open Location in Google Maps</span>
+                          </a>
                           {r.lastLocationUpdate && (
                             <p className="text-[10px] text-gray-400 text-center py-1 bg-gray-50">
                               Last updated: {timeSince(r.lastLocationUpdate)}
