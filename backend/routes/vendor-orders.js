@@ -655,6 +655,40 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
 
     await order.save();
 
+    // ── Push notification to customer about status change ──
+    (async () => {
+      try {
+        const customerId = order.customer_id;
+        if (!customerId) return;
+
+        const statusMessages = {
+          pickup_completed: { title: "Laundry Picked Up!", body: `Your clothes for order ${order.custom_order_id || order._id} have been picked up. Processing starts soon.` },
+          in_progress:      { title: "Laundry in Progress", body: `Your order ${order.custom_order_id || order._id} is currently being cleaned.` },
+          ready_for_delivery: { title: "Ready for Delivery!", body: `Your order ${order.custom_order_id || order._id} is clean and ready. We'll deliver it soon.` },
+          delivered:        { title: "Order Delivered!", body: `Your laundry order ${order.custom_order_id || order._id} has been delivered. Thank you!` },
+          completed:        { title: "Order Completed", body: `Order ${order.custom_order_id || order._id} is complete. We hope you're happy with the service!` },
+        };
+        const msg = statusMessages[order.status];
+        if (!msg) return;
+
+        const notificationService = require("../services/notificationService");
+        await notificationService.sendPushNotification(customerId, { title: msg.title, message: msg.body });
+
+        const Notification = require("../models/Notification");
+        await Notification.create({
+          user_id: customerId,
+          title: msg.title,
+          message: msg.body,
+          type: "order_status",
+          priority: "high",
+          related_order: order._id,
+          data: { orderId: order._id, custom_order_id: order.custom_order_id, status: order.status },
+        });
+      } catch (err) {
+        console.warn("⚠️ Failed to send status-change push to customer:", err.message);
+      }
+    })();
+
     res.json({ success: true, message: "Status updated successfully", order });
   } catch (error) {
     console.error("❌ Error updating order status:", error);

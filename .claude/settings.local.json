@@ -38,7 +38,8 @@
       "Bash(git push:*)",
       "Bash(node -e \"require\\('react-is'\\)\")",
       "Bash(node -e \"require\\('react-is'\\); console.log\\('ok', require\\('react-is/package.json'\\).version\\)\")",
-      "Bash(ls c:/Users/Kataria/Home-services/*.config.*)"
+      "Bash(ls c:/Users/Kataria/Home-services/*.config.*)",
+      "Bash(ls c:/Users/Kataria/Home-services/scripts/build-*aab*.sh)"
     ]
   },
   "enableAllProjectMcpServers": true,

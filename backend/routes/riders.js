@@ -2587,6 +2587,20 @@ router.post('/orders/:orderId/in-transit', verifyRiderToken, async (req, res) =>
 
     await order.save();
 
+    // Push notification to customer that delivery is on the way
+    (async () => {
+      try {
+        if (order.customer_id) {
+          await notificationService.sendPushNotification(order.customer_id, {
+            title: "Out for Delivery!",
+            message: `Your laundry order ${order.custom_order_id || order._id} is on the way. Rider is heading to you now.`,
+          });
+        }
+      } catch (err) {
+        console.warn("⚠️ Failed to push in-transit notification to customer:", err.message);
+      }
+    })();
+
     res.json({ success: true, message: 'Order marked in transit', order });
   } catch (error) {
     console.error('❌ In-transit error:', error);

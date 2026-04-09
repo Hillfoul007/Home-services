@@ -2,10 +2,18 @@ import { PushNotifications, Token, ActionPerformed, PushNotificationSchema } fro
 import { Capacitor } from '@capacitor/core';
 import { apiClient } from '../lib/apiClient';
 
+interface PushContext {
+  userId?: string;
+  riderId?: string;
+  vendorId?: string;
+}
+
 export class MobilePushService {
   private static instance: MobilePushService;
   private isInitialized = false;
   private fcmToken: string | null = null;
+  // Saved when initialize() is called with context but token hasn't arrived yet
+  private pendingContext: PushContext | null = null;
 
   private constructor() {}
 
@@ -18,15 +26,29 @@ export class MobilePushService {
 
   public async initialize(userId?: string, opts?: { riderId?: string; vendorId?: string }) {
     if (!Capacitor.isNativePlatform()) {
-      return; // Fallback to Web Push for browser uses PushNotificationService.ts
+      return; // Web push is handled by PushNotificationService.ts
     }
 
+    const context: PushContext | null = (userId || opts?.riderId || opts?.vendorId)
+      ? { userId, riderId: opts?.riderId, vendorId: opts?.vendorId }
+      : null;
+
     if (this.isInitialized) {
-      // Already initialized — if new context is provided and token is available, re-register
-      if ((userId || opts?.riderId || opts?.vendorId) && this.fcmToken) {
-        await this.sendTokenToBackend(this.fcmToken, userId, opts);
+      if (context) {
+        if (this.fcmToken) {
+          // Token already available — re-register immediately with new context
+          await this.sendTokenToBackend(this.fcmToken, context);
+        } else {
+          // Token not yet arrived — save context so registration handler will use it
+          this.pendingContext = context;
+        }
       }
       return;
+    }
+
+    // First call — save context so registration listener can use it
+    if (context) {
+      this.pendingContext = context;
     }
 
     try {
@@ -37,72 +59,73 @@ export class MobilePushService {
       }
 
       if (permStatus.receive !== 'granted') {
-        console.log('User denied push notification permission');
+        console.log('Push notification permission denied');
         return;
       }
 
-      // Create a high priority channel for Android pop-ups
+      // Create high-priority Android notification channel
       if (Capacitor.getPlatform() === 'android') {
         await PushNotifications.createChannel({
           id: 'laundrify_notifications',
           name: 'Laundrify Notifications',
-          description: 'General notifications for laundrify',
-          importance: 5, // High importance for pop-ups
-          visibility: 1, // Public
+          description: 'Order updates and alerts',
+          importance: 5,
+          visibility: 1,
           sound: 'default',
           vibration: true
         });
       }
 
       await PushNotifications.register();
-
-      this.addListeners(userId, opts);
+      this.addListeners();
       this.isInitialized = true;
     } catch (e) {
-      console.error('Error initializing Capacitor push notifications', e);
+      console.error('Error initializing push notifications', e);
     }
   }
 
-  private async sendTokenToBackend(token: string, userId?: string, opts?: { riderId?: string; vendorId?: string }) {
+  private addListeners() {
+    PushNotifications.addListener('registration', async (token: Token) => {
+      console.log('FCM token registered');
+      this.fcmToken = token.value;
+      // Send token to backend — use pending context if one was saved
+      const ctx = this.pendingContext ?? {};
+      await this.sendTokenToBackend(token.value, ctx);
+      this.pendingContext = null;
+    });
+
+    PushNotifications.addListener('registrationError', (error: any) => {
+      console.error('Push registration error:', JSON.stringify(error));
+    });
+
+    PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
+      console.log('Push received:', notification.title);
+    });
+
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
+      const data = notification.notification.data;
+      if (data?.route) {
+        window.location.href = data.route;
+      }
+    });
+  }
+
+  private async sendTokenToBackend(token: string, ctx: PushContext) {
     try {
       await apiClient.adminRequest('/push/subscribe', {
         method: 'POST',
-        body: { token, userId, riderId: opts?.riderId, vendorId: opts?.vendorId }
-      });
-      console.log('Push token registered with context:', { userId, ...opts });
-    } catch (err) {
-      console.error('Failed to save mobile push token', err);
-    }
-  }
-
-  private addListeners(userId?: string, opts?: { riderId?: string; vendorId?: string }) {
-    PushNotifications.addListener('registration', async (token: Token) => {
-      console.log('Mobile Push registration success, token: ' + token.value);
-      this.fcmToken = token.value;
-      await this.sendTokenToBackend(token.value, userId, opts);
-    });
-
-    PushNotifications.addListener('registrationError',
-      (error: any) => {
-        console.error('Error on registration: ' + JSON.stringify(error));
-      }
-    );
-
-    PushNotifications.addListener('pushNotificationReceived',
-      (notification: PushNotificationSchema) => {
-        console.log('Push received: ' + JSON.stringify(notification));
-      }
-    );
-
-    PushNotifications.addListener('pushNotificationActionPerformed',
-      (notification: ActionPerformed) => {
-        console.log('Push action performed: ' + JSON.stringify(notification));
-        const data = notification.notification.data;
-        if (data && data.route) {
-          window.location.href = data.route;
+        body: {
+          token,
+          userId: ctx.userId,
+          riderId: ctx.riderId,
+          vendorId: ctx.vendorId,
         }
-      }
-    );
+      });
+      const who = ctx.userId ? `user:${ctx.userId}` : ctx.riderId ? `rider:${ctx.riderId}` : ctx.vendorId ? `vendor:${ctx.vendorId}` : 'anonymous';
+      console.log(`FCM token registered for ${who}`);
+    } catch (err) {
+      console.error('Failed to save push token:', err);
+    }
   }
 }
 

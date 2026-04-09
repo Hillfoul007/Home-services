@@ -1961,6 +1961,24 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
     }
 
     console.log(`✅ Vendor ${vendorWithDistanceData.name} assigned to order ${orderId} (Distance: ${vendorWithDistanceData.distance}km, Est. Time: ${vendorWithDistanceData.estimatedTime}min)`);
+
+    // Push notification to desk/vendor about new order
+    (async () => {
+      try {
+        const deskNotificationService = require("../services/deskNotificationService");
+        // vendorWithDistanceData.id is the MongoDB vendor _id
+        if (vendorWithDistanceData.id) {
+          await deskNotificationService.sendPushNotification(vendorWithDistanceData.id, {
+            title: "New Order Assigned!",
+            message: `Order ${order.custom_order_id || orderId} has been assigned to your laundry. Open the app to view it.`,
+            data: { orderId: String(orderId), route: "/desk/dashboard" },
+          });
+        }
+      } catch (pushErr) {
+        console.warn("⚠️ Failed to push new-order notification to desk:", pushErr.message);
+      }
+    })();
+
     res.json({
       message: 'Vendor assigned successfully',
       order,
