@@ -46,13 +46,14 @@ import AdminDailyOrdersView from "./AdminDailyOrdersView";
 import AdminPackages from "../pages/AdminPackages";
 import AdminAssignedPackages from "./AdminAssignedPackages";
 import AdminPushNotifications from "./AdminPushNotifications";
+import AdminSchoolManagement from "./AdminSchoolManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -412,6 +413,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">PG Orders</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("schools")}
+              variant={activeTab === "schools" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🏫</span>
+              <span className="hidden sm:inline">Schools</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("wallet")}
               variant={activeTab === "wallet" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -513,6 +522,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
           <TabsContent value="pg-orders">
             <AdminPGOrdersManagement />
+          </TabsContent>
+
+          <TabsContent value="schools">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>🏫 School Management:</strong> Create and manage schools with their students/members. Each school has a dedicated manager login, custom pricing for Wash & Iron and Wash & Fold, and separate order tracking with IDs like <code>SCH01-0426-0001</code>.</p>
+            </div>
+            <AdminSchoolManagement />
           </TabsContent>
 
           <TabsContent value="wallet">

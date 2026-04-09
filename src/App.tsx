@@ -38,6 +38,8 @@ import DeskLogin from "@/pages/desk/DeskLogin";
 import DeskDashboard from "@/pages/desk/DeskDashboard";
 import RiderDeskLogin from "@/pages/rider-desk/RiderDeskLogin";
 import RiderDeskDashboard from "@/pages/rider-desk/RiderDeskDashboard";
+import SchoolManagerLogin from "@/pages/school/SchoolManagerLogin";
+import SchoolManagerDashboard from "@/pages/school/SchoolManagerDashboard";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -216,6 +218,9 @@ function App() {
               {/* Rider Desk */}
               <Route path="/rider-desk" element={<RiderDeskLogin />} />
               <Route path="/rider-desk/dashboard" element={<RiderDeskDashboard />} />
+              {/* School Manager */}
+              <Route path="/school-manager" element={<SchoolManagerLogin />} />
+              <Route path="/school-manager/dashboard" element={<SchoolManagerDashboard />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />

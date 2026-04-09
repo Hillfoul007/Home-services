@@ -541,6 +541,24 @@ try {
 
 // Google Sheets integration removed
 
+// School management routes
+try {
+  const schoolManagementRoutes = require("./routes/school-management");
+  app.use("/api/school-management", schoolManagementRoutes);
+  console.log("🔗 School Management routes registered at /api/school-management");
+} catch (error) {
+  console.error("❌ Failed to load School Management routes:", error.message);
+}
+
+// School orders routes (also handles school manager auth)
+try {
+  const schoolOrdersRoutes = require("./routes/school-orders");
+  app.use("/api/school-orders", schoolOrdersRoutes);
+  console.log("🔗 School Orders routes registered at /api/school-orders");
+} catch (error) {
+  console.error("❌ Failed to load School Orders routes:", error.message);
+}
+
 const User = require("./models/User");
 const DeviceToken = require("./models/DeviceToken");
 const admin = require("firebase-admin");
