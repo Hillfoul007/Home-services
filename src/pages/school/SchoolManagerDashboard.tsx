@@ -83,7 +83,7 @@ const SchoolManagerDashboard: React.FC = () => {
         if (statusFilter) params.set("status", statusFilter);
         params.set("limit", "100");
 
-        const res = await fetch(`${apiBase}/api/school-orders/my-orders?${params.toString()}`, {
+        const res = await fetch(`${apiBase}/school-orders/my-orders?${params.toString()}`, {
           headers: {
             "school-token": token,
           },

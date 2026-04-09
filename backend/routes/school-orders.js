@@ -198,7 +198,7 @@ router.get("/", verifyAdminAccess, async (req, res) => {
 // POST /api/school-orders  (admin creates order)
 router.post("/", verifyAdminAccess, async (req, res) => {
   try {
-    const { school_id, member_id, service, items_count, pickup_date, delivery_date, notes, payment_method } = req.body;
+    const { school_id, member_id, service, items_count, price_per_item: customPrice, pickup_date, delivery_date, notes, payment_method } = req.body;
 
     if (!school_id || !member_id || !service || !items_count) {
       return res.status(400).json({ success: false, error: "school_id, member_id, service, items_count are required" });
@@ -214,10 +214,12 @@ router.post("/", verifyAdminAccess, async (req, res) => {
     });
     if (!member) return res.status(404).json({ success: false, error: "Member not found in this school" });
 
-    const price_per_item = school.pricing[service];
-    if (price_per_item === undefined) {
+    const defaultPrice = school.pricing[service];
+    if (defaultPrice === undefined) {
       return res.status(400).json({ success: false, error: "Invalid service type" });
     }
+    // Allow admin to override price per item; fall back to school's configured price
+    const price_per_item = customPrice !== undefined ? parseFloat(customPrice) : defaultPrice;
 
     const order = new SchoolOrder({
       school_id: school._id,

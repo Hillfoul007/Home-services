@@ -25,7 +25,7 @@ const SchoolManagerLogin: React.FC = () => {
     setLoading(true);
     try {
       const apiBase = getApiUrl();
-      const res = await fetch(`${apiBase}/api/school-orders/auth/login`, {
+      const res = await fetch(`${apiBase}/school-orders/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username.trim(), password }),
