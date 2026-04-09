@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -11,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, AlertCircle, CheckCircle, Trash2, Edit, RefreshCw } from "lucide-react";
+import { Search, Plus, CheckCircle, Trash2, Edit, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 
@@ -85,17 +84,16 @@ const AdminSchoolBooking: React.FC = () => {
   // Orders list
   const [orders, setOrders] = useState<SchoolOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
-  const [orderSchoolFilter, setOrderSchoolFilter] = useState("");
+  const [orderSchoolFilter, setOrderSchoolFilter] = useState("all");
   const [orderMemberFilter, setOrderMemberFilter] = useState("");
-  const [orderStatusFilter, setOrderStatusFilter] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("all");
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editPaymentStatus, setEditPaymentStatus] = useState("");
 
   useEffect(() => {
     fetchSchools();
-    fetchOrders();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSchools = async () => {
     try {
@@ -119,9 +117,9 @@ const AdminSchoolBooking: React.FC = () => {
     setLoadingOrders(true);
     try {
       const params = new URLSearchParams();
-      if (orderSchoolFilter) params.set("school_id", orderSchoolFilter);
+      if (orderSchoolFilter && orderSchoolFilter !== "all") params.set("school_id", orderSchoolFilter);
       if (orderMemberFilter.trim()) params.set("member_id", orderMemberFilter.trim());
-      if (orderStatusFilter) params.set("status", orderStatusFilter);
+      if (orderStatusFilter && orderStatusFilter !== "all") params.set("status", orderStatusFilter);
       params.set("limit", "100");
 
       const res = await apiClient.adminRequest<any>(`/school-orders?${params.toString()}`);
@@ -487,7 +485,7 @@ const AdminSchoolBooking: React.FC = () => {
                 <SelectValue placeholder="All schools..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Schools</SelectItem>
+                <SelectItem value="all">All Schools</SelectItem>
                 {schools.map((s) => (
                   <SelectItem key={s._id} value={s._id}>
                     [{s.school_code}] {s.name}
@@ -506,7 +504,7 @@ const AdminSchoolBooking: React.FC = () => {
                 <SelectValue placeholder="All statuses..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="picked_up">Picked Up</SelectItem>
                 <SelectItem value="processing">Processing</SelectItem>
