@@ -247,6 +247,99 @@ router.post("/", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// POST /api/school-orders/bulk  (admin creates multiple orders at once)
+router.post("/bulk", verifyAdminAccess, async (req, res) => {
+  try {
+    const { school_id, pickup_date, delivery_date, orders: orderRows } = req.body;
+
+    if (!school_id || !Array.isArray(orderRows) || orderRows.length === 0) {
+      return res.status(400).json({ success: false, error: "school_id and orders array are required" });
+    }
+
+    const school = await School.findById(school_id);
+    if (!school) return res.status(404).json({ success: false, error: "School not found" });
+
+    const results = [];
+    const errors = [];
+
+    for (const row of orderRows) {
+      try {
+        const { member_id, member_name, service, items_count, price_per_item: customPrice, notes, is_new_member } = row;
+
+        if (!member_id || !service || !items_count) {
+          errors.push({ member_id, error: "member_id, service, items_count are required" });
+          continue;
+        }
+
+        const memberId = member_id.toUpperCase();
+
+        // Create member if new
+        if (is_new_member) {
+          if (!/^[A-Z]{2}[0-9]{4}$/.test(memberId)) {
+            errors.push({ member_id: memberId, error: "Invalid member ID format (needs 2 letters + 4 digits)" });
+            continue;
+          }
+          const existing = await SchoolMember.findOne({ member_id: memberId });
+          if (!existing) {
+            await SchoolMember.create({
+              school_id,
+              name: member_name?.trim() || memberId,
+              member_id: memberId,
+            });
+          }
+        }
+
+        const member = await SchoolMember.findOne({ school_id, member_id: memberId });
+        if (!member) {
+          errors.push({ member_id: memberId, error: "Member not found" });
+          continue;
+        }
+
+        const defaultPrice = school.pricing[service];
+        if (defaultPrice === undefined) {
+          errors.push({ member_id: memberId, error: "Invalid service type" });
+          continue;
+        }
+        const price_per_item = customPrice !== undefined ? parseFloat(customPrice) : defaultPrice;
+
+        const order = new SchoolOrder({
+          school_id: school._id,
+          school_name: school.name,
+          school_code: school.school_code,
+          member_id: member.member_id,
+          member_name: member.name,
+          member_db_id: member._id,
+          service,
+          items_count: parseInt(items_count),
+          price_per_item,
+          total_amount: parseInt(items_count) * price_per_item,
+          pickup_date: pickup_date ? new Date(pickup_date) : null,
+          delivery_date: delivery_date ? new Date(delivery_date) : null,
+          notes: notes || "",
+          payment_method: "monthly_bill",
+        });
+
+        await order.save();
+        results.push(order);
+        console.log(`✅ Bulk school order: ${order.custom_order_id}`);
+      } catch (rowErr) {
+        errors.push({ member_id: row.member_id, error: rowErr.message });
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      created: results.length,
+      errors: errors.length,
+      data: results,
+      error_details: errors,
+    });
+  } catch (err) {
+    console.error("Error in bulk school order:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // PUT /api/school-orders/:orderId  (admin updates order)
 router.put("/:orderId", verifyAdminAccess, async (req, res) => {
   try {
