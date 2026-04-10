@@ -772,6 +772,40 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       }
     }
 
+    // Send push notification to customer when status changes to key statuses
+    if (booking.customer_id && updateData.status && updateData.status !== oldStatus) {
+      const statusPushMap = {
+        ready_for_delivery: {
+          title: "Your order is ready for delivery!",
+          message: `Order ${booking.custom_order_id || bookingId} is clean and ready. We'll deliver it to you soon.`,
+        },
+        delivery_assigned: {
+          title: "Delivery on the way!",
+          message: `Your order ${booking.custom_order_id || bookingId} has been dispatched for delivery.`,
+        },
+        delivered: {
+          title: "Order Delivered!",
+          message: `Your laundry order ${booking.custom_order_id || bookingId} has been delivered. Thank you!`,
+        },
+        completed: {
+          title: "Order Completed",
+          message: `Order ${booking.custom_order_id || bookingId} is complete. We hope you're happy with our service!`,
+        },
+      };
+      const pushPayload = statusPushMap[updateData.status];
+      if (pushPayload) {
+        (async () => {
+          try {
+            const customerId = booking.customer_id._id || booking.customer_id;
+            await notificationService.sendPushNotification(customerId, pushPayload);
+            console.log(`📢 Admin push sent to customer for status ${updateData.status}`);
+          } catch (err) {
+            console.warn("⚠️ Admin status-change push failed:", err.message);
+          }
+        })();
+      }
+    }
+
     console.log("✅ Booking updated by admin:", booking._id);
     console.log("✅ Updated timestamp:", booking.updated_at);
     console.log(`✅ Final booking state: total_price=${booking.total_price}, final_amount=${booking.final_amount}, item_prices count=${booking.item_prices?.length || 0}`);

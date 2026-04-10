@@ -184,19 +184,56 @@ class NotificationService {
         return { success: true, skipped: true };
       }
 
+      // Build safe data payload (FCM requires all values to be strings)
+      const dataPayload = { route: "/" };
+      if (notification.data) {
+        Object.entries(notification.data).forEach(([k, v]) => {
+          dataPayload[k] = String(v);
+        });
+      }
+
       const message = {
         notification: { title: notification.title, body: notification.message },
-        data: { route: "/" },
+        data: dataPayload,
         android: {
           priority: "high",
-          notification: { channelId: "laundrify_notifications" },
+          notification: { channelId: "laundrify_notifications", sound: "default" },
         },
-        apns: { payload: { aps: { sound: "default" } } },
+        apns: { payload: { aps: { sound: "default", badge: 1 } } },
         tokens: uniqueTokens,
       };
 
       const response = await admin.messaging().sendEachForMulticast(message);
       console.log(`🔥 Push sent to user ${userId}: ${response.successCount} ok, ${response.failureCount} failed`);
+
+      // Clean up stale/invalid tokens so future sends don't fail silently
+      if (response.failureCount > 0) {
+        const staleTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const code = resp.error?.code || "";
+            console.warn(`⚠️ FCM token failed [${code}]: ${uniqueTokens[idx]?.slice(0, 20)}...`);
+            // Remove tokens that are definitively invalid (not temporary errors)
+            if (
+              code === "messaging/invalid-registration-token" ||
+              code === "messaging/registration-token-not-registered" ||
+              code === "messaging/invalid-argument" ||
+              code === "messaging/unregistered"
+            ) {
+              staleTokens.push(uniqueTokens[idx]);
+            }
+          }
+        });
+
+        if (staleTokens.length > 0) {
+          console.log(`🧹 Removing ${staleTokens.length} stale FCM token(s) for user ${userId}`);
+          await Promise.all([
+            DeviceToken.deleteMany({ token: { $in: staleTokens } }),
+            User.findByIdAndUpdate(userId, { $pull: { fcmTokens: { $in: staleTokens } } }),
+          ]).catch((err) => console.warn("⚠️ Failed to clean up stale tokens:", err.message));
+        }
+      }
+
       return { success: true, successCount: response.successCount, failureCount: response.failureCount };
     } catch (error) {
       console.error("❌ FCM push notification error:", error.message);

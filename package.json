@@ -43,6 +43,7 @@
     "migrate:wallet": "node backend/scripts/init-wallet-balance.js"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/app": "^8.0.1",
     "@capacitor/device": "^8.0.1",
     "@capacitor/geolocation": "^8.2.0",

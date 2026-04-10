@@ -254,6 +254,31 @@ class RiderNotificationService {
         "delivery_status.push": response.successCount > 0,
       });
 
+      // Clean up stale/invalid tokens so future sends don't fail silently
+      if (response.failureCount > 0) {
+        const staleTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const code = resp.error?.code || "";
+            console.warn(`⚠️ FCM rider token failed [${code}]: ${uniqueTokens[idx]?.slice(0, 20)}...`);
+            if (
+              code === "messaging/invalid-registration-token" ||
+              code === "messaging/registration-token-not-registered" ||
+              code === "messaging/invalid-argument" ||
+              code === "messaging/unregistered"
+            ) {
+              staleTokens.push(uniqueTokens[idx]);
+            }
+          }
+        });
+        if (staleTokens.length > 0) {
+          console.log(`🧹 Removing ${staleTokens.length} stale FCM token(s) for rider ${riderId}`);
+          await DeviceToken.deleteMany({ token: { $in: staleTokens } }).catch((err) =>
+            console.warn("⚠️ Failed to clean up stale rider tokens:", err.message)
+          );
+        }
+      }
+
       return { success: true, successCount: response.successCount, failureCount: response.failureCount };
     } catch (error) {
       console.error("❌ FCM push notification error for rider:", error.message);

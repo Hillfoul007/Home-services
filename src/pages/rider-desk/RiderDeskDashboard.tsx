@@ -198,6 +198,14 @@ const RiderDeskDashboard: React.FC = () => {
     return () => clearInterval(id);
   }, [fetchOrders]);
 
+  // Register FCM push token for desk so new-order push notifications are delivered
+  useEffect(() => {
+    if (!riderInfo?._id) return;
+    import('@/services/MobilePushService').then((mod) => {
+      mod.MobilePushService.getInstance().initialize(undefined, { riderId: riderInfo._id });
+    }).catch(() => {});
+  }, [riderInfo?._id]);
+
   // ── navigation helpers ──
   const openMapsToAddress = (address: string, mapsLink?: string) => {
     if (mapsLink) { window.open(mapsLink, "_blank"); return; }

@@ -20,7 +20,11 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const watchIdRef = useRef<number | null>(null);
+
+  // For native background geolocation, the watcher ID is a string
+  const bgWatcherIdRef = useRef<string | null>(null);
+  // For web fallback, the watcher ID is a number
+  const webWatchIdRef = useRef<number | null>(null);
   const lastSentRef = useRef<number>(0);
 
   const updateLocationOnServer = useCallback(async (location: { lat: number; lng: number }) => {
@@ -62,68 +66,113 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
+  const stopTracking = useCallback(async () => {
+    // Stop native background geolocation watcher
+    if (bgWatcherIdRef.current !== null) {
+      try {
+        const BackgroundGeolocation = (await import('@capacitor-community/background-geolocation')).default;
+        await BackgroundGeolocation.removeWatcher({ id: bgWatcherIdRef.current });
+      } catch (e) {
+        console.warn('Failed to remove background geolocation watcher:', e);
+      }
+      bgWatcherIdRef.current = null;
+    }
+
+    // Stop web fallback watcher
+    if (webWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(webWatchIdRef.current);
+      webWatchIdRef.current = null;
+    }
+
+    setIsTracking(false);
+    setCurrentLocation(null);
+    setLocationError(null);
+  }, []);
+
   const startTracking = useCallback(async () => {
-    if (watchIdRef.current !== null) return; // Already tracking
+    // Already tracking
+    if (bgWatcherIdRef.current !== null || webWatchIdRef.current !== null) return;
+
+    if (Capacitor.isNativePlatform()) {
+      // ── Native: use background geolocation so location works even when app is closed ──
+      try {
+        const BackgroundGeolocation = (await import('@capacitor-community/background-geolocation')).default;
+
+        const watcherId = await BackgroundGeolocation.addWatcher(
+          {
+            backgroundMessage: 'Laundrify is tracking your location for deliveries.',
+            backgroundTitle: 'Laundrify Rider — Location Active',
+            requestPermissions: true,
+            stale: false,
+            distanceFilter: 30, // update every 30 metres movement
+          },
+          (position, error) => {
+            if (error) {
+              console.error('BackgroundGeolocation error:', error);
+              const msg =
+                error.code === 'NOT_AUTHORIZED'
+                  ? 'Location permission denied. Enable in phone settings.'
+                  : error.code === 'TIMEOUT'
+                  ? 'GPS timeout. Check GPS settings.'
+                  : 'GPS signal unavailable.';
+              setLocationError(msg);
+              return;
+            }
+            if (position) {
+              const location = { lat: position.latitude, lng: position.longitude };
+              setCurrentLocation(location);
+              setLocationError(null);
+              updateLocationOnServer(location);
+            }
+          }
+        );
+
+        bgWatcherIdRef.current = watcherId;
+        setIsTracking(true);
+        console.log('✅ Background geolocation started, watcher:', watcherId);
+      } catch (e) {
+        console.error('BackgroundGeolocation failed, falling back to web API:', e);
+        // Fall through to web watchPosition below
+        startWebTracking();
+      }
+    } else {
+      startWebTracking();
+    }
+  }, [updateLocationOnServer]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startWebTracking = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError('GPS not available on this device');
       return;
     }
 
-    // On Capacitor native (Android/iOS), request geolocation permission explicitly
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const { Geolocation } = await import('@capacitor/geolocation');
-        const perm = await Geolocation.requestPermissions();
-        if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
-          setLocationError('Location permission denied. Please enable it in settings.');
-          console.error('RiderLocationContext: Location permission denied');
-          return;
-        }
-        setLocationError(null);
-      } catch (e) {
-        console.warn('RiderLocationContext: Could not request Capacitor permissions, falling back to web API', e);
-      }
-    }
-
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
+        const location = { lat: position.coords.latitude, lng: position.coords.longitude };
         setCurrentLocation(location);
         setLocationError(null);
         updateLocationOnServer(location);
       },
       (error) => {
         console.error('RiderLocationContext: GPS error', error);
-        const msg = error.code === 1
-          ? 'Location permission denied. Enable in phone settings.'
-          : error.code === 2
-          ? 'GPS signal unavailable. Move to an open area.'
-          : 'Location timeout. Check GPS settings.';
+        const msg =
+          error.code === 1
+            ? 'Location permission denied. Enable in phone settings.'
+            : error.code === 2
+            ? 'GPS signal unavailable. Move to an open area.'
+            : 'Location timeout. Check GPS settings.';
         setLocationError(msg);
       },
       {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 5000, // Accept max 5-second-old cached position
+        maximumAge: 5000,
       }
     );
 
-    watchIdRef.current = watchId;
+    webWatchIdRef.current = watchId;
     setIsTracking(true);
   }, [updateLocationOnServer]);
-
-  const stopTracking = useCallback(() => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    setIsTracking(false);
-    setCurrentLocation(null);
-    setLocationError(null);
-  }, []);
 
   // Start/stop tracking based on rider auth state
   useEffect(() => {
@@ -136,7 +185,7 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       stopTracking();
     }
 
-    // Listen for logout (storage changes from other tabs or manual clear)
+    // Listen for logout from other tabs
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'riderToken' && !e.newValue) {
         stopTracking();
