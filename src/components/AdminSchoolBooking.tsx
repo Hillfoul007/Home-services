@@ -413,7 +413,7 @@ const AdminSchoolBooking: React.FC = () => {
                 : <AlertCircle className="w-4 h-4 shrink-0" />}
               <span>
                 <strong>{lastResult.created}</strong> order{lastResult.created !== 1 ? "s" : ""} created
-                {lastResult.errors > 0 && <>, <strong>{lastResult.errors}</strong> failed (see errors above)</>}
+                {lastResult.errors > 0 && <>, <strong>{lastResult.errors}</strong> failed (see errors below)</>}
               </span>
             </div>
           )}
@@ -504,13 +504,19 @@ const AdminSchoolBooking: React.FC = () => {
                           <div className="relative md:px-2 md:py-2">
                             <div className="relative">
                               {row.isNewMember ? (
-                                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-1.5">
+                                <div className="flex items-center gap-1.5">
                                   <UserPlus className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span className="font-mono text-xs text-amber-800 font-bold">{row.member_id || "—"}</span>
-                                  <span className="text-xs text-amber-600 truncate">{row.member_name || "(no name yet)"}</span>
+                                  <input
+                                    type="text"
+                                    placeholder="Member ID (AA1234) *"
+                                    value={row.member_id}
+                                    onChange={(e) => updateRow(row.rowId, { member_id: e.target.value.toUpperCase() })}
+                                    maxLength={6}
+                                    className={`w-full px-2.5 py-1.5 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 ${MEMBER_ID_RE.test(row.member_id) ? "border-green-400 bg-green-50" : "border-amber-300 bg-amber-50"}`}
+                                  />
                                   <button
                                     type="button"
-                                    className="ml-auto text-amber-400 hover:text-red-500 shrink-0"
+                                    className="text-amber-400 hover:text-red-500 shrink-0 text-lg leading-none"
                                     onClick={() => updateRow(row.rowId, { isNewMember: false, member_id: "", member_name: "", memberSearch: "" })}
                                   >×</button>
                                 </div>
@@ -582,23 +588,13 @@ const AdminSchoolBooking: React.FC = () => {
                           {/* Name — editable if new member, or shows resolved name */}
                           <div className="md:px-2 md:py-2">
                             {row.isNewMember ? (
-                              <div className="space-y-1.5">
-                                <input
-                                  type="text"
-                                  placeholder="Member ID (AA1234) *"
-                                  value={row.member_id}
-                                  onChange={(e) => updateRow(row.rowId, { member_id: e.target.value.toUpperCase() })}
-                                  maxLength={6}
-                                  className={`w-full px-2.5 py-1.5 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 ${MEMBER_ID_RE.test(row.member_id) ? "border-green-400" : "border-amber-300"}`}
-                                />
-                                <input
-                                  type="text"
-                                  placeholder="Student name *"
-                                  value={row.member_name}
-                                  onChange={(e) => updateRow(row.rowId, { member_name: e.target.value })}
-                                  className="w-full px-2.5 py-1.5 border border-amber-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                                />
-                              </div>
+                              <input
+                                type="text"
+                                placeholder="Student name *"
+                                value={row.member_name}
+                                onChange={(e) => updateRow(row.rowId, { member_name: e.target.value })}
+                                className="w-full px-2.5 py-1.5 border border-amber-300 bg-amber-50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              />
                             ) : (
                               <div className="h-9 flex items-center">
                                 {row.member_name ? (

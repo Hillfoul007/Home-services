@@ -221,7 +221,10 @@ router.post("/", verifyAdminAccess, async (req, res) => {
     // Allow admin to override price per item; fall back to school's configured price
     const price_per_item = customPrice !== undefined ? parseFloat(customPrice) : defaultPrice;
 
+    const custom_order_id = await SchoolOrder.generateCustomOrderId(school.school_code);
+
     const order = new SchoolOrder({
+      custom_order_id,
       school_id: school._id,
       school_name: school.name,
       school_code: school.school_code,
@@ -302,7 +305,10 @@ router.post("/bulk", verifyAdminAccess, async (req, res) => {
         }
         const price_per_item = customPrice !== undefined ? parseFloat(customPrice) : defaultPrice;
 
+        const custom_order_id = await SchoolOrder.generateCustomOrderId(school.school_code);
+
         const order = new SchoolOrder({
+          custom_order_id,
           school_id: school._id,
           school_name: school.name,
           school_code: school.school_code,
