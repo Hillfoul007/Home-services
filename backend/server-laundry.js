@@ -172,6 +172,7 @@ app.use(
       "Accept",
       "user-id",
       "admin-token", // Add admin-token header support
+      "school-token", // Add school-token header support
       "Cache-Control", // Add Cache-Control header support
       "Pragma",
       "Expires",
@@ -208,7 +209,7 @@ app.options('*', (req, res) => {
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, user-id, admin-token, Cache-Control, Pragma, Expires, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, user-id, admin-token, school-token, Cache-Control, Pragma, Expires, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   res.status(200).end();
