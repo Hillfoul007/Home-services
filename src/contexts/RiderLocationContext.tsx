@@ -27,10 +27,10 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
   const webWatchIdRef = useRef<number | null>(null);
   const lastSentRef = useRef<number>(0);
 
-  const updateLocationOnServer = useCallback(async (location: { lat: number; lng: number }) => {
-    // Throttle server updates to once every 30 seconds
+  const updateLocationOnServer = useCallback(async (location: { lat: number; lng: number }, force = false) => {
+    // Throttle server updates to once every 15 seconds (unless forced)
     const now = Date.now();
-    if (now - lastSentRef.current < 30000) return;
+    if (!force && now - lastSentRef.current < 15000) return;
     lastSentRef.current = now;
 
     try {
@@ -67,6 +67,12 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
   }, []);
 
   const stopTracking = useCallback(async () => {
+    // Clear periodic push
+    if (periodicPushRef.current) {
+      clearInterval(periodicPushRef.current);
+      periodicPushRef.current = null;
+    }
+
     // Stop native background geolocation watcher
     if (bgWatcherIdRef.current !== null) {
       try {
@@ -89,9 +95,25 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     setLocationError(null);
   }, []);
 
+  // Periodic forced push every 60 seconds even if no movement
+  const periodicPushRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const startTracking = useCallback(async () => {
     // Already tracking
     if (bgWatcherIdRef.current !== null || webWatchIdRef.current !== null) return;
+
+    // Immediately get current position and push to server (forced)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setCurrentLocation(loc);
+          updateLocationOnServer(loc, true);
+        },
+        () => { /* silent — watchPosition will handle errors */ },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
 
     if (Capacitor.isNativePlatform()) {
       // ── Native: use background geolocation so location works even when app is closed ──
@@ -104,7 +126,7 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
             backgroundTitle: 'Laundrify Rider — Location Active',
             requestPermissions: true,
             stale: false,
-            distanceFilter: 30, // update every 30 metres movement
+            distanceFilter: 10, // update every 10 metres movement (was 30)
           },
           (position, error) => {
             if (error) {
@@ -138,6 +160,22 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     } else {
       startWebTracking();
     }
+
+    // Periodic force-push every 60 seconds even when rider isn't moving
+    if (periodicPushRef.current) clearInterval(periodicPushRef.current);
+    periodicPushRef.current = setInterval(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            setCurrentLocation(loc);
+            updateLocationOnServer(loc, true);
+          },
+          () => { /* silent */ },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        );
+      }
+    }, 60000);
   }, [updateLocationOnServer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startWebTracking = useCallback(() => {
@@ -197,15 +235,35 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       stopTracking();
     };
 
+    // Push location when app comes back to foreground
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const t = localStorage.getItem('riderToken');
+        if (t && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+              setCurrentLocation(loc);
+              updateLocationOnServer(loc, true);
+            },
+            () => { /* silent */ },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        }
+      }
+    };
+
     window.addEventListener('storage', handleStorage);
     window.addEventListener('riderLogout', handleRiderLogout);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       stopTracking();
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('riderLogout', handleRiderLogout);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [startTracking, stopTracking]);
+  }, [startTracking, stopTracking, updateLocationOnServer]);
 
   return (
     <RiderLocationContext.Provider value={{ currentLocation, isTracking, locationError }}>

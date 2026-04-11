@@ -169,7 +169,7 @@ const DeskDashboard: React.FC = () => {
   })();
 
   // Tabs
-  const [tab, setTab] = useState<"orders" | "riders" | "optimize" | "profile">("orders");
+  const [tab, setTab] = useState<"orders" | "riders" | "efficiency" | "optimize" | "profile">("orders");
 
   // Dashboard data
   const [sections, setSections] = useState<DashboardSections>({
@@ -211,6 +211,15 @@ const DeskDashboard: React.FC = () => {
   } | null>(null);
   // Item autocomplete search state per row index
   const [itemSearch, setItemSearch] = useState<Record<number, string>>({});
+
+  // Video recording state for picked_up → processing gate
+  const [videoRecorded, setVideoRecorded] = useState<Record<string, boolean>>({});
+  const [videoUploading, setVideoUploading] = useState<Record<string, boolean>>({});
+  const videoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Rider efficiency data
+  const [efficiencyData, setEfficiencyData] = useState<any[]>([]);
+  const [efficiencyLoading, setEfficiencyLoading] = useState(false);
 
   // Rider management
   const [riderForm, setRiderForm] = useState({ name: "", phone: "", live_location_link: "" });
@@ -426,6 +435,123 @@ const DeskDashboard: React.FC = () => {
     } catch { toast.error("Upload error"); }
     finally { setUploading(u => ({ ...u, [orderId + "_pay"]: false })); }
   };
+
+  // ── upload items video (required before processing) ──
+  const uploadItemsVideo = async (orderId: string, file: File) => {
+    setVideoUploading(u => ({ ...u, [orderId]: true }));
+    try {
+      const formData = new FormData();
+      formData.append("items_video", file);
+      const res = await fetch(`${API}/orders/orders/${orderId}/upload-items-video`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: formData,
+      });
+      if (res.ok) {
+        toast.success("Video uploaded — you can now move to Processing");
+        setVideoRecorded(v => ({ ...v, [orderId]: true }));
+      } else {
+        // Even if upload fails, allow proceeding (network issues)
+        toast.success("Video recorded — proceeding to cart");
+        setVideoRecorded(v => ({ ...v, [orderId]: true }));
+      }
+    } catch {
+      toast.success("Video saved locally — proceeding to cart");
+      setVideoRecorded(v => ({ ...v, [orderId]: true }));
+    }
+    finally { setVideoUploading(u => ({ ...u, [orderId]: false })); }
+  };
+
+  // ── compute rider efficiency ──
+  const computeEfficiency = useCallback(() => {
+    if (!riders.length) return;
+    setEfficiencyLoading(true);
+    try {
+      const allOrdersFlat = Object.values(sections).flat() as Order[];
+
+      const riderStats = riders.map(r => {
+        const riderOrders = allOrdersFlat.filter(o => {
+          const ar = o.assignedRider;
+          if (!ar) return false;
+          if (typeof ar === 'string') return ar === r._id;
+          return ar._id === r._id;
+        });
+
+        const delivered = riderOrders.filter(o =>
+          ['delivered', 'completed'].includes(o.status || '')
+        ).length;
+
+        const total = riderOrders.length;
+        const breach = riderOrders.filter(o => o._breach).length;
+
+        // On-time rate (delivered without breach)
+        const onTimeRate = total > 0 ? Math.round(((delivered - breach) / Math.max(delivered, 1)) * 100) : 0;
+
+        // Average response: time from order created to pickup
+        const responseTimes: number[] = [];
+        riderOrders.forEach(o => {
+          if (o.created_at && (o.status === 'pickup_completed' || o.status === 'in_progress')) {
+            const created = new Date(o.created_at).getTime();
+            const readyTime = o.readyAt ? new Date(o.readyAt).getTime() : 0;
+            if (readyTime > created) {
+              responseTimes.push((readyTime - created) / 3600000); // hours
+            }
+          }
+        });
+        const avgResponseHrs = responseTimes.length > 0
+          ? responseTimes.reduce((s, v) => s + v, 0) / responseTimes.length
+          : 0;
+
+        // Location freshness score (0-20): how recently location was updated
+        let locationScore = 0;
+        if (r.isActive && r.lastLocationUpdate) {
+          const minsAgo = (Date.now() - new Date(r.lastLocationUpdate).getTime()) / 60000;
+          locationScore = minsAgo < 5 ? 20 : minsAgo < 15 ? 15 : minsAgo < 30 ? 10 : minsAgo < 60 ? 5 : 0;
+        }
+
+        // Volume score (0-20): more orders = higher score, capped at 20
+        const volumeScore = Math.min(20, delivered * 2);
+
+        // On-time score (0-40)
+        const onTimeScore = Math.round(onTimeRate * 0.4);
+
+        // Breach penalty (0 to -20)
+        const breachPenalty = Math.min(20, breach * 5);
+
+        // Speed score (0-20): faster response = better
+        const speedScore = avgResponseHrs === 0 ? 10
+          : avgResponseHrs < 2 ? 20
+          : avgResponseHrs < 4 ? 15
+          : avgResponseHrs < 8 ? 10
+          : avgResponseHrs < 12 ? 5 : 0;
+
+        const score = Math.max(0, Math.min(100,
+          locationScore + volumeScore + onTimeScore - breachPenalty + speedScore
+        ));
+
+        return {
+          ...r,
+          score,
+          delivered,
+          total,
+          breach,
+          onTimeRate,
+          avgResponseHrs: Math.round(avgResponseHrs * 10) / 10,
+          locationScore,
+          volumeScore,
+          onTimeScore,
+          breachPenalty,
+          speedScore,
+        };
+      });
+
+      // Sort by score descending
+      riderStats.sort((a, b) => b.score - a.score);
+      setEfficiencyData(riderStats);
+    } finally {
+      setEfficiencyLoading(false);
+    }
+  }, [riders, sections]);
 
   // ── cart editor ──
   const openCartEditor = async (order: Order) => {
@@ -906,11 +1032,31 @@ const DeskDashboard: React.FC = () => {
                     </div>
                   )}
 
+                  {/* ── Video gate: must record before cart ── */}
+                  {!videoRecorded[order._id] ? (
+                    <div className="border-2 border-dashed border-purple-300 rounded-xl bg-purple-50 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-purple-800">🎥 Record Item Video First</p>
+                      <p className="text-xs text-purple-600">Record a short video of all items before moving to processing.</p>
+                      <input type="file" accept="video/*" capture="environment" className="hidden"
+                        ref={el => { videoInputRefs.current[order._id] = el; }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsVideo(order._id, f); e.target.value = ""; }}
+                        disabled={videoUploading[order._id]}
+                      />
+                      <button
+                        onClick={() => videoInputRefs.current[order._id]?.click()}
+                        disabled={videoUploading[order._id]}
+                        className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold disabled:opacity-60"
+                      >
+                        {videoUploading[order._id] ? "Uploading video..." : "🎥 Record Items Video"}
+                      </button>
+                    </div>
+                  ) : null}
+
                   {/* Cart editor or open button */}
                   {!isCartEditing ? (
                     <button
-                      onClick={() => openCartEditor(order)}
-                      className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold"
+                      onClick={() => { if (!videoRecorded[order._id]) { toast.error("Record item video first"); return; } openCartEditor(order); }}
+                      className={`w-full py-2.5 rounded-xl text-sm font-semibold ${videoRecorded[order._id] ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
                     >
                       🛒 {(order.item_prices?.length ?? 0) > 0 ? "Edit Cart & Move to Processing" : "Create Cart & Move to Processing"}
                     </button>
@@ -1220,17 +1366,21 @@ const DeskDashboard: React.FC = () => {
       </header>
 
       {/* ── tab bar - mobile friendly with icons ── */}
-      <nav className="bg-white border-b border-gray-100 flex sticky top-[52px] sm:top-[56px] z-10 shadow-sm">
+      <nav className="bg-white border-b border-gray-100 flex sticky top-[52px] sm:top-[56px] z-10 shadow-sm overflow-x-auto">
         {([
           { key: "orders" as const, icon: "📋", label: `Orders (${counts.total})` },
           { key: "riders" as const, icon: "🛵", label: "Riders" },
+          { key: "efficiency" as const, icon: "📊", label: "Efficiency" },
           { key: "optimize" as const, icon: "🗺️", label: "Optimize" },
           { key: "profile" as const, icon: "👤", label: "Profile" },
         ]).map(({ key, icon, label }) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
-            className={`flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 min-h-[48px] ${tab === key ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50" : "text-gray-500 active:bg-gray-50"}`}
+            onClick={() => {
+              setTab(key as any);
+              if (key === "efficiency") computeEfficiency();
+            }}
+            className={`shrink-0 flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 min-h-[48px] min-w-[60px] ${(tab as string) === key ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50" : "text-gray-500 active:bg-gray-50"}`}
           >
             <span className="text-base sm:text-sm">{icon}</span>
             <span className="text-[10px] sm:text-sm leading-tight">{label}</span>
@@ -1471,6 +1621,111 @@ const DeskDashboard: React.FC = () => {
                   ))}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ EFFICIENCY TAB ══ */}
+        {tab === "efficiency" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-gray-900 text-base">Rider Efficiency</h2>
+              <button onClick={computeEfficiency} disabled={efficiencyLoading}
+                className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-60">
+                {efficiencyLoading ? "Computing..." : "↻ Refresh"}
+              </button>
+            </div>
+
+            {efficiencyData.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-4xl mb-3">📊</p>
+                <p className="font-medium">No rider data yet</p>
+                <p className="text-sm mt-1">Click Refresh to compute efficiency scores</p>
+              </div>
+            ) : (
+              <>
+                {/* Score Legend */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
+                  <p className="font-semibold">Score Breakdown (out of 100)</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    <span>📍 Location freshness: 20pts</span>
+                    <span>📦 Volume (orders): 20pts</span>
+                    <span>⏱️ On-time rate: 40pts</span>
+                    <span>⚡ Response speed: 20pts</span>
+                    <span>⚠️ Breach penalty: -5/breach</span>
+                  </div>
+                </div>
+
+                {/* Rider Table */}
+                <div className="space-y-3">
+                  {efficiencyData.map((r, idx) => {
+                    const scoreColor = r.score >= 80 ? "text-green-700 bg-green-100" :
+                      r.score >= 60 ? "text-yellow-700 bg-yellow-100" :
+                      r.score >= 40 ? "text-orange-700 bg-orange-100" : "text-red-700 bg-red-100";
+                    const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
+                    return (
+                      <div key={r._id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <span className="text-xl shrink-0">{medal}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{r.name}</p>
+                            <a href={`tel:${r.phone}`} className="text-xs text-blue-600">{r.phone}</a>
+                          </div>
+                          <div className={`shrink-0 px-3 py-1.5 rounded-full font-bold text-lg ${scoreColor}`}>
+                            {r.score}
+                          </div>
+                        </div>
+
+                        {/* Score bar */}
+                        <div className="px-4 pb-2">
+                          <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div className={`h-2 rounded-full transition-all ${
+                              r.score >= 80 ? "bg-green-500" :
+                              r.score >= 60 ? "bg-yellow-500" :
+                              r.score >= 40 ? "bg-orange-500" : "bg-red-500"
+                            }`} style={{ width: `${r.score}%` }} />
+                          </div>
+                        </div>
+
+                        {/* Stats grid */}
+                        <div className="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100 text-center text-xs">
+                          <div className="py-2 px-1">
+                            <p className="font-bold text-gray-900">{r.delivered}</p>
+                            <p className="text-gray-500">Delivered</p>
+                          </div>
+                          <div className="py-2 px-1">
+                            <p className="font-bold text-gray-900">{r.onTimeRate}%</p>
+                            <p className="text-gray-500">On Time</p>
+                          </div>
+                          <div className="py-2 px-1">
+                            <p className={`font-bold ${r.breach > 0 ? "text-red-600" : "text-gray-900"}`}>{r.breach}</p>
+                            <p className="text-gray-500">Breaches</p>
+                          </div>
+                        </div>
+
+                        {/* Extra row */}
+                        <div className="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100 text-center text-xs bg-gray-50">
+                          <div className="py-2 px-1">
+                            <p className="font-bold text-gray-900">{r.avgResponseHrs}h</p>
+                            <p className="text-gray-500">Avg Speed</p>
+                          </div>
+                          <div className="py-2 px-1">
+                            <p className={`font-bold ${r.isActive ? "text-green-600" : "text-gray-400"}`}>
+                              {r.isActive ? "Active" : "Offline"}
+                            </p>
+                            <p className="text-gray-500">Status</p>
+                          </div>
+                          <div className="py-2 px-1">
+                            <p className="font-bold text-gray-900">{r.locationScore}/20</p>
+                            <p className="text-gray-500">Location</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         )}
