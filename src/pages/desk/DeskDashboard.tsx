@@ -331,7 +331,34 @@ const DeskDashboard: React.FC = () => {
   }, [metricsPeriod, ordersPeriod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── current section orders ──
-  const sectionOrders = sections[activeSection] || [];
+  const sectionOrders = (() => {
+    const orders = sections[activeSection] || [];
+    if (activeSection === "created") {
+      return [...orders].sort((a, b) => {
+        const getPickupMs = (o: Order) => {
+          if (!o.scheduled_date) return Infinity;
+          try {
+            const d = new Date(o.scheduled_date);
+            return isNaN(d.getTime()) ? Infinity : d.getTime();
+          } catch { return Infinity; }
+        };
+        return getPickupMs(a) - getPickupMs(b);
+      });
+    }
+    if (activeSection === "ready_for_delivery") {
+      return [...orders].sort((a, b) => {
+        const getDeliveryMs = (o: Order) => {
+          if (!o.delivery_date) return Infinity;
+          try {
+            const d = new Date(o.delivery_date);
+            return isNaN(d.getTime()) ? Infinity : d.getTime();
+          } catch { return Infinity; }
+        };
+        return getDeliveryMs(a) - getDeliveryMs(b);
+      });
+    }
+    return orders;
+  })();
 
   // ── update order status (simple) ──
   const updateStatus = async (orderId: string, status: string, isPG = false) => {
@@ -706,6 +733,27 @@ const DeskDashboard: React.FC = () => {
     }
   }
 
+  function formatShortDate(dateStr?: string, timeStr?: string) {
+    if (!dateStr) return null;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const formatted = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      if (timeStr) return `${formatted}, ${timeStr}`;
+      return formatted;
+    } catch {
+      return dateStr;
+    }
+  }
+
+  function isPickupOverdue(order: Order) {
+    if (!order.scheduled_date) return false;
+    try {
+      const d = new Date(order.scheduled_date);
+      return !isNaN(d.getTime()) && d < new Date();
+    } catch { return false; }
+  }
+
   // ─── Image URL helpers ────────────────────────────────────────────────────
 
   const itemsImageUrl = (orderId: string, fileId: string) =>
@@ -852,6 +900,9 @@ const DeskDashboard: React.FC = () => {
               {isBreach && (
                 <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">⚠ BREACH</span>
               )}
+              {isCreated && !isBreach && isPickupOverdue(order) && (
+                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">⚠ PICKUP OVERDUE</span>
+              )}
               {hasRiderSlip && <span className="text-xs text-indigo-400">🧾</span>}
               {hasItemsImg && <span className="text-xs text-gray-400">📷</span>}
               {hasPaySS && <span className="text-xs text-gray-400">💳</span>}
@@ -871,6 +922,20 @@ const DeskDashboard: React.FC = () => {
                 <span className="text-xs text-indigo-600 font-medium">🛵 {riderName}</span>
               )}
             </div>
+            {isCreated && order.scheduled_date && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`text-xs font-medium ${isPickupOverdue(order) ? "text-red-600" : "text-blue-600"}`}>
+                  📅 Pickup: {formatShortDate(order.scheduled_date, order.scheduled_time)}
+                </span>
+              </div>
+            )}
+            {isReadyForDelivery && order.delivery_date && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`text-xs font-medium ${isBreach ? "text-red-600" : "text-green-700"}`}>
+                  🚚 {isBreach ? "⚠ " : ""}Delivery: {formatShortDate(order.delivery_date)}
+                </span>
+              </div>
+            )}
           </div>
           <span className="text-gray-400 text-xs shrink-0">{expanded ? "▲" : "▼"}</span>
         </button>
@@ -1424,7 +1489,8 @@ const DeskDashboard: React.FC = () => {
               {SECTION_CONFIG.map(({ key, label, icon, color }) => {
                 const count = counts[key] || 0;
                 const isActive = activeSection === key;
-                const hasBreach = ["created", "picked_up", "processing"].includes(key) && counts.breach > 0;
+                const hasBreach = (["created", "picked_up", "processing"].includes(key) && counts.breach > 0) ||
+                  (key === "ready_for_delivery" && (sections.ready_for_delivery || []).some(o => o._breach));
 
                 return (
                   <button
@@ -1469,6 +1535,11 @@ const DeskDashboard: React.FC = () => {
               {counts.breach > 0 && ["created", "picked_up", "processing"].includes(activeSection) && (
                 <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-xs text-red-700 font-medium mb-2">
                   ⚠ {counts.breach} order{counts.breach > 1 ? "s" : ""} past delivery deadline
+                </div>
+              )}
+              {activeSection === "ready_for_delivery" && sectionOrders.filter(o => o._breach).length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-xs text-red-700 font-medium mb-2">
+                  ⚠ {sectionOrders.filter(o => o._breach).length} order{sectionOrders.filter(o => o._breach).length > 1 ? "s" : ""} past delivery deadline — assign rider urgently
                 </div>
               )}
               {activeSection === "created" && sectionOrders.length > 0 && (
