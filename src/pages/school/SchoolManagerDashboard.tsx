@@ -55,8 +55,6 @@ const SchoolManagerDashboard: React.FC = () => {
   // Filters
   const [studentName, setStudentName] = useState("");
   const [memberId, setMemberId] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
   const getToken = () => localStorage.getItem("school_manager_token") || "";
@@ -77,8 +75,6 @@ const SchoolManagerDashboard: React.FC = () => {
         const params = new URLSearchParams();
         if (studentName.trim()) params.set("student_name", studentName.trim());
         if (memberId.trim()) params.set("member_id", memberId.trim());
-        if (dateFrom) params.set("date_from", dateFrom);
-        if (dateTo) params.set("date_to", dateTo);
         params.set("limit", "100");
 
         const res = await fetch(`${apiBase}/school-orders/my-orders?${params.toString()}`, {
@@ -109,7 +105,7 @@ const SchoolManagerDashboard: React.FC = () => {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [studentName, memberId, dateFrom, dateTo, apiBase]
+    [studentName, memberId, apiBase]
   );
 
   useEffect(() => {
@@ -137,11 +133,9 @@ const SchoolManagerDashboard: React.FC = () => {
   const clearFilters = () => {
     setStudentName("");
     setMemberId("");
-    setDateFrom("");
-    setDateTo("");
   };
 
-  const hasActiveFilters = studentName || memberId || dateFrom || dateTo;
+  const hasActiveFilters = studentName || memberId;
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "—";
@@ -187,30 +181,9 @@ const SchoolManagerDashboard: React.FC = () => {
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
         {/* Stats bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Total Orders", value: total, color: "text-gray-900" },
-            {
-              label: "Pending",
-              value: orders.filter((o) => o.status === "pending").length,
-              color: "text-yellow-700",
-            },
-            {
-              label: "Processing",
-              value: orders.filter((o) => ["picked_up", "processing", "ready"].includes(o.status)).length,
-              color: "text-blue-700",
-            },
-            {
-              label: "Delivered",
-              value: orders.filter((o) => o.status === "delivered").length,
-              color: "text-green-700",
-            },
-          ].map((stat) => (
-            <div key={stat.label} className="bg-white rounded-xl border border-gray-200 p-3 text-center">
-              <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
-            </div>
-          ))}
+        <div className="bg-white rounded-xl border border-gray-200 p-3 text-center inline-block min-w-[120px]">
+          <p className="text-2xl font-bold text-gray-900">{total}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Total Orders</p>
         </div>
 
         {/* Filters */}
@@ -246,7 +219,7 @@ const SchoolManagerDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -265,20 +238,6 @@ const SchoolManagerDashboard: React.FC = () => {
                 value={memberId}
                 onChange={(e) => setMemberId(e.target.value.toUpperCase())}
                 className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
