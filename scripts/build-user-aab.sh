@@ -7,6 +7,8 @@ set -e
 KEYSTORE_FILE="laundrify-release-keystore.jks"
 APP_ID="com.laundrify.laundry.app"
 APP_NAME="Laundrify"
+VERSION_CODE=40
+VERSION_NAME="2.40"
 
 echo "📱 Building User App Bundle (AAB)..."
 echo ""
@@ -66,6 +68,10 @@ sed -i "s|<string name=\"custom_url_scheme\">com.laundrify.rider.app</string>|<s
 sed -i "s|<string name=\"custom_url_scheme\">com.laundrify.desk.app</string>|<string name=\"custom_url_scheme\">${APP_ID}</string>|g" android/app/src/main/res/values/strings.xml
 
 cmd.exe /c "npx cap sync android"
+
+# Update versionCode and versionName in build.gradle (AFTER cap sync)
+sed -i "s|versionCode [0-9]*|versionCode ${VERSION_CODE}|g" android/app/build.gradle
+sed -i "s|versionName \"[0-9.]*\"|versionName \"${VERSION_NAME}\"|g" android/app/build.gradle
 
 # Fix: ensure cordova plugins res directory has valid structure for Gradle
 CORDOVA_RES="android/capacitor-cordova-android-plugins/src/main/res"

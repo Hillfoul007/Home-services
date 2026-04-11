@@ -1596,24 +1596,33 @@ const DeskDashboard: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                      {r.isActive && r.location?.lat && r.location?.lng && (
-                        <div className="mt-2 rounded-lg overflow-hidden border border-green-200">
-                          <a
-                            href={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center justify-center gap-2 py-2 bg-green-50 text-sm font-medium text-green-700 hover:bg-green-100 active:bg-green-200 transition-colors"
-                          >
-                            <span>🗺️</span>
-                            <span>Open Location in Google Maps</span>
-                          </a>
-                          {r.lastLocationUpdate && (
-                            <p className="text-[10px] text-gray-400 text-center py-1 bg-gray-50">
-                              Last updated: {timeSince(r.lastLocationUpdate)}
-                            </p>
-                          )}
-                        </div>
-                      )}
+                      {r.isActive && r.location?.lat && r.location?.lng && (() => {
+                        const ageMs = r.lastLocationUpdate ? Date.now() - new Date(r.lastLocationUpdate).getTime() : Infinity;
+                        const isLive = ageMs < 60_000;        // < 1 min = live
+                        const isFresh = ageMs < 5 * 60_000;   // < 5 min = fresh
+                        const borderColor = isLive ? "border-green-400" : isFresh ? "border-yellow-300" : "border-red-200";
+                        const badgeBg = isLive ? "bg-green-500" : isFresh ? "bg-yellow-400" : "bg-red-400";
+                        const badgeLabel = isLive ? "LIVE" : isFresh ? "RECENT" : "STALE";
+                        return (
+                          <div className={`mt-2 rounded-lg overflow-hidden border ${borderColor}`}>
+                            <a
+                              href={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-center gap-2 py-2 bg-green-50 text-sm font-medium text-green-700 hover:bg-green-100 active:bg-green-200 transition-colors"
+                            >
+                              <span>🗺️</span>
+                              <span>Open Location in Google Maps</span>
+                              <span className={`text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full ${badgeBg}`}>{badgeLabel}</span>
+                            </a>
+                            {r.lastLocationUpdate && (
+                              <p className={`text-[10px] text-center py-1 bg-gray-50 ${isLive ? "text-green-600 font-medium" : isFresh ? "text-yellow-600" : "text-red-400"}`}>
+                                {isLive ? "● " : ""}Last updated: {timeSince(r.lastLocationUpdate)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {!r.isActive && (
                         <p className="text-xs text-gray-400 mt-1">Location hidden (rider offline)</p>
                       )}

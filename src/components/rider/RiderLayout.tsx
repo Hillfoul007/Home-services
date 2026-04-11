@@ -27,6 +27,7 @@ import {
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { RiderLocationProvider } from '@/contexts/RiderLocationContext';
+import RiderPermissionSetup from '@/components/rider/RiderPermissionSetup';
 
 interface RiderLayoutProps {
   children?: React.ReactNode;
@@ -38,6 +39,7 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
   const [rider, setRider] = React.useState<any>(null);
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [showPermissionSetup, setShowPermissionSetup] = React.useState(false);
   const { isOnline } = useNetworkStatus();
 
   React.useEffect(() => {
@@ -46,6 +48,11 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
     if (riderData) {
       setRider(JSON.parse(riderData));
       fetchUnreadCount();
+      // Show permission setup once per install on native
+      const { Capacitor } = require('@capacitor/core');
+      if (Capacitor.isNativePlatform() && !localStorage.getItem('riderPermissionsSetupDone')) {
+        setShowPermissionSetup(true);
+      }
     } else if (location.pathname !== '/rider/register' && location.pathname !== '/rider/login') {
       navigate('/rider/login');
     }
@@ -171,6 +178,9 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
 
   return (
     <RiderLocationProvider>
+    {showPermissionSetup && (
+      <RiderPermissionSetup onDone={() => setShowPermissionSetup(false)} />
+    )}
     <div className="min-h-screen bg-gray-50 rider-mobile-layout">
       {rider && (
         <header className="bg-white shadow-sm border-b sticky top-0 z-50 rider-header-mobile rider-safe-area-top">

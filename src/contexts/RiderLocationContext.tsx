@@ -28,9 +28,9 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
   const lastSentRef = useRef<number>(0);
 
   const updateLocationOnServer = useCallback(async (location: { lat: number; lng: number }, force = false) => {
-    // Throttle server updates to once every 15 seconds (unless forced)
+    // Throttle server updates to once every 5 seconds (unless forced)
     const now = Date.now();
-    if (!force && now - lastSentRef.current < 15000) return;
+    if (!force && now - lastSentRef.current < 5000) return;
     lastSentRef.current = now;
 
     try {
@@ -161,7 +161,7 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       startWebTracking();
     }
 
-    // Periodic force-push every 60 seconds even when rider isn't moving
+    // Periodic force-push every 20 seconds even when rider isn't moving
     if (periodicPushRef.current) clearInterval(periodicPushRef.current);
     periodicPushRef.current = setInterval(() => {
       if (navigator.geolocation) {
@@ -172,10 +172,10 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
             updateLocationOnServer(loc, true);
           },
           () => { /* silent */ },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
         );
       }
-    }, 60000);
+    }, 20000);
   }, [updateLocationOnServer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startWebTracking = useCallback(() => {
