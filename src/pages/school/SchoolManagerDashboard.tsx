@@ -57,7 +57,6 @@ const SchoolManagerDashboard: React.FC = () => {
   const [memberId, setMemberId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
   const getToken = () => localStorage.getItem("school_manager_token") || "";
@@ -80,7 +79,6 @@ const SchoolManagerDashboard: React.FC = () => {
         if (memberId.trim()) params.set("member_id", memberId.trim());
         if (dateFrom) params.set("date_from", dateFrom);
         if (dateTo) params.set("date_to", dateTo);
-        if (statusFilter) params.set("status", statusFilter);
         params.set("limit", "100");
 
         const res = await fetch(`${apiBase}/school-orders/my-orders?${params.toString()}`, {
@@ -111,7 +109,7 @@ const SchoolManagerDashboard: React.FC = () => {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [studentName, memberId, dateFrom, dateTo, statusFilter, apiBase]
+    [studentName, memberId, dateFrom, dateTo, apiBase]
   );
 
   useEffect(() => {
@@ -141,10 +139,9 @@ const SchoolManagerDashboard: React.FC = () => {
     setMemberId("");
     setDateFrom("");
     setDateTo("");
-    setStatusFilter("");
   };
 
-  const hasActiveFilters = studentName || memberId || dateFrom || dateTo || statusFilter;
+  const hasActiveFilters = studentName || memberId || dateFrom || dateTo;
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "—";
@@ -249,7 +246,7 @@ const SchoolManagerDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -284,19 +281,6 @@ const SchoolManagerDashboard: React.FC = () => {
                 className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-            >
-              <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="picked_up">Picked Up</option>
-              <option value="processing">Processing</option>
-              <option value="ready">Ready</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
           </div>
 
           <div className="flex justify-end mt-3">
@@ -347,9 +331,6 @@ const SchoolManagerDashboard: React.FC = () => {
                       <th className="px-4 py-3 text-left">Service</th>
                       <th className="px-4 py-3 text-right">Items</th>
                       <th className="px-4 py-3 text-right">Amount</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Pickup</th>
-                      <th className="px-4 py-3 text-left">Delivery</th>
                       <th className="px-4 py-3 text-left">Date</th>
                     </tr>
                   </thead>
@@ -374,17 +355,6 @@ const SchoolManagerDashboard: React.FC = () => {
                         <td className="px-4 py-3 text-right font-semibold text-gray-900">
                           ₹{order.total_amount}
                         </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full border capitalize ${
-                              STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {order.status.replace("_", " ")}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(order.pickup_date)}</td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(order.delivery_date)}</td>
                         <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(order.created_at)}</td>
                       </tr>
                     ))}
@@ -400,13 +370,6 @@ const SchoolManagerDashboard: React.FC = () => {
                       <span className="font-mono text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
                         {order.custom_order_id}
                       </span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border capitalize ${
-                          STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {order.status.replace("_", " ")}
-                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
@@ -420,7 +383,6 @@ const SchoolManagerDashboard: React.FC = () => {
                     </div>
                     <div className="text-xs text-gray-400">
                       Ordered: {formatDate(order.created_at)}
-                      {order.delivery_date && ` · Delivery: ${formatDate(order.delivery_date)}`}
                     </div>
                     {order.notes && (
                       <p className="text-xs text-gray-500 italic">{order.notes}</p>
