@@ -1,105 +1,70 @@
 import React, { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
+/**
+ * PWAUpdateNotification
+ * Shows a non-dismissable banner when a new service worker is waiting.
+ * Clicking "Update" skips waiting and reloads — user always gets the latest.
+ */
 const PWAUpdateNotification: React.FC = () => {
-  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    // Simple service worker update detection
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        setUpdateAvailable(true);
-        setShowUpdatePrompt(true);
-      });
+    if (!("serviceWorker" in navigator)) return;
 
-      // Check for updates periodically (but less aggressively)
-      const checkForUpdates = () => {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          registrations.forEach((registration) => {
-            if (registration.waiting) {
-              setUpdateAvailable(true);
-              setShowUpdatePrompt(true);
-            }
-            // Only check for updates on user interaction, not automatically
-            // registration.update();
+    const checkWaiting = () => {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((reg) => {
+          if (reg.waiting) setWaitingWorker(reg.waiting);
+
+          reg.addEventListener("updatefound", () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                setWaitingWorker(newWorker);
+              }
+            });
           });
         });
-      };
+      });
+    };
 
-      // Check on load and every 10 minutes (instead of 30 seconds)
-      checkForUpdates();
-      const interval = setInterval(checkForUpdates, 10 * 60 * 1000);
-
-      return () => clearInterval(interval);
-    }
+    checkWaiting();
+    // Recheck every 90 seconds
+    const interval = setInterval(checkWaiting, 90 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleUpdate = () => {
-    // Ask user for confirmation before reloading
-    const confirmed = confirm("Update Laundrify now? This will refresh the page.");
-    if (!confirmed) {
-      return;
+    if (updating) return;
+    setUpdating(true);
+    if (waitingWorker) {
+      waitingWorker.postMessage({ type: "SKIP_WAITING" });
     }
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((registration) => {
-          if (registration.waiting) {
-            registration.waiting.postMessage({ type: "SKIP_WAITING" });
-          }
-        });
-      });
-    }
-
-    // Add a small delay to allow service worker to activate
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
+    // Reload after a tick to let SW activate
+    setTimeout(() => window.location.reload(), 400);
   };
 
-  const handleDismiss = () => {
-    setShowUpdatePrompt(false);
-    setUpdateAvailable(false);
-  };
-
-  if (!showUpdatePrompt) return null;
+  if (!waitingWorker) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-96">
-      <Alert className="border-green-200 bg-green-50 shadow-lg">
-        <RefreshCw className="h-4 w-4 text-green-600" />
-        <AlertDescription className="text-green-800">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 pr-4">
-              <p className="font-medium mb-1">New version available!</p>
-              <p className="text-sm">
-                Update Laundrify to get the latest features and
-                improvements.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handleUpdate}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                Update
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleDismiss}
-                className="text-green-600 hover:text-green-700"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </AlertDescription>
-      </Alert>
+    // Non-dismissable sticky banner at top
+    <div className="fixed top-0 left-0 right-0 z-[9998] bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-3 shadow-lg">
+      <div className="flex items-center gap-2 min-w-0">
+        <RefreshCw className="h-4 w-4 shrink-0 animate-spin" />
+        <p className="text-sm font-medium truncate">
+          New version available — update to continue
+        </p>
+      </div>
+      <button
+        onClick={handleUpdate}
+        disabled={updating}
+        className="shrink-0 bg-white text-blue-700 font-bold text-sm px-4 py-1.5 rounded-lg hover:bg-blue-50 active:scale-95 transition-all disabled:opacity-60"
+      >
+        {updating ? "Updating..." : "Update Now"}
+      </button>
     </div>
   );
 };
