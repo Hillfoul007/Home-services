@@ -51,6 +51,7 @@ interface Order {
   total_price?: number;
   item_prices?: { service_name: string; quantity: number; unit_price: number; total_price: number }[];
   items_images?: { file_id: string; filename: string }[];
+  items_video?: { file_id: string; filename: string; uploaded_at?: string };
   vendor_payment_slips?: { file_id: string; filename: string }[];
   rider_pickup_slips?: { file_id: string; filename: string; uploaded_at?: string }[];
   rider_payment_slips?: { file_id: string; filename: string; uploaded_at?: string }[];
@@ -174,6 +175,7 @@ const DeskDashboard: React.FC = () => {
   // Daily summary
   const [dailyData, setDailyData] = useState<{ pickedUp: Order[]; delivered: Order[] } | null>(null);
   const [dailyLoading, setDailyLoading] = useState(false);
+  const [dailyDate, setDailyDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   // Dashboard data
   const [sections, setSections] = useState<DashboardSections>({
@@ -349,7 +351,7 @@ const DeskDashboard: React.FC = () => {
         return getPickupMs(a) - getPickupMs(b);
       });
     }
-    if (activeSection === "ready_for_delivery") {
+    if (activeSection === "processing" || activeSection === "ready_for_delivery") {
       return [...orders].sort((a, b) => {
         const getDeliveryMs = (o: Order) => {
           if (!o.delivery_date) return Infinity;
@@ -585,18 +587,19 @@ const DeskDashboard: React.FC = () => {
   }, [riders, sections]);
 
   // ── fetch daily summary ──
-  const fetchDailyData = useCallback(async () => {
+  const fetchDailyData = useCallback(async (date?: string) => {
     if (!token) return;
     setDailyLoading(true);
     try {
-      const res = await fetch(`${API}/orders/daily-summary`, { headers: authHeaders(token) });
+      const d = date || dailyDate;
+      const res = await fetch(`${API}/orders/daily-summary?date=${d}`, { headers: authHeaders(token) });
       if (res.ok) {
         const data = await res.json();
         if (data.success) setDailyData({ pickedUp: data.pickedUp || [], delivered: data.delivered || [] });
       }
     } catch { /* silent */ }
     finally { setDailyLoading(false); }
-  }, [token]);
+  }, [token, dailyDate]);
 
   // ── cart editor ──
   const openCartEditor = async (order: Order) => {
@@ -783,6 +786,9 @@ const DeskDashboard: React.FC = () => {
   const riderSlipUrl = (orderId: string, fileId: string) =>
     `${getApiUrl()}/riders/public/orders/${orderId}/slip/${fileId}`;
 
+  const itemsVideoUrl = (orderId: string, fileId: string) =>
+    `${getApiUrl()}/vendor/orders/public/orders/${orderId}/items-video/${fileId}`;
+
   const toAbsolutePhotoUrl = (path: string) => {
     if (!path) return path;
     if (path.startsWith('http')) return path;
@@ -796,12 +802,13 @@ const DeskDashboard: React.FC = () => {
 
   const renderImages = (order: Order) => {
     const itemImgs = order.items_images || [];
+    const itemsVid = order.items_video || null;
     const paySlips = order.vendor_payment_slips || [];
     const riderPickupSlips = order.rider_pickup_slips || [];
     const riderPaySlips = order.rider_payment_slips || [];
     const pickupPhotos = order.pickup_photos || [];
     const deliveryPhotos = order.delivery_photos || [];
-    if (itemImgs.length === 0 && paySlips.length === 0 && riderPickupSlips.length === 0 && riderPaySlips.length === 0 && pickupPhotos.length === 0 && deliveryPhotos.length === 0) return null;
+    if (itemImgs.length === 0 && !itemsVid && paySlips.length === 0 && riderPickupSlips.length === 0 && riderPaySlips.length === 0 && pickupPhotos.length === 0 && deliveryPhotos.length === 0) return null;
 
     const ImageThumb = ({ src, alt, borderColor = "border-gray-200" }: { src: string; alt: string; borderColor?: string }) => (
       <button
@@ -835,6 +842,17 @@ const DeskDashboard: React.FC = () => {
                 <ImageThumb key={slip.file_id} src={riderSlipUrl(order._id, slip.file_id)} alt="payment ss" borderColor="border-green-200" />
               ))}
             </div>
+          </div>
+        )}
+        {itemsVid && (
+          <div>
+            <p className="text-xs font-semibold text-purple-600 mb-1">🎥 Items Video</p>
+            <video
+              src={itemsVideoUrl(order._id, itemsVid.file_id)}
+              controls
+              className="w-full max-h-48 rounded-lg border border-purple-200"
+              preload="metadata"
+            />
           </div>
         )}
         {itemImgs.length > 0 && (
@@ -1850,15 +1868,27 @@ const DeskDashboard: React.FC = () => {
         {/* ══ DAILY TAB ══ */}
         {tab === "daily" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-bold text-gray-900 text-base">📅 Today's Activity</h2>
-                <p className="text-xs text-gray-500">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h2 className="font-bold text-gray-900 text-base">📅 Daily Activity</h2>
+                <p className="text-xs text-gray-500">{new Date(dailyDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
               </div>
-              <button onClick={fetchDailyData} disabled={dailyLoading}
-                className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-60">
-                {dailyLoading ? "Loading..." : "↻ Refresh"}
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="date"
+                  value={dailyDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={e => {
+                    setDailyDate(e.target.value);
+                    setDailyData(null);
+                  }}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+                <button onClick={() => fetchDailyData(dailyDate)} disabled={dailyLoading}
+                  className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-60 shrink-0">
+                  {dailyLoading ? "..." : "↻"}
+                </button>
+              </div>
             </div>
 
             {dailyLoading && !dailyData && (
@@ -1952,11 +1982,11 @@ const DeskDashboard: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-indigo-50 rounded-xl p-3 text-center">
                     <p className="text-2xl font-bold text-indigo-700">{dailyData.pickedUp.length}</p>
-                    <p className="text-xs text-indigo-500 mt-0.5">Picked Up Today</p>
+                    <p className="text-xs text-indigo-500 mt-0.5">Picked Up</p>
                   </div>
                   <div className="bg-emerald-50 rounded-xl p-3 text-center">
                     <p className="text-2xl font-bold text-emerald-700">{dailyData.delivered.length}</p>
-                    <p className="text-xs text-emerald-500 mt-0.5">Delivered Today</p>
+                    <p className="text-xs text-emerald-500 mt-0.5">Delivered</p>
                   </div>
                 </div>
               </>

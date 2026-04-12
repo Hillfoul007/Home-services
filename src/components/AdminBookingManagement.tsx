@@ -104,6 +104,18 @@ interface Booking {
     filename: string;
     uploaded_at: string;
   }>;
+  items_video?: {
+    file_id: string;
+    filename: string;
+    uploaded_at?: string;
+  };
+  vendor_payment_slips?: Array<{
+    file_id: string;
+    filename: string;
+    uploaded_at?: string;
+  }>;
+  pickup_photos?: string[];
+  delivery_photos?: string[];
   rider_pickup_slips?: Array<{
     file_id: string;
     filename: string;
@@ -678,6 +690,8 @@ const AdminBookingManagement: React.FC = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
+  const [showMediaDialog, setShowMediaDialog] = useState(false);
+  const [mediaBooking, setMediaBooking] = useState<Booking | null>(null);
   const [mutationState, setMutationState] = useState<Record<string, MutationFlags>>({});
 
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
@@ -1679,6 +1693,9 @@ const AdminBookingManagement: React.FC = () => {
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
+                          <Button size="sm" variant="outline" title="View Media" className="bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100" onClick={() => { setMediaBooking(booking); setShowMediaDialog(true); }}>
+                            📷
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
                           </Button>
@@ -1856,6 +1873,9 @@ const AdminBookingManagement: React.FC = () => {
                         <div className="flex gap-2 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" title="View Media" className="bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100" onClick={() => { setMediaBooking(booking); setShowMediaDialog(true); }}>
+                            📷
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
                             <Edit3 className="h-4 w-4" />
@@ -2064,6 +2084,9 @@ const AdminBookingManagement: React.FC = () => {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
+                          <Button size="sm" variant="outline" title="View Media" className="bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100" onClick={() => { setMediaBooking(booking); setShowMediaDialog(true); }}>
+                            📷
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -2149,6 +2172,9 @@ const AdminBookingManagement: React.FC = () => {
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
                           <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" title="View Media" className="bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100" onClick={() => { setMediaBooking(booking); setShowMediaDialog(true); }}>
+                          📷
                         </Button>
                       </div>
                     </div>
@@ -2291,6 +2317,107 @@ const AdminBookingManagement: React.FC = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Media Dialog ── */}
+      <Dialog open={showMediaDialog} onOpenChange={setShowMediaDialog}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>📷 Media — #{mediaBooking?.custom_order_id || mediaBooking?._id?.slice(-6).toUpperCase()}</DialogTitle>
+          </DialogHeader>
+          {mediaBooking && (() => {
+            const b = mediaBooking;
+            const hasAny = (b.items_video) || (b.items_images?.length ?? 0) > 0 || (b.rider_pickup_slips?.length ?? 0) > 0 || (b.rider_payment_slips?.length ?? 0) > 0 || (b.vendor_payment_slips?.length ?? 0) > 0 || (b.pickup_photos?.length ?? 0) > 0 || (b.delivery_photos?.length ?? 0) > 0;
+            if (!hasAny) return <p className="text-center text-gray-400 py-8">No media uploaded for this order yet.</p>;
+            return (
+              <div className="space-y-5 py-2">
+                {b.items_video && (
+                  <div>
+                    <p className="text-xs font-semibold text-purple-700 mb-2">🎥 Items Video (Desk)</p>
+                    <video
+                      src={`/api/vendor/orders/public/orders/${b._id}/items-video/${b.items_video.file_id}`}
+                      controls
+                      className="w-full max-h-56 rounded-lg border border-purple-200"
+                      preload="metadata"
+                    />
+                  </div>
+                )}
+                {(b.items_images?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">📷 Item Photos (Desk)</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {b.items_images!.map(img => (
+                        <a key={img.file_id} href={`/api/vendor/orders/public/orders/${b._id}/items-image/${img.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`/api/vendor/orders/public/orders/${b._id}/items-image/${img.file_id}`} alt="item" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(b.rider_pickup_slips?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-600 mb-2">🧾 Rider Pickup Slip</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {b.rider_pickup_slips!.map(slip => (
+                        <a key={slip.file_id} href={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} alt="pickup slip" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(b.rider_payment_slips?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-green-600 mb-2">💳 Rider Payment Screenshot</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {b.rider_payment_slips!.map(slip => (
+                        <a key={slip.file_id} href={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} alt="payment ss" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(b.vendor_payment_slips?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-orange-600 mb-2">🧾 Vendor Payment Slips</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {b.vendor_payment_slips!.map(slip => (
+                        <a key={slip.file_id} href={`/api/vendor/orders/public/orders/${b._id}/payment-slip/${slip.file_id}`} target="_blank" rel="noreferrer">
+                          <img src={`/api/vendor/orders/public/orders/${b._id}/payment-slip/${slip.file_id}`} alt="vendor slip" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(b.pickup_photos?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-purple-600 mb-2">🧺 Pickup Photos (Rider)</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {b.pickup_photos!.map((p, i) => (
+                        <a key={p + i} href={p} target="_blank" rel="noreferrer">
+                          <img src={p} alt="pickup" className="w-24 h-24 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(b.delivery_photos?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-teal-600 mb-2">🚚 Delivery Photos (Rider)</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {b.delivery_photos!.map((p, i) => (
+                        <a key={p + i} href={p} target="_blank" rel="noreferrer">
+                          <img src={p} alt="delivery" className="w-24 h-24 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
