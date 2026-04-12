@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MapPin, Phone, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 type Order = {
   _id: string;
@@ -56,6 +57,7 @@ export default function OrderCard({
   onPickup: (id: string) => void;
   onDeliver: (id: string) => void;
 }) {
+  const navigate = useNavigate();
   const status = (order.status || '').toLowerCase();
   const riderStatus = (order.riderStatus || 'unassigned').toLowerCase();
 
@@ -160,16 +162,14 @@ export default function OrderCard({
               </Button>
             )}
 
-            {/* Show deliver button when order is a delivery task */}
+            {/* Show deliver button when order is a delivery task — navigates to detail for QR payment flow */}
             {isDeliveryTask && (
               <Button
                 size="sm"
-                onClick={() => safeCall(onDeliver, order._id)}
-                disabled={!deliverEnabled}
-                className={`flex-1 h-10 text-sm font-semibold ${deliverEnabled ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-gray-100 text-gray-500'}`}
-                variant={deliverEnabled ? 'default' : 'outline'}
+                onClick={() => navigate(`/rider/orders/${order._id}`)}
+                className="flex-1 h-10 text-sm font-semibold bg-orange-600 hover:bg-orange-700 text-white"
               >
-                {deliverEnabled ? '✓ Mark Delivered' : '📍 Get closer to enable'}
+                Collect Payment & Deliver
               </Button>
             )}
           </div>

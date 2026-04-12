@@ -7,8 +7,8 @@ set -e
 KEYSTORE_FILE="laundrify-release-keystore.jks"
 APP_ID="com.laundrify.laundry.app"
 APP_NAME="Laundrify"
-VERSION_CODE=42
-VERSION_NAME="2.42"
+VERSION_CODE=44
+VERSION_NAME="2.44"
 
 echo "📱 Building User App Bundle (AAB)..."
 echo ""

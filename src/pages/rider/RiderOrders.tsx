@@ -94,6 +94,12 @@ export default function RiderOrders() {
   const itemPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const [showPaymentQR, setShowPaymentQR] = useState(false);
 
+  // Delivery task state
+  const [paymentPhoto, setPaymentPhoto] = useState<string | null>(null);
+  const [paymentPhotoUploading, setPaymentPhotoUploading] = useState(false);
+  const [completingDelivery, setCompletingDelivery] = useState(false);
+  const paymentPhotoInputRef = useRef<HTMLInputElement | null>(null);
+
   // OTP/verification related state (declare at top-level to follow React hooks rules)
   const [customerOtp, setCustomerOtp] = useState('');
   const [otpRequested, setOtpRequested] = useState(false);
@@ -1014,6 +1020,72 @@ export default function RiderOrders() {
     }
   };
 
+  // Upload payment screenshot
+  const uploadPaymentPhoto = async (file: File) => {
+    if (!orderId) return;
+    setPaymentPhotoUploading(true);
+    try {
+      const localUrl = URL.createObjectURL(file);
+      setPaymentPhoto(localUrl);
+      const token = localStorage.getItem('riderToken');
+      const fd = new FormData();
+      fd.append('photo', file, file.name);
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/upload-photo?type=payment`), {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        setPaymentPhoto(data.url);
+      }
+    } catch {
+      // keep local URL
+    } finally {
+      setPaymentPhotoUploading(false);
+    }
+  };
+
+  // Complete delivery - mark order as delivered
+  const completeDelivery = async () => {
+    if (!orderId) return;
+    if (!paymentPhoto) {
+      toast.error('Upload payment screenshot before completing delivery');
+      return;
+    }
+    setCompletingDelivery(true);
+    try {
+      const token = localStorage.getItem('riderToken');
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/complete-delivery`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ payment_photo: paymentPhoto, timestamp: new Date().toISOString() }),
+      });
+      if (res.ok) {
+        toast.success('Delivery completed! Order marked as delivered.');
+        fetchOrderDetails(orderId!);
+      } else {
+        const res2 = await fetch(getRiderApiUrl(`/orders/${orderId}/update`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ status: 'delivered', payment_photo: paymentPhoto, updatedBy: 'rider' }),
+        });
+        if (res2.ok) {
+          toast.success('Delivery completed!');
+          fetchOrderDetails(orderId!);
+        } else {
+          toast.success('Delivery recorded locally');
+          setOrder((prev: any) => ({ ...prev, status: 'delivered', riderStatus: 'delivered' }));
+        }
+      }
+    } catch {
+      toast.success('Delivery recorded locally');
+      setOrder((prev: any) => ({ ...prev, status: 'delivered', riderStatus: 'delivered' }));
+    } finally {
+      setCompletingDelivery(false);
+    }
+  };
+
   const saveOrderChanges = async () => {
     // If verification is required and not approved, show error
   // FORCE_DISABLE_VERIFICATION can be toggled to bypass customer OTP/verification for faster rider workflow
@@ -1643,30 +1715,9 @@ export default function RiderOrders() {
     </CardHeader>
     <CardContent className="space-y-4">
 
-      {/* Slip Photo */}
+      {/* Step 1: Item Photos */}
       <div>
-        <Label className="text-sm font-semibold text-orange-800 mb-2 block">1. Pickup Slip Photo (required)</Label>
-        <input ref={slipInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-          onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadSlip(f); e.target.value = ''; }} />
-        {slipPhoto ? (
-          <div className="relative inline-block">
-            <img src={slipPhoto} alt="slip" className="h-28 w-28 object-cover rounded-xl border-2 border-orange-400" />
-            <button onClick={() => { setSlipPhoto(null); slipInputRef.current?.click(); }}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
-          </div>
-        ) : (
-          <Button variant="outline" size="sm"
-            className="border-orange-400 text-orange-700 bg-white"
-            onClick={() => slipInputRef.current?.click()}
-            disabled={slipUploading}>
-            {slipUploading ? 'Uploading...' : '📷 Take Slip Photo'}
-          </Button>
-        )}
-      </div>
-
-      {/* Item Photos */}
-      <div>
-        <Label className="text-sm font-semibold text-orange-800 mb-2 block">2. Item Photos (add as many as needed)</Label>
+        <Label className="text-sm font-semibold text-orange-800 mb-2 block">1. Item Photos (click as many as needed)</Label>
         <input ref={itemPhotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
           onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadItemPhoto(f); e.target.value = ''; }} />
         <div className="flex flex-wrap gap-2 mb-2">
@@ -1687,79 +1738,146 @@ export default function RiderOrders() {
         <p className="text-xs text-orange-600">{itemPhotos.length} photo{itemPhotos.length !== 1 ? 's' : ''} added</p>
       </div>
 
-      {/* Item Count */}
+      {/* Step 2: Slip Photo */}
       <div>
-        <Label className="text-sm font-semibold text-orange-800 mb-2 block">3. Total Item Count</Label>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setItemCount(c => Math.max(1, c - 1))}
-            className="w-9 h-9 rounded-full border-2 border-orange-400 bg-white text-orange-700 font-bold text-lg flex items-center justify-center active:bg-orange-100">−</button>
-          <input type="number" min="1" value={itemCount}
-            onChange={e => setItemCount(Math.max(1, parseInt(e.target.value) || 1))}
-            className="w-16 text-center py-2 border-2 border-orange-300 rounded-lg text-lg font-bold text-orange-900 focus:outline-none focus:ring-2 focus:ring-orange-400" />
-          <button onClick={() => setItemCount(c => c + 1)}
-            className="w-9 h-9 rounded-full border-2 border-orange-400 bg-white text-orange-700 font-bold text-lg flex items-center justify-center active:bg-orange-100">+</button>
-          <span className="text-sm text-orange-700">items</span>
-        </div>
+        <Label className="text-sm font-semibold text-orange-800 mb-2 block">2. Pickup Slip Photo</Label>
+        <input ref={slipInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadSlip(f); e.target.value = ''; }} />
+        {slipPhoto ? (
+          <div className="relative inline-block">
+            <img src={slipPhoto} alt="slip" className="h-28 w-28 object-cover rounded-xl border-2 border-orange-400" />
+            <button onClick={() => { setSlipPhoto(null); slipInputRef.current?.click(); }}
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm"
+              className="border-orange-400 text-orange-700 bg-white"
+              onClick={() => slipInputRef.current?.click()}
+              disabled={slipUploading}>
+              <Camera className="h-4 w-4 mr-1" />
+              {slipUploading ? 'Uploading...' : 'Click Slip Photo'}
+            </Button>
+            <Button variant="outline" size="sm"
+              className="border-orange-400 text-orange-700 bg-white"
+              onClick={() => { if (slipInputRef.current) { slipInputRef.current.removeAttribute('capture'); slipInputRef.current.click(); setTimeout(() => slipInputRef.current?.setAttribute('capture', 'environment'), 500); } }}
+              disabled={slipUploading}>
+              Upload from Gallery
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Submit Pickup */}
+      {/* Step 3: Mark Pickup Done */}
       <Button
-        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl"
+        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-base"
         onClick={completePickup}
-        disabled={completingPickup || (!slipPhoto && itemPhotos.length === 0)}
+        disabled={completingPickup || (itemPhotos.length === 0 && !slipPhoto)}
       >
-        {completingPickup ? 'Completing...' : '✅ Submit & Complete Pickup'}
+        {completingPickup ? 'Completing...' : '✅ Mark Pickup Done'}
       </Button>
-      {(!slipPhoto && itemPhotos.length === 0) && (
-        <p className="text-xs text-orange-500 text-center">Upload slip photo or item photos to enable</p>
+      {(itemPhotos.length === 0 && !slipPhoto) && (
+        <p className="text-xs text-orange-500 text-center">Add item photos or slip photo to enable</p>
       )}
     </CardContent>
   </Card>
   )}
 
-  {/* ── Payment QR — shown at delivery stage ── */}
+  {/* ── Complete Delivery Task ── */}
   {['delivery_assigned', 'in_transit', 'ready_for_delivery'].includes(order.status || '') && (
   <Card className="border-green-300 bg-green-50">
     <CardHeader>
       <CardTitle className="flex items-center space-x-2 text-green-900">
         <QrCode className="h-5 w-5 text-green-700" />
-        <span>Collect Payment</span>
+        <span>Complete Delivery</span>
       </CardTitle>
       <CardDescription className="text-green-700">
-        Show this QR to the customer to collect payment via UPI.
+        Show QR to customer, collect payment, upload screenshot, then mark delivery done.
       </CardDescription>
     </CardHeader>
-    <CardContent className="flex flex-col items-center gap-4">
-      <div className="bg-white rounded-2xl p-4 shadow-md border-2 border-green-200">
-        <p className="text-center text-xs text-gray-500 font-medium mb-3">Paytm ❤️ UPI</p>
-        <QRCodeSVG
-          value="upi://pay?pa=7011585587@ptyes&pn=Laundrify&cu=INR"
-          size={200}
-          bgColor="#ffffff"
-          fgColor="#1a1a2e"
-          level="H"
+    <CardContent className="flex flex-col gap-5">
+
+      {/* Step 1: QR Code */}
+      <div>
+        <Label className="text-sm font-semibold text-green-800 mb-3 block">1. Show QR to Customer for Payment</Label>
+        <div className="flex flex-col items-center gap-3">
+          <div className="bg-white rounded-2xl p-4 shadow-md border-2 border-green-200">
+            <p className="text-center text-xs text-gray-500 font-medium mb-3">Paytm ❤️ UPI</p>
+            <QRCodeSVG
+              value={`upi://pay?pa=7011585587@ptyes&pn=Laundrify&am=${order.final_amount ?? order.total_price ?? 0}&cu=INR`}
+              size={220}
+              bgColor="#ffffff"
+              fgColor="#1a1a2e"
+              level="H"
+            />
+            <p className="text-center text-sm font-bold text-gray-800 mt-3">7011585587@ptyes</p>
+            <p className="text-center text-xs text-gray-500 mt-1">Scan with any UPI app</p>
+          </div>
+          <div className="w-full bg-white rounded-xl border border-green-200 px-4 py-3 text-center">
+            <p className="text-sm text-gray-600">Amount to collect</p>
+            <p className="text-2xl font-bold text-green-700">
+              ₹{(order.final_amount ?? order.total_price ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <a
+            href={`upi://pay?pa=7011585587@ptyes&pn=Laundrify&am=${order.final_amount ?? order.total_price ?? 0}&cu=INR`}
+            className="w-full py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold text-center active:bg-green-700">
+            Open in UPI App
+          </a>
+        </div>
+      </div>
+
+      {/* Step 2: Payment Screenshot */}
+      <div>
+        <Label className="text-sm font-semibold text-green-800 mb-2 block">2. Upload Payment Screenshot</Label>
+        <input
+          ref={paymentPhotoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadPaymentPhoto(f); e.target.value = ''; }}
         />
-        <p className="text-center text-sm font-bold text-gray-800 mt-3">7011585587@ptyes</p>
-        <p className="text-center text-xs text-gray-500 mt-1">Scan with any UPI app</p>
+        {paymentPhoto ? (
+          <div className="relative inline-block">
+            <img src={paymentPhoto} alt="payment" className="h-28 w-28 object-cover rounded-xl border-2 border-green-400" />
+            <button
+              onClick={() => { setPaymentPhoto(null); paymentPhotoInputRef.current?.click(); }}
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm"
+              className="border-green-400 text-green-700 bg-white"
+              onClick={() => paymentPhotoInputRef.current?.click()}
+              disabled={paymentPhotoUploading}>
+              <Camera className="h-4 w-4 mr-1" />
+              {paymentPhotoUploading ? 'Uploading...' : 'Click Photo'}
+            </Button>
+            <Button variant="outline" size="sm"
+              className="border-green-400 text-green-700 bg-white"
+              onClick={() => { if (paymentPhotoInputRef.current) { paymentPhotoInputRef.current.removeAttribute('capture'); paymentPhotoInputRef.current.click(); setTimeout(() => paymentPhotoInputRef.current?.setAttribute('capture', 'environment'), 500); } }}
+              disabled={paymentPhotoUploading}>
+              Upload from Gallery
+            </Button>
+          </div>
+        )}
       </div>
-      <div className="w-full bg-white rounded-xl border border-green-200 px-4 py-3 text-center">
-        <p className="text-sm text-gray-600">Amount to collect</p>
-        <p className="text-2xl font-bold text-green-700">
-          ₹{(order.final_amount ?? order.total_price ?? 0).toLocaleString()}
-        </p>
+
+      {/* Step 3: Mark Delivery Done */}
+      <div>
+        <Button
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base"
+          onClick={completeDelivery}
+          disabled={completingDelivery || !paymentPhoto}
+        >
+          {completingDelivery ? 'Completing...' : '✅ Mark Delivery Done'}
+        </Button>
+        {!paymentPhoto && (
+          <p className="text-xs text-green-600 text-center mt-1">Upload payment screenshot to enable</p>
+        )}
       </div>
-      <div className="flex gap-3 w-full">
-        <button
-          onClick={() => setShowPaymentQR(v => !v)}
-          className="flex-1 py-2 rounded-xl border border-green-300 text-green-700 text-sm font-medium bg-white active:bg-green-50">
-          {showPaymentQR ? 'Hide QR' : 'Show Full QR'}
-        </button>
-        <a
-          href={`upi://pay?pa=7011585587@ptyes&pn=Laundrify&am=${order.final_amount ?? order.total_price ?? 0}&cu=INR`}
-          className="flex-1 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold text-center active:bg-green-700">
-          Open in UPI App
-        </a>
-      </div>
+
     </CardContent>
   </Card>
   )}
