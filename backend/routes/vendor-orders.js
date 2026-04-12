@@ -802,4 +802,77 @@ router.put("/orders/:orderId/save-cart", verifyVendorToken, async (req, res) => 
   }
 });
 
+// ─── GET daily summary: today's pickedup and delivered orders ─────────────────
+// Returns orders that had a status_history event of pickup_completed or delivered today
+router.get("/daily-summary", verifyVendorToken, async (req, res) => {
+  try {
+    const now = new Date();
+    // Start of today in IST
+    const startOfDay = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    startOfDay.setHours(0, 0, 0, 0);
+
+    // Query all vendor orders; we'll filter by status_history on app side to keep it simple
+    // OR: use updated_at as a rough proxy + status
+    const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
+      .select("_id custom_order_id name phone address status riderStatus isPGOrder pg_name no_of_items final_amount total_price assignedRider scheduled_date delivery_date created_at updated_at readyAt status_history coordinates")
+      .populate("assignedRider", "name phone")
+      .lean();
+
+    const todayPickedUp = [];
+    const todayDelivered = [];
+
+    for (const order of allOrders) {
+      const history = order.status_history || [];
+
+      // Check if pickup_completed event happened today
+      const pickedToday = history.some(h => {
+        const s = h.status;
+        return (s === "pickup_completed" || s === "in_progress") &&
+          h.changed_at && new Date(h.changed_at) >= startOfDay;
+      });
+
+      // Check if delivered event happened today
+      const deliveredToday = history.some(h => {
+        const s = h.status;
+        return (s === "delivered" || s === "completed") &&
+          h.changed_at && new Date(h.changed_at) >= startOfDay;
+      });
+
+      const obj = {
+        _id: order._id,
+        custom_order_id: order.custom_order_id,
+        name: order.name,
+        phone: order.phone,
+        address: order.address,
+        status: order.status,
+        isPGOrder: order.isPGOrder,
+        pg_name: order.pg_name,
+        no_of_items: order.no_of_items,
+        final_amount: order.final_amount,
+        total_price: order.total_price,
+        assignedRider: order.assignedRider,
+        scheduled_date: order.scheduled_date,
+        delivery_date: order.delivery_date,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+        readyAt: order.readyAt,
+        _breach: isBreach(order),
+      };
+
+      if (pickedToday) todayPickedUp.push(obj);
+      if (deliveredToday) todayDelivered.push(obj);
+    }
+
+    res.json({
+      success: true,
+      date: startOfDay.toISOString(),
+      pickedUp: todayPickedUp,
+      delivered: todayDelivered,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching daily summary:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;

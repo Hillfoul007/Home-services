@@ -1,6 +1,7 @@
 import { PushNotifications, Token, ActionPerformed, PushNotificationSchema } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { apiClient } from '../lib/apiClient';
+import { toast } from 'sonner';
 
 interface PushContext {
   userId?: string;
@@ -100,6 +101,17 @@ export class MobilePushService {
 
     PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
       console.log('Push received:', notification.title);
+      // Show in-app toast when notification arrives while app is open
+      const title = notification.title || 'Laundrify';
+      const body = notification.body || '';
+      toast(title, {
+        description: body,
+        duration: 8000,
+        action: notification.data?.route ? {
+          label: 'View',
+          onClick: () => { window.location.href = notification.data.route; },
+        } : undefined,
+      });
     });
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {

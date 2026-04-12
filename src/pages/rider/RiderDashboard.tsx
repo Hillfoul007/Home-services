@@ -378,76 +378,86 @@ export default function RiderDashboard() {
   };
 
   const openOptimizedRoute = (orders: any[]) => {
-    if (!currentLocation) {
-      toast.error('Current location not available. Please enable location services.');
-      return;
-    }
-
     const validOrders = (orders || []).filter(o => o && (o.address || (o.coordinates && o.coordinates.lat)));
     if (validOrders.length < 2) {
       toast.error('Need at least 2 orders with addresses to optimize route');
       return;
     }
 
+    // Prefer lat/lng coordinates; fall back to address string
+    const getBestLocation = (o: any): string => {
+      if (o.coordinates && typeof o.coordinates.lat === 'number' && typeof o.coordinates.lng === 'number') {
+        return `${o.coordinates.lat},${o.coordinates.lng}`;
+      }
+      return o.address || '';
+    };
+
     const parseCoords = (o: any) => {
-      if (o.coordinates && typeof o.coordinates.lat === 'number' && typeof o.coordinates.lng === 'number') return { lat: o.coordinates.lat, lng: o.coordinates.lng, address: o.address };
+      if (o.coordinates && typeof o.coordinates.lat === 'number' && typeof o.coordinates.lng === 'number') {
+        return { lat: o.coordinates.lat, lng: o.coordinates.lng };
+      }
       const m = typeof o.address === 'string' ? o.address.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/) : null;
-      if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]), address: o.address };
+      if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
       return null;
     };
 
-    const points = validOrders.map(o => ({ order: o, coords: parseCoords(o) }));
-
     const haversine = (a: {lat:number,lng:number}, b: {lat:number,lng:number}) => {
       const toRad = (v:number) => v * Math.PI / 180;
-      const R = 6371; // km
+      const R = 6371;
       const dLat = toRad(b.lat - a.lat);
       const dLon = toRad(b.lng - a.lng);
-      const lat1 = toRad(a.lat);
-      const lat2 = toRad(b.lat);
-      const sinDlat = Math.sin(dLat/2);
-      const sinDlon = Math.sin(dLon/2);
-      const aHarv = sinDlat*sinDlat + sinDlon*sinDlon * Math.cos(lat1) * Math.cos(lat2);
-      const c = 2 * Math.atan2(Math.sqrt(aHarv), Math.sqrt(1-aHarv));
-      return R * c;
+      const aHarv = Math.sin(dLat/2)**2 + Math.sin(dLon/2)**2 * Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat));
+      return R * 2 * Math.atan2(Math.sqrt(aHarv), Math.sqrt(1-aHarv));
     };
 
+    const points = validOrders.map(o => ({ order: o, coords: parseCoords(o) }));
     const withCoords = points.filter(p => p.coords !== null);
     const withoutCoords = points.filter(p => p.coords === null);
 
-    const route: any[] = [];
-    let current = { lat: currentLocation.lat, lng: currentLocation.lng };
-    const remaining = [...withCoords];
-    while (remaining.length > 0) {
-      let bestIndex = 0;
-      let bestDist = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < remaining.length; i++) {
-        const c = remaining[i].coords as any;
-        const dist = haversine(current as any, c);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestIndex = i;
-        }
-      }
-      const picked = remaining.splice(bestIndex, 1)[0];
-      route.push(picked.order);
-      current = picked.coords as any;
-    }
+    // Nearest-neighbour sort starting from current location if available, else first order
+    const startCoord = currentLocation
+      ? { lat: currentLocation.lat, lng: currentLocation.lng }
+      : withCoords[0]?.coords ?? null;
 
+    const route: any[] = [];
+    if (startCoord && withCoords.length > 0) {
+      let current = startCoord;
+      const remaining = [...withCoords];
+      while (remaining.length > 0) {
+        let bestIndex = 0;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < remaining.length; i++) {
+          const dist = haversine(current, remaining[i].coords as any);
+          if (dist < bestDist) { bestDist = dist; bestIndex = i; }
+        }
+        const picked = remaining.splice(bestIndex, 1)[0];
+        route.push(picked.order);
+        current = picked.coords as any;
+      }
+    } else {
+      withCoords.forEach(p => route.push(p.order));
+    }
     withoutCoords.forEach(p => route.push(p.order));
 
     const waypointLimit = 8;
-    const encodedWaypoints = route.slice(0, waypointLimit + 1).map(o => encodeURIComponent(o.address || `${o.coordinates?.lat},${o.coordinates?.lng}`));
-    const originStr = `${currentLocation.lat},${currentLocation.lng}`;
-    const destination = encodedWaypoints[encodedWaypoints.length - 1];
-    const intermediate = encodedWaypoints.slice(0, encodedWaypoints.length - 1).join('|');
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destination}&travelmode=driving${intermediate ? `&waypoints=${intermediate}` : ''}`;
+    const stops = route.slice(0, waypointLimit + 1).map(o => encodeURIComponent(getBestLocation(o)));
+    const destination = stops[stops.length - 1];
+    const intermediate = stops.slice(0, stops.length - 1).join('|');
+
+    let mapsUrl: string;
+    if (currentLocation) {
+      const originStr = `${currentLocation.lat},${currentLocation.lng}`;
+      mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destination}&travelmode=driving${intermediate ? `&waypoints=${intermediate}` : ''}`;
+    } else {
+      // No current location — just route between the orders
+      mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving${intermediate ? `&waypoints=${intermediate}` : ''}`;
+    }
 
     toast.loading('Opening optimized route...', { id: 'optimize' });
     window.open(mapsUrl, '_blank');
     setTimeout(() => {
       toast.dismiss('optimize');
-      toast.success('Optimized route opened in Google Maps');
+      toast.success('Route opened in Google Maps');
     }, 600);
   };
 
@@ -621,7 +631,7 @@ export default function RiderDashboard() {
                   return s === 'pickup_assigned' || s === 'created' || s === 'vendor_assigned';
                 });
                 return pickups.length >= 2 ? (
-                  <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(pickups)} disabled={!currentLocation}
+                  <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(pickups)}
                     className="text-xs px-2 py-1 border-purple-300 text-purple-700 hover:bg-purple-50">
                     🧺 Optimize Pickups ({pickups.length})
                   </Button>
@@ -634,7 +644,7 @@ export default function RiderDashboard() {
                   return s === 'delivery_assigned' || s === 'in_transit' || s === 'ready_for_delivery';
                 });
                 return deliveries.length >= 2 ? (
-                  <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(deliveries)} disabled={!currentLocation}
+                  <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(deliveries)}
                     className="text-xs px-2 py-1 border-orange-300 text-orange-700 hover:bg-orange-50">
                     🚚 Optimize Deliveries ({deliveries.length})
                   </Button>
@@ -642,7 +652,7 @@ export default function RiderDashboard() {
               })()}
               {/* Fallback: optimize all if no separate groups */}
               {assignedOrders.length >= 2 && (
-                <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(assignedOrders)} disabled={!currentLocation || assignedOrders.length < 2}
+                <Button size="sm" variant="outline" onClick={() => openOptimizedRoute(assignedOrders)} disabled={assignedOrders.length < 2}
                   className="text-xs px-2 py-1">
                   🗺️ All Routes
                 </Button>

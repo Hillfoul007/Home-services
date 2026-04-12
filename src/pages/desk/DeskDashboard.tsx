@@ -169,7 +169,11 @@ const DeskDashboard: React.FC = () => {
   })();
 
   // Tabs
-  const [tab, setTab] = useState<"orders" | "riders" | "efficiency" | "optimize" | "profile">("orders");
+  const [tab, setTab] = useState<"orders" | "riders" | "efficiency" | "optimize" | "daily" | "profile">("orders");
+
+  // Daily summary
+  const [dailyData, setDailyData] = useState<{ pickedUp: Order[]; delivered: Order[] } | null>(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
 
   // Dashboard data
   const [sections, setSections] = useState<DashboardSections>({
@@ -580,6 +584,20 @@ const DeskDashboard: React.FC = () => {
     }
   }, [riders, sections]);
 
+  // ── fetch daily summary ──
+  const fetchDailyData = useCallback(async () => {
+    if (!token) return;
+    setDailyLoading(true);
+    try {
+      const res = await fetch(`${API}/orders/daily-summary`, { headers: authHeaders(token) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) setDailyData({ pickedUp: data.pickedUp || [], delivered: data.delivered || [] });
+      }
+    } catch { /* silent */ }
+    finally { setDailyLoading(false); }
+  }, [token]);
+
   // ── cart editor ──
   const openCartEditor = async (order: Order) => {
     const existingItems = (order.item_prices || []).map(i => ({ ...i }));
@@ -929,9 +947,9 @@ const DeskDashboard: React.FC = () => {
                 </span>
               </div>
             )}
-            {isReadyForDelivery && order.delivery_date && (
+            {(isProcessing || isReadyForDelivery) && order.delivery_date && (
               <div className="flex items-center gap-1 mt-0.5">
-                <span className={`text-xs font-medium ${isBreach ? "text-red-600" : "text-green-700"}`}>
+                <span className={`text-xs font-medium ${isBreach ? "text-red-600" : isProcessing ? "text-purple-700" : "text-green-700"}`}>
                   🚚 {isBreach ? "⚠ " : ""}Delivery: {formatShortDate(order.delivery_date)}
                 </span>
               </div>
@@ -1435,6 +1453,7 @@ const DeskDashboard: React.FC = () => {
         {([
           { key: "orders" as const, icon: "📋", label: `Orders (${counts.total})` },
           { key: "riders" as const, icon: "🛵", label: "Riders" },
+          { key: "daily" as const, icon: "📅", label: "Daily" },
           { key: "efficiency" as const, icon: "📊", label: "Efficiency" },
           { key: "optimize" as const, icon: "🗺️", label: "Optimize" },
           { key: "profile" as const, icon: "👤", label: "Profile" },
@@ -1444,6 +1463,7 @@ const DeskDashboard: React.FC = () => {
             onClick={() => {
               setTab(key as any);
               if (key === "efficiency") computeEfficiency();
+              if (key === "daily") fetchDailyData();
             }}
             className={`shrink-0 flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 min-h-[48px] min-w-[60px] ${(tab as string) === key ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50" : "text-gray-500 active:bg-gray-50"}`}
           >
@@ -1716,25 +1736,32 @@ const DeskDashboard: React.FC = () => {
               </button>
             </div>
 
+            {/* Score Formula — always visible */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-2">
+              <p className="font-bold text-sm">How Efficiency Score is Calculated (0–100)</p>
+              <div className="space-y-1">
+                <div className="flex justify-between"><span>📍 Location freshness</span><span className="font-semibold">+0–20 pts</span></div>
+                <p className="text-blue-600 pl-3">&lt;5 min ago = 20 · &lt;15 min = 15 · &lt;30 min = 10 · &lt;60 min = 5</p>
+                <div className="flex justify-between"><span>📦 Delivery volume</span><span className="font-semibold">+0–20 pts</span></div>
+                <p className="text-blue-600 pl-3">Deliveries × 2, capped at 20</p>
+                <div className="flex justify-between"><span>⏱️ On-time delivery rate</span><span className="font-semibold">+0–40 pts</span></div>
+                <p className="text-blue-600 pl-3">onTimeRate% × 0.4 (40 pts max)</p>
+                <div className="flex justify-between"><span>⚡ Pickup response speed</span><span className="font-semibold">+0–20 pts</span></div>
+                <p className="text-blue-600 pl-3">&lt;2 h = 20 · &lt;4 h = 15 · &lt;8 h = 10 · &lt;12 h = 5</p>
+                <div className="flex justify-between text-red-700"><span>⚠️ Breach penalty</span><span className="font-semibold">–5 per breach</span></div>
+              </div>
+              <p className="text-blue-700 font-semibold border-t border-blue-200 pt-2">Total = Location + Volume + On-time + Speed − Breaches</p>
+            </div>
+
             {efficiencyData.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
+              <div className="text-center py-8 text-gray-400">
                 <p className="text-4xl mb-3">📊</p>
                 <p className="font-medium">No rider data yet</p>
                 <p className="text-sm mt-1">Click Refresh to compute efficiency scores</p>
               </div>
             ) : (
               <>
-                {/* Score Legend */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
-                  <p className="font-semibold">Score Breakdown (out of 100)</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    <span>📍 Location freshness: 20pts</span>
-                    <span>📦 Volume (orders): 20pts</span>
-                    <span>⏱️ On-time rate: 40pts</span>
-                    <span>⚡ Response speed: 20pts</span>
-                    <span>⚠️ Breach penalty: -5/breach</span>
-                  </div>
-                </div>
+
 
                 {/* Rider Table */}
                 <div className="space-y-3">
@@ -1818,6 +1845,123 @@ const DeskDashboard: React.FC = () => {
             token={token}
             fetchDashboard={fetchDashboard}
           />
+        )}
+
+        {/* ══ DAILY TAB ══ */}
+        {tab === "daily" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-gray-900 text-base">📅 Today's Activity</h2>
+                <p className="text-xs text-gray-500">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
+              </div>
+              <button onClick={fetchDailyData} disabled={dailyLoading}
+                className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-60">
+                {dailyLoading ? "Loading..." : "↻ Refresh"}
+              </button>
+            </div>
+
+            {dailyLoading && !dailyData && (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-3xl mb-2">⏳</p>
+                <p className="text-sm">Loading daily summary...</p>
+              </div>
+            )}
+
+            {!dailyLoading && !dailyData && (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-3xl mb-2">📅</p>
+                <p className="text-sm">Tap Refresh to load today's activity</p>
+              </div>
+            )}
+
+            {dailyData && (
+              <>
+                {/* Today's Picked Up */}
+                <div className="bg-white rounded-xl border border-indigo-100 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                    <h3 className="font-semibold text-indigo-800 text-sm">🧺 Picked Up Today</h3>
+                    <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full font-bold">
+                      {dailyData.pickedUp.length}
+                    </span>
+                  </div>
+                  {dailyData.pickedUp.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No pickups today yet</p>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {dailyData.pickedUp.map(o => {
+                        const riderObj = typeof o.assignedRider === 'object' && o.assignedRider ? o.assignedRider as RiderRef : null;
+                        return (
+                          <div key={String(o._id)} className="px-4 py-3 flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm text-gray-900">{o.custom_order_id || String(o._id).slice(-6).toUpperCase()}</span>
+                                {statusBadge(o.status)}
+                              </div>
+                              <p className="text-xs text-gray-500 truncate mt-0.5">
+                                {o.isPGOrder ? o.pg_name : o.name}
+                                {riderObj?.name && <span className="ml-1 text-indigo-600">· 🛵 {riderObj.name}</span>}
+                              </p>
+                              {o.delivery_date && (
+                                <p className="text-xs text-purple-600 mt-0.5">🚚 Deliver by: {formatShortDate(o.delivery_date)}</p>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-400 shrink-0">₹{(o.final_amount ?? o.total_price ?? 0)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Today's Delivered */}
+                <div className="bg-white rounded-xl border border-emerald-100 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+                    <h3 className="font-semibold text-emerald-800 text-sm">✅ Delivered Today</h3>
+                    <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                      {dailyData.delivered.length}
+                    </span>
+                  </div>
+                  {dailyData.delivered.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No deliveries today yet</p>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {dailyData.delivered.map(o => {
+                        const riderObj = typeof o.assignedRider === 'object' && o.assignedRider ? o.assignedRider as RiderRef : null;
+                        return (
+                          <div key={String(o._id)} className="px-4 py-3 flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm text-gray-900">{o.custom_order_id || String(o._id).slice(-6).toUpperCase()}</span>
+                                {statusBadge(o.status)}
+                              </div>
+                              <p className="text-xs text-gray-500 truncate mt-0.5">
+                                {o.isPGOrder ? o.pg_name : o.name}
+                                {riderObj?.name && <span className="ml-1 text-emerald-600">· 🛵 {riderObj.name}</span>}
+                              </p>
+                            </div>
+                            <span className="text-xs text-gray-400 shrink-0">₹{(o.final_amount ?? o.total_price ?? 0)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Summary row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-indigo-50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-indigo-700">{dailyData.pickedUp.length}</p>
+                    <p className="text-xs text-indigo-500 mt-0.5">Picked Up Today</p>
+                  </div>
+                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-emerald-700">{dailyData.delivered.length}</p>
+                    <p className="text-xs text-emerald-500 mt-0.5">Delivered Today</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {/* ══ PROFILE TAB ══ */}
@@ -2021,8 +2165,13 @@ function OptimizeTab({
 
   const openGroupRoute = (orders: Order[]) => {
     if (orders.length < 2) return;
-    const waypoints = orders.slice(0, -1).map(o => encodeURIComponent(o.address!)).join("|");
-    const destination = encodeURIComponent(orders[orders.length - 1].address!);
+    // Prefer lat/lng coordinates for precision; fall back to address text
+    const locStr = (o: Order) => {
+      if (o.coordinates?.lat && o.coordinates?.lng) return `${o.coordinates.lat},${o.coordinates.lng}`;
+      return o.address || '';
+    };
+    const waypoints = orders.slice(0, -1).map(o => encodeURIComponent(locStr(o))).join("|");
+    const destination = encodeURIComponent(locStr(orders[orders.length - 1]));
     const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving${waypoints ? `&waypoints=${waypoints}` : ""}`;
     window.open(url, "_blank");
   };

@@ -161,7 +161,7 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       startWebTracking();
     }
 
-    // Periodic force-push every 20 seconds even when rider isn't moving
+    // Periodic force-push every 15 seconds even when rider isn't moving
     if (periodicPushRef.current) clearInterval(periodicPushRef.current);
     periodicPushRef.current = setInterval(() => {
       if (navigator.geolocation) {
@@ -171,11 +171,17 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
             setCurrentLocation(loc);
             updateLocationOnServer(loc, true);
           },
-          () => { /* silent */ },
+          () => {
+            // If getCurrentPosition fails, check if watcher is still alive
+            // For web fallback: if watchPosition died, restart it
+            if (!Capacitor.isNativePlatform() && webWatchIdRef.current === null) {
+              startWebTracking();
+            }
+          },
           { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
         );
       }
-    }, 20000);
+    }, 15000);
   }, [updateLocationOnServer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startWebTracking = useCallback(() => {
@@ -235,11 +241,19 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       stopTracking();
     };
 
-    // Push location when app comes back to foreground
+    // Push location when app comes back to foreground; restart tracking if it stopped
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const t = localStorage.getItem('riderToken');
-        if (t && navigator.geolocation) {
+        if (!t) return;
+
+        // Restart tracking if both watchers are gone (e.g. stopped due to error)
+        if (bgWatcherIdRef.current === null && webWatchIdRef.current === null) {
+          startTracking();
+          return; // startTracking also does an immediate getCurrentPosition
+        }
+
+        if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
               const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
