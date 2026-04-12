@@ -1768,7 +1768,32 @@ export default function RiderOrders() {
         )}
       </div>
 
-      {/* Step 3: Mark Pickup Done */}
+      {/* Step 3: Item Count */}
+      <div>
+        <Label className="text-sm font-semibold text-orange-800 mb-2 block">3. Enter Item Count</Label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setItemCount(prev => Math.max(1, prev - 1))}
+            className="w-10 h-10 rounded-full bg-orange-200 text-orange-800 font-bold text-xl flex items-center justify-center active:bg-orange-300 select-none">
+            −
+          </button>
+          <input
+            type="number"
+            min={1}
+            value={itemCount}
+            onChange={(e) => setItemCount(Math.max(1, parseInt(e.target.value) || 1))}
+            className="w-20 text-center text-2xl font-bold border-2 border-orange-300 rounded-xl py-2 focus:outline-none focus:border-orange-500"
+          />
+          <button
+            onClick={() => setItemCount(prev => prev + 1)}
+            className="w-10 h-10 rounded-full bg-orange-200 text-orange-800 font-bold text-xl flex items-center justify-center active:bg-orange-300 select-none">
+            +
+          </button>
+          <span className="text-sm text-orange-700 font-medium">items</span>
+        </div>
+      </div>
+
+      {/* Step 4: Mark Pickup Done */}
       <Button
         className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-base"
         onClick={completePickup}
