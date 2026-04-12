@@ -12,6 +12,7 @@ const multer = require("multer");
 const JWT_SECRET = process.env.JWT_SECRET || "vendor-secret-key-change-in-production";
 const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+const uploadVideo = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB for videos
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 
@@ -492,6 +493,69 @@ router.get("/public/orders/:orderId/payment-slip/:fileId", async (req, res) => {
   }
 });
 
+// ─── POST upload items video ──────────────────────────────────────────────────
+
+router.post("/orders/:orderId/upload-items-video", verifyVendorToken, uploadVideo.single("items_video"), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!req.file) return res.status(400).json({ error: "No video file provided" });
+
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+    const ext = req.file.originalname?.split(".").pop() || "mp4";
+    const filename = `order_${orderId}_items_video_${Date.now()}.${ext}`;
+    const uploadStream = bucket.openUploadStream(filename, {
+      contentType: req.file.mimetype || "video/mp4",
+      metadata: { orderId, vendorId: req.vendor_id, type: "items_video", uploadedAt: new Date() },
+    });
+
+    uploadStream.on("error", () => res.status(500).json({ error: "Failed to upload video" }));
+    uploadStream.on("finish", async () => {
+      try {
+        const fileId = uploadStream.id;
+        const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+        if (!order) return res.status(404).json({ error: "Order not found" });
+        order.items_video = { file_id: fileId, filename, uploaded_at: new Date() };
+        await order.save();
+        res.json({ success: true, message: "Video uploaded successfully", file_id: fileId, filename });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to save order after upload" });
+      }
+    });
+
+    uploadStream.write(req.file.buffer);
+    uploadStream.end();
+  } catch (error) {
+    console.error("❌ Error uploading items video:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET public items video ───────────────────────────────────────────────────
+
+router.get("/public/orders/:orderId/items-video/:fileId", async (req, res) => {
+  try {
+    const { orderId, fileId } = req.params;
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+
+    const order = await Booking.findById(orderId).select("items_video");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!order.items_video || order.items_video.file_id.toString() !== fileId) {
+      return res.status(404).json({ error: "Video not found for this order" });
+    }
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+    downloadStream.on("error", () => res.status(404).json({ error: "Video not found" }));
+    res.setHeader("Content-Type", "video/mp4");
+    res.setHeader("Accept-Ranges", "bytes");
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("❌ Error retrieving items video:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── GET single order details ─────────────────────────────────────────────────
 
 router.get("/orders/:orderId", verifyVendorToken, async (req, res) => {
@@ -806,10 +870,17 @@ router.put("/orders/:orderId/save-cart", verifyVendorToken, async (req, res) => 
 // Returns orders that had a status_history event of pickup_completed or delivered today
 router.get("/daily-summary", verifyVendorToken, async (req, res) => {
   try {
-    const now = new Date();
-    // Start of today in IST
-    const startOfDay = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-    startOfDay.setHours(0, 0, 0, 0);
+    // Support ?date=YYYY-MM-DD for past dates; defaults to today
+    let startOfDay;
+    if (req.query.date) {
+      // Parse the date string in IST
+      startOfDay = new Date(`${req.query.date}T00:00:00+05:30`);
+    } else {
+      const now = new Date();
+      startOfDay = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      startOfDay.setHours(0, 0, 0, 0);
+    }
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
     // Query all vendor orders; we'll filter by status_history on app side to keep it simple
     // OR: use updated_at as a rough proxy + status
@@ -824,18 +895,20 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
     for (const order of allOrders) {
       const history = order.status_history || [];
 
-      // Check if pickup_completed event happened today
+      // Check if pickup_completed event happened on the selected date
       const pickedToday = history.some(h => {
         const s = h.status;
-        return (s === "pickup_completed" || s === "in_progress") &&
-          h.changed_at && new Date(h.changed_at) >= startOfDay;
+        if (!(s === "pickup_completed" || s === "in_progress")) return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
       });
 
-      // Check if delivered event happened today
+      // Check if delivered event happened on the selected date
       const deliveredToday = history.some(h => {
         const s = h.status;
-        return (s === "delivered" || s === "completed") &&
-          h.changed_at && new Date(h.changed_at) >= startOfDay;
+        if (!(s === "delivered" || s === "completed")) return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
       });
 
       const obj = {
@@ -866,6 +939,7 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
     res.json({
       success: true,
       date: startOfDay.toISOString(),
+      queried_date: req.query.date || startOfDay.toISOString().slice(0, 10),
       pickedUp: todayPickedUp,
       delivered: todayDelivered,
     });

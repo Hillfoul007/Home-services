@@ -328,6 +328,14 @@ const bookingSchema = new mongoose.Schema(
       ],
       default: [],
     },
+    items_video: {
+      type: {
+        file_id: mongoose.Schema.Types.ObjectId,
+        filename: String,
+        uploaded_at: Date,
+      },
+      default: null,
+    },
     vendor_payment_slips: {
       type: [
         {
