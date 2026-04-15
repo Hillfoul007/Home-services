@@ -712,12 +712,12 @@ const AdminBookingManagement: React.FC = () => {
   const [filteredCompletedOrders, setFilteredCompletedOrders] = useState<Booking[]>([]);
   const [expandedMediaOrderId, setExpandedMediaOrderId] = useState<string | null>(null);
 
-  // All Orders section
+  // All Orders search section
   const [allOrdersList, setAllOrdersList] = useState<Booking[]>([]);
   const [allOrdersSearchTerm, setAllOrdersSearchTerm] = useState("");
-  const [allOrdersStatusFilter, setAllOrdersStatusFilter] = useState("all");
-  const [filteredAllOrders, setFilteredAllOrders] = useState<Booking[]>([]);
   const [allOrdersLoading, setAllOrdersLoading] = useState(false);
+  const [allOrdersExpandedId, setAllOrdersExpandedId] = useState<string | null>(null);
+  const [allOrdersHasSearched, setAllOrdersHasSearched] = useState(false);
 
   // Pickup bucket (A) filters
   const [pickupSearchTerm, setPickupSearchTerm] = useState("");
@@ -816,71 +816,34 @@ const AdminBookingManagement: React.FC = () => {
     }
   };
 
-  const fetchAllOrders = async () => {
+  const searchAllOrders = async (term: string) => {
+    if (!term || term.trim().length < 1) {
+      setAllOrdersList([]);
+      setAllOrdersHasSearched(false);
+      return;
+    }
     try {
       setAllOrdersLoading(true);
-      const [activeRes, completedRes, cancelledRes] = await Promise.all([
-        apiClient.adminRequest<any>('/admin/bookings?limit=500'),
-        apiClient.adminRequest<any>('/admin/bookings?status=completed&limit=200'),
-        apiClient.adminRequest<any>('/admin/bookings?status=cancelled&limit=200').catch(() => ({ data: null })),
-      ]);
-
-      const combined: Booking[] = [];
-
-      if (activeRes.data) {
-        const d: any = activeRes.data;
-        combined.push(...(d.bucketA || []), ...(d.bucketB || []), ...(d.offlineOrders || []), ...(d.bookings || []));
+      setAllOrdersHasSearched(true);
+      const res = await apiClient.adminRequest<any>(
+        `/admin/bookings/search?q=${encodeURIComponent(term.trim())}&limit=50`
+      );
+      if (res.data?.orders) {
+        const processed = res.data.orders.map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+        setAllOrdersList(processed);
+      } else {
+        setAllOrdersList([]);
       }
-      if (completedRes.data) {
-        const d: any = completedRes.data;
-        combined.push(...(d.bookings || []), ...(d.bucketA || []), ...(d.bucketB || []));
-      }
-      if (cancelledRes.data) {
-        const d: any = cancelledRes.data;
-        combined.push(...(d.bookings || []), ...(d.bucketA || []), ...(d.bucketB || []));
-      }
-
-      const processed = combined.map((b: any) => ({
-        ...b,
-        status: normalizeStatus(b.status),
-        item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
-      }));
-
-      const seen = new Set<string>();
-      const deduplicated = processed.filter(b => {
-        if (seen.has(b._id)) return false;
-        seen.add(b._id);
-        return true;
-      });
-
-      deduplicated.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-      setAllOrdersList(deduplicated);
     } catch (e) {
-      console.warn('Failed to fetch all orders', e);
+      console.warn('Failed to search orders', e);
+      setAllOrdersList([]);
     } finally {
       setAllOrdersLoading(false);
     }
-  };
-
-  const filterAllOrders = (orders?: Booking[]) => {
-    let filtered = orders || allOrdersList;
-
-    if (allOrdersSearchTerm) {
-      const term = allOrdersSearchTerm.toLowerCase();
-      filtered = filtered.filter(b =>
-        b.custom_order_id?.toLowerCase().includes(term) ||
-        b.name?.toLowerCase().includes(term) ||
-        b.phone?.includes(allOrdersSearchTerm) ||
-        b.service?.toLowerCase().includes(term) ||
-        b.address?.toLowerCase().includes(term),
-      );
-    }
-
-    if (allOrdersStatusFilter !== "all") {
-      filtered = filtered.filter(b => normalizeStatus(b.status) === allOrdersStatusFilter);
-    }
-
-    setFilteredAllOrders(filtered);
   };
 
   const filterCompletedOrders = (orders?: Booking[]) => {
@@ -1117,8 +1080,11 @@ const AdminBookingManagement: React.FC = () => {
   }, [completedSearchTerm, completedStatusFilter, completedOrders]);
 
   useEffect(() => {
-    filterAllOrders();
-  }, [allOrdersSearchTerm, allOrdersStatusFilter, allOrdersList]);
+    const timer = setTimeout(() => {
+      searchAllOrders(allOrdersSearchTerm);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [allOrdersSearchTerm]);
 
   useEffect(() => {
     filterPickupOrders();
@@ -1592,7 +1558,7 @@ const AdminBookingManagement: React.FC = () => {
               {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : 'Ready for Delivery'}
             </h3>
             <span className="text-sm text-gray-500">
-              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? filteredAllOrders.length : filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
+              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
             </span>
           </div>
           <div>
@@ -1665,10 +1631,9 @@ const AdminBookingManagement: React.FC = () => {
             <span className="ml-2 text-xs text-purple-500">{filteredOfflineOrders.length}</span>
           </button>
 
-          <button onClick={() => { setViewMode('all_orders'); fetchAllOrders(); }} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'all_orders' ? 'bg-amber-50 shadow-sm border-amber-300' : 'bg-transparent')}>
+          <button onClick={() => setViewMode('all_orders')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'all_orders' ? 'bg-amber-50 shadow-sm border-amber-300' : 'bg-transparent')}>
             <Search className="h-4 w-4 text-amber-600" />
             <span className="text-sm font-medium text-amber-700">All Orders</span>
-            <span className="ml-2 text-xs text-amber-500">{allOrdersList.length}</span>
           </button>
         </div>
       </div>
@@ -2198,150 +2163,346 @@ const AdminBookingManagement: React.FC = () => {
       )}
 
       {viewMode === 'all_orders' && (
-        <div className="grid grid-cols-1 gap-6">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold">All Orders Search</h3>
-                <p className="text-sm text-gray-500">Search any order across all statuses — completed, cancelled, active</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={fetchAllOrders} disabled={allOrdersLoading}>
-                  <RefreshCw className={clsx("mr-2 h-4 w-4", allOrdersLoading && "animate-spin")} />
-                  Refresh
-                </Button>
-                <div className="text-right bg-amber-50 p-3 rounded-lg border border-amber-200">
-                  <div className="text-xs text-gray-600 font-medium">Total Orders</div>
-                  <div className="text-2xl font-bold text-amber-700">{allOrdersList.length}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 md:flex-row mb-4">
-              <div className="flex-1">
-                <Label htmlFor="all-orders-search">Search</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
-                  <Input
-                    id="all-orders-search"
-                    placeholder="Search by order ID, name, phone, service, or address..."
-                    value={allOrdersSearchTerm}
-                    onChange={(e) => setAllOrdersSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="md:w-56">
-                <Label htmlFor="all-orders-status-filter">Filter by Status</Label>
-                <Select value={allOrdersStatusFilter} onValueChange={setAllOrdersStatusFilter}>
-                  <SelectTrigger id="all-orders-status-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    {ORDER_FLOW_STEPS.map((step) => (
-                      <SelectItem key={step.value} value={step.value}>{step.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {allOrdersLoading ? (
-              <div className="flex items-center justify-center py-12 text-gray-500">
-                <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
-                Loading all orders...
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredAllOrders.length > 0 ? (
-                  filteredAllOrders.map((booking) => (
-                    <Card key={booking._id} className="transition-shadow hover:shadow-md">
-                      <CardContent className="pt-4 pb-4">
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2">
-                              <Package className="h-4 w-4 text-amber-600" />
-                              <span className="font-semibold">#{booking.custom_order_id}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm">{booking.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-4 w-4 text-gray-400" />
-                              <a href={`tel:${booking.phone}`} className="text-sm text-blue-600 hover:underline">{booking.phone}</a>
-                            </div>
-                            {booking.address && (
-                              <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-red-500" />
-                                <span className="text-sm text-gray-700 truncate max-w-xs" title={booking.address}>{booking.address}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <div className="text-sm font-medium text-gray-900">{booking.service}</div>
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <Calendar className="h-4 w-4" />
-                              {formatScheduledDateTime(booking)}
-                            </div>
-                            {booking.assignedVendor && (
-                              <div className="flex items-center gap-2">
-                                <Store className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm text-green-700">{booking.assignedVendor}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
-                              {getStatusIcon(booking.status)}
-                              <span>{getStatusLabel(booking.status)}</span>
-                            </Badge>
-                            <div className="flex items-center gap-2 text-sm">
-                              <DollarSign className="h-4 w-4 text-green-600" />
-                              <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {booking.created_at ? formatDate(booking.created_at) : ''}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-2">
-                            <div className="flex gap-2 flex-wrap">
-                              <Button size="sm" variant="outline" title="View Details" onClick={() => { setViewingBooking(booking); setShowViewDialog(true); }}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button size="sm" variant="outline" title="View Media" className="bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100" onClick={() => { setMediaBooking(booking); setShowMediaDialog(true); }}>
-                                📷
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
-                                <Edit3 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
-                                onClick={() => { const message = generateWhatsAppMessage(booking); sendWhatsAppMessage(booking.phone, message); }}
-                              >
-                                <MessageCircle className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    {allOrdersList.length === 0
-                      ? 'Click Refresh to load all orders'
-                      : 'No orders match your search'}
-                  </div>
+        <div className="space-y-4">
+          {/* Search bar */}
+          <Card>
+            <CardContent className="pt-5 pb-5">
+              <h3 className="text-lg font-bold mb-1">All Orders Search</h3>
+              <p className="text-sm text-gray-500 mb-4">Search the entire database — any order, any status (active, completed, cancelled, offline). Type a name, phone, order ID, or address.</p>
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-amber-500" />
+                <Input
+                  placeholder="Search by name, phone, order ID, address..."
+                  value={allOrdersSearchTerm}
+                  onChange={(e) => setAllOrdersSearchTerm(e.target.value)}
+                  className="pl-12 h-12 text-base border-amber-200 focus:border-amber-400"
+                  autoFocus
+                />
+                {allOrdersLoading && (
+                  <RefreshCw className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-amber-500" />
                 )}
               </div>
-            )}
+            </CardContent>
+          </Card>
+
+          {/* Results */}
+          {!allOrdersHasSearched && (
+            <div className="text-center py-16 text-gray-400">
+              <Search className="mx-auto h-12 w-12 mb-3 text-amber-300" />
+              <p className="text-base">Start typing to search all orders in the database</p>
+            </div>
+          )}
+
+          {allOrdersHasSearched && !allOrdersLoading && allOrdersList.length === 0 && (
+            <div className="text-center py-12 text-gray-400">
+              <p>No orders found for <strong>"{allOrdersSearchTerm}"</strong></p>
+            </div>
+          )}
+
+          {allOrdersList.length > 0 && (
+            <div className="text-xs text-gray-500 mb-1">{allOrdersList.length} result{allOrdersList.length !== 1 ? 's' : ''} found</div>
+          )}
+
+          <div className="space-y-3">
+            {allOrdersList.map((booking) => {
+              const isExpanded = allOrdersExpandedId === booking._id;
+              const riderObj = booking.rider
+                ? riders.find(r => r._id === booking.rider || r.name === booking.rider)
+                : null;
+              const riderName = riderObj?.name || (typeof booking.rider === 'string' ? booking.rider : null);
+              const hasMedia = booking.items_video
+                || (booking.items_images?.length ?? 0) > 0
+                || (booking.rider_pickup_slips?.length ?? 0) > 0
+                || (booking.rider_payment_slips?.length ?? 0) > 0
+                || (booking.vendor_payment_slips?.length ?? 0) > 0
+                || (booking.pickup_photos?.length ?? 0) > 0
+                || (booking.delivery_photos?.length ?? 0) > 0;
+
+              return (
+                <Card key={booking._id} className={clsx("overflow-hidden transition-shadow", isExpanded ? "shadow-md border-amber-200" : "hover:shadow-sm")}>
+                  {/* Summary row */}
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5 items-start">
+                        <div className="flex items-center gap-1.5">
+                          <Package className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span className="font-bold text-sm">#{booking.custom_order_id}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-4 w-4 text-gray-400 shrink-0" />
+                          <span className="text-sm font-medium">{booking.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="h-4 w-4 text-gray-400 shrink-0" />
+                          <a href={`tel:${booking.phone}`} className="text-sm text-blue-600 hover:underline">{booking.phone}</a>
+                        </div>
+                        <Badge className={clsx("inline-flex items-center gap-1 shrink-0", getStatusColor(booking.status))}>
+                          {getStatusIcon(booking.status)}
+                          <span>{getStatusLabel(booking.status)}</span>
+                        </Badge>
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-green-700">
+                          <DollarSign className="h-4 w-4" />
+                          ₹{booking.final_amount ?? booking.total_price}
+                        </div>
+                        <div className="text-xs text-gray-400 self-center">
+                          {booking.created_at ? formatDate(booking.created_at) : ''}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 shrink-0 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={clsx("border transition-colors", isExpanded ? "bg-amber-100 border-amber-400 text-amber-800" : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100")}
+                          onClick={() => setAllOrdersExpandedId(isExpanded ? null : booking._id)}
+                        >
+                          {isExpanded ? "▲ Hide" : "▼ Full Details"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setEditingBooking(normalizeBookingForEdit(booking)); setShowEditDialog(true); }}>
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                          onClick={() => { sendWhatsAppMessage(booking.phone, generateWhatsAppMessage(booking)); }}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+
+                  {/* Expanded full detail */}
+                  {isExpanded && (
+                    <div className="border-t bg-gray-50 px-4 py-5 space-y-5">
+
+                      {/* Order Info Grid */}
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs text-gray-500 mb-1">Order ID</p>
+                          <p className="font-semibold text-sm">#{booking.custom_order_id}</p>
+                        </div>
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs text-gray-500 mb-1">Status</p>
+                          <Badge className={clsx("inline-flex items-center gap-1 text-xs", getStatusColor(booking.status))}>
+                            {getStatusIcon(booking.status)}
+                            {getStatusLabel(booking.status)}
+                          </Badge>
+                        </div>
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs text-gray-500 mb-1">Customer</p>
+                          <p className="font-medium text-sm">{booking.name}</p>
+                        </div>
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs text-gray-500 mb-1">Phone</p>
+                          <a href={`tel:${booking.phone}`} className="text-sm text-blue-600 hover:underline font-medium">{booking.phone}</a>
+                        </div>
+                        <div className="bg-white rounded-lg border p-3 col-span-2">
+                          <p className="text-xs text-gray-500 mb-1">Address</p>
+                          <p className="text-sm">{booking.address || '—'}</p>
+                        </div>
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs text-gray-500 mb-1">Pickup Date</p>
+                          <p className="text-sm">{formatScheduledDateTime(booking)}</p>
+                        </div>
+                        {booking.delivery_date && (
+                          <div className="bg-white rounded-lg border p-3">
+                            <p className="text-xs text-gray-500 mb-1">Delivery Date</p>
+                            <p className="text-sm">{formatScheduledDateTime({...booking, scheduled_date: booking.delivery_date, scheduled_time: booking.delivery_time || '00:00'} as Booking)}</p>
+                          </div>
+                        )}
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs text-gray-500 mb-1">Service</p>
+                          <p className="text-sm font-medium">{booking.service || '—'}</p>
+                        </div>
+                        {booking.payment_status && (
+                          <div className="bg-white rounded-lg border p-3">
+                            <p className="text-xs text-gray-500 mb-1">Payment</p>
+                            <p className="text-sm font-medium capitalize">{booking.payment_status}</p>
+                          </div>
+                        )}
+                        {booking.created_at && (
+                          <div className="bg-white rounded-lg border p-3">
+                            <p className="text-xs text-gray-500 mb-1">Created</p>
+                            <p className="text-sm">{formatDate(booking.created_at)}</p>
+                          </div>
+                        )}
+                        {booking.completed_at && (
+                          <div className="bg-white rounded-lg border p-3">
+                            <p className="text-xs text-gray-500 mb-1">Completed</p>
+                            <p className="text-sm">{formatDate(booking.completed_at)}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Pricing */}
+                      <div className="bg-white rounded-lg border p-4">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Pricing</p>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between"><span className="text-gray-600">Total Price</span><span className="font-medium">₹{booking.total_price ?? '—'}</span></div>
+                          {(booking.discount_amount ?? 0) > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-₹{booking.discount_amount}</span></div>}
+                          {(booking.discount_percent ?? 0) > 0 && <div className="flex justify-between text-blue-600"><span>Discount %</span><span>{booking.discount_percent}%</span></div>}
+                          {(booking.cashback ?? 0) > 0 && <div className="flex justify-between text-purple-600"><span>Cashback Used</span><span>-₹{booking.cashback}</span></div>}
+                          {(booking.wallet_applied ?? 0) > 0 && <div className="flex justify-between text-purple-600"><span>Wallet Applied</span><span>-₹{booking.wallet_applied}</span></div>}
+                          {booking.coupon_code && <div className="flex justify-between text-blue-600"><span>Coupon</span><span>{booking.coupon_code}</span></div>}
+                          <div className="flex justify-between border-t pt-2 font-bold text-base"><span>Final Amount</span><span className="text-green-700">₹{booking.final_amount ?? '—'}</span></div>
+                          {(booking.wallet_cashback ?? 0) > 0 && <div className="flex justify-between text-purple-600 text-xs"><span>Cashback to Wallet</span><span>{booking.wallet_cashback}% = ₹{((booking.final_amount || 0) * (booking.wallet_cashback || 0) / 100).toFixed(2)}</span></div>}
+                        </div>
+                      </div>
+
+                      {/* Item breakdown */}
+                      {(booking.item_prices?.length ?? 0) > 0 && (
+                        <div className="bg-white rounded-lg border p-4">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Items</p>
+                          <div className="space-y-1">
+                            {booking.item_prices!.map((item, i) => (
+                              <div key={i} className="flex justify-between text-sm">
+                                <span className="text-gray-700">{item.service_name || item.name} × {item.quantity}</span>
+                                <span className="font-medium">₹{item.total_price ?? item.price}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Vendor & Rider */}
+                      {(booking.assignedVendor || riderName) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {booking.assignedVendor && (
+                            <div className="bg-white rounded-lg border p-4">
+                              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assigned Vendor</p>
+                              <div className="flex items-center gap-2">
+                                <Store className="h-4 w-4 text-green-600" />
+                                <span className="font-medium text-sm">{booking.assignedVendor}</span>
+                              </div>
+                            </div>
+                          )}
+                          {riderName && (
+                            <div className="bg-white rounded-lg border p-4">
+                              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assigned Rider</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-base">🛵</span>
+                                <span className="font-medium text-sm text-indigo-700">{riderName}</span>
+                              </div>
+                              {riderObj?.phone && (
+                                <a href={`tel:${riderObj.phone}`} className="text-xs text-blue-600 hover:underline">{riderObj.phone}</a>
+                              )}
+                              {riderObj?.live_location_link && (
+                                <a href={riderObj.live_location_link} target="_blank" rel="noreferrer" className="block text-xs text-green-600 hover:underline mt-1">📍 Live Location</a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Special instructions */}
+                      {(booking.special_instructions || booking.additional_details) && (
+                        <div className="bg-white rounded-lg border p-4">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Notes / Instructions</p>
+                          <p className="text-sm text-gray-700">{booking.special_instructions || booking.additional_details}</p>
+                        </div>
+                      )}
+
+                      {/* All Media */}
+                      <div className="bg-white rounded-lg border p-4">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-3">All Media & Slips</p>
+                        {!hasMedia ? (
+                          <p className="text-sm text-gray-400">No media uploaded for this order.</p>
+                        ) : (
+                          <div className="space-y-4">
+                            {booking.items_video && (
+                              <div>
+                                <p className="text-xs font-semibold text-purple-700 mb-2">🎥 Items Video (Desk)</p>
+                                <video
+                                  src={`/api/vendor/orders/public/orders/${booking._id}/items-video/${booking.items_video.file_id}`}
+                                  controls
+                                  className="w-full max-h-56 rounded-lg border border-purple-200"
+                                  preload="metadata"
+                                />
+                              </div>
+                            )}
+                            {(booking.items_images?.length ?? 0) > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-gray-600 mb-2">📷 Item Photos (Desk) — {booking.items_images!.length} photo{booking.items_images!.length !== 1 ? 's' : ''}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  {booking.items_images!.map(img => (
+                                    <a key={img.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} target="_blank" rel="noreferrer">
+                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} alt="item" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {(booking.rider_pickup_slips?.length ?? 0) > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-indigo-600 mb-2">🧾 Rider Pickup Slip — {booking.rider_pickup_slips!.length} slip{booking.rider_pickup_slips!.length !== 1 ? 's' : ''}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  {booking.rider_pickup_slips!.map(slip => (
+                                    <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
+                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="pickup slip" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {(booking.rider_payment_slips?.length ?? 0) > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-green-600 mb-2">💳 Rider Payment Screenshot — {booking.rider_payment_slips!.length} screenshot{booking.rider_payment_slips!.length !== 1 ? 's' : ''}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  {booking.rider_payment_slips!.map(slip => (
+                                    <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
+                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="payment ss" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {(booking.vendor_payment_slips?.length ?? 0) > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-orange-600 mb-2">🧾 Vendor Payment Slips — {booking.vendor_payment_slips!.length} slip{booking.vendor_payment_slips!.length !== 1 ? 's' : ''}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  {booking.vendor_payment_slips!.map(slip => (
+                                    <a key={slip.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} target="_blank" rel="noreferrer">
+                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} alt="vendor slip" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {(booking.pickup_photos?.length ?? 0) > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-purple-600 mb-2">🧺 Pickup Photos (Rider) — {booking.pickup_photos!.length} photo{booking.pickup_photos!.length !== 1 ? 's' : ''}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  {booking.pickup_photos!.map((p, i) => (
+                                    <a key={p + i} href={p} target="_blank" rel="noreferrer">
+                                      <img src={p} alt="pickup" className="w-24 h-24 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {(booking.delivery_photos?.length ?? 0) > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-teal-600 mb-2">🚚 Delivery Photos (Rider) — {booking.delivery_photos!.length} photo{booking.delivery_photos!.length !== 1 ? 's' : ''}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  {booking.delivery_photos!.map((p, i) => (
+                                    <a key={p + i} href={p} target="_blank" rel="noreferrer">
+                                      <img src={p} alt="delivery" className="w-24 h-24 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}

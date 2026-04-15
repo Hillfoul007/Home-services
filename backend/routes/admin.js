@@ -1174,6 +1174,54 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// Global order search — ALL statuses, ALL fields, server-side
+router.get("/bookings/search", verifyAdminAccess, async (req, res) => {
+  try {
+    const { q, limit = 30 } = req.query;
+
+    if (!q || q.trim().length < 1) {
+      return res.json({ orders: [] });
+    }
+
+    const term = q.trim();
+    const searchRegex = { $regex: term, $options: "i" };
+
+    const query = {
+      $or: [
+        { custom_order_id: searchRegex },
+        { name: searchRegex },
+        { phone: searchRegex },
+        { service: searchRegex },
+        { address: searchRegex },
+        { special_instructions: searchRegex },
+      ],
+    };
+
+    const orders = await Booking.find(query)
+      .populate("customer_id", "full_name phone email")
+      .populate("rider_id", "full_name name phone live_location_link")
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .select(
+        "+item_prices +charges_breakdown +is_offline_order " +
+        "+assignedVendor +assignedVendorId +assignedVendorDetails " +
+        "+items_images +items_video " +
+        "+rider_pickup_slips +rider_payment_slips " +
+        "+vendor_payment_slips " +
+        "+pickup_photos +delivery_photos " +
+        "+special_instructions +additional_details " +
+        "+coupon_code +discount_amount +discount_percent " +
+        "+cashback_amount +cashback +wallet_applied +wallet_cashback " +
+        "+payment_status +completed_at"
+      );
+
+    res.json({ orders, total: orders.length });
+  } catch (error) {
+    console.error("❌ Error searching orders:", error);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 // Get booking details for admin
 router.get("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
   try {
