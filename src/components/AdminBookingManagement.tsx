@@ -1182,8 +1182,8 @@ const AdminBookingManagement: React.FC = () => {
   }, [editingBooking?._id, showEditDialog]);
 
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
-    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned"].includes(normalizeStatus(b.status)));
-    const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned", "pickup_completed"].includes(normalizeStatus(b.status)));
+    const b = bookingsToRebucket.filter(b => ["ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
     setBucketA(a);
     setBucketB(b);
   };
@@ -1676,6 +1676,7 @@ const AdminBookingManagement: React.FC = () => {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="created">Order Created</SelectItem>
                   <SelectItem value="vendor_assigned">Vendor Assigned</SelectItem>
+                  <SelectItem value="pickup_completed">Pickup Completed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1868,7 +1869,6 @@ const AdminBookingManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pickup_completed">Pickup Completed</SelectItem>
                   <SelectItem value="ready_for_delivery">Ready for Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                 </SelectContent>
