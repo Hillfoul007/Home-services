@@ -23,6 +23,13 @@ type Order = {
   riderStatus?: string;
   coordinates?: { lat?: number; lng?: number };
   vendorCoordinates?: { lat?: number; lng?: number } | null;
+  // Pricing fields
+  final_amount?: number;
+  total_price?: number;
+  item_prices?: { service_name: string; quantity: number; unit_price: number; total_price: number }[];
+  discount_amount?: number;
+  cashback?: number;
+  wallet_applied?: number;
 };
 
 function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -141,6 +148,53 @@ export default function OrderCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="px-3 pb-3 pt-1 space-y-2">
+        {/* Price breakdown */}
+        {(() => {
+          const subtotal = (order.item_prices?.length ?? 0) > 0
+            ? order.item_prices!.reduce((s, i) => s + (i.total_price || 0), 0)
+            : (order.total_price || 0);
+          const discount = order.discount_amount || 0;
+          const cashback = order.cashback || 0;
+          const wallet = order.wallet_applied || 0;
+          const final = order.final_amount ?? order.total_price ?? 0;
+          const hasDeductions = discount > 0 || cashback > 0 || wallet > 0;
+          if (!final) return null;
+          return (
+            <div className="rounded-lg border bg-gray-50 text-xs divide-y divide-gray-100 mb-1">
+              {(order.item_prices?.length ?? 0) > 0 && order.item_prices!.map((item, i) => (
+                <div key={i} className="flex justify-between px-3 py-1">
+                  <span className="text-gray-600">{item.service_name} × {item.quantity}</span>
+                  <span>₹{item.total_price}</span>
+                </div>
+              ))}
+              {hasDeductions && (
+                <div className="flex justify-between px-3 py-1 text-gray-500">
+                  <span>Subtotal</span><span>₹{subtotal.toLocaleString()}</span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="flex justify-between px-3 py-1 text-green-700">
+                  <span>Discount</span><span>−₹{discount.toLocaleString()}</span>
+                </div>
+              )}
+              {cashback > 0 && (
+                <div className="flex justify-between px-3 py-1 text-purple-700">
+                  <span>Cashback</span><span>−₹{cashback.toLocaleString()}</span>
+                </div>
+              )}
+              {wallet > 0 && (
+                <div className="flex justify-between px-3 py-1 text-green-700">
+                  <span>Wallet</span><span>−₹{wallet.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between px-3 py-1.5 font-bold bg-gray-100 rounded-b-lg">
+                <span>{hasDeductions ? 'Final Amount' : 'Total'}</span>
+                <span className={hasDeductions ? 'text-green-700' : ''}>{`₹${Number(final).toLocaleString()}`}</span>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Navigate button - full width, prominent */}
         <Button size="sm" onClick={() => safeCall(onNavigate, order)} className="w-full h-10 text-sm font-medium">
           <Navigation className="mr-2 h-4 w-4" /> Navigate to Location

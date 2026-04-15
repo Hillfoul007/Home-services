@@ -1069,24 +1069,60 @@ const DeskDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* items */}
-            {order.item_prices && order.item_prices.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-600 mb-1">Cart Items</p>
-                <div className="bg-gray-50 rounded-lg divide-y divide-gray-100">
-                  {order.item_prices.map((item, i) => (
-                    <div key={i} className="flex justify-between px-3 py-1.5 text-xs">
-                      <span className="text-gray-700">{item.service_name} × {item.quantity}</span>
-                      <span className="font-medium">₹{item.total_price}</span>
+            {/* items + full price breakdown */}
+            {(() => {
+              const hasItems = (order.item_prices?.length ?? 0) > 0;
+              const subtotal = hasItems
+                ? order.item_prices!.reduce((s: number, i: CartItem) => s + (i.total_price || 0), 0)
+                : (order.total_price || 0);
+              const discount = order.discount_amount || 0;
+              const cashback = order.cashback || 0;
+              const wallet = order.wallet_applied || 0;
+              const final = order.final_amount ?? order.total_price ?? 0;
+              const hasDeductions = discount > 0 || cashback > 0 || wallet > 0;
+              if (!hasItems && !final) return null;
+              return (
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 mb-1">Cart &amp; Pricing</p>
+                  <div className="bg-gray-50 rounded-lg divide-y divide-gray-100 text-xs">
+                    {hasItems && order.item_prices!.map((item: CartItem, i: number) => (
+                      <div key={i} className="flex justify-between px-3 py-1.5">
+                        <span className="text-gray-700">{item.service_name} × {item.quantity}</span>
+                        <span className="font-medium">₹{item.total_price}</span>
+                      </div>
+                    ))}
+                    {hasDeductions && (
+                      <div className="flex justify-between px-3 py-1.5 text-gray-500">
+                        <span>Subtotal</span>
+                        <span>₹{subtotal.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {discount > 0 && (
+                      <div className="flex justify-between px-3 py-1.5 text-green-700">
+                        <span>Discount</span>
+                        <span>−₹{discount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {cashback > 0 && (
+                      <div className="flex justify-between px-3 py-1.5 text-purple-700">
+                        <span>Cashback used</span>
+                        <span>−₹{cashback.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {wallet > 0 && (
+                      <div className="flex justify-between px-3 py-1.5 text-green-700">
+                        <span>Wallet applied</span>
+                        <span>−₹{wallet.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between px-3 py-2 font-bold bg-gray-100 rounded-b-lg">
+                      <span>{hasDeductions ? 'Final Amount' : 'Total'}</span>
+                      <span className={hasDeductions ? 'text-green-700' : ''}>₹{Number(final).toLocaleString()}</span>
                     </div>
-                  ))}
-                  <div className="flex justify-between px-3 py-2 text-xs font-bold bg-gray-100 rounded-b-lg">
-                    <span>Total</span>
-                    <span>₹{(order.final_amount ?? order.total_price ?? 0).toLocaleString()}</span>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* uploaded images/slips — visible in all sections */}
             {renderImages(order)}

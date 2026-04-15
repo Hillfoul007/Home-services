@@ -1839,6 +1839,40 @@ export default function RiderOrders() {
             <p className="text-center text-sm font-bold text-gray-800 mt-3">7011585587@ptyes</p>
             <p className="text-center text-xs text-gray-500 mt-1">Scan with any UPI app</p>
           </div>
+          {/* Price breakdown */}
+          {(() => {
+            const subtotal = (order.item_prices?.length ?? 0) > 0
+              ? order.item_prices!.reduce((s: number, i: any) => s + (i.total_price || 0), 0)
+              : (order.total_price || 0);
+            const discount = order.discount_amount || 0;
+            const cashback = order.cashback || 0;
+            const wallet = order.wallet_applied || 0;
+            const final = order.final_amount ?? order.total_price ?? 0;
+            const hasDeductions = discount > 0 || cashback > 0 || wallet > 0;
+            if (!hasDeductions) return null;
+            return (
+              <div className="w-full bg-white rounded-xl border border-green-100 px-4 py-3 text-sm divide-y divide-gray-100">
+                <div className="flex justify-between py-1.5 text-gray-600">
+                  <span>Subtotal</span><span>₹{subtotal.toLocaleString()}</span>
+                </div>
+                {discount > 0 && (
+                  <div className="flex justify-between py-1.5 text-green-700">
+                    <span>Discount</span><span>−₹{discount.toLocaleString()}</span>
+                  </div>
+                )}
+                {cashback > 0 && (
+                  <div className="flex justify-between py-1.5 text-purple-700">
+                    <span>Cashback used</span><span>−₹{cashback.toLocaleString()}</span>
+                  </div>
+                )}
+                {wallet > 0 && (
+                  <div className="flex justify-between py-1.5 text-green-700">
+                    <span>Wallet applied</span><span>−₹{wallet.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="w-full bg-white rounded-xl border border-green-200 px-4 py-3 text-center">
             <p className="text-sm text-gray-600">Amount to collect</p>
             <p className="text-2xl font-bold text-green-700">
@@ -2170,20 +2204,53 @@ export default function RiderOrders() {
                 </Card>
               )}
 
-              <div className="border-t pt-4">
-                <div className="flex justify-between items-center text-lg font-semibold">
-                  <span>Total Amount:</span>
-                  <div className="text-right">
-                    <span>₹{totalAmount}</span>
-                    {isEditing && totalAmount !== originalTotal && (
-                      <div className="text-sm font-normal">
-                        <span className={`${totalAmount > originalTotal ? 'text-red-600' : 'text-green-600'}`}>
-                          {totalAmount > originalTotal ? '+' : ''}₹{totalAmount - originalTotal}
-                        </span>
-                        <span className="text-gray-500 ml-1">(from ₹{originalTotal})</span>
+              <div className="border-t pt-4 space-y-1">
+                {/* Full price breakdown */}
+                {(() => {
+                  const discount = order.discount_amount || 0;
+                  const cashback = order.cashback || 0;
+                  const wallet = order.wallet_applied || 0;
+                  const final = order.final_amount ?? order.total_price ?? totalAmount;
+                  const hasDeductions = discount > 0 || cashback > 0 || wallet > 0;
+                  return (
+                    <div className="text-sm divide-y divide-gray-100 rounded-lg border bg-gray-50 mb-3">
+                      <div className="flex justify-between px-3 py-2 font-semibold text-base">
+                        <span>Items subtotal</span>
+                        <div className="text-right">
+                          <span>₹{totalAmount}</span>
+                          {isEditing && totalAmount !== originalTotal && (
+                            <div className="text-xs font-normal">
+                              <span className={totalAmount > originalTotal ? 'text-red-600' : 'text-green-600'}>
+                                {totalAmount > originalTotal ? '+' : ''}₹{totalAmount - originalTotal}
+                              </span>
+                              <span className="text-gray-400 ml-1">(was ₹{originalTotal})</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}\n                  </div>
-                </div>
+                      {discount > 0 && (
+                        <div className="flex justify-between px-3 py-1.5 text-green-700">
+                          <span>Discount</span><span>−₹{discount.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {cashback > 0 && (
+                        <div className="flex justify-between px-3 py-1.5 text-purple-700">
+                          <span>Cashback used</span><span>−₹{cashback.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {wallet > 0 && (
+                        <div className="flex justify-between px-3 py-1.5 text-green-700">
+                          <span>Wallet applied</span><span>−₹{wallet.toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between px-3 py-2 font-bold text-base bg-gray-100 rounded-b-lg">
+                        <span>{hasDeductions ? 'Final Amount' : 'Total'}</span>
+                        <span className={hasDeductions ? 'text-green-700' : ''}
+                        >₹{Number(hasDeductions ? final : totalAmount).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {isEditing && totalAmount !== originalTotal && (
                   <div className={`mt-2 p-3 rounded-lg ${totalAmount > originalTotal ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
                     <div className="flex items-center space-x-2">
