@@ -126,6 +126,36 @@ export const laundryServices: LaundryService[] = [
     image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
     popular: true,
   },
+  {
+    id: "bag-handbag-purse",
+    name: "Handbag / Purse",
+    description: "Professional cleaning for handbags and purses.",
+    price: 200,
+    unit: "PC",
+    category: "bags",
+    estimatedTime: "24-48 hours",
+    image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+  {
+    id: "bag-backpack-laptop",
+    name: "Backpack / Laptop Bag",
+    description: "Professional cleaning for backpacks and laptop bags.",
+    price: 250,
+    unit: "PC",
+    category: "bags",
+    estimatedTime: "24-48 hours",
+    image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+  {
+    id: "bag-travel-trolley",
+    name: "Travel Bag / Trolley",
+    description: "Deep cleaning for travel bags, duffel bags, and trolley bags.",
+    price: 500,
+    unit: "PC",
+    category: "bags",
+    estimatedTime: "48-72 hours",
+    image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
 
   // Other Household
   {
