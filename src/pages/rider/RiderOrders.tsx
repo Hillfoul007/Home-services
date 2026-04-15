@@ -1702,7 +1702,7 @@ export default function RiderOrders() {
         </Card>
 
         {/* ── Complete Pickup Task ── */}
-  {['pickup_assigned', 'created', 'vendor_assigned'].includes(order.status || '') && (
+  {['pickup_assigned', 'created', 'vendor_assigned', 'assigned', 'pending', 'new', 'new_order', 'pickup_scheduled'].includes(order.status || '') && (
   <Card className="border-orange-200 bg-orange-50">
     <CardHeader>
       <CardTitle className="flex items-center space-x-2 text-orange-900">
@@ -1793,16 +1793,17 @@ export default function RiderOrders() {
         </div>
       </div>
 
-      {/* Step 4: Mark Pickup Done */}
-      <Button
-        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-base"
-        onClick={completePickup}
-        disabled={completingPickup || (itemPhotos.length === 0 && !slipPhoto)}
-      >
-        {completingPickup ? 'Completing...' : '✅ Mark Pickup Done'}
-      </Button>
-      {(itemPhotos.length === 0 && !slipPhoto) && (
-        <p className="text-xs text-orange-500 text-center">Add item photos or slip photo to enable</p>
+      {/* Step 4: Mark Pickup Done — appears only after slip or item photo is uploaded */}
+      {(slipPhoto || itemPhotos.length > 0) ? (
+        <Button
+          className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-base"
+          onClick={completePickup}
+          disabled={completingPickup}
+        >
+          {completingPickup ? 'Completing...' : '✅ Submit Pickup'}
+        </Button>
+      ) : (
+        <p className="text-xs text-orange-500 text-center">Upload item photo or slip photo to submit</p>
       )}
     </CardContent>
   </Card>
@@ -1889,17 +1890,18 @@ export default function RiderOrders() {
         )}
       </div>
 
-      {/* Step 3: Mark Delivery Done */}
+      {/* Step 3: Mark Delivery Done — appears only after payment photo is uploaded */}
       <div>
-        <Button
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base"
-          onClick={completeDelivery}
-          disabled={completingDelivery || !paymentPhoto}
-        >
-          {completingDelivery ? 'Completing...' : '✅ Mark Delivery Done'}
-        </Button>
-        {!paymentPhoto && (
-          <p className="text-xs text-green-600 text-center mt-1">Upload payment screenshot to enable</p>
+        {paymentPhoto ? (
+          <Button
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base"
+            onClick={completeDelivery}
+            disabled={completingDelivery}
+          >
+            {completingDelivery ? 'Completing...' : '✅ Submit Delivery'}
+          </Button>
+        ) : (
+          <p className="text-xs text-green-600 text-center mt-1">Upload payment screenshot to submit</p>
         )}
       </div>
 

@@ -715,6 +715,13 @@ const DeskDashboard: React.FC = () => {
     if (typeof order.assignedRider === "object" && order.assignedRider.name) {
       return order.assignedRider.name;
     }
+    // assignedRider is a string — could be ID or plain name
+    if (typeof order.assignedRider === "string") {
+      const found = riders.find(r => r._id === order.assignedRider || r.name === order.assignedRider);
+      if (found) return found.name;
+      // If it doesn't look like a MongoDB ID, treat as name directly
+      if (!/^[a-f\d]{24}$/i.test(order.assignedRider)) return order.assignedRider;
+    }
     return order.assignedRiderPhone || null;
   };
 

@@ -640,9 +640,12 @@ const getDetailedLocationInfo = async (
     console.log("✅ User logged in successfully:", user.name || user.phone);
     console.log("📍 Redirecting to:", targetView);
 
-    // Initialize mobile push notifications if on native platform
+    // Initialize mobile push notifications — prefer the freshest user from auth service
+    // (it may have _id set by saveUserToBackend which runs in PhoneOtpAuthModal)
     try {
-      MobilePushService.getInstance().initialize(user._id || user.id);
+      const freshUser = authService.getCurrentUser() || user;
+      const userId = freshUser._id || freshUser.id || user._id || user.id;
+      MobilePushService.getInstance().initialize(userId);
     } catch(e) {}
 
     // Save user location if we have stored location data

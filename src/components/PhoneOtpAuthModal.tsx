@@ -203,7 +203,10 @@ const PhoneOtpAuthModal: React.FC<PhoneOtpAuthModalProps> = ({
           console.error("Error saving user to backend:", userSaveError);
         }
 
-        onSuccess(result.user);
+        // After saveUserToBackend, getCurrentUser() has the MongoDB _id — use that
+        // so MobilePushService.initialize() gets a real userId for FCM token registration
+        const updatedUser = dvhostingSmsService.getCurrentUser() || result.user;
+        onSuccess(updatedUser);
         onClose();
         resetForm();
       } else {

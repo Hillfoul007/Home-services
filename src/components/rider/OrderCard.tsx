@@ -154,11 +154,9 @@ export default function OrderCard({
               <Button
                 size="sm"
                 onClick={() => safeCall(onPickup, order._id)}
-                disabled={!pickupEnabled}
-                className={`flex-1 h-10 text-sm font-semibold ${pickupEnabled ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-100 text-gray-500'}`}
-                variant={pickupEnabled ? 'default' : 'outline'}
+                className="flex-1 h-10 text-sm font-semibold bg-purple-600 hover:bg-purple-700 text-white"
               >
-                {pickupEnabled ? '✓ Mark Picked Up' : `📍 Get closer to enable`}
+                ✓ Picked Up
               </Button>
             )}
 
