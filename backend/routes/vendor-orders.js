@@ -680,6 +680,7 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
       in_progress: ["ready_for_delivery"],
       ready_for_delivery: ["delivery_assigned", "delivered"],
       delivery_assigned: ["delivered"],
+      delivered: ["completed"],
     };
 
     const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });

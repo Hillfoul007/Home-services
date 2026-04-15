@@ -1809,9 +1809,7 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
       case 'complete':
         order.riderStatus = 'delivered';
         order.deliveredAt = now;
-        order.completedAt = now;
-        order.status = 'completed';
-        order.completed_at = now;
+        order.status = 'delivered';
         break;
       case 'reject':
         // Unassign the rider and mark rejected by rider
@@ -2217,8 +2215,12 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
         booking.status = 'delivery_assigned';
         break;
       case 'delivered':
-      case 'completed':
+        booking.riderStatus = 'delivered';
         booking.deliveredAt = timestampNow;
+        booking.status = 'delivered';
+        break;
+      case 'completed':
+        booking.deliveredAt = booking.deliveredAt || timestampNow;
         booking.completed_at = timestampNow;
         booking.status = 'completed';
         break;
@@ -2271,9 +2273,13 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
             notifTitle = 'Out for delivery';
             notifMessage = `Your order #${orderRef} is out for delivery! It will reach you soon.`;
             break;
+          case 'delivered':
+            notifTitle = 'Order delivered!';
+            notifMessage = `Your order #${orderRef} has been delivered successfully. Thank you for choosing Laundrify!`;
+            break;
           case 'completed':
-            notifTitle = 'Order delivered';
-            notifMessage = `Your order #${orderRef} has been delivered successfully. Thank you!`;
+            notifTitle = 'Order completed';
+            notifMessage = `Your order #${orderRef} is marked as completed. Thank you!`;
             break;
         }
 
@@ -2605,6 +2611,100 @@ router.post('/orders/:orderId/in-transit', verifyRiderToken, async (req, res) =>
   } catch (error) {
     console.error('❌ In-transit error:', error);
     res.status(500).json({ message: 'Failed to update order', error: error.message });
+  }
+});
+
+// Complete pickup - rider marks order as picked up, updates item count
+router.post('/orders/:orderId/complete-pickup', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { item_count, timestamp } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const booking = await Booking.findById(orderId);
+    if (!booking) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date(timestamp || Date.now());
+    booking.riderStatus = 'picked_up';
+    booking.pickedUpAt = now;
+    booking.status = 'pickup_completed';
+    booking.item_count = item_count || booking.item_count || 1;
+    // Clear rider assignment - admin will assign delivery rider
+    booking.assignedRider = null;
+    booking.assignedRiderPhone = null;
+    booking.updated_at = now;
+    await booking.save();
+
+    // Notify customer about pickup completion
+    try {
+      const Notification = require('../models/Notification');
+      if (booking.customer_id) {
+        const orderRef = booking.custom_order_id || booking._id;
+        const notif = await Notification.create({
+          user_id: booking.customer_id,
+          title: 'Pickup completed',
+          message: `Your order #${orderRef} has been picked up and is being processed. We'll notify you when it's ready for delivery.`,
+          type: 'booking_status',
+          data: { bookingId: booking._id, status: 'pickup_completed' },
+          related_order: booking._id,
+        });
+        try { await notificationService.sendPushNotification(booking.customer_id, notif); } catch {}
+      }
+    } catch {}
+
+    res.json({ success: true, message: 'Pickup completed successfully', booking });
+  } catch (error) {
+    console.error('❌ Complete pickup error:', error);
+    res.status(500).json({ message: 'Failed to complete pickup', error: error.message });
+  }
+});
+
+// Complete delivery - rider marks order as delivered (goes to 'delivered', not 'completed')
+// Desk/Admin must then mark it 'completed'
+router.post('/orders/:orderId/complete-delivery', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { payment_photo, timestamp } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const booking = await Booking.findById(orderId);
+    if (!booking) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date(timestamp || Date.now());
+    booking.riderStatus = 'delivered';
+    booking.deliveredAt = now;
+    booking.status = 'delivered';
+    if (payment_photo) booking.payment_photo = payment_photo;
+    booking.updated_at = now;
+    await booking.save();
+
+    // Send push notification to customer
+    try {
+      const Notification = require('../models/Notification');
+      if (booking.customer_id) {
+        const orderRef = booking.custom_order_id || booking._id;
+        const notif = await Notification.create({
+          user_id: booking.customer_id,
+          title: 'Order delivered!',
+          message: `Your order #${orderRef} has been delivered successfully. Thank you for choosing Laundrify!`,
+          type: 'booking_status',
+          data: { bookingId: booking._id, status: 'delivered' },
+          related_order: booking._id,
+        });
+        try { await notificationService.sendPushNotification(booking.customer_id, notif); } catch {}
+      }
+    } catch {}
+
+    res.json({ success: true, message: 'Delivery completed successfully. Order is in Delivered state — Desk/Admin can now mark it Completed.', booking });
+  } catch (error) {
+    console.error('❌ Complete delivery error:', error);
+    res.status(500).json({ message: 'Failed to complete delivery', error: error.message });
   }
 });
 

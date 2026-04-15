@@ -1434,8 +1434,28 @@ const DeskDashboard: React.FC = () => {
                 </button>
               )}
 
-              {/* DELIVERED / COMPLETED sections: upload payment SS */}
-              {(isDelivered || isCompleted) && !order.isPGOrder && (
+              {/* DELIVERED section: mark as completed + upload payment SS */}
+              {isDelivered && !order.isPGOrder && (
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => updateStatus(order._id, "completed")}
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-sm font-semibold"
+                  >
+                    ✅ Mark Completed
+                  </button>
+                  <label className={`flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium cursor-pointer border-2 border-dashed ${hasPaySS ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentSS(order._id, f); e.target.value = ""; }}
+                      disabled={uploading[order._id + "_pay"]}
+                    />
+                    {uploading[order._id + "_pay"] ? "Uploading..." : hasPaySS ? "✓ Payment SS (tap to replace)" : "💳 Upload Payment SS"}
+                  </label>
+                </div>
+              )}
+
+              {/* COMPLETED section: upload payment SS */}
+              {isCompleted && !order.isPGOrder && (
                 <label className={`flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-medium cursor-pointer border-2 border-dashed ${hasPaySS ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
                   <input type="file" accept="image/*" className="hidden"
                     onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentSS(order._id, f); e.target.value = ""; }}

@@ -40,7 +40,8 @@
       "Bash(node -e \"require\\('react-is'\\); console.log\\('ok', require\\('react-is/package.json'\\).version\\)\")",
       "Bash(ls c:/Users/Kataria/Home-services/*.config.*)",
       "Bash(ls c:/Users/Kataria/Home-services/scripts/build-*aab*.sh)",
-      "Read(//c/Users/Kataria/.claude/projects/c--Users-Kataria-Home-services/memory/**)"
+      "Read(//c/Users/Kataria/.claude/projects/c--Users-Kataria-Home-services/memory/**)",
+      "Bash(grep -n \"completed\\\\|status.*complete\\\\|mark.*complete\\\\|complete.*button\" c:/Users/Kataria/Home-services/src/pages/desk/*.tsx)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -122,11 +122,11 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
 
         const watcherId = await BackgroundGeolocation.addWatcher(
           {
-            backgroundMessage: 'Laundrify is tracking your location for deliveries.',
-            backgroundTitle: 'Laundrify Rider — Location Active',
+            backgroundMessage: 'Location tracking is active. Do NOT close this app — required for live delivery tracking.',
+            backgroundTitle: '🛵 Laundrify Rider — Live Tracking ON',
             requestPermissions: true,
-            stale: false,
-            distanceFilter: 10, // update every 10 metres movement (was 30)
+            stale: true,
+            distanceFilter: 5, // update every 5 metres movement
           },
           (position, error) => {
             if (error) {
