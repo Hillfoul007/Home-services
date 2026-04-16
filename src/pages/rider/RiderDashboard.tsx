@@ -378,21 +378,8 @@ export default function RiderDashboard() {
   };
 
   const openOptimizedRoute = (orders: any[]) => {
-    const validOrders = (orders || []).filter(o => o && (o.address || (o.coordinates && o.coordinates.lat)));
-    if (validOrders.length < 2) {
-      toast.error('Need at least 2 orders with addresses to optimize route');
-      return;
-    }
-
-    // Prefer lat/lng coordinates; fall back to address string
-    const getBestLocation = (o: any): string => {
-      if (o.coordinates && typeof o.coordinates.lat === 'number' && typeof o.coordinates.lng === 'number') {
-        return `${o.coordinates.lat},${o.coordinates.lng}`;
-      }
-      return o.address || '';
-    };
-
-    const parseCoords = (o: any) => {
+    // Only use orders with valid lat/lng coordinates for accurate routing
+    const parseCoords = (o: any): { lat: number; lng: number } | null => {
       if (o.coordinates && typeof o.coordinates.lat === 'number' && typeof o.coordinates.lng === 'number') {
         return { lat: o.coordinates.lat, lng: o.coordinates.lng };
       }
@@ -400,6 +387,15 @@ export default function RiderDashboard() {
       if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
       return null;
     };
+
+    const ordersWithCoords = (orders || [])
+      .map(o => ({ order: o, coords: parseCoords(o) }))
+      .filter(p => p.coords !== null) as { order: any; coords: { lat: number; lng: number } }[];
+
+    if (ordersWithCoords.length < 2) {
+      toast.error('Need at least 2 orders with GPS coordinates to optimize route');
+      return;
+    }
 
     const haversine = (a: {lat:number,lng:number}, b: {lat:number,lng:number}) => {
       const toRad = (v:number) => v * Math.PI / 180;
@@ -410,54 +406,53 @@ export default function RiderDashboard() {
       return R * 2 * Math.atan2(Math.sqrt(aHarv), Math.sqrt(1-aHarv));
     };
 
-    const points = validOrders.map(o => ({ order: o, coords: parseCoords(o) }));
-    const withCoords = points.filter(p => p.coords !== null);
-    const withoutCoords = points.filter(p => p.coords === null);
-
-    // Nearest-neighbour sort starting from current location if available, else first order
+    // Nearest-neighbour sort starting from current location if available
     const startCoord = currentLocation
       ? { lat: currentLocation.lat, lng: currentLocation.lng }
-      : withCoords[0]?.coords ?? null;
+      : ordersWithCoords[0].coords;
 
-    const route: any[] = [];
-    if (startCoord && withCoords.length > 0) {
-      let current = startCoord;
-      const remaining = [...withCoords];
-      while (remaining.length > 0) {
-        let bestIndex = 0;
-        let bestDist = Number.POSITIVE_INFINITY;
-        for (let i = 0; i < remaining.length; i++) {
-          const dist = haversine(current, remaining[i].coords as any);
-          if (dist < bestDist) { bestDist = dist; bestIndex = i; }
-        }
-        const picked = remaining.splice(bestIndex, 1)[0];
-        route.push(picked.order);
-        current = picked.coords as any;
+    const route: { order: any; coords: { lat: number; lng: number } }[] = [];
+    let current = startCoord;
+    const remaining = [...ordersWithCoords];
+    while (remaining.length > 0) {
+      let bestIndex = 0;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < remaining.length; i++) {
+        const dist = haversine(current, remaining[i].coords);
+        if (dist < bestDist) { bestDist = dist; bestIndex = i; }
       }
-    } else {
-      withCoords.forEach(p => route.push(p.order));
+      const picked = remaining.splice(bestIndex, 1)[0];
+      route.push(picked);
+      current = picked.coords;
     }
-    withoutCoords.forEach(p => route.push(p.order));
 
+    // Build Google Maps URL — use raw lat,lng (no encoding of commas) for proper parsing
+    // Waypoints separated by %7C (encoded pipe) as required by Google Maps
     const waypointLimit = 8;
-    const stops = route.slice(0, waypointLimit + 1).map(o => encodeURIComponent(getBestLocation(o)));
-    const destination = stops[stops.length - 1];
-    const intermediate = stops.slice(0, stops.length - 1).join('|');
+    const routeSlice = route.slice(0, waypointLimit + 1);
+    const latLngStr = (c: { lat: number; lng: number }) => `${c.lat},${c.lng}`;
+
+    const destination = latLngStr(routeSlice[routeSlice.length - 1].coords);
+    const intermediateStops = routeSlice.slice(0, routeSlice.length - 1).map(r => latLngStr(r.coords));
 
     let mapsUrl: string;
     if (currentLocation) {
       const originStr = `${currentLocation.lat},${currentLocation.lng}`;
-      mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destination}&travelmode=driving${intermediate ? `&waypoints=${intermediate}` : ''}`;
+      const waypointsParam = intermediateStops.length > 0 ? `&waypoints=${intermediateStops.join('%7C')}` : '';
+      mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destination}&travelmode=driving${waypointsParam}`;
     } else {
-      // No current location — just route between the orders
-      mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving${intermediate ? `&waypoints=${intermediate}` : ''}`;
+      // No current location — use first stop as origin, last as destination
+      const originStr = latLngStr(routeSlice[0].coords);
+      const midStops = routeSlice.slice(1, routeSlice.length - 1).map(r => latLngStr(r.coords));
+      const waypointsParam = midStops.length > 0 ? `&waypoints=${midStops.join('%7C')}` : '';
+      mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destination}&travelmode=driving${waypointsParam}`;
     }
 
     toast.loading('Opening optimized route...', { id: 'optimize' });
     window.open(mapsUrl, '_blank');
     setTimeout(() => {
       toast.dismiss('optimize');
-      toast.success('Route opened in Google Maps');
+      toast.success(`Route opened — ${routeSlice.length} stops`);
     }, 600);
   };
 
@@ -736,7 +731,7 @@ export default function RiderDashboard() {
               {(() => {
                 const completedOrders = assignedOrders.filter((o: any) => {
                   const s = (o.status || '').toLowerCase();
-                  return s === 'delivered' || s === 'completed' || s === 'pickup_completed' || s === 'in_progress';
+                  return s === 'delivered' || s === 'completed' || s === 'pickup_completed' || s === 'rider_pickup_done' || s === 'in_progress';
                 });
                 return completedOrders.length > 0 ? (
                   <div>

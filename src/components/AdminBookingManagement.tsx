@@ -140,6 +140,11 @@ const ORDER_FLOW_STEPS = [
     description: "Processing vendor has been assigned.",
   },
   {
+    value: "rider_pickup_done",
+    label: "Rider Picked Up",
+    description: "Rider has collected laundry — awaiting admin confirmation.",
+  },
+  {
     value: "pickup_completed",
     label: "Pickup Complete",
     description: "Laundry collected from the customer.",
@@ -424,6 +429,8 @@ const getStatusColor = (status: string) => {
       return "bg-yellow-100 text-yellow-800";
     case "vendor_assigned":
       return "bg-green-100 text-green-800";
+    case "rider_pickup_done":
+      return "bg-orange-100 text-orange-800";
     case "pickup_completed":
       return "bg-purple-100 text-purple-800";
     case "ready_for_delivery":
@@ -446,6 +453,8 @@ const getStatusIcon = (status: string) => {
     case "created":
       return <AlertCircle className="h-4 w-4" />;
     case "vendor_assigned":
+      return <Package className="h-4 w-4" />;
+    case "rider_pickup_done":
       return <Package className="h-4 w-4" />;
     case "pickup_completed":
       return <CheckCircle className="h-4 w-4" />;
@@ -1182,8 +1191,8 @@ const AdminBookingManagement: React.FC = () => {
   }, [editingBooking?._id, showEditDialog]);
 
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
-    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned", "pickup_completed"].includes(normalizeStatus(b.status)));
-    const b = bookingsToRebucket.filter(b => ["ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned", "rider_pickup_done"].includes(normalizeStatus(b.status)));
+    const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
     setBucketA(a);
     setBucketB(b);
   };
@@ -1558,7 +1567,7 @@ const AdminBookingManagement: React.FC = () => {
               {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : 'Ready for Delivery'}
             </h3>
             <span className="text-sm text-gray-500">
-              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
+              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
             </span>
           </div>
           <div>
@@ -1676,7 +1685,7 @@ const AdminBookingManagement: React.FC = () => {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="created">Order Created</SelectItem>
                   <SelectItem value="vendor_assigned">Vendor Assigned</SelectItem>
-                  <SelectItem value="pickup_completed">Pickup Completed</SelectItem>
+                  <SelectItem value="rider_pickup_done">Rider Picked Up</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1792,10 +1801,10 @@ const AdminBookingManagement: React.FC = () => {
                           >
                             📤 Pickup Reminder
                           </Button>
-                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                          {(normalizeStatus(booking.status) === 'vendor_assigned' || normalizeStatus(booking.status) === 'rider_pickup_done') && (
                             <>
                               <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
-                                Mark Pickup Complete
+                                {normalizeStatus(booking.status) === 'rider_pickup_done' ? '✅ Mark Pickup Complete (Rider Done)' : 'Mark Pickup Complete'}
                               </Button>
                             </>
                           )}
@@ -1972,10 +1981,10 @@ const AdminBookingManagement: React.FC = () => {
                           >
                             🚚 Delivery Reminder
                           </Button>
-                          {normalizeStatus(booking.status) === 'vendor_assigned' && (
+                          {(normalizeStatus(booking.status) === 'vendor_assigned' || normalizeStatus(booking.status) === 'rider_pickup_done') && (
                             <>
                               <Button size="sm" className="bg-purple-600 text-white" onClick={() => updateBookingStatus(booking._id, 'pickup_completed')}>
-                                Mark Pickup Complete
+                                {normalizeStatus(booking.status) === 'rider_pickup_done' ? '✅ Mark Pickup Complete (Rider Done)' : 'Mark Pickup Complete'}
                               </Button>
                             </>
                           )}

@@ -173,7 +173,7 @@ const DeskDashboard: React.FC = () => {
   const [tab, setTab] = useState<"orders" | "riders" | "efficiency" | "optimize" | "daily" | "profile">("orders");
 
   // Daily summary
-  const [dailyData, setDailyData] = useState<{ pickedUp: Order[]; delivered: Order[] } | null>(null);
+  const [dailyData, setDailyData] = useState<{ pickedUp: Order[]; delivered: Order[]; created: Order[] } | null>(null);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [dailyDate, setDailyDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
@@ -595,7 +595,7 @@ const DeskDashboard: React.FC = () => {
       const res = await fetch(`${API}/orders/daily-summary?date=${d}`, { headers: authHeaders(token) });
       if (res.ok) {
         const data = await res.json();
-        if (data.success) setDailyData({ pickedUp: data.pickedUp || [], delivered: data.delivered || [] });
+        if (data.success) setDailyData({ pickedUp: data.pickedUp || [], delivered: data.delivered || [], created: data.created || [] });
       }
     } catch { /* silent */ }
     finally { setDailyLoading(false); }
@@ -2041,8 +2041,45 @@ const DeskDashboard: React.FC = () => {
                   )}
                 </div>
 
+                {/* Created Today */}
+                <div className="bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+                    <h3 className="font-semibold text-amber-800 text-sm">📋 Created Today</h3>
+                    <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                      {dailyData.created.length}
+                    </span>
+                  </div>
+                  {dailyData.created.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No new orders created today</p>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {dailyData.created.map(o => {
+                        const riderObj = typeof o.assignedRider === 'object' && o.assignedRider ? o.assignedRider as RiderRef : null;
+                        return (
+                          <div key={String(o._id)} className="px-4 py-3 flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm text-gray-900">{o.custom_order_id || String(o._id).slice(-6).toUpperCase()}</span>
+                                {statusBadge(o.status)}
+                              </div>
+                              <p className="text-xs text-gray-500 truncate mt-0.5">
+                                {o.isPGOrder ? o.pg_name : o.name}
+                                {riderObj?.name && <span className="ml-1 text-amber-600">· 🛵 {riderObj.name}</span>}
+                              </p>
+                              {o.scheduled_date && (
+                                <p className="text-xs text-blue-600 mt-0.5">📅 Pickup: {formatShortDate(o.scheduled_date)}</p>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-400 shrink-0">₹{(o.final_amount ?? o.total_price ?? 0)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* Summary row */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="bg-indigo-50 rounded-xl p-3 text-center">
                     <p className="text-2xl font-bold text-indigo-700">{dailyData.pickedUp.length}</p>
                     <p className="text-xs text-indigo-500 mt-0.5">Picked Up</p>
@@ -2050,6 +2087,10 @@ const DeskDashboard: React.FC = () => {
                   <div className="bg-emerald-50 rounded-xl p-3 text-center">
                     <p className="text-2xl font-bold text-emerald-700">{dailyData.delivered.length}</p>
                     <p className="text-xs text-emerald-500 mt-0.5">Delivered</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-amber-700">{dailyData.created.length}</p>
+                    <p className="text-xs text-amber-500 mt-0.5">Created</p>
                   </div>
                 </div>
               </>

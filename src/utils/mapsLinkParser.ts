@@ -33,6 +33,21 @@ export const parseGoogleMapsLink = (mapsUrl: string): ParsedMapsLink => {
   const url = mapsUrl.trim();
 
   try {
+    // Try to match !3d<lat>!4d<lng> format embedded in Google Maps data parameter
+    // e.g. /data=...!3d28.4595!4d77.0266
+    const dataCoordPattern = /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/;
+    const dataCoordMatch = url.match(dataCoordPattern);
+
+    if (dataCoordMatch) {
+      const lat = parseFloat(dataCoordMatch[1]);
+      const lng = parseFloat(dataCoordMatch[2]);
+
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        result.coordinates = { lat, lng };
+        return result;
+      }
+    }
+
     // Try to match coordinates in @lat,lng format (common in Google Maps share links)
     // Pattern: /@(-?\d+\.?\d*),(-?\d+\.?\d*)
     const coordPattern = /@(-?\d+\.?\d*),(-?\d+\.?\d*)/;
@@ -118,6 +133,7 @@ export const isGoogleMapsUrl = (url: string): boolean => {
     /google\.com\/maps/i,
     /maps\.google\./i,
     /goo\.gl\/maps/i,
+    /maps\.app\.goo\.gl/i,
     //@-?\d+\.?\d*,-?\d+\.?\d*/, // coordinates pattern
     /^-?\d+\.?\d*,-?\d+\.?\d*$/, // direct coordinates
   ];

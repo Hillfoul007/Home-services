@@ -235,6 +235,7 @@ const bookingSchema = new mongoose.Schema(
         "confirmed",
         "pickup_assigned",
         "pickup_completed",
+        "rider_pickup_done",
         "in_progress",
         "ready_for_delivery",
         "delivery_assigned",

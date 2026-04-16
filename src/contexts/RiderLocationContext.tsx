@@ -125,8 +125,8 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
             backgroundMessage: 'Location tracking is active. Do NOT close this app — required for live delivery tracking.',
             backgroundTitle: '🛵 Laundrify Rider — Live Tracking ON',
             requestPermissions: true,
-            stale: true,
-            distanceFilter: 5, // update every 5 metres movement
+            stale: false,
+            distanceFilter: 0, // update on every GPS fix, not just movement
           },
           (position, error) => {
             if (error) {
@@ -161,7 +161,7 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       startWebTracking();
     }
 
-    // Periodic force-push every 15 seconds even when rider isn't moving
+    // Periodic force-push every 8 seconds even when rider isn't moving
     if (periodicPushRef.current) clearInterval(periodicPushRef.current);
     periodicPushRef.current = setInterval(() => {
       if (navigator.geolocation) {
@@ -178,10 +178,10 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
               startWebTracking();
             }
           },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 3000 }
         );
       }
-    }, 15000);
+    }, 8000);
   }, [updateLocationOnServer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startWebTracking = useCallback(() => {

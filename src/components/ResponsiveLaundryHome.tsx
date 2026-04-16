@@ -481,6 +481,11 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
     };
 
     loadActiveOrders();
+    // Poll every 45 seconds to catch status changes (e.g. ready_for_delivery)
+    const pollId = setInterval(() => {
+      if (document.visibilityState === 'visible') loadActiveOrders();
+    }, 45000);
+    return () => clearInterval(pollId);
   }, [currentUser?.id, currentUser?._id, currentUser?.phone]);
 
   // Request notification permission for verification alerts
@@ -854,6 +859,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 <NotificationBell
                   userId={currentUser._id || currentUser.phone}
                   className="premium-icon-button"
+                  onSetDeliveryDate={() => handleViewBookings()}
                 />
               )}
               {currentUser ? (
@@ -1020,6 +1026,22 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
               ))}
           </div>
         </div>
+
+        {/* Ready for Delivery Alert Banner - shown prominently when order is ready */}
+        {activeOrder && !loadingActiveOrder && (activeOrder.status === 'ready_for_delivery' || activeOrder.status === 'ready-for-delivery') && (
+          <div className="bg-blue-600 px-4 py-3 flex items-center justify-between gap-3 animate-pulse">
+            <div className="min-w-0">
+              <p className="text-white font-bold text-sm">🎉 Your laundry is ready!</p>
+              <p className="text-blue-100 text-xs mt-0.5">Order #{activeOrder.custom_order_id || 'Order'} — Set delivery date & time</p>
+            </div>
+            <button
+              onClick={handleViewBookings}
+              className="shrink-0 bg-white text-blue-600 text-xs font-bold px-3 py-1.5 rounded-lg active:bg-blue-50"
+            >
+              Set Date
+            </button>
+          </div>
+        )}
 
         {/* Active Order Status Bar - Mobile */}
         {activeOrder && !loadingActiveOrder && (
@@ -1385,6 +1407,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   <div className="relative">
                     <NotificationBell
                       userId={currentUser._id || currentUser.phone}
+                      onSetDeliveryDate={() => handleViewBookings()}
                     />
                   </div>
 
@@ -1422,6 +1445,19 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
 
       {/* Desktop Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* Ready for Delivery Alert - Desktop */}
+        {activeOrder && !loadingActiveOrder && (activeOrder.status === 'ready_for_delivery' || activeOrder.status === 'ready-for-delivery') && (
+          <div className="mb-4 p-4 bg-blue-600 rounded-xl flex items-center justify-between gap-4">
+            <div>
+              <p className="text-white font-bold text-base">🎉 Your laundry is ready for delivery!</p>
+              <p className="text-blue-100 text-sm mt-0.5">Order #{activeOrder.custom_order_id || 'Order'} — Please set your preferred delivery date and time</p>
+            </div>
+            <Button onClick={handleViewBookings} className="shrink-0 bg-white text-blue-600 hover:bg-blue-50 font-bold">
+              Set Delivery Date &amp; Time
+            </Button>
+          </div>
+        )}
 
         {/* Active Order Status Bar - Zomato Style */}
         {activeOrder && !loadingActiveOrder && (

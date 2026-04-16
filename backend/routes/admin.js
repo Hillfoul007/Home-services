@@ -1013,8 +1013,8 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     }
 
     // Define new order-flow buckets. Include commonly used statuses like 'pending' and 'confirmed'
-    const BUCKET_A = ["pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "pickup_completed"];
-    const BUCKET_B = ["delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered"];
+    const BUCKET_A = ["pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "rider_pickup_done"];
+    const BUCKET_B = ["pickup_completed", "delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered"];
 
     // By default return a broad set of relevant statuses (exclude completed/cancelled later)
     const relevantStatuses = [...new Set([...
@@ -1025,6 +1025,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       "confirmed",
       "created",
       "vendor_assigned",
+      "rider_pickup_done",
       "ready_for_delivery",
       "pickup_assigned",
       "pickup_completed",

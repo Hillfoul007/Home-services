@@ -892,14 +892,15 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
 
     const todayPickedUp = [];
     const todayDelivered = [];
+    const createdToday = [];
 
     for (const order of allOrders) {
       const history = order.status_history || [];
 
-      // Check if pickup_completed event happened on the selected date
+      // Check if pickup_completed or rider_pickup_done event happened on the selected date
       const pickedToday = history.some(h => {
         const s = h.status;
-        if (!(s === "pickup_completed" || s === "in_progress")) return false;
+        if (!(s === "pickup_completed" || s === "rider_pickup_done" || s === "in_progress")) return false;
         const t = h.changed_at && new Date(h.changed_at);
         return t && t >= startOfDay && t < endOfDay;
       });
@@ -911,6 +912,10 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
         const t = h.changed_at && new Date(h.changed_at);
         return t && t >= startOfDay && t < endOfDay;
       });
+
+      // Check if order was created on the selected date
+      const orderCreatedAt = order.created_at && new Date(order.created_at);
+      const isCreatedToday = orderCreatedAt && orderCreatedAt >= startOfDay && orderCreatedAt < endOfDay;
 
       const obj = {
         _id: order._id,
@@ -935,7 +940,11 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
 
       if (pickedToday) todayPickedUp.push(obj);
       if (deliveredToday) todayDelivered.push(obj);
+      if (isCreatedToday) createdToday.push(obj);
     }
+
+    // Sort created orders by created_at descending
+    createdToday.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     res.json({
       success: true,
@@ -943,6 +952,7 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
       queried_date: req.query.date || startOfDay.toISOString().slice(0, 10),
       pickedUp: todayPickedUp,
       delivered: todayDelivered,
+      created: createdToday,
     });
   } catch (error) {
     console.error("❌ Error fetching daily summary:", error);

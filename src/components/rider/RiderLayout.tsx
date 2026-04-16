@@ -183,7 +183,19 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
     )}
     <div className="min-h-screen bg-gray-50 rider-mobile-layout">
       {rider && (
-        <header className="bg-white shadow-sm border-b sticky top-0 z-50 rider-header-mobile rider-safe-area-top">
+        {/* Return to Factory - sticky bar at very top */}
+        <div className="bg-orange-600 px-3 py-2 flex items-center justify-between sticky top-0 z-[60]">
+          <span className="text-white text-xs font-semibold">🏭 Laundrify Factory</span>
+          <a
+            href="https://www.google.com/maps/place/Prempuri+Jharsa+Sec-32/@28.4485812,77.0438443,18.84z/data=!4m6!3m5!1s0x390d19cdae95569b:0xcb8532f9c5ae1862!8m2!3d28.4486252!4d77.0438643!16s%2Fg%2F11s2yh33mv?entry=ttu&g_ep=EgoyMDI2MDQxMy4wIKXMDSoASAFQAw%3D%3D"
+            target="_blank"
+            rel="noreferrer"
+            className="bg-white text-orange-600 text-xs font-bold px-3 py-1 rounded-lg active:bg-orange-50"
+          >
+            🏠 Return to Factory
+          </a>
+        </div>
+        <header className="bg-white shadow-sm border-b sticky top-10 z-50 rider-header-mobile rider-safe-area-top">
           <div className="px-3 sm:px-4 lg:px-8">
             <div className="flex justify-between items-center h-14 sm:h-16">
               {/* Left section */}

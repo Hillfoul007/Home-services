@@ -1793,17 +1793,16 @@ export default function RiderOrders() {
         </div>
       </div>
 
-      {/* Step 4: Mark Pickup Done — appears only after slip or item photo is uploaded */}
-      {(slipPhoto || itemPhotos.length > 0) ? (
-        <Button
-          className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-base"
-          onClick={completePickup}
-          disabled={completingPickup}
-        >
-          {completingPickup ? 'Completing...' : '✅ Submit Pickup'}
-        </Button>
-      ) : (
-        <p className="text-xs text-orange-500 text-center">Upload item photo or slip photo to submit</p>
+      {/* Step 4: Mark Pickup Done */}
+      <Button
+        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-base disabled:opacity-50"
+        onClick={completePickup}
+        disabled={completingPickup || (!slipPhoto && itemPhotos.length === 0)}
+      >
+        {completingPickup ? 'Completing...' : '✅ Submit Pickup'}
+      </Button>
+      {!slipPhoto && itemPhotos.length === 0 && (
+        <p className="text-xs text-orange-500 text-center">Upload slip photo or item photo to enable submit</p>
       )}
     </CardContent>
   </Card>
@@ -1924,18 +1923,17 @@ export default function RiderOrders() {
         )}
       </div>
 
-      {/* Step 3: Mark Delivery Done — appears only after payment photo is uploaded */}
+      {/* Step 3: Mark Delivery Done */}
       <div>
-        {paymentPhoto ? (
-          <Button
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base"
-            onClick={completeDelivery}
-            disabled={completingDelivery}
-          >
-            {completingDelivery ? 'Completing...' : '✅ Submit Delivery'}
-          </Button>
-        ) : (
-          <p className="text-xs text-green-600 text-center mt-1">Upload payment screenshot to submit</p>
+        <Button
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base disabled:opacity-50"
+          onClick={completeDelivery}
+          disabled={completingDelivery || !paymentPhoto}
+        >
+          {completingDelivery ? 'Completing...' : '✅ Submit Delivery'}
+        </Button>
+        {!paymentPhoto && (
+          <p className="text-xs text-green-600 text-center mt-1">Upload payment screenshot to enable submit</p>
         )}
       </div>
 
@@ -2303,54 +2301,6 @@ export default function RiderOrders() {
                   <p className="font-medium">⏳ Waiting for customer verification</p>
                   <p className="text-sm">Customer has been notified of the changes and needs to verify them before you can save the order.</p>
 
-                  {/* Demo Buttons for Testing */}
-                  <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
-                    <p className="text-sm font-medium text-yellow-800 mb-2">🧪 Demo Testing Controls:</p>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => {
-                          setVerificationStatus('approved');
-                          if (orderId) {
-                            localStorage.setItem(`verification_status_${orderId}`, 'approved');
-                            globalVerificationManager.setVerificationStatus(orderId, 'approved');
-                          }
-                          toast.success('Demo: Customer approved changes!');
-                        }}
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        ✅ Demo Approve
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setVerificationStatus('rejected');
-                          if (orderId) {
-                            localStorage.setItem(`verification_status_${orderId}`, 'rejected');
-                            globalVerificationManager.setVerificationStatus(orderId, 'rejected');
-                          }
-                          toast.error('Demo: Customer rejected changes!');
-                        }}
-                        size="sm"
-                        variant="destructive"
-                      >
-                        ❌ Demo Reject
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setVerificationStatus('pending');
-                          if (orderId) {
-                            localStorage.setItem(`verification_status_${orderId}`, 'pending');
-                            globalVerificationManager.setVerificationStatus(orderId, 'pending');
-                          }
-                          toast.info('Demo: Reset to pending status');
-                        }}
-                        size="sm"
-                        variant="outline"
-                      >
-                        🔄 Reset
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               )}
 

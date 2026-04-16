@@ -1800,7 +1800,7 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
       case 'start':
         order.riderStatus = 'picked_up';
         order.pickedUpAt = now;
-        order.status = 'pickup_completed';
+        order.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
         // Clear assignedRider so this order doesn't appear in the same rider's delivery list.
         // Admin will assign a (possibly different) rider for the delivery phase.
         order.assignedRider = null;
@@ -2196,7 +2196,7 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
       case 'pickup_completed':
         booking.riderStatus = 'picked_up';
         booking.pickedUpAt = timestampNow;
-        booking.status = 'pickup_completed';
+        booking.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
         // Clear rider assignment so the order doesn't show in delivery for this rider
         booking.assignedRider = null;
         booking.assignedRiderPhone = null;
@@ -2630,7 +2630,7 @@ router.post('/orders/:orderId/complete-pickup', verifyRiderToken, async (req, re
     const now = new Date(timestamp || Date.now());
     booking.riderStatus = 'picked_up';
     booking.pickedUpAt = now;
-    booking.status = 'pickup_completed';
+    booking.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
     booking.item_count = item_count || booking.item_count || 1;
     // Clear rider assignment - admin will assign delivery rider
     booking.assignedRider = null;
@@ -2648,7 +2648,7 @@ router.post('/orders/:orderId/complete-pickup', verifyRiderToken, async (req, re
           title: 'Pickup completed',
           message: `Your order #${orderRef} has been picked up and is being processed. We'll notify you when it's ready for delivery.`,
           type: 'booking_status',
-          data: { bookingId: booking._id, status: 'pickup_completed' },
+          data: { bookingId: booking._id, status: 'rider_pickup_done' },
           related_order: booking._id,
         });
         try { await notificationService.sendPushNotification(booking.customer_id, notif); } catch {}

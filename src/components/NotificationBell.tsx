@@ -19,13 +19,12 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
   useEffect(() => {
     if (userId) {
       fetchUnreadCount();
-      // Poll for new notifications every 5 minutes (reduced from 30 seconds to prevent infinite refreshing)
-      // Also only poll when page is visible
+      // Poll every 30 seconds so ready-for-delivery alerts reach user quickly
       const interval = setInterval(() => {
         if (document.visibilityState === 'visible') {
           fetchUnreadCount();
         }
-      }, 300000); // 5 minutes
+      }, 30000); // 30 seconds
       return () => clearInterval(interval);
     }
   }, [userId]);
@@ -33,13 +32,12 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
   const fetchUnreadCount = async () => {
     if (!userId || isLoading) return;
 
-    // Add rate limiting to prevent excessive API calls
+    // Rate limit: at most once every 20 seconds to avoid hammering the API
     const lastFetch = localStorage.getItem(`lastNotificationFetch_${userId}`);
     const now = Date.now();
-    const twoMinutesAgo = now - 2 * 60 * 1000;
+    const twentySecondsAgo = now - 20 * 1000;
 
-    if (lastFetch && parseInt(lastFetch) > twoMinutesAgo) {
-      console.log('⏭️ Skipping notification count fetch - rate limited');
+    if (lastFetch && parseInt(lastFetch) > twentySecondsAgo) {
       return;
     }
 
