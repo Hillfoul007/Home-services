@@ -1383,11 +1383,11 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Get user's booking history
+    // Get user's booking history (include mapsLink for address pre-fill)
     const bookings = await Booking.find({ customer_id: user._id })
       .sort({ created_at: -1 })
       .limit(10)
-      .select("custom_order_id service status final_amount created_at");
+      .select("custom_order_id service status final_amount created_at address mapsLink");
 
     // Fetch user addresses (if Address model available)
     let addresses = [];
@@ -1406,7 +1406,7 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
     if (!defaultAddress && bookings.length > 0) {
       const latestBooking = await Booking.findOne({ customer_id: user._id })
         .sort({ created_at: -1 })
-        .select("address");
+        .select("address mapsLink");
 
       if (latestBooking && latestBooking.address) {
         defaultAddress = {
@@ -1418,7 +1418,10 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       }
     }
 
-    console.log("✅ Admin fetched user details:", user._id);
+    // Find the most recent booking that has a Google Maps link
+    const latestMapsLink = bookings.find(b => b.mapsLink && b.mapsLink.trim())?.mapsLink || null;
+
+    console.log("✅ Admin fetched user details:", user._id, latestMapsLink ? "| has mapsLink" : "");
     res.json({
       user: {
         ...user.toObject(),
@@ -1426,7 +1429,8 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       },
       bookings,
       addresses,
-      defaultAddress
+      defaultAddress,
+      latestMapsLink,
     });
   } catch (error) {
     console.error("❌ Error fetching user details:", error);

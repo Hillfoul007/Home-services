@@ -40,7 +40,10 @@ export function useRiderSocket(token?: string | null) {
   }, []);
 
   useEffect(() => {
-    const baseUrl = getApiUrl().replace('/api', '');
+    const apiUrl = getApiUrl();
+    const baseUrl = apiUrl.startsWith('http')
+      ? apiUrl.replace(/\/api$/, '')   // prod: strip trailing /api
+      : window.location.origin;        // dev: same origin as page
 
     const socket = io(`${baseUrl}/desk`, {
       transports: ['websocket', 'polling'],

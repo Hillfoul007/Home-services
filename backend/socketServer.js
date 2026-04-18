@@ -115,8 +115,9 @@ function initSocketServer(httpServer) {
     pingInterval: 10000,
   });
 
-  // ── Rider namespace ──────────────────────────────────────────────────────
+  // ── Namespaces (declare both before registering handlers) ────────────────
   const riderNS = io.of("/rider");
+  const deskNS  = io.of("/desk");
 
   riderNS.on("connection", (socket) => {
     let riderId = null;
@@ -233,8 +234,6 @@ function initSocketServer(httpServer) {
   });
 
   // ── Desk namespace ───────────────────────────────────────────────────────
-  const deskNS = io.of("/desk");
-
   deskNS.on("connection", (socket) => {
     let authenticated = false;
 

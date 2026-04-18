@@ -89,8 +89,12 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     const rider = JSON.parse(riderData);
     const riderId = rider._id || rider.id;
 
-    const baseUrl = getApiUrl();
-    const socketUrl = baseUrl.replace('/api', ''); // strip /api path
+    // Derive socket server origin:
+    // getApiUrl() returns "/api" (relative) in dev, full URL in prod.
+    const apiUrl = getApiUrl();
+    const socketUrl = apiUrl.startsWith('http')
+      ? apiUrl.replace(/\/api$/, '')          // prod: strip trailing /api
+      : window.location.origin;               // dev:  same origin as page
 
     if (socketRef.current?.connected) return;
 

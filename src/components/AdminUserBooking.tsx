@@ -315,13 +315,36 @@ const AdminUserBooking: React.FC = () => {
         const defaultAddress = resp.data.defaultAddress || (Array.isArray(resp.data.addresses) && resp.data.addresses[0]);
         const finalAddress = (defaultAddress && defaultAddress.full_address) || fetchedUser.address;
 
+        // Fetch the most recent Google Maps link from past orders (returned by backend)
+        const savedMapsLink: string = resp.data.latestMapsLink || "";
+
+        // Parse coordinates out of the saved maps link (if any)
+        let savedCoordinates: { lat: number; lng: number } | null = null;
+        if (savedMapsLink && isGoogleMapsUrl(savedMapsLink)) {
+          const parsed = parseGoogleMapsLink(savedMapsLink);
+          savedCoordinates = parsed.coordinates || null;
+        }
+
         if (finalAddress) {
-          console.log("✅ Autofilling address:", finalAddress);
-          setBookingData((prev) => ({ ...prev, address: finalAddress, mapsLink: "", coordinates: null }));
-          // Fetch vendors for this address
-          await fetchVendorsForAddress(finalAddress, null);
+          console.log("✅ Autofilling address:", finalAddress, savedMapsLink ? "| mapsLink from past order" : "");
+          setBookingData((prev) => ({
+            ...prev,
+            address: finalAddress,
+            mapsLink: savedMapsLink,
+            coordinates: savedCoordinates,
+          }));
+          // Fetch vendors using coordinates from saved maps link (more precise) or address text
+          await fetchVendorsForAddress(finalAddress, savedCoordinates);
+        } else if (savedMapsLink) {
+          // No text address but we have a maps link — still pre-fill it
+          console.log("✅ No address on file; pre-filling saved mapsLink");
+          setBookingData((prev) => ({
+            ...prev,
+            mapsLink: savedMapsLink,
+            coordinates: savedCoordinates,
+          }));
         } else {
-          console.warn("⚠️ No address found for user. Please enter address manually.");
+          console.warn("⚠️ No address or maps link found for user. Please enter manually.");
           setVendors([]);
           setSelectedVendor(null);
         }
@@ -923,11 +946,16 @@ const AdminUserBooking: React.FC = () => {
             </div>
 
             {/* Google Maps Link for Precise Location */}
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-3">
+            <div className={`p-4 rounded-lg border space-y-3 ${bookingData.mapsLink ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"}`}>
               <div>
-                <Label htmlFor="maps-link" className="text-blue-900 font-semibold flex items-center gap-2">
+                <Label htmlFor="maps-link" className={`font-semibold flex items-center gap-2 ${bookingData.mapsLink ? "text-green-900" : "text-blue-900"}`}>
                   <MapPin className="h-4 w-4" />
                   Google Maps Link (Extracts Coordinates & Auto-Fills Address)
+                  {bookingData.mapsLink && (
+                    <span className="ml-1 text-xs font-normal px-2 py-0.5 rounded-full bg-green-200 text-green-800">
+                      ✓ from past order
+                    </span>
+                  )}
                 </Label>
                 <Input
                   id="maps-link"
