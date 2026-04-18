@@ -1815,10 +1815,8 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
         order.riderStatus = 'picked_up';
         order.pickedUpAt = now;
         order.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
-        // Clear assignedRider so this order doesn't appear in the same rider's delivery list.
-        // Admin will assign a (possibly different) rider for the delivery phase.
-        order.assignedRider = null;
-        order.assignedRiderPhone = null;
+        // Keep assignedRider so rider can see this in their completed section.
+        // When admin assigns a delivery rider the field gets overwritten.
         break;
       case 'complete':
         order.riderStatus = 'delivered';
@@ -2556,7 +2554,7 @@ router.get('/desk-orders', verifyRiderToken, async (req, res) => {
 
     const orders = await Booking.find({
       assignedRider: riderId,
-      riderStatus: { $in: ['assigned', 'accepted', 'in_transit', 'picked_up'] },
+      riderStatus: { $in: ['assigned', 'accepted', 'in_transit'] },
     })
       .sort({ assignedAt: -1 })
       .select(
@@ -2568,7 +2566,7 @@ router.get('/desk-orders', verifyRiderToken, async (req, res) => {
 
     const doneOrders = await Booking.find({
       assignedRider: riderId,
-      riderStatus: { $in: ['delivered', 'completed'] },
+      riderStatus: { $in: ['picked_up', 'delivered', 'completed'] },
     })
       .sort({ deliveredAt: -1 })
       .limit(20)

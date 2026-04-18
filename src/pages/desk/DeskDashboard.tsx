@@ -2383,7 +2383,7 @@ function OptimizeTab({
     setOptLoading(true);
     setOptError(null);
     try {
-      const res = await fetch(`${getApiUrl()}/vendor/optimization/suggestions`, {
+      const res = await fetch(`${getApiUrl()}/vendor/orders/optimization/suggestions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();

@@ -551,8 +551,15 @@ const RiderDeskDashboard: React.FC = () => {
   };
 
   // ── Factory navigation ──
-  const FACTORY_MAPS_URL = "https://www.google.com/maps/place/Laundrify/@28.4486339,77.0438923,17z/data=!3m1!4b1!4m6!3m5!1s0x390d19f4789f36c5:0x7a811d2626e2b68b!8m2!3d28.4486339!4d77.0438923!16s%2Fg%2F11n52r7mrj?hl=en&entry=ttu&g_ep=EgoyMDI2MDQxNS4wIKXMDSoASAFQAw%3D%3D";
-  const goToFactory = () => window.open(FACTORY_MAPS_URL, "_blank");
+  const FACTORY_LAT = 28.4486339;
+  const FACTORY_LNG = 77.0438923;
+  const goToFactory = () => {
+    const origin = currentLocation
+      ? `&origin=${currentLocation.lat},${currentLocation.lng}`
+      : "";
+    const url = `https://www.google.com/maps/dir/?api=1${origin}&destination=${FACTORY_LAT},${FACTORY_LNG}&travelmode=driving`;
+    window.open(url, "_blank");
+  };
 
   const logout = () => {
     if (watchIdRef.current !== null) {
