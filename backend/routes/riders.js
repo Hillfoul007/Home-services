@@ -2425,6 +2425,50 @@ router.post('/orders/:orderId/upload-pickup-slip', verifyRiderToken, async (req,
   }
 });
 
+// Upload item photo(s) during pickup — saved to items_images so admin can see them
+router.post('/orders/:orderId/upload-item-photo', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+      ],
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found or not assigned to you' });
+
+    const { image_base64, mime_type } = req.body;
+    if (!image_base64) return res.status(400).json({ message: 'image_base64 is required' });
+
+    const conn = require('mongoose').connection;
+    const { GridFSBucket } = require('mongoose').mongo;
+    const bucket = new GridFSBucket(conn.db);
+
+    const buffer = Buffer.from(image_base64, 'base64');
+    const filename = `rider_item_${orderId}_${Date.now()}.jpg`;
+    const uploadStream = bucket.openUploadStream(filename, {
+      metadata: { orderId, riderId: req.rider.riderId, type: 'item_photo' },
+    });
+
+    uploadStream.on('finish', async () => {
+      if (!order.items_images) order.items_images = [];
+      order.items_images.push({ file_id: uploadStream.id, filename, uploaded_at: new Date() });
+      await order.save();
+      res.json({ success: true, file_id: uploadStream.id.toString(), filename });
+    });
+
+    uploadStream.on('error', () => res.status(500).json({ message: 'Upload failed' }));
+    uploadStream.write(buffer);
+    uploadStream.end();
+  } catch (error) {
+    console.error('❌ Item photo upload error:', error);
+    res.status(500).json({ message: 'Upload failed' });
+  }
+});
+
 // Upload payment screenshot for an order (on delivery)
 router.post('/orders/:orderId/upload-payment-ss', verifyRiderToken, async (req, res) => {
   try {

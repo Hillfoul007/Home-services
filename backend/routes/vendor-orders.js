@@ -960,4 +960,47 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
   }
 });
 
+// ─── Optimization endpoints ───────────────────────────────────────────────────
+
+const optimizationEngine = require("../services/optimizationEngine");
+
+/**
+ * GET /vendor/optimization/suggestions
+ * Returns smart assignment suggestions, route combining, idle alerts, and 7-day KPIs.
+ * Uses live socket snapshot if available.
+ */
+router.get("/optimization/suggestions", verifyVendorToken, async (req, res) => {
+  try {
+    // Pull live rider state from socket server (in-memory)
+    let socketSnapshot = [];
+    try {
+      const { getActiveRidersSnapshot } = require("../socketServer");
+      socketSnapshot = getActiveRidersSnapshot();
+    } catch {
+      // socketServer may not be initialised in test mode
+    }
+
+    const result = await optimizationEngine.getOptimizationSuggestions(socketSnapshot);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error("❌ Optimization suggestions error:", err);
+    res.status(500).json({ success: false, error: "Failed to generate suggestions" });
+  }
+});
+
+/**
+ * GET /vendor/optimization/kpis?days=7
+ * Returns per-rider KPIs for the last N days.
+ */
+router.get("/optimization/kpis", verifyVendorToken, async (req, res) => {
+  try {
+    const days = Math.max(1, Math.min(90, parseInt(req.query.days) || 7));
+    const kpis = await optimizationEngine.getRiderKPIs(days);
+    res.json({ success: true, kpis, days });
+  } catch (err) {
+    console.error("❌ KPI fetch error:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch KPIs" });
+  }
+});
+
 module.exports = router;

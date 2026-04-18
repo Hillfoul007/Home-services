@@ -2318,6 +2318,47 @@ const DeskDashboard: React.FC = () => {
 
 // ─── Optimize Tab ────────────────────────────────────────────────────────────
 
+// Types for optimization API response
+interface AssignSuggestion {
+  type: "assign";
+  orderId: string;
+  orderCustomId: string;
+  customerName: string;
+  address: string;
+  riderId: string;
+  riderName: string;
+  riderPhone: string;
+  distanceKm: number;
+  etaMinutes: number;
+  reason: string;
+}
+interface CombineSuggestion {
+  type: "combine";
+  orderIds: string[];
+  orderCustomIds: string[];
+  customerNames: string[];
+  riderCount: number;
+  orderCount: number;
+  reason: string;
+  savings: string;
+}
+interface IdleAlert {
+  riderId: string;
+  name: string;
+  phone: string;
+  idleMinutes: number;
+}
+interface RiderKPI {
+  riderId: string;
+  name: string;
+  phone: string;
+  completedAllTime: number;
+  completedInPeriod: number;
+  onTimePercent: number | null;
+  avgDeliveryMinutes: number | null;
+  breaches: number;
+}
+
 function OptimizeTab({
   sections,
   riders,
@@ -2329,6 +2370,67 @@ function OptimizeTab({
   token: string;
   fetchDashboard: () => void;
 }) {
+  const [assignments, setAssignments] = useState<AssignSuggestion[]>([]);
+  const [combining, setCombining] = useState<CombineSuggestion[]>([]);
+  const [idleAlerts, setIdleAlerts] = useState<IdleAlert[]>([]);
+  const [kpis, setKpis] = useState<RiderKPI[]>([]);
+  const [optLoading, setOptLoading] = useState(false);
+  const [optError, setOptError] = useState<string | null>(null);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  const fetchOptimization = useCallback(async () => {
+    if (!token) return;
+    setOptLoading(true);
+    setOptError(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/vendor/optimization/suggestions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAssignments(data.assignments || []);
+        setCombining(data.combining || []);
+        setIdleAlerts(data.idleAlerts || []);
+        setKpis(data.kpis || []);
+      } else {
+        setOptError(data.error || "Failed to load");
+      }
+    } catch {
+      setOptError("Network error");
+    } finally {
+      setOptLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchOptimization(); }, [fetchOptimization]);
+
+  // Apply a smart assignment: assign order to the suggested rider
+  const applyAssignment = async (suggestion: AssignSuggestion) => {
+    setApplyingId(suggestion.orderId);
+    try {
+      const res = await fetch(
+        `${getApiUrl()}/vendor/orders/orders/${suggestion.orderId}/assign-rider`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ riderId: suggestion.riderId, riderPhone: suggestion.riderPhone }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`✅ Assigned to ${suggestion.riderName}`);
+        setAssignments(prev => prev.filter(s => s.orderId !== suggestion.orderId));
+        fetchDashboard();
+      } else {
+        toast.error(data.error || data.message || "Assignment failed");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setApplyingId(null);
+    }
+  };
+
   // Group orders by nearby addresses for pickup (created + pickup_assigned) and delivery (ready_for_delivery)
   // Combine pickups and deliveries together for unified assignment
   const pickupOrders = [...sections.created, ...(sections.picked_up || [])].filter(o => o.address);
@@ -2415,6 +2517,116 @@ function OptimizeTab({
 
   return (
     <div className="space-y-5">
+
+      {/* ── Smart Assignment ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="font-semibold text-gray-800">🤖 Smart Assignment</h2>
+            <p className="text-xs text-gray-500">Nearest available rider for each unassigned order.</p>
+          </div>
+          <button onClick={fetchOptimization} disabled={optLoading}
+            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-60 shrink-0">
+            {optLoading ? "…" : "↻ Refresh"}
+          </button>
+        </div>
+
+        {optError && (
+          <p className="text-xs text-red-500 mb-2">{optError}</p>
+        )}
+
+        {idleAlerts.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {idleAlerts.map(a => (
+              <span key={a.riderId} className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-medium flex items-center gap-1">
+                ⚠️ {a.name} idle {a.idleMinutes}m
+              </span>
+            ))}
+          </div>
+        )}
+
+        {!optLoading && assignments.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <div className="text-3xl mb-2">✅</div>
+            <p className="text-sm">No unassigned orders — all caught up!</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {assignments.map(s => (
+              <div key={s.orderId} className="flex items-center justify-between gap-3 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-sm text-gray-900">{s.orderCustomId}</span>
+                    <span className="text-xs text-gray-500 truncate">{s.customerName}</span>
+                  </div>
+                  <p className="text-xs text-blue-700 font-medium mt-0.5">
+                    🛵 {s.riderName} — {s.distanceKm} km · ETA ~{s.etaMinutes} min
+                  </p>
+                </div>
+                <button
+                  onClick={() => applyAssignment(s)}
+                  disabled={applyingId === s.orderId}
+                  className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg text-xs font-semibold"
+                >
+                  {applyingId === s.orderId ? "…" : "Assign"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Rider KPIs ───────────────────────────────────────────────────── */}
+      {kpis.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <h2 className="font-semibold text-gray-800 mb-3">📊 Rider Performance (7 days)</h2>
+          <div className="overflow-x-auto -mx-1">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-100">
+                  <th className="text-left py-1.5 px-2">Rider</th>
+                  <th className="text-center py-1.5 px-2">Done</th>
+                  <th className="text-center py-1.5 px-2">On-Time</th>
+                  <th className="text-center py-1.5 px-2">Avg Time</th>
+                  <th className="text-center py-1.5 px-2">Breaches</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {kpis
+                  .filter(k => k.completedInPeriod > 0 || k.completedAllTime > 0)
+                  .sort((a, b) => b.completedInPeriod - a.completedInPeriod)
+                  .map(k => (
+                    <tr key={k.riderId} className="hover:bg-gray-50">
+                      <td className="py-2 px-2 font-medium text-gray-900">{k.name}</td>
+                      <td className="py-2 px-2 text-center font-bold text-blue-700">{k.completedInPeriod}</td>
+                      <td className="py-2 px-2 text-center">
+                        {k.onTimePercent !== null ? (
+                          <span className={`font-semibold ${k.onTimePercent >= 80 ? "text-green-600" : k.onTimePercent >= 60 ? "text-yellow-600" : "text-red-600"}`}>
+                            {k.onTimePercent}%
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-center text-gray-600">
+                        {k.avgDeliveryMinutes !== null ? `${k.avgDeliveryMinutes}m` : "—"}
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        {k.breaches > 0 ? (
+                          <span className="text-red-600 font-semibold">{k.breaches}</span>
+                        ) : (
+                          <span className="text-green-600">✓</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Route Optimizer ──────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
         <h2 className="font-semibold text-gray-800 mb-1">Route Optimizer</h2>
         <p className="text-xs text-gray-500 mb-4">Combine nearby orders for efficient pickup or delivery by the same rider.</p>

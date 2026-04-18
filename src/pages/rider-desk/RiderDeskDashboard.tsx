@@ -91,8 +91,10 @@ const RiderDeskDashboard: React.FC = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-  const [codModal, setCodModal] = useState<string | null>(null); // orderId
+  const [codModal, setCodModal] = useState<string | null>(null);
   const [codAmount, setCodAmount] = useState("");
+  // item photos staged per order before upload
+  const [stagedItemPhotos, setStagedItemPhotos] = useState<Record<string, { preview: string; file: File }[]>>({});
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const [locationStatus, setLocationStatus] = useState<"requesting" | "active" | "denied" | "unavailable">("requesting");
@@ -440,40 +442,117 @@ const RiderDeskDashboard: React.FC = () => {
     finally { setActionLoading(a => ({ ...a, [orderId + "_cod"]: false })); }
   };
 
-  // ── upload image (base64) ──
-  const uploadImage = (orderId: string, file: File, type: "pickup" | "payment") => {
-    const key = orderId + "_" + type;
-    setUploading(u => ({ ...u, [key]: true }));
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-      try {
-        const base64 = (reader.result as string).split(",")[1];
-        const endpoint = type === "pickup"
-          ? `${getApiUrl()}/riders/orders/${orderId}/upload-pickup-slip`
-          : `${getApiUrl()}/riders/orders/${orderId}/upload-payment-ss`;
-
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders(token) },
-          body: JSON.stringify({ image_base64: base64 }),
-        });
-        const data = await res.json();
-        if (!res.ok) { toast.error(data.message || "Upload failed"); return; }
-
-        toast.success(type === "pickup" ? "Item slip uploaded!" : "Payment SS uploaded!");
-        if (type === "pickup") await doAction(orderId, "start");
-        if (type === "payment") await doAction(orderId, "complete");
-        fetchOrders();
-      } catch { toast.error("Upload error"); }
-      finally { setUploading(u => ({ ...u, [key]: false })); }
-    };
-    reader.onerror = () => {
-      toast.error("Failed to read file");
-      setUploading(u => ({ ...u, [key]: false }));
-    };
+  // ── Generic base64 upload helper ──
+  const uploadBase64 = async (orderId: string, file: File, endpoint: string, uploadKey: string) => {
+    setUploading(u => ({ ...u, [uploadKey]: true }));
+    return new Promise<{ file_id: string } | null>((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        try {
+          const base64 = (reader.result as string).split(",")[1];
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders(token) },
+            body: JSON.stringify({ image_base64: base64 }),
+          });
+          const data = await res.json();
+          if (!res.ok) { toast.error(data.message || "Upload failed"); resolve(null); return; }
+          resolve(data);
+        } catch { toast.error("Upload error"); resolve(null); }
+        finally { setUploading(u => ({ ...u, [uploadKey]: false })); }
+      };
+      reader.onerror = () => { toast.error("Failed to read file"); setUploading(u => ({ ...u, [uploadKey]: false })); resolve(null); };
+    });
   };
+
+  // ── Stage item photos (shown inline, uploaded in batch) ──
+  const stageItemPhoto = (orderId: string, file: File) => {
+    const preview = URL.createObjectURL(file);
+    setStagedItemPhotos(p => ({ ...p, [orderId]: [...(p[orderId] || []), { preview, file }] }));
+  };
+
+  const removeStagedPhoto = (orderId: string, idx: number) => {
+    setStagedItemPhotos(p => {
+      const copy = [...(p[orderId] || [])];
+      URL.revokeObjectURL(copy[idx].preview);
+      copy.splice(idx, 1);
+      return { ...p, [orderId]: copy };
+    });
+  };
+
+  // ── Upload all staged item photos ──
+  const uploadItemPhotos = async (orderId: string) => {
+    const photos = stagedItemPhotos[orderId] || [];
+    if (photos.length === 0) return true; // none staged = OK (optional)
+    setUploading(u => ({ ...u, [orderId + "_items"]: true }));
+    let allOk = true;
+    for (const { file } of photos) {
+      const result = await uploadBase64(
+        orderId, file,
+        `${getApiUrl()}/riders/orders/${orderId}/upload-item-photo`,
+        orderId + "_item_single"
+      );
+      if (!result) { allOk = false; }
+    }
+    setUploading(u => ({ ...u, [orderId + "_items"]: false }));
+    if (allOk) setStagedItemPhotos(p => { const n = { ...p }; delete n[orderId]; return n; });
+    return allOk;
+  };
+
+  // ── Upload pickup slip (mandatory) ──
+  const uploadPickupSlip = async (orderId: string, file: File) => {
+    const result = await uploadBase64(
+      orderId, file,
+      `${getApiUrl()}/riders/orders/${orderId}/upload-pickup-slip`,
+      orderId + "_slip"
+    );
+    if (result) { toast.success("Slip uploaded!"); fetchOrders(); }
+  };
+
+  // ── Mark pickup complete (slip must exist) ──
+  const markPickupComplete = async (orderId: string) => {
+    const order = activeOrders.find(o => o._id === orderId);
+    if (!order) return;
+
+    // Upload staged item photos first (optional — don't block if 0)
+    const itemsOk = await uploadItemPhotos(orderId);
+    if (!itemsOk) { toast.error("Some item photos failed. Retry or skip."); return; }
+
+    if (!(order.rider_pickup_slips?.length)) {
+      toast.error("Please upload the pickup slip first");
+      return;
+    }
+    await doAction(orderId, "start");
+    emitStatusUpdate("assigned", orderId);
+  };
+
+  // ── Upload payment photo ──
+  const uploadPaymentPhoto = async (orderId: string, file: File) => {
+    const result = await uploadBase64(
+      orderId, file,
+      `${getApiUrl()}/riders/orders/${orderId}/upload-payment-ss`,
+      orderId + "_payment"
+    );
+    if (result) { toast.success("Payment photo uploaded!"); fetchOrders(); }
+  };
+
+  // ── Mark delivered ──
+  const markDelivered = async (orderId: string) => {
+    const order = activeOrders.find(o => o._id === orderId);
+    if (!order) return;
+    if (!(order.rider_payment_slips?.length)) {
+      toast.error("Please upload the payment photo first");
+      return;
+    }
+    await doAction(orderId, "complete");
+    const remaining = activeOrders.filter(o => o._id !== orderId);
+    emitStatusUpdate(remaining.length > 0 ? "assigned" : "idle", remaining[0]?._id || null);
+  };
+
+  // ── Factory navigation ──
+  const FACTORY_MAPS_URL = "https://www.google.com/maps/place/Laundrify/@28.4486339,77.0438923,17z/data=!3m1!4b1!4m6!3m5!1s0x390d19f4789f36c5:0x7a811d2626e2b68b!8m2!3d28.4486339!4d77.0438923!16s%2Fg%2F11n52r7mrj?hl=en&entry=ttu&g_ep=EgoyMDI2MDQxNS4wIKXMDSoASAFQAw%3D%3D";
+  const goToFactory = () => window.open(FACTORY_MAPS_URL, "_blank");
 
   const logout = () => {
     if (watchIdRef.current !== null) {
@@ -494,75 +573,56 @@ const RiderDeskDashboard: React.FC = () => {
     const hasPaymentSS = (order.rider_payment_slips?.length ?? 0) > 0;
     const hasItemsImg = (order.items_images?.length ?? 0) > 0;
     const hasVendorSlip = (order.vendor_payment_slips?.length ?? 0) > 0;
-    const busy = actionLoading[order._id];
     const amount = (order.final_amount ?? order.total_price ?? 0);
-
-    // Determine assignment type from order status
     const isPickupOrder = order.status === "pickup_assigned";
     const isDeliveryOrder = ["delivery_assigned", "in_transit"].includes(order.status || "");
-    const assignmentLabel = isPickupOrder ? "🧺 Pickup" : isDeliveryOrder ? "🚚 Delivery" : "";
+    const staged = stagedItemPhotos[order._id] || [];
+    const slipUploading = uploading[order._id + "_slip"];
+    const paymentUploading = uploading[order._id + "_payment"];
+    const itemsUploading = uploading[order._id + "_items"];
+    const completeBusy = actionLoading[order._id];
+    const imgUrl = (fileId: string) => `${getApiUrl()}/riders/public/orders/${order._id}/slip/${fileId}`;
 
     return (
       <div key={order._id} className="bg-white rounded-xl border border-gray-100 shadow-sm mb-3 overflow-hidden">
-        {/* ── header ── */}
-        <button
-          className="w-full text-left px-4 py-3 flex items-center justify-between"
-          onClick={() => setExpandedId(expanded ? null : order._id)}
-        >
+
+        {/* ── Header ── */}
+        <button className="w-full text-left px-4 py-3 flex items-center justify-between"
+          onClick={() => setExpandedId(expanded ? null : order._id)}>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-sm">
-                {order.custom_order_id || order._id.slice(-6).toUpperCase()}
-              </span>
+              <span className="font-semibold text-sm">{order.custom_order_id || order._id.slice(-6).toUpperCase()}</span>
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${RIDER_STATUS_COLORS[rs] || "bg-gray-100 text-gray-600"}`}>
                 {RIDER_STATUS_LABELS[rs] || rs}
               </span>
-              {assignmentLabel && (
-                <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">{assignmentLabel}</span>
-              )}
-              {order.cod_collected && (
-                <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">COD ✓</span>
-              )}
+              {isPickupOrder && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">🧺 Pickup</span>}
+              {isDeliveryOrder && <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">🚚 Delivery</span>}
+              {order.cod_collected && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">COD ✓</span>}
             </div>
-            <p className="text-xs text-gray-500 mt-0.5 truncate">
-              {order.name} · ₹{amount.toLocaleString()}
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{order.name} · ₹{amount.toLocaleString()}</p>
           </div>
           <span className="text-gray-400 text-xs ml-2">{expanded ? "▲" : "▼"}</span>
         </button>
 
-        {/* ── Quick Navigate bar (always visible for active orders) ── */}
+        {/* ── Quick Navigate (always visible for active) ── */}
         {!isDone && order.address && (
           <div className="px-4 pb-3">
-            <button
-              onClick={() => openMapsToAddress(order.address!, order.mapsLink)}
-              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-            >
-              <span>🗺️</span> Navigate to {isPickupOrder ? "Customer" : isDeliveryOrder ? "Customer" : "Address"}
+            <button onClick={() => openMapsToAddress(order.address!, order.mapsLink)}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+              🗺️ Navigate to Customer
             </button>
           </div>
         )}
 
         {expanded && (
           <div className="border-t border-gray-50 px-4 py-3 space-y-4">
-            {/* ── assignment type banner ── */}
-            {!isDone && (
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${isPickupOrder ? "bg-purple-50 text-purple-700" : "bg-orange-50 text-orange-700"}`}>
-                <span>{isPickupOrder ? "🧺" : "🚚"}</span>
-                <span>{isPickupOrder ? "Pickup — Upload slip & mark picked up" : "Delivery — Collect payment, upload SS & mark delivered"}</span>
-              </div>
-            )}
 
-            {/* ── customer info ── */}
+            {/* Customer info */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-400">👤</span>
-                <span className="font-medium">{order.name}</span>
-              </div>
+              <div className="flex items-center gap-2 text-sm"><span className="text-gray-400">👤</span><span className="font-medium">{order.name}</span></div>
               {order.phone && (
                 <a href={`tel:${order.phone}`} className="flex items-center gap-2 text-blue-600 text-sm">
-                  <span>📞</span>
-                  <span className="font-semibold">{order.phone}</span>
+                  <span>📞</span><span className="font-semibold">{order.phone}</span>
                 </a>
               )}
               {order.address && (
@@ -573,25 +633,7 @@ const RiderDeskDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* ── timing ── */}
-            {(order.delivery_date || order.assignedAt) && (
-              <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs space-y-1">
-                {order.assignedAt && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Assigned</span>
-                    <span>{timeSince(order.assignedAt)}</span>
-                  </div>
-                )}
-                {order.delivery_date && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Expected delivery</span>
-                    <span className="font-medium">{order.delivery_date}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── cart summary ── */}
+            {/* Cart summary */}
             {order.item_prices && order.item_prices.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-1">Items</p>
@@ -603,24 +645,191 @@ const RiderDeskDashboard: React.FC = () => {
                     </div>
                   ))}
                   <div className="flex justify-between px-3 py-2 font-bold bg-gray-100 rounded-b-lg">
-                    <span>Total</span>
-                    <span>₹{amount.toLocaleString()}</span>
+                    <span>Total</span><span>₹{amount.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ── uploaded slips & images — visible to rider ── */}
-            {(hasItemsImg || hasPickupSlip || hasPaymentSS || hasVendorSlip) && (
+            {/* ════════ PICKUP TASK ════════ */}
+            {!isDone && isPickupOrder && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-700 text-sm font-semibold">
+                  🧺 Pickup Task — follow steps below
+                </div>
+
+                {/* STEP 1 – Item photos (optional, any number) */}
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-gray-700">
+                    📷 Step 1 — Item Photos <span className="text-gray-400 font-normal">(optional, any number)</span>
+                  </p>
+
+                  {/* Staged previews */}
+                  {staged.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {staged.map((p, idx) => (
+                        <div key={idx} className="relative">
+                          <img src={p.preview} alt="item" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                          <button
+                            onClick={() => removeStagedPhoto(order._id, idx)}
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center leading-none"
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Already uploaded */}
+                  {hasItemsImg && (
+                    <div className="flex gap-2 flex-wrap">
+                      {(order.items_images || []).map(img => (
+                        <a key={img.file_id} href={imgUrl(img.file_id)} target="_blank" rel="noreferrer">
+                          <img src={imgUrl(img.file_id)} alt="uploaded"
+                            className="w-16 h-16 object-cover rounded-lg border border-green-200 ring-1 ring-green-400" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg border border-purple-300 bg-purple-50 text-purple-700 text-xs font-semibold cursor-pointer">
+                      <input type="file" accept="image/*" capture="environment" multiple className="hidden"
+                        onChange={e => { Array.from(e.target.files || []).forEach(f => stageItemPhoto(order._id, f)); e.target.value = ""; }} />
+                      📸 Camera
+                    </label>
+                    <label className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold cursor-pointer">
+                      <input type="file" accept="image/*" multiple className="hidden"
+                        onChange={e => { Array.from(e.target.files || []).forEach(f => stageItemPhoto(order._id, f)); e.target.value = ""; }} />
+                      🖼️ Gallery
+                    </label>
+                  </div>
+
+                  {staged.length > 0 && (
+                    <p className="text-[11px] text-purple-600">{staged.length} photo{staged.length > 1 ? "s" : ""} staged — will be uploaded when you mark pickup complete</p>
+                  )}
+                </div>
+
+                {/* STEP 2 – Pickup slip (mandatory) */}
+                <div className="rounded-xl border-2 border-dashed border-purple-300 bg-purple-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-purple-800">
+                    🧾 Step 2 — Upload Pickup Slip <span className="text-red-500">*required</span>
+                  </p>
+                  {hasPickupSlip && (
+                    <div className="flex gap-2 flex-wrap">
+                      {(order.rider_pickup_slips || []).map(s => (
+                        <a key={s.file_id} href={imgUrl(s.file_id)} target="_blank" rel="noreferrer">
+                          <img src={imgUrl(s.file_id)} alt="slip"
+                            className="w-16 h-16 object-cover rounded-lg border border-green-300 ring-2 ring-green-400" />
+                        </a>
+                      ))}
+                      <span className="self-center text-xs text-green-700 font-semibold">✓ Uploaded</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <label className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border-2 text-xs font-semibold cursor-pointer ${hasPickupSlip ? "border-green-400 bg-green-50 text-green-700" : "border-purple-400 bg-white text-purple-700"}`}>
+                      <input type="file" accept="image/*" capture="environment" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPickupSlip(order._id, f); e.target.value = ""; }}
+                        disabled={slipUploading} />
+                      {slipUploading ? "Uploading…" : hasPickupSlip ? "📸 Re-take Slip" : "📸 Take Slip Photo"}
+                    </label>
+                    <label className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPickupSlip(order._id, f); e.target.value = ""; }}
+                        disabled={slipUploading} />
+                      🖼️ Gallery
+                    </label>
+                  </div>
+                </div>
+
+                {/* STEP 3 – Mark pickup complete */}
+                <button
+                  onClick={() => markPickupComplete(order._id)}
+                  disabled={!hasPickupSlip || completeBusy || itemsUploading}
+                  className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center gap-2"
+                >
+                  {completeBusy || itemsUploading
+                    ? "Processing…"
+                    : hasPickupSlip
+                    ? "✅ Mark Pickup Complete"
+                    : "⬆️ Upload slip to continue"}
+                </button>
+              </div>
+            )}
+
+            {/* ════════ DELIVERY TASK ════════ */}
+            {!isDone && isDeliveryOrder && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 text-sm font-semibold">
+                  🚚 Delivery Task — follow steps below
+                </div>
+
+                {/* COD collection */}
+                {!order.cod_collected ? (
+                  <button
+                    onClick={() => { setCodModal(order._id); setCodAmount(String(amount)); }}
+                    className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl text-sm"
+                  >
+                    💰 Collect Payment (₹{amount.toLocaleString()})
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                    ✓ <span className="font-medium">Payment Collected: ₹{(order.cod_amount || amount).toLocaleString()}</span>
+                  </div>
+                )}
+
+                {/* Payment photo (mandatory) */}
+                <div className="rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-orange-800">
+                    💳 Upload Payment Photo <span className="text-red-500">*required</span>
+                  </p>
+                  {hasPaymentSS && (
+                    <div className="flex gap-2 flex-wrap">
+                      {[...(order.rider_payment_slips || []), ...(order.vendor_payment_slips || [])].map(s => (
+                        <a key={s.file_id} href={imgUrl(s.file_id)} target="_blank" rel="noreferrer">
+                          <img src={imgUrl(s.file_id)} alt="payment"
+                            className="w-16 h-16 object-cover rounded-lg border border-green-300 ring-2 ring-green-400" />
+                        </a>
+                      ))}
+                      <span className="self-center text-xs text-green-700 font-semibold">✓ Uploaded</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <label className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border-2 text-xs font-semibold cursor-pointer ${hasPaymentSS ? "border-green-400 bg-green-50 text-green-700" : "border-orange-400 bg-white text-orange-700"}`}>
+                      <input type="file" accept="image/*" capture="environment" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentPhoto(order._id, f); e.target.value = ""; }}
+                        disabled={paymentUploading} />
+                      {paymentUploading ? "Uploading…" : hasPaymentSS ? "📸 Re-take" : "📸 Take Payment Photo"}
+                    </label>
+                    <label className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentPhoto(order._id, f); e.target.value = ""; }}
+                        disabled={paymentUploading} />
+                      🖼️ Gallery
+                    </label>
+                  </div>
+                </div>
+
+                {/* Mark delivered */}
+                <button
+                  onClick={() => markDelivered(order._id)}
+                  disabled={!hasPaymentSS || completeBusy}
+                  className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+                >
+                  {completeBusy ? "Processing…" : hasPaymentSS ? "✅ Mark Delivered" : "⬆️ Upload payment photo first"}
+                </button>
+              </div>
+            )}
+
+            {/* Uploaded files (done orders) */}
+            {isDone && (hasItemsImg || hasPickupSlip || hasPaymentSS || hasVendorSlip) && (
               <div className="space-y-2">
                 {hasItemsImg && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">📷 Order Photos (Desk)</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">📷 Item Photos</p>
                     <div className="flex gap-2 flex-wrap">
                       {(order.items_images || []).map(img => (
-                        <a key={img.file_id} href={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${img.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${img.file_id}`} alt="item"
-                            className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                        <a key={img.file_id} href={imgUrl(img.file_id)} target="_blank" rel="noreferrer">
+                          <img src={imgUrl(img.file_id)} alt="item" className="w-14 h-14 object-cover rounded-lg border" />
                         </a>
                       ))}
                     </div>
@@ -628,12 +837,11 @@ const RiderDeskDashboard: React.FC = () => {
                 )}
                 {hasPickupSlip && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">🧺 Pickup Slips</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">🧾 Pickup Slip</p>
                     <div className="flex gap-2 flex-wrap">
                       {(order.rider_pickup_slips || []).map(s => (
-                        <a key={s.file_id} href={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="slip"
-                            className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                        <a key={s.file_id} href={imgUrl(s.file_id)} target="_blank" rel="noreferrer">
+                          <img src={imgUrl(s.file_id)} alt="slip" className="w-14 h-14 object-cover rounded-lg border" />
                         </a>
                       ))}
                     </div>
@@ -641,75 +849,15 @@ const RiderDeskDashboard: React.FC = () => {
                 )}
                 {(hasPaymentSS || hasVendorSlip) && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1">💳 Payment Slips</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">💳 Payment Photo</p>
                     <div className="flex gap-2 flex-wrap">
                       {[...(order.rider_payment_slips || []), ...(order.vendor_payment_slips || [])].map(s => (
-                        <a key={s.file_id} href={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`${getApiUrl()}/riders/public/orders/${order._id}/slip/${s.file_id}`} alt="payment"
-                            className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                        <a key={s.file_id} href={imgUrl(s.file_id)} target="_blank" rel="noreferrer">
+                          <img src={imgUrl(s.file_id)} alt="payment" className="w-14 h-14 object-cover rounded-lg border" />
                         </a>
                       ))}
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* ── actions (only on active orders) ── */}
-            {!isDone && (
-              <div className="space-y-2">
-                {/* PICKUP: just upload slip → auto-marks picked up */}
-                {isPickupOrder && (
-                  <div className="space-y-2">
-                    <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPickupSlip ? "border-green-400 bg-green-50 text-green-700" : "border-purple-300 bg-purple-50 text-purple-700"}`}>
-                      <input type="file" accept="image/*" capture="environment" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
-                        disabled={uploading[order._id + "_pickup"]}
-                      />
-                      {uploading[order._id + "_pickup"] ? "Uploading..." : hasPickupSlip ? "✓ Slip Uploaded — Picked Up!" : "📸 Take Photo & Mark Picked Up"}
-                    </label>
-                    <label className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium cursor-pointer border border-gray-300 bg-gray-50 text-gray-700">
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "pickup"); e.target.value = ""; }}
-                        disabled={uploading[order._id + "_pickup"]}
-                      />
-                      🖼️ Choose from Gallery
-                    </label>
-                  </div>
-                )}
-
-                {/* DELIVERY: collect payment + upload SS → auto-marks delivered */}
-                {isDeliveryOrder && (
-                  <>
-                    {!order.cod_collected && (
-                      <button
-                        onClick={() => { setCodModal(order._id); setCodAmount(String(amount)); }}
-                        className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl text-sm"
-                      >
-                        💰 Collect Payment (₹{amount.toLocaleString()})
-                      </button>
-                    )}
-                    {order.cod_collected && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
-                        <span>✓</span>
-                        <span className="font-medium">Payment Collected: ₹{(order.cod_amount || amount).toLocaleString()}</span>
-                      </div>
-                    )}
-                    <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold cursor-pointer border-2 border-dashed ${hasPaymentSS ? "border-green-400 bg-green-50 text-green-700" : "border-orange-300 bg-orange-50 text-orange-700"}`}>
-                      <input type="file" accept="image/*" capture="environment" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "payment"); e.target.value = ""; }}
-                        disabled={uploading[order._id + "_payment"]}
-                      />
-                      {uploading[order._id + "_payment"] ? "Uploading..." : hasPaymentSS ? "✓ SS Uploaded — Marked Delivered!" : "📸 Take Payment Photo & Mark Delivered"}
-                    </label>
-                    <label className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium cursor-pointer border border-gray-300 bg-gray-50 text-gray-700">
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(order._id, f, "payment"); e.target.value = ""; }}
-                        disabled={uploading[order._id + "_payment"]}
-                      />
-                      🖼️ Choose from Gallery
-                    </label>
-                  </>
                 )}
               </div>
             )}
@@ -731,6 +879,12 @@ const RiderDeskDashboard: React.FC = () => {
             <p className="text-xs text-gray-400">{riderInfo?.phone}</p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={goToFactory}
+              className="text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg px-3 py-1.5 font-semibold flex items-center gap-1"
+            >
+              🏭 Factory
+            </button>
             <button onClick={logout} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5">
               Logout
             </button>
@@ -793,6 +947,14 @@ const RiderDeskDashboard: React.FC = () => {
       </header>
 
       <main className="p-4 max-w-lg mx-auto">
+        {/* Return to factory */}
+        <button
+          onClick={goToFactory}
+          className="w-full mb-4 py-2.5 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-md"
+        >
+          🏭 Get Back to Factory
+        </button>
+
         {/* summary bar */}
         {activeOrders.length > 0 && (
           <div className="mb-4 space-y-2">
