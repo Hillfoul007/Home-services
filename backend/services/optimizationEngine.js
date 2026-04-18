@@ -10,6 +10,53 @@
 
 const Booking = require("../models/Booking");
 const Rider = require("../models/Rider");
+const { extractCoordinatesFromGoogleMapsLink } = require("../utils/mapsHelper");
+
+// ─── Geocode via Nominatim (free, no API key) ─────────────────────────────────
+async function geocodeAddress(address) {
+  if (!address) return null;
+  // Add "India" suffix for better results with Indian addresses
+  const query = address.toLowerCase().includes("india") ? address : `${address}, India`;
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+      { headers: { "User-Agent": "laundrify-optimization-engine" }, signal: AbortSignal.timeout(6000) }
+    );
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+  } catch { /* silent — network or timeout */ }
+  return null;
+}
+
+// ─── Resolve coordinates for an order (mapsLink → geocode → null) ─────────────
+// Saves result back to DB so subsequent calls are instant.
+async function resolveCoords(order) {
+  // 1. Already stored
+  if (order.coordinates?.lat && order.coordinates?.lng) {
+    return { lat: order.coordinates.lat, lng: order.coordinates.lng };
+  }
+
+  let coords = null;
+
+  // 2. Extract from mapsLink
+  if (order.mapsLink) {
+    coords = extractCoordinatesFromGoogleMapsLink(order.mapsLink);
+  }
+
+  // 3. Geocode via Nominatim
+  if (!coords && order.address) {
+    coords = await geocodeAddress(order.address);
+  }
+
+  // 4. Persist to DB (non-blocking) so we don't geocode again next time
+  if (coords) {
+    Booking.findByIdAndUpdate(order._id, { coordinates: coords }).catch(() => {});
+  }
+
+  return coords;
+}
 
 // ─── Haversine ────────────────────────────────────────────────────────────────
 function distKm(lat1, lng1, lat2, lng2) {
@@ -53,12 +100,12 @@ function buildRidersWithState(dbRiders, socketSnapshot) {
 async function getAssignmentSuggestions(socketSnapshot) {
   // Orders ready to be dispatched to a rider for delivery
   const readyStatuses = ["pickup_completed", "ready_for_delivery", "rider_pickup_done"];
+  // Fetch ALL unassigned orders regardless of whether coordinates are stored
   const pendingOrders = await Booking.find({
     status: { $in: readyStatuses },
     assignedRider: null,
-    "coordinates.lat": { $ne: null },
   })
-    .select("_id custom_order_id name address coordinates status assignedRider")
+    .select("_id custom_order_id name address mapsLink coordinates status assignedRider")
     .lean();
 
   if (!pendingOrders.length) return [];
@@ -80,10 +127,43 @@ async function getAssignmentSuggestions(socketSnapshot) {
 
   if (!availableRiders.length) return [];
 
+  // Resolve coordinates in parallel (mapsLink extract first, then Nominatim geocode)
+  // Rate-limit Nominatim: process sequentially with a 1.1s gap between geocode calls
+  const coordsCache = new Map();
+  let needsGeocode = false;
+  for (const order of pendingOrders) {
+    if (order.coordinates?.lat && order.coordinates?.lng) {
+      coordsCache.set(String(order._id), { lat: order.coordinates.lat, lng: order.coordinates.lng });
+    } else if (order.mapsLink) {
+      const c = extractCoordinatesFromGoogleMapsLink(order.mapsLink);
+      if (c) {
+        coordsCache.set(String(order._id), c);
+        // Persist so future calls are instant
+        Booking.findByIdAndUpdate(order._id, { coordinates: c }).catch(() => {});
+      } else { needsGeocode = true; }
+    } else { needsGeocode = true; }
+  }
+
+  // Geocode remaining orders sequentially (Nominatim rate limit: 1 req/s)
+  if (needsGeocode) {
+    for (const order of pendingOrders) {
+      if (coordsCache.has(String(order._id))) continue;
+      if (!order.address) continue;
+      const c = await geocodeAddress(order.address);
+      if (c) {
+        coordsCache.set(String(order._id), c);
+        Booking.findByIdAndUpdate(order._id, { coordinates: c }).catch(() => {});
+      }
+      // 1.1s gap between Nominatim calls to respect rate limit
+      await new Promise(r => setTimeout(r, 1100));
+    }
+  }
+
   const suggestions = [];
   for (const order of pendingOrders) {
-    const { lat: oLat, lng: oLng } = order.coordinates || {};
-    if (!oLat || !oLng) continue;
+    const coords = coordsCache.get(String(order._id));
+    if (!coords) continue; // address couldn't be resolved
+    const { lat: oLat, lng: oLng } = coords;
 
     let bestRider = null;
     let bestDist = Infinity;
