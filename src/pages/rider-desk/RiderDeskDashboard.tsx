@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
 import { showLocalNotification } from "@/utils/nativeNotification";
 import { getRiderApiUrl } from "@/lib/riderApi";
+import { io, Socket } from "socket.io-client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -93,57 +94,194 @@ const RiderDeskDashboard: React.FC = () => {
   const [codModal, setCodModal] = useState<string | null>(null); // orderId
   const [codAmount, setCodAmount] = useState("");
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<"requesting" | "active" | "denied" | "unavailable">("requesting");
   const prevIds = useRef<Set<string>>(new Set());
-  const lastLocationSentRef = useRef<number>(0);
   const watchIdRef = useRef<number | null>(null);
+  const currentLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const activeOrdersRef = useRef<AssignedOrder[]>([]);  // always up-to-date for status calc
 
-  // Continuous GPS tracking — sends location to server every 30s
+  // keep activeOrdersRef in sync with state
+  useEffect(() => { activeOrdersRef.current = activeOrders; }, [activeOrders]);
+  // keep currentLocationRef in sync
+  useEffect(() => { currentLocationRef.current = currentLocation; }, [currentLocation]);
+
+  // ── Socket.io refs ─────────────────────────────────────────────────────────
+  const socketRef = useRef<Socket | null>(null);
+  const socketAuthRef = useRef<boolean>(false);
+  const lastSocketSentRef = useRef<number>(0);
+  const lastSentLocRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastHttpSentRef = useRef<number>(0);
+  const offlineQueueRef = useRef<{ lat: number; lng: number; status: string; order_id: string | null; ts: string }[]>([]);
+
+  /** Haversine distance in metres */
+  const distMetres = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371000;
+    const φ1 = (a.lat * Math.PI) / 180, φ2 = (b.lat * Math.PI) / 180;
+    const Δφ = ((b.lat - a.lat) * Math.PI) / 180;
+    const Δλ = ((b.lng - a.lng) * Math.PI) / 180;
+    const x = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  };
+
+  /** Derive real rider status from active orders */
+  const getRiderStatus = (): { status: string; order_id: string | null } => {
+    const orders = activeOrdersRef.current;
+    const inTransit = orders.find(o => o.status === "in_transit" || o.riderStatus === "in_transit");
+    if (inTransit) return { status: "delivering", order_id: inTransit._id };
+    const assigned = orders.find(o => ["pickup_assigned", "delivery_assigned", "assigned"].includes(o.status || ""));
+    if (assigned) return { status: "assigned", order_id: assigned._id };
+    return { status: "idle", order_id: null };
+  };
+
+  // ── Connect Socket.io on mount ──────────────────────────────────────────────
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    const t = localStorage.getItem("rider_desk_token");
+    const info = localStorage.getItem("rider_desk_info");
+    if (!t || !info) return;
 
-    const sendLocationToServer = async (location: { lat: number; lng: number }) => {
+    const rider = JSON.parse(info);
+    const apiUrl = getApiUrl();
+    const socketUrl = apiUrl.startsWith("http")
+      ? apiUrl.replace(/\/api$/, "")
+      : window.location.origin;
+
+    const socket = io(`${socketUrl}/rider`, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
+    });
+
+    socket.on("connect", () => {
+      socket.emit("rider:connect", { rider_id: rider._id, token: t });
+    });
+
+    socket.on("rider:connected", () => {
+      socketAuthRef.current = true;
+      setSocketConnected(true);
+      // Flush offline queue with real status
+      offlineQueueRef.current.forEach(({ lat, lng, status, order_id, ts }) => {
+        socket.emit("rider:location", { rider_id: rider._id, lat, lng, status, order_id, timestamp: ts });
+      });
+      offlineQueueRef.current = [];
+      // Send current status to desk immediately
+      const { status, order_id } = getRiderStatus();
+      socket.emit("rider:status", { rider_id: rider._id, status, order_id });
+    });
+
+    socket.on("disconnect", () => { socketAuthRef.current = false; setSocketConnected(false); });
+
+    socketRef.current = socket;
+    return () => { socket.disconnect(); socketRef.current = null; socketAuthRef.current = false; setSocketConnected(false); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Emit a status-only update (called after order actions) */
+  const emitStatusUpdate = (status: string, order_id: string | null) => {
+    const info = localStorage.getItem("rider_desk_info");
+    if (!info || !socketRef.current?.connected || !socketAuthRef.current) return;
+    const rider = JSON.parse(info);
+    socketRef.current.emit("rider:status", { rider_id: rider._id, status, order_id });
+  };
+
+  // ── GPS watch + send via socket (2.5 s, 10 m filter) ───────────────────────
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("unavailable");
+      return;
+    }
+
+    const sendLocation = async (loc: { lat: number; lng: number }, force = false) => {
       const now = Date.now();
-      if (now - lastLocationSentRef.current < 15000) return;
-      lastLocationSentRef.current = now;
+      const info = localStorage.getItem("rider_desk_info");
+      if (!info) return;
+      const rider = JSON.parse(info);
+      const { status, order_id } = getRiderStatus();
+
+      // ── Socket path (2.5 s throttle + 10 m movement filter) ──
+      if (socketRef.current?.connected && socketAuthRef.current) {
+        if (!force && now - lastSocketSentRef.current < 2500) return;
+        if (!force && lastSentLocRef.current && distMetres(lastSentLocRef.current, loc) < 10) return;
+
+        lastSocketSentRef.current = now;
+        lastSentLocRef.current = loc;
+        socketRef.current.emit("rider:location", {
+          rider_id: rider._id,
+          lat: loc.lat,
+          lng: loc.lng,
+          status,
+          order_id,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // ── HTTP fallback (15 s throttle) ──
+      if (!navigator.onLine) {
+        if (offlineQueueRef.current.length < 20)
+          offlineQueueRef.current.push({ ...loc, status, order_id, ts: new Date().toISOString() });
+        return;
+      }
+      if (!force && now - lastHttpSentRef.current < 15000) return;
+      lastHttpSentRef.current = now;
+      lastSentLocRef.current = loc;
 
       try {
         const t = localStorage.getItem("rider_desk_token");
-        const info = localStorage.getItem("rider_desk_info");
-        if (!t || !info) return;
-        if (!navigator.onLine) return;
-
-        const rider = JSON.parse(info);
+        if (!t) return;
         const apiUrl = getRiderApiUrl("/location");
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 8000);
         await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-          body: JSON.stringify({ riderId: rider._id, location, timestamp: new Date().toISOString() }),
-          signal: controller.signal,
+          body: JSON.stringify({ riderId: rider._id, location: loc, timestamp: new Date().toISOString() }),
+          signal: ctrl.signal,
         });
-        clearTimeout(timeoutId);
-      } catch {
-        // silent — background update
-      }
+        clearTimeout(tid);
+      } catch { /* silent */ }
     };
+
+    // Request permission explicitly first
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCurrentLocation(loc);
+        setLocationStatus("active");
+        sendLocation(loc, true);
+      },
+      (err) => {
+        setLocationStatus(err.code === 1 ? "denied" : "unavailable");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
 
     const wid = navigator.geolocation.watchPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setCurrentLocation(loc);
-        sendLocationToServer(loc);
+        setLocationStatus("active");
+        sendLocation(loc);
       },
-      () => {}, // silent if denied
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      (err) => {
+        if (err.code === 1) setLocationStatus("denied");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
     watchIdRef.current = wid;
 
+    // Periodic force-push every 8 s even when not moving
+    const interval = setInterval(() => {
+      const loc = currentLocationRef.current;
+      if (loc) sendLocation(loc, true);
+    }, 8000);
+
     return () => {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+      clearInterval(interval);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!token) navigate("/rider-desk");
@@ -244,10 +382,17 @@ const RiderDeskDashboard: React.FC = () => {
         complete: "Marked as delivered",
       };
       toast.success(labels[action] || "Updated");
-      // After starting (picked up), open maps for next destination
+      // After starting (picked up), open maps and emit "delivering" status
       if (action === "start") {
+        emitStatusUpdate("delivering", orderId);
         const order = activeOrders.find(o => o._id === orderId);
         if (order?.address) setTimeout(() => openMapsToAddress(order.address!, order.mapsLink), 500);
+      }
+      // After complete (delivered), recalculate status
+      if (action === "complete") {
+        const remaining = activeOrders.filter(o => o._id !== orderId);
+        const hasMore = remaining.length > 0;
+        emitStatusUpdate(hasMore ? "assigned" : "idle", hasMore ? remaining[0]._id : null);
       }
       fetchOrders();
     } catch { toast.error("Network error"); }
@@ -265,6 +410,7 @@ const RiderDeskDashboard: React.FC = () => {
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || "Failed"); return; }
       toast.success("Marked In Transit — opening maps");
+      emitStatusUpdate("delivering", orderId);
       const order = activeOrders.find(o => o._id === orderId);
       if (order?.address) setTimeout(() => openMapsToAddress(order.address!, order.mapsLink), 600);
       fetchOrders();
@@ -578,21 +724,71 @@ const RiderDeskDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ── top bar ── */}
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div>
-          <h1 className="font-bold text-gray-900">{riderInfo?.name || "Rider"}</h1>
-          <p className="text-xs text-gray-400">{riderInfo?.phone}</p>
+      <header className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-bold text-gray-900">{riderInfo?.name || "Rider"}</h1>
+            <p className="text-xs text-gray-400">{riderInfo?.phone}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={logout} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5">
+              Logout
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {riderInfo?.live_location_link && (
-            <a href={riderInfo.live_location_link} target="_blank" rel="noreferrer"
-              className="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-medium">
-              Live GPS
-            </a>
+
+        {/* ── Live tracking status bar ── */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {/* GPS status */}
+          {locationStatus === "active" && (
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+              GPS Active
+            </span>
           )}
-          <button onClick={logout} className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5">
-            Logout
-          </button>
+          {locationStatus === "requesting" && (
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse inline-block" />
+              Requesting GPS…
+            </span>
+          )}
+          {locationStatus === "denied" && (
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium"
+              onClick={() => toast.error("Enable Location in your browser/phone settings and refresh")}>
+              ⚠️ GPS Denied — tap to fix
+            </span>
+          )}
+          {locationStatus === "unavailable" && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+              GPS unavailable
+            </span>
+          )}
+
+          {/* Socket status */}
+          {socketConnected ? (
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+              Live Tracking ON
+            </span>
+          ) : (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+              Connecting…
+            </span>
+          )}
+
+          {/* Current rider status */}
+          {(() => {
+            const { status } = getRiderStatus();
+            if (status === "delivering") return (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">🛵 Delivering</span>
+            );
+            if (status === "assigned") return (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">📦 Assigned</span>
+            );
+            return (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">🟢 Idle</span>
+            );
+          })()}
         </div>
       </header>
 
