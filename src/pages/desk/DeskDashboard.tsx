@@ -5,6 +5,8 @@ import { laundryServices } from "@/data/laundryServices";
 import { getApiUrl } from "@/config/env";
 import { showLocalNotification } from "@/utils/nativeNotification";
 import RiderLiveMap from "@/components/RiderLiveMap";
+import RiderTrackingMap from "@/components/desk/RiderTrackingMap";
+import { useRiderSocket, type RiderSocketState } from "@/hooks/useRiderSocket";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -226,6 +228,24 @@ const DeskDashboard: React.FC = () => {
   // Rider efficiency data
   const [efficiencyData, setEfficiencyData] = useState<any[]>([]);
   const [efficiencyLoading, setEfficiencyLoading] = useState(false);
+
+  // ── Real-time rider tracking via Socket.io ────────────────────────────────
+  const { riderMap, connected: socketConnected, requestSnapshot } = useRiderSocket(token);
+  const [selectedSocketRider, setSelectedSocketRider] = useState<RiderSocketState | null>(null);
+
+  // Merge socket locations into the riders array for the old map + order cards
+  const ridersWithSocketLocation = riders.map(r => {
+    const live = riderMap.get(r._id);
+    if (live?.lat && live?.lng) {
+      return {
+        ...r,
+        location: { lat: live.lat, lng: live.lng },
+        lastLocationUpdate: live.timestamp,
+        isActive: live.connected !== false,
+      };
+    }
+    return r;
+  });
 
   // Rider management
   const [riderForm, setRiderForm] = useState({ name: "", phone: "", live_location_link: "" });
@@ -1686,24 +1706,89 @@ const DeskDashboard: React.FC = () => {
         {/* ══ RIDERS TAB ══ */}
         {tab === "riders" && (
           <div className="space-y-5">
-            {/* ── combined live map ── */}
+            {/* ── Real-time live map (Socket.io) ── */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                <h2 className="font-semibold text-gray-800">
-                  🗺️ Live Rider Map
-                  {riders.filter(r => r.isActive && r.location?.lat && r.location?.lng).length > 0 && (
-                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                      {riders.filter(r => r.isActive && r.location?.lat && r.location?.lng).length} online
+                <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+                  🗺️ Live Rider Tracking
+                  {socketConnected ? (
+                    <span className="flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                      Live
+                    </span>
+                  ) : (
+                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
+                      Connecting…
+                    </span>
+                  )}
+                  {riderMap.size > 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                      {riderMap.size} rider{riderMap.size !== 1 ? "s" : ""}
                     </span>
                   )}
                 </h2>
+                <button
+                  onClick={requestSnapshot}
+                  className="text-xs text-gray-500 hover:text-gray-800 transition-colors px-2 py-1 rounded-lg border border-gray-200 hover:border-gray-400"
+                  title="Refresh rider positions"
+                >
+                  ↻ Refresh
+                </button>
               </div>
               <div className="px-4 pb-4">
-                <RiderLiveMap
-                  riders={riders.filter(r => r.isActive)}
-                  height="280px"
+                <RiderTrackingMap
+                  riders={Array.from(riderMap.values())}
+                  height="420px"
+                  selectedRiderId={selectedSocketRider?.rider_id}
+                  onSelectRider={(r) => setSelectedSocketRider(prev => prev?.rider_id === r.rider_id ? null : r)}
                 />
               </div>
+
+              {/* Selected rider detail panel */}
+              {selectedSocketRider && (
+                <div className="mx-4 mb-4 p-4 rounded-xl border border-orange-200 bg-orange-50">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{selectedSocketRider.name}</p>
+                      {selectedSocketRider.phone && (
+                        <a href={`tel:${selectedSocketRider.phone}`} className="text-xs text-blue-600">{selectedSocketRider.phone}</a>
+                      )}
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          selectedSocketRider.status === 'idle'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          {selectedSocketRider.status === 'idle' ? '🟢 Idle' : '🛵 Delivering'}
+                        </span>
+                        {selectedSocketRider.order_id && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                            Order: {selectedSocketRider.order_id}
+                          </span>
+                        )}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          selectedSocketRider.connected === false
+                            ? 'bg-gray-100 text-gray-500'
+                            : 'bg-green-50 text-green-600'
+                        }`}>
+                          {selectedSocketRider.connected === false ? '⚫ Offline' : '🔵 Online'}
+                        </span>
+                      </div>
+                      {selectedSocketRider.lat && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          {selectedSocketRider.lat.toFixed(5)}, {selectedSocketRider.lng.toFixed(5)}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSelectedSocketRider(null)}
+                      className="text-gray-400 hover:text-gray-700 text-lg leading-none ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* credentials popup */}
@@ -1752,7 +1837,9 @@ const DeskDashboard: React.FC = () => {
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <h2 className="font-semibold text-gray-800 px-4 pt-4 pb-2">Your Riders ({riders.length})</h2>
                 <div className="divide-y divide-gray-50">
-                  {riders.map((r) => (
+                  {ridersWithSocketLocation.map((r) => {
+                    const liveSocket = riderMap.get(r._id);
+                    return (
                     <div key={r._id} className="px-4 py-3">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1760,9 +1847,24 @@ const DeskDashboard: React.FC = () => {
                           <a href={`tel:${r.phone}`} className="text-xs text-blue-600">{r.phone}</a>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                            {r.isActive ? "Active" : "Offline"}
-                          </span>
+                          {/* Live socket badge */}
+                          {liveSocket && liveSocket.connected !== false ? (
+                            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                              Live
+                            </span>
+                          ) : (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                              {r.isActive ? "Active" : "Offline"}
+                            </span>
+                          )}
+                          {liveSocket?.status && liveSocket.connected !== false && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              liveSocket.status === 'idle' ? 'bg-blue-50 text-blue-600' : 'bg-orange-100 text-orange-600'
+                            }`}>
+                              {liveSocket.status === 'idle' ? '🟢 Idle' : '🛵 Delivering'}
+                            </span>
+                          )}
                           <button onClick={() => resetPassword(r._id)} className="text-xs text-orange-600 underline">
                             Reset Password
                           </button>
@@ -1795,11 +1897,12 @@ const DeskDashboard: React.FC = () => {
                           </div>
                         );
                       })()}
-                      {!r.isActive && (
+                      {!r.isActive && liveSocket?.connected === false && (
                         <p className="text-xs text-gray-400 mt-1">Location hidden (rider offline)</p>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

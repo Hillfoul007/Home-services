@@ -586,6 +586,20 @@ router.post('/location', verifyRiderToken, async (req, res) => {
 
     await rider.updateLocation(location.lat, location.lng);
 
+    // Broadcast via Socket.io to desk dashboard (HTTP fallback path)
+    const broadcast = req.app.get("broadcastRiderLocation");
+    if (broadcast) {
+      broadcast(
+        rider._id,
+        location.lat,
+        location.lng,
+        rider.status || "idle",
+        rider.current_order || null,
+        rider.name,
+        rider.phone
+      );
+    }
+
     res.json({
       message: 'Location updated successfully',
       location,

@@ -1,3 +1,4 @@
+const http = require("http");
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -8,6 +9,7 @@ const morgan = require("morgan");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const Notification = require("./models/Notification");
+const { initSocketServer, broadcastRiderLocation, getActiveRidersSnapshot } = require("./socketServer");
 
 // Load environment variables
 dotenv.config();
@@ -990,8 +992,20 @@ const setupKeepAlive = () => {
   }
 };
 
+// ─── Active rider locations REST endpoint (for desk HTTP fallback) ─────────────
+app.get("/api/riders/active-locations", (req, res) => {
+  res.json({ success: true, riders: getActiveRidersSnapshot() });
+});
+
+// ─── Expose broadcast helper so riders.js route can use it ────────────────────
+app.set("broadcastRiderLocation", broadcastRiderLocation);
+
+// ─── Create HTTP server and attach Socket.io ──────────────────────────────────
+const httpServer = http.createServer(app);
+initSocketServer(httpServer);
+
 // Start server with error handling
-const server = app.listen(PORT, () => {
+const server = httpServer.listen(PORT, () => {
   console.log(`🚀 CleanCare Pro server running on port ${PORT}`);
   console.log(`📱 Environment: ${productionConfig.NODE_ENV}`);
   if (productionConfig.isProduction()) {
