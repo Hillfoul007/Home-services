@@ -166,12 +166,31 @@ function initSocketServer(httpServer) {
 
       const state = getRiderState(riderId);
 
-      // 10-metre movement filter – only broadcast if rider moved
+      const now = Date.now();
+      const ts = timestamp || new Date().toISOString();
+
+      // 10-metre movement filter – skip heavy DB write + full broadcast if rider hasn't moved.
+      // But still emit a heartbeat every 15 s so the desk knows the rider is alive.
       if (state?.lat && state?.lng) {
         const dist = distanceMetres(state.lat, state.lng, lat, lng);
         if (dist < 10) {
-          // Still update timestamp so rider stays "active"
-          setRiderState(riderId, { lastSeen: Date.now() });
+          setRiderState(riderId, { lastSeen: now });
+
+          // Heartbeat: let desk know rider is still alive (timestamp update only)
+          const timeSinceLastBroadcast = now - (state.lastBroadcast || 0);
+          if (timeSinceLastBroadcast < 15000) return; // skip if broadcast was recent
+
+          setRiderState(riderId, { lastBroadcast: now });
+          deskNS.emit("rider:location_update", {
+            rider_id: riderId,
+            name: riderInfo?.name || state.name || "Rider",
+            phone: riderInfo?.phone || state.phone || "",
+            lat: state.lat,
+            lng: state.lng,
+            status: state.status || "idle",
+            order_id: state.order_id || null,
+            timestamp: ts,
+          });
           return;
         }
       }
@@ -181,7 +200,8 @@ function initSocketServer(httpServer) {
         lng,
         status: status || "idle",
         order_id: order_id || null,
-        timestamp: timestamp || new Date().toISOString(),
+        timestamp: ts,
+        lastBroadcast: now,
       });
 
       // Persist to MongoDB (non-blocking)
@@ -288,6 +308,7 @@ function broadcastRiderLocation(riderId, lat, lng, status, orderId, name, phone)
     name: name || "Rider",
     phone: phone || "",
     timestamp: new Date().toISOString(),
+    lastBroadcast: Date.now(),
   });
 
   const deskNS = io.of("/desk");
