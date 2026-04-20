@@ -18,10 +18,13 @@ async function geocodeAddress(address) {
   // Add "India" suffix for better results with Indian addresses
   const query = address.toLowerCase().includes("india") ? address : `${address}, India`;
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-      { headers: { "User-Agent": "laundrify-optimization-engine" }, signal: AbortSignal.timeout(6000) }
+      { headers: { "User-Agent": "laundrify-optimization-engine" }, signal: controller.signal }
     );
+    clearTimeout(tid);
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
       return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };

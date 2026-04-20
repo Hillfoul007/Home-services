@@ -975,7 +975,7 @@ router.get("/optimization/suggestions", verifyVendorToken, async (req, res) => {
     let socketSnapshot = [];
     try {
       const { getActiveRidersSnapshot } = require("../socketServer");
-      socketSnapshot = getActiveRidersSnapshot();
+      socketSnapshot = await getActiveRidersSnapshot();
     } catch {
       // socketServer may not be initialised in test mode
     }

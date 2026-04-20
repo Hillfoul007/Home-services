@@ -976,9 +976,10 @@ const setupKeepAlive = () => {
       try {
         const url =
           process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-        const response = await fetch(`${url}/api/health`, {
-          signal: AbortSignal.timeout(10000), // 10 s timeout
-        });
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 10000);
+        const response = await fetch(`${url}/api/health`, { signal: ctrl.signal });
+        clearTimeout(tid);
 
         if (response.ok) {
           console.log("🔄 Keep-alive ping OK");
