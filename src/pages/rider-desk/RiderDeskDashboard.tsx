@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { Capacitor } from "@capacitor/core";
+import type { PluginListenerHandle } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
 import { getApiUrl } from "@/config/env";
 import { showLocalNotification } from "@/utils/nativeNotification";
 import { getRiderApiUrl } from "@/lib/riderApi";
 import { io, Socket } from "socket.io-client";
+import NativeLocation from "@/plugins/NativeLocation";
+import { enqueue, dequeueAll } from "@/utils/locationQueue";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +82,35 @@ interface AssignedOrder {
   pickedUpAt?: string;
 }
 
+// ─── Kalman filter (web / iOS path) ──────────────────────────────────────────
+class KalmanLatLng {
+  private variance = -1;
+  private lat = 0; private lng = 0; private tsMs = 0;
+  private readonly Q: number; // process noise m/s
+  constructor(q = 25) { this.Q = q; }
+  hasEstimate() { return this.variance >= 0; }
+  process(lat: number, lng: number, acc: number, timeMs: number) {
+    const a = Math.max(acc, 1);
+    if (this.variance < 0) { this.lat = lat; this.lng = lng; this.variance = a * a; this.tsMs = timeMs; return; }
+    const dt = Math.max(timeMs - this.tsMs, 0) / 1000;
+    this.variance += dt * this.Q * this.Q;
+    this.tsMs = timeMs;
+    const K = this.variance / (this.variance + a * a);
+    this.lat += K * (lat - this.lat);
+    this.lng += K * (lng - this.lng);
+    this.variance = (1 - K) * this.variance;
+  }
+  getLat() { return this.lat; }
+  getLng() { return this.lng; }
+}
+
+/** Adaptive socket interval based on speed: fast → 2 s, slow → 4 s, stopped → 8 s */
+function adaptiveIntervalMs(speedMs: number) {
+  if (speedMs > 5)  return 2000;  // riding  (> 18 km/h)
+  if (speedMs > 1)  return 4000;  // walking (> 3.6 km/h)
+  return 8000;                    // stopped
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const RiderDeskDashboard: React.FC = () => {
@@ -108,23 +142,16 @@ const RiderDeskDashboard: React.FC = () => {
   // keep currentLocationRef in sync
   useEffect(() => { currentLocationRef.current = currentLocation; }, [currentLocation]);
 
-  // ── Socket.io refs ─────────────────────────────────────────────────────────
-  const socketRef = useRef<Socket | null>(null);
-  const socketAuthRef = useRef<boolean>(false);
+  // ── Socket.io + location refs ──────────────────────────────────────────────
+  const socketRef         = useRef<Socket | null>(null);
+  const socketAuthRef     = useRef<boolean>(false);
   const lastSocketSentRef = useRef<number>(0);
-  const lastSentLocRef = useRef<{ lat: number; lng: number } | null>(null);
-  const lastHttpSentRef = useRef<number>(0);
-  const offlineQueueRef = useRef<{ lat: number; lng: number; status: string; order_id: string | null; ts: string }[]>([]);
-
-  /** Haversine distance in metres */
-  const distMetres = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
-    const R = 6371000;
-    const φ1 = (a.lat * Math.PI) / 180, φ2 = (b.lat * Math.PI) / 180;
-    const Δφ = ((b.lat - a.lat) * Math.PI) / 180;
-    const Δλ = ((b.lng - a.lng) * Math.PI) / 180;
-    const x = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-  };
+  const lastSentLocRef    = useRef<{ lat: number; lng: number } | null>(null);
+  const lastHttpSentRef   = useRef<number>(0);
+  const lastSpeedRef      = useRef<number>(0);         // m/s from last fix
+  const nativeListenerRef = useRef<PluginListenerHandle | null>(null);
+  const kalmanRef         = useRef<KalmanLatLng>(new KalmanLatLng(25));
+  const periodicRef       = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /** Derive real rider status from active orders */
   const getRiderStatus = (): { status: string; order_id: string | null } => {
@@ -138,12 +165,12 @@ const RiderDeskDashboard: React.FC = () => {
 
   // ── Connect Socket.io on mount ──────────────────────────────────────────────
   useEffect(() => {
-    const t = localStorage.getItem("rider_desk_token");
+    const t    = localStorage.getItem("rider_desk_token");
     const info = localStorage.getItem("rider_desk_info");
     if (!t || !info) return;
 
-    const rider = JSON.parse(info);
-    const apiUrl = getApiUrl();
+    const rider     = JSON.parse(info);
+    const apiUrl    = getApiUrl();
     const socketUrl = apiUrl.startsWith("http")
       ? apiUrl.replace(/\/api$/, "")
       : window.location.origin;
@@ -151,32 +178,77 @@ const RiderDeskDashboard: React.FC = () => {
     const socket = io(`${socketUrl}/rider`, {
       transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 8000,
       reconnectionAttempts: Infinity,
+      timeout: 8000,
     });
 
     socket.on("connect", () => {
       socket.emit("rider:connect", { rider_id: rider._id, token: t });
     });
 
-    socket.on("rider:connected", () => {
+    socket.on("rider:connected", async () => {
       socketAuthRef.current = true;
       setSocketConnected(true);
-      // Flush offline queue with real status
-      offlineQueueRef.current.forEach(({ lat, lng, status, order_id, ts }) => {
-        socket.emit("rider:location", { rider_id: rider._id, lat, lng, status, order_id, timestamp: ts });
-      });
-      offlineQueueRef.current = [];
-      // Send current status to desk immediately
+
+      // Flush IndexedDB offline queue
+      const queued = await dequeueAll();
+      if (queued.length > 0) {
+        console.log(`📤 Flushing ${queued.length} offline location updates`);
+        queued.forEach(({ lat, lng, status, order_id, timestamp }) => {
+          socket.emit("rider:location", { rider_id: rider._id, lat, lng, status, order_id, timestamp });
+        });
+      }
+
+      // Sync current order status
       const { status, order_id } = getRiderStatus();
       socket.emit("rider:status", { rider_id: rider._id, status, order_id });
     });
 
     socket.on("disconnect", () => { socketAuthRef.current = false; setSocketConnected(false); });
+    socket.on("error", (e: unknown) => console.warn("[socket] error:", e));
 
     socketRef.current = socket;
-    return () => { socket.disconnect(); socketRef.current = null; socketAuthRef.current = false; setSocketConnected(false); };
+    return () => {
+      socket.disconnect();
+      socketRef.current    = null;
+      socketAuthRef.current = false;
+      setSocketConnected(false);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Permission request + auth persistence for background HTTP tracking ──────
+  // Runs once on mount. Asks for location permission automatically (no manual tap
+  // needed). Also saves the rider's token into Android SharedPreferences so the
+  // native foreground service can HTTP-POST location when the WebView is paused.
+  useEffect(() => {
+    const t    = localStorage.getItem("rider_desk_token");
+    const info = localStorage.getItem("rider_desk_info");
+    if (!t || !info) return;
+
+    const rider = JSON.parse(info);
+
+    // ── 1. Request location permission (asks OS dialog if not yet granted) ──
+    if (Capacitor.isNativePlatform()) {
+      Geolocation.checkPermissions()
+        .then((status) => {
+          const need = status.location !== "granted" || status.coarseLocation !== "granted";
+          if (need) return Geolocation.requestPermissions({ permissions: ["location", "coarseLocation"] });
+        })
+        .catch(() => {
+          // Silently ignore — web fallback still works
+        });
+    }
+
+    // ── 2. Persist auth so foreground service can HTTP-POST when app is closed ──
+    if (Capacitor.isNativePlatform()) {
+      NativeLocation.saveAuth({
+        riderId: rider._id,
+        token:   t,
+        apiUrl:  getRiderApiUrl("/location"),   // full URL the service will POST to
+      }).catch(() => {});
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Emit a status-only update (called after order actions) */
@@ -187,107 +259,171 @@ const RiderDeskDashboard: React.FC = () => {
     socketRef.current.emit("rider:status", { rider_id: rider._id, status, order_id });
   };
 
-  // ── GPS watch + send via socket (2.5 s, 10 m filter) ───────────────────────
+  // ── Location tracking ──────────────────────────────────────────────────────
   useEffect(() => {
+    const info = localStorage.getItem("rider_desk_info");
+    if (!info) return;
+    const rider = JSON.parse(info);
+
+    let destroyed = false; // guard against state updates after unmount
+
+    // ── Shared send ───────────────────────────────────────────────────────────
+    const sendLocation = async (loc: { lat: number; lng: number }, speedMs = 0, force = false) => {
+      if (destroyed) return;
+      const now = Date.now();
+      const { status, order_id } = getRiderStatus();
+      const ts = new Date().toISOString();
+      lastSpeedRef.current = speedMs;
+
+      // WebSocket — adaptive interval by speed
+      if (socketRef.current?.connected && socketAuthRef.current) {
+        const minInterval = force ? 0 : adaptiveIntervalMs(speedMs);
+        if (now - lastSocketSentRef.current < minInterval) return;
+        lastSocketSentRef.current = now;
+        lastSentLocRef.current = loc;
+        socketRef.current.emit("rider:location", {
+          rider_id: rider._id, lat: loc.lat, lng: loc.lng,
+          speed_ms: speedMs, status, order_id, timestamp: ts,
+        });
+        return;
+      }
+
+      // HTTP fallback — 10 s throttle
+      if (!navigator.onLine) { enqueue({ lat: loc.lat, lng: loc.lng, status, order_id, timestamp: ts }); return; }
+      if (!force && now - lastHttpSentRef.current < 10000) return;
+      lastHttpSentRef.current = now;
+      lastSentLocRef.current = loc;
+      try {
+        const t = localStorage.getItem("rider_desk_token");
+        if (!t) return;
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 8000);
+        await fetch(getRiderApiUrl("/location"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+          body: JSON.stringify({ riderId: rider._id, location: loc, timestamp: ts }),
+          signal: ctrl.signal,
+        });
+        clearTimeout(tid);
+      } catch {
+        enqueue({ lat: loc.lat, lng: loc.lng, status, order_id, timestamp: ts });
+      }
+    };
+
+    // ── Web watchPosition + Kalman filter ─────────────────────────────────────
+    // Always start web tracking first — works on both web and native.
+    // Native Fused Location plugin supplements this when available (next rebuild).
     if (!navigator.geolocation) {
       setLocationStatus("unavailable");
       return;
     }
 
-    const sendLocation = async (loc: { lat: number; lng: number }, force = false) => {
-      const now = Date.now();
-      const info = localStorage.getItem("rider_desk_info");
-      if (!info) return;
-      const rider = JSON.parse(info);
-      const { status, order_id } = getRiderStatus();
+    kalmanRef.current = new KalmanLatLng(25);
 
-      // ── Socket path (2.5 s throttle + 10 m movement filter) ──
-      if (socketRef.current?.connected && socketAuthRef.current) {
-        if (!force && now - lastSocketSentRef.current < 2500) return;
-        if (!force && lastSentLocRef.current && distMetres(lastSentLocRef.current, loc) < 10) return;
-
-        lastSocketSentRef.current = now;
-        lastSentLocRef.current = loc;
-        socketRef.current.emit("rider:location", {
-          rider_id: rider._id,
-          lat: loc.lat,
-          lng: loc.lng,
-          status,
-          order_id,
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      // ── HTTP fallback (15 s throttle) ──
-      if (!navigator.onLine) {
-        if (offlineQueueRef.current.length < 20)
-          offlineQueueRef.current.push({ ...loc, status, order_id, ts: new Date().toISOString() });
-        return;
-      }
-      if (!force && now - lastHttpSentRef.current < 15000) return;
-      lastHttpSentRef.current = now;
-      lastSentLocRef.current = loc;
-
-      try {
-        const t = localStorage.getItem("rider_desk_token");
-        if (!t) return;
-        const apiUrl = getRiderApiUrl("/location");
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 8000);
-        await fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-          body: JSON.stringify({ riderId: rider._id, location: loc, timestamp: new Date().toISOString() }),
-          signal: ctrl.signal,
-        });
-        clearTimeout(tid);
-      } catch { /* silent */ }
-    };
-
-    // Request permission explicitly first
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (destroyed) return;
+        const raw = pos.coords;
+        kalmanRef.current.process(raw.latitude, raw.longitude, raw.accuracy, pos.timestamp);
+        const loc = { lat: kalmanRef.current.getLat(), lng: kalmanRef.current.getLng() };
         setCurrentLocation(loc);
         setLocationStatus("active");
-        sendLocation(loc, true);
+        sendLocation(loc, raw.speed ?? 0, true);
       },
-      (err) => {
-        setLocationStatus(err.code === 1 ? "denied" : "unavailable");
-      },
+      (err) => { if (!destroyed) setLocationStatus(err.code === 1 ? "denied" : "unavailable"); },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
 
     const wid = navigator.geolocation.watchPosition(
       (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (destroyed) return;
+        const raw = pos.coords;
+        kalmanRef.current.process(raw.latitude, raw.longitude, raw.accuracy, pos.timestamp);
+        const loc = { lat: kalmanRef.current.getLat(), lng: kalmanRef.current.getLng() };
         setCurrentLocation(loc);
         setLocationStatus("active");
-        sendLocation(loc);
+        sendLocation(loc, raw.speed ?? 0);
       },
-      (err) => {
-        if (err.code === 1) setLocationStatus("denied");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      (err) => { if (!destroyed && err.code === 1) setLocationStatus("denied"); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 }
     );
     watchIdRef.current = wid;
 
-    // Periodic force-push every 8 s even when not moving
-    const interval = setInterval(() => {
+    // Periodic heartbeat — desk stays LIVE even when rider is stationary
+    periodicRef.current = setInterval(() => {
       const loc = currentLocationRef.current;
-      if (loc) sendLocation(loc, true);
+      if (loc && !destroyed) sendLocation(loc, lastSpeedRef.current, true);
     }, 8000);
 
+    // ── Native Fused Location (supplemental — only active after native rebuild) ─
+    if (Capacitor.isNativePlatform()) {
+      NativeLocation.startTracking()
+        .then(() => NativeLocation.addListener("location", (update) => {
+          if (destroyed) return;
+          // Native gives higher-accuracy Kalman-filtered fixes — prefer over web GPS
+          const loc = { lat: update.lat, lng: update.lng };
+          setCurrentLocation(loc);
+          setLocationStatus("active");
+          sendLocation(loc, 0, true); // force-send every native fix (1-2 s)
+        }))
+        .then((handle) => { nativeListenerRef.current = handle; })
+        .catch(() => {
+          // Plugin not yet registered in this APK build — web GPS already running, no action needed
+        });
+    }
+
     return () => {
-      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
-      clearInterval(interval);
+      destroyed = true;
+      // Stop web watchPosition (not needed on native — foreground service handles GPS)
+      navigator.geolocation.clearWatch(wid);
+      if (periodicRef.current) { clearInterval(periodicRef.current); periodicRef.current = null; }
+      // Remove the JS listener, but intentionally do NOT stop the native foreground
+      // service here. The service continues running (and HTTP-posts when needed)
+      // until the rider explicitly logs out. stopTracking() is called in logout().
+      nativeListenerRef.current?.remove();
+      nativeListenerRef.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!token) navigate("/rider-desk");
   }, [token, navigate]);
+
+  // ── Re-attach native listener when app comes back to foreground ──────────────
+  // The native foreground service keeps running in background, but the JS listener
+  // is removed when the React effect cleans up. Re-register it on resume so the
+  // map / location state stays live when the rider switches back to the app.
+  useEffect(() => {
+    const handleResume = () => {
+      const t    = localStorage.getItem("rider_desk_token");
+      const info = localStorage.getItem("rider_desk_info");
+      if (!t || !info) return;
+
+      // Reconnect socket if dropped
+      if (socketRef.current && !socketRef.current.connected) {
+        socketRef.current.connect();
+      }
+
+      // Re-register native listener if it was removed during cleanup
+      if (Capacitor.isNativePlatform() && !nativeListenerRef.current) {
+        NativeLocation.addListener("location", (update) => {
+          const loc = { lat: update.lat, lng: update.lng };
+          setCurrentLocation(loc);
+          setLocationStatus("active");
+        }).then((handle) => { nativeListenerRef.current = handle; }).catch(() => {});
+      }
+    };
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") handleResume();
+    });
+    window.addEventListener("focus", handleResume);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleResume);
+      window.removeEventListener("focus", handleResume);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── fetch orders via desk-orders endpoint ──
   const fetchOrders = useCallback(async () => {
@@ -562,10 +698,22 @@ const RiderDeskDashboard: React.FC = () => {
   };
 
   const logout = () => {
+    // Stop web GPS
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+    if (periodicRef.current) { clearInterval(periodicRef.current); periodicRef.current = null; }
+
+    // Stop native foreground service and wipe saved auth — only happens on logout
+    if (Capacitor.isNativePlatform()) {
+      NativeLocation.clearAuth().catch(() => {});
+      NativeLocation.stopTracking().catch(() => {});
+    }
+
+    socketRef.current?.disconnect();
+    socketRef.current = null;
+
     localStorage.removeItem("rider_desk_token");
     localStorage.removeItem("rider_desk_info");
     navigate("/rider-desk");

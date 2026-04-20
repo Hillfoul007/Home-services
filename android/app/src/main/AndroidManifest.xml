@@ -37,9 +37,15 @@
             </intent-filter>
         </activity>
 
-        <!-- Background location foreground service -->
+        <!-- Background location foreground service (capacitor-community/background-geolocation) -->
         <service
             android:name="com.capacitorjs.plugins.backgroundgeolocation.BackgroundGeolocationService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
+        <!-- Native Fused Location foreground service (Kalman-filtered, high-frequency) -->
+        <service
+            android:name=".LocationForegroundService"
             android:foregroundServiceType="location"
             android:exported="false" />
 

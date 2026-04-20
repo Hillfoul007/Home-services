@@ -22,6 +22,7 @@ export interface RiderSocketState {
   status: 'idle' | 'assigned' | 'delivering' | string;
   order_id: string | null;
   timestamp: string;
+  speed_ms?: number;   // metres/second from native GPS
   connected?: boolean;
 }
 
@@ -83,13 +84,19 @@ export function useRiderSocket(token?: string | null) {
       upsertRider(data);
     });
 
-    // Status-only change (no location)
-    socket.on('rider:status_update', (data: { rider_id: string; status: string; order_id: string | null }) => {
+    // Status-only change (no location) — also carries connected flag on rider reconnect
+    socket.on('rider:status_update', (data: { rider_id: string; status: string; order_id: string | null; connected?: boolean }) => {
       setRiderMap((prev) => {
         const next = new Map(prev);
         const existing = next.get(data.rider_id);
         if (existing) {
-          next.set(data.rider_id, { ...existing, status: data.status, order_id: data.order_id });
+          next.set(data.rider_id, {
+            ...existing,
+            status:   data.status,
+            order_id: data.order_id,
+            // Propagate connected flag so rider goes back online immediately on reconnect
+            ...(data.connected !== undefined && { connected: data.connected }),
+          });
         }
         return next;
       });

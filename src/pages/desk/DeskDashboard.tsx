@@ -241,10 +241,11 @@ const DeskDashboard: React.FC = () => {
         ...r,
         location: { lat: live.lat, lng: live.lng },
         lastLocationUpdate: live.timestamp,
-        isActive: live.connected !== false,
+        isActive: live.connected === true,
       };
     }
-    return r;
+    // No socket data → never treat DB isActive as real-time status
+    return { ...r, isActive: false };
   });
 
   // Rider management
@@ -1847,17 +1848,36 @@ const DeskDashboard: React.FC = () => {
                           <a href={`tel:${r.phone}`} className="text-xs text-blue-600">{r.phone}</a>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          {/* Live socket badge */}
-                          {liveSocket && liveSocket.connected !== false ? (
-                            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
-                              Live
-                            </span>
-                          ) : (
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                              {r.isActive ? "Active" : "Offline"}
-                            </span>
-                          )}
+                          {/* Connection + GPS badge */}
+                          {(() => {
+                            const connected = liveSocket && liveSocket.connected !== false;
+                            if (!connected) {
+                              return (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
+                                  ⚫ Offline
+                                </span>
+                              );
+                            }
+                            // Socket connected — check if GPS is fresh
+                            const locAgeMs = r.lastLocationUpdate
+                              ? Date.now() - new Date(r.lastLocationUpdate).getTime()
+                              : Infinity;
+                            const gpsLive = locAgeMs < 2 * 60_000; // < 2 min
+                            if (gpsLive) {
+                              return (
+                                <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                                  Live
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">
+                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block" />
+                                No GPS
+                              </span>
+                            );
+                          })()}
                           {liveSocket?.status && liveSocket.connected !== false && (
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                               liveSocket.status === 'idle' ? 'bg-blue-50 text-blue-600' : 'bg-orange-100 text-orange-600'
@@ -1870,12 +1890,13 @@ const DeskDashboard: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                      {r.isActive && r.location?.lat && r.location?.lng && (() => {
+                      {r.location?.lat && r.location?.lng && (() => {
                         const ageMs = r.lastLocationUpdate ? Date.now() - new Date(r.lastLocationUpdate).getTime() : Infinity;
-                        const isLive = ageMs < 60_000;        // < 1 min = live
-                        const isFresh = ageMs < 5 * 60_000;   // < 5 min = fresh
+                        const isLive   = ageMs < 2 * 60_000;   // < 2 min
+                        const isFresh  = ageMs < 10 * 60_000;  // < 10 min
+                        const isOnline = liveSocket && liveSocket.connected !== false;
                         const borderColor = isLive ? "border-green-400" : isFresh ? "border-yellow-300" : "border-red-200";
-                        const badgeBg = isLive ? "bg-green-500" : isFresh ? "bg-yellow-400" : "bg-red-400";
+                        const badgeBg    = isLive ? "bg-green-500" : isFresh ? "bg-yellow-400" : "bg-red-400";
                         const badgeLabel = isLive ? "LIVE" : isFresh ? "RECENT" : "STALE";
                         return (
                           <div className={`mt-2 rounded-lg overflow-hidden border ${borderColor}`}>
@@ -1886,7 +1907,7 @@ const DeskDashboard: React.FC = () => {
                               className="flex items-center justify-center gap-2 py-2 bg-green-50 text-sm font-medium text-green-700 hover:bg-green-100 active:bg-green-200 transition-colors"
                             >
                               <span>🗺️</span>
-                              <span>Open Location in Google Maps</span>
+                              <span>{isOnline ? "Open Location" : "Last Known Location"}</span>
                               <span className={`text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full ${badgeBg}`}>{badgeLabel}</span>
                             </a>
                             {r.lastLocationUpdate && (
@@ -1897,9 +1918,6 @@ const DeskDashboard: React.FC = () => {
                           </div>
                         );
                       })()}
-                      {!r.isActive && liveSocket?.connected === false && (
-                        <p className="text-xs text-gray-400 mt-1">Location hidden (rider offline)</p>
-                      )}
                     </div>
                     );
                   })}

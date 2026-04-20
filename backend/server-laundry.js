@@ -9,10 +9,11 @@ const morgan = require("morgan");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const Notification = require("./models/Notification");
-const { initSocketServer, broadcastRiderLocation, getActiveRidersSnapshot } = require("./socketServer");
 
-// Load environment variables
+// Load environment variables FIRST so all modules get the correct JWT_SECRET
 dotenv.config();
+
+const { initSocketServer, broadcastRiderLocation, getActiveRidersSnapshot } = require("./socketServer");
 
 // Load production configuration
 const productionConfig = require("./config/production");
@@ -1002,7 +1003,9 @@ app.set("broadcastRiderLocation", broadcastRiderLocation);
 
 // ─── Create HTTP server and attach Socket.io ──────────────────────────────────
 const httpServer = http.createServer(app);
-initSocketServer(httpServer);
+initSocketServer(httpServer).catch((err) =>
+  console.error("Socket init error:", err)
+);
 
 // Start server with error handling
 const server = httpServer.listen(PORT, () => {
