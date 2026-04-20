@@ -2796,4 +2796,58 @@ router.all('*', (req, res) => {
   });
 });
 
+// ── Wildcard routes — must be LAST to avoid shadowing specific routes ──────────
+
+// Get rider by ID
+router.get('/:riderId', verifyRiderToken, async (req, res) => {
+  try {
+    const rider = await Rider.findById(req.params.riderId).lean();
+    if (!rider) return res.status(404).json({ message: 'Rider not found' });
+    res.json(rider);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch rider', error: error.message });
+  }
+});
+
+// Update rider profile
+router.put('/:riderId', verifyRiderToken, async (req, res) => {
+  try {
+    const allowed = ['name', 'phone', 'aadharNumber', 'isActive', 'rating'];
+    const updates = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+    const rider = await Rider.findByIdAndUpdate(
+      req.params.riderId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!rider) return res.status(404).json({ message: 'Rider not found' });
+    res.json(rider);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update rider', error: error.message });
+  }
+});
+
+// Upload rider document
+router.post('/:riderId/documents', verifyRiderToken, upload.single('file'), async (req, res) => {
+  try {
+    const { riderId } = req.params;
+    const { documentType } = req.body;
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+    const fileUrl = `/uploads/riders/${req.file.filename}`;
+    const rider = await Rider.findById(riderId);
+    if (!rider) return res.status(404).json({ message: 'Rider not found' });
+
+    rider.documents = rider.documents || {};
+    rider.documents[documentType] = { uploaded: true, verified: false, url: fileUrl };
+    await rider.save();
+
+    res.json({ url: fileUrl });
+  } catch (error) {
+    res.status(500).json({ message: 'Document upload failed', error: error.message });
+  }
+});
+
 module.exports = router;

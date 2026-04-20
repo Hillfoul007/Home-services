@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getRiderApiUrl } from "@/lib/riderApi";
 import {
   Rider,
   DeliveryRequest,
@@ -19,6 +19,51 @@ import {
   DeliveryErrorHandler,
 } from "./errorHandling";
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("riderToken");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<{ data: T | null; error: any }> {
+  try {
+    const res = await fetch(getRiderApiUrl(endpoint), {
+      headers: authHeaders(),
+      ...options,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return { data: null, error: json };
+    return { data: json as T, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/** Haversine distance in km between two coordinate pairs */
+function haversineKm(
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── Service ───────────────────────────────────────────────────────────────────
+
 export class RidersService {
   // ============= RIDER MANAGEMENT =============
 
@@ -28,132 +73,40 @@ export class RidersService {
   static async createRider(
     riderData: CreateRiderRequest,
   ): Promise<{ data: Rider | null; error: any }> {
+    const validationErrors = this.validateRiderData(riderData);
+    if (validationErrors.length > 0) {
+      return {
+        data: null,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Validation failed",
+          userMessage: validationErrors.join(", "),
+          action: "Please fix the validation errors and try again.",
+          retryable: true,
+          details: { validationErrors },
+        },
+      };
+    }
+
+    const formData = new FormData();
+    Object.entries(riderData).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) formData.append(k, String(v));
+    });
+
     try {
-      ErrorHandler.logError(null, "Creating rider", {
-        riderData: { ...riderData, phone: "***", email: "***" },
+      const token = localStorage.getItem("riderToken");
+      const res = await fetch(getRiderApiUrl("/register"), {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
       });
-
-      // Get current user
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError) {
-        const errorDetails = ErrorHandler.handleDatabaseError(
-          authError,
-          "Authentication Check",
-        );
-        return { data: null, error: errorDetails };
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { data: null, error: RiderErrorHandler.handleRegistrationError(json) };
       }
-
-      if (!user) {
-        const errorDetails = RiderErrorHandler.handleRegistrationError(
-          new Error("User not authenticated"),
-        );
-        return { data: null, error: errorDetails };
-      }
-
-      // Validate required fields
-      const validationErrors = this.validateRiderData(riderData);
-      if (validationErrors.length > 0) {
-        return {
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Validation failed",
-            userMessage: validationErrors.join(", "),
-            action: "Please fix the validation errors and try again.",
-            retryable: true,
-            details: { validationErrors },
-          },
-        };
-      }
-
-      // Check if rider already exists for this user
-      const { data: existingRider, error: checkError } = await supabase
-        .from("riders")
-        .select("id, email, phone")
-        .eq("user_id", user.id)
-        .single();
-
-      if (checkError && !checkError.message.includes("No rows")) {
-        const errorDetails = ErrorHandler.handleDatabaseError(
-          checkError,
-          "Existing Rider Check",
-        );
-        return { data: null, error: errorDetails };
-      }
-
-      if (existingRider) {
-        return {
-          data: null,
-          error: {
-            code: "RIDER_EXISTS",
-            message: "Rider already exists for this user",
-            userMessage: "You already have a rider profile.",
-            action: "Please update your existing profile instead.",
-            retryable: false,
-          },
-        };
-      }
-
-      // Check for duplicate email/phone
-      const { data: duplicateCheck, error: duplicateError } = await supabase
-        .from("riders")
-        .select("email, phone")
-        .or(`email.eq.${riderData.email},phone.eq.${riderData.phone}`);
-
-      if (duplicateError) {
-        const errorDetails = ErrorHandler.handleDatabaseError(
-          duplicateError,
-          "Duplicate Check",
-        );
-        return { data: null, error: errorDetails };
-      }
-
-      if (duplicateCheck && duplicateCheck.length > 0) {
-        const duplicate = duplicateCheck[0];
-        if (duplicate.email === riderData.email) {
-          return {
-            data: null,
-            error: RiderErrorHandler.handleRegistrationError(
-              new Error("Email already exists"),
-            ),
-          };
-        }
-        if (duplicate.phone === riderData.phone) {
-          return {
-            data: null,
-            error: RiderErrorHandler.handleRegistrationError(
-              new Error("Phone already exists"),
-            ),
-          };
-        }
-      }
-
-      // Create the rider
-      const { data, error } = await supabase
-        .from("riders")
-        .insert({
-          user_id: user.id,
-          ...riderData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) {
-        const errorDetails = RiderErrorHandler.handleRegistrationError(error);
-        return { data: null, error: errorDetails };
-      }
-
-      console.log("✅ Rider created successfully:", data.id);
-      return { data, error: null };
+      return { data: json.rider ?? json, error: null };
     } catch (error) {
-      const errorDetails = RiderErrorHandler.handleRegistrationError(error);
-      return { data: null, error: errorDetails };
+      return { data: null, error: RiderErrorHandler.handleRegistrationError(error) };
     }
   }
 
@@ -206,36 +159,16 @@ export class RidersService {
   static async getRiderById(
     riderId: string,
   ): Promise<{ data: Rider | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from("riders")
-        .select("*")
-        .eq("id", riderId)
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<Rider>(`/${riderId}`);
   }
 
   /**
-   * Get rider by user ID
+   * Get rider by user ID — not supported in MongoDB schema (no user_id field)
    */
   static async getRiderByUserId(
-    userId: string,
+    _userId: string,
   ): Promise<{ data: Rider | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from("riders")
-        .select("*")
-        .eq("user_id", userId)
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return { data: null, error: null };
   }
 
   /**
@@ -245,18 +178,10 @@ export class RidersService {
     riderId: string,
     updates: UpdateRiderRequest,
   ): Promise<{ data: Rider | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from("riders")
-        .update(updates)
-        .eq("id", riderId)
-        .select()
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<Rider>(`/${riderId}`, {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    });
   }
 
   /**
@@ -268,86 +193,60 @@ export class RidersService {
     currentLocation?: string,
     coordinates?: Coordinates,
   ): Promise<{ data: Rider | null; error: any }> {
-    try {
-      const updates: any = {
-        is_online: isOnline,
-        last_active_at: new Date().toISOString(),
-      };
+    const body: any = { riderId, isActive: isOnline };
+    if (coordinates) body.location = coordinates;
 
-      if (currentLocation) updates.current_location = currentLocation;
-      if (coordinates) updates.current_coordinates = coordinates;
-
-      const { data, error } = await supabase
-        .from("riders")
-        .update(updates)
-        .eq("id", riderId)
-        .select()
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<Rider>("/toggle-status", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   }
 
   /**
-   * Update rider location
+   * Update rider location in MongoDB
    */
   static async updateRiderLocation(
     riderId: string,
     location: string,
     coordinates: Coordinates,
   ): Promise<{ data: Rider | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from("riders")
-        .update({
-          current_location: location,
-          current_coordinates: coordinates,
-          last_location_update: new Date().toISOString(),
-        })
-        .eq("id", riderId)
-        .select()
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<Rider>("/location", {
+      method: "POST",
+      body: JSON.stringify({
+        riderId,
+        location: { lat: coordinates.lat, lng: coordinates.lng },
+        address: location,
+        timestamp: new Date().toISOString(),
+      }),
+    });
   }
 
   /**
-   * Get all riders with filters
+   * Get all riders with optional filters
    */
   static async getRiders(
     filters?: RiderFilters,
   ): Promise<{ data: Rider[] | null; error: any }> {
-    try {
-      let query = supabase.from("riders").select("*");
+    const { data, error } = await apiFetch<Rider[]>("/admin/riders");
+    if (!data || !filters) return { data, error };
 
-      if (filters) {
-        if (filters.status && filters.status.length > 0) {
-          query = query.in("status", filters.status);
-        }
-        if (filters.vehicle_type && filters.vehicle_type.length > 0) {
-          query = query.in("vehicle_type", filters.vehicle_type);
-        }
-        if (filters.is_online !== undefined) {
-          query = query.eq("is_online", filters.is_online);
-        }
-        if (filters.min_rating) {
-          query = query.gte("rating", filters.min_rating);
-        }
-      }
-
-      const { data, error } = await query.order("created_at", {
-        ascending: false,
-      });
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
+    let filtered = data;
+    if (filters.status?.length) {
+      filtered = filtered.filter((r) => filters.status!.includes(r.status as any));
     }
+    if (filters.vehicle_type?.length) {
+      filtered = filtered.filter((r) =>
+        filters.vehicle_type!.includes((r as any).vehicle_type),
+      );
+    }
+    if (filters.is_online !== undefined) {
+      filtered = filtered.filter((r) => (r as any).isActive === filters.is_online);
+    }
+    if (filters.min_rating) {
+      filtered = filtered.filter((r) => (r.rating ?? 0) >= filters.min_rating!);
+    }
+
+    return { data: filtered, error: null };
   }
 
   /**
@@ -357,63 +256,38 @@ export class RidersService {
     pickupCoordinates: Coordinates,
     maxDistance: number = 15,
   ): Promise<{ data: AvailableRider[] | null; error: any }> {
-    try {
-      const { data, error } = await supabase.rpc("find_available_riders", {
-        pickup_lat: pickupCoordinates.lat,
-        pickup_lng: pickupCoordinates.lng,
-        max_distance_km: maxDistance,
-      });
+    const { data, error } = await apiFetch<any[]>("/admin/riders/active");
+    if (error || !data) return { data: null, error };
 
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    const nearby = data
+      .filter((r) => r.location?.lat && r.location?.lng)
+      .map((r) => ({
+        ...r,
+        distance_km: haversineKm(
+          pickupCoordinates.lat,
+          pickupCoordinates.lng,
+          r.location.lat,
+          r.location.lng,
+        ),
+      }))
+      .filter((r) => r.distance_km <= maxDistance)
+      .sort((a, b) => a.distance_km - b.distance_km);
+
+    return { data: nearby as AvailableRider[], error: null };
   }
 
   // ============= DELIVERY MANAGEMENT =============
 
   /**
-   * Create a new delivery request
+   * Create a new delivery request (maps to booking creation on backend)
    */
   static async createDeliveryRequest(
     deliveryData: CreateDeliveryRequest,
   ): Promise<{ data: DeliveryRequest | null; error: any }> {
-    try {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) {
-        throw new Error("User not authenticated");
-      }
-
-      // Calculate base fee based on distance
-      const distance = await this.calculateDistance(
-        deliveryData.pickup_coordinates,
-        deliveryData.delivery_coordinates,
-      );
-
-      const baseFee = this.calculateBaseFee(
-        distance.data || 0,
-        deliveryData.delivery_type || "standard",
-      );
-
-      const { data, error } = await supabase
-        .from("delivery_requests")
-        .insert({
-          customer_id: user.data.user.id,
-          ...deliveryData,
-          base_fee: baseFee.base_fee,
-          distance_fee: baseFee.distance_fee,
-          express_fee: baseFee.express_fee,
-          total_amount: baseFee.total_amount,
-          rider_earnings: baseFee.rider_earnings,
-          distance_km: distance.data,
-        })
-        .select()
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<DeliveryRequest>("/orders", {
+      method: "POST",
+      body: JSON.stringify(deliveryData),
+    });
   }
 
   /**
@@ -423,21 +297,10 @@ export class RidersService {
     deliveryId: string,
     riderId: string,
   ): Promise<{ data: DeliveryRequest | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from("delivery_requests")
-        .update({
-          rider_id: riderId,
-          status: "assigned",
-        })
-        .eq("id", deliveryId)
-        .select()
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<DeliveryRequest>("/admin/orders/assign", {
+      method: "POST",
+      body: JSON.stringify({ orderId: deliveryId, riderId }),
+    });
   }
 
   /**
@@ -448,75 +311,27 @@ export class RidersService {
     status: string,
     additionalData?: any,
   ): Promise<{ data: DeliveryRequest | null; error: any }> {
-    try {
-      const updates: any = { status };
-
-      if (additionalData) {
-        Object.assign(updates, additionalData);
-      }
-
-      // Add timestamp based on status
-      if (status === "picked_up") {
-        updates.actual_pickup_time = new Date().toISOString();
-      } else if (status === "delivered") {
-        updates.actual_delivery_time = new Date().toISOString();
-        updates.completed_at = new Date().toISOString();
-      }
-
-      const { data, error } = await supabase
-        .from("delivery_requests")
-        .update(updates)
-        .eq("id", deliveryId)
-        .select()
-        .single();
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<DeliveryRequest>(`/orders/${deliveryId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status, ...additionalData }),
+    });
   }
 
   /**
-   * Get delivery requests with filters
+   * Get delivery requests with optional filters
    */
   static async getDeliveryRequests(
     filters?: DeliveryFilters,
   ): Promise<{ data: DeliveryRequest[] | null; error: any }> {
-    try {
-      let query = supabase.from("delivery_requests").select(`
-        *,
-        rider:riders(*)
-      `);
+    const params = new URLSearchParams();
+    if (filters?.status?.length) params.set("status", filters.status.join(","));
+    if (filters?.rider_id) params.set("riderId", filters.rider_id);
 
-      if (filters) {
-        if (filters.status && filters.status.length > 0) {
-          query = query.in("status", filters.status);
-        }
-        if (filters.delivery_type && filters.delivery_type.length > 0) {
-          query = query.in("delivery_type", filters.delivery_type);
-        }
-        if (filters.rider_id) {
-          query = query.eq("rider_id", filters.rider_id);
-        }
-        if (filters.customer_id) {
-          query = query.eq("customer_id", filters.customer_id);
-        }
-        if (filters.date_from) {
-          query = query.gte("created_at", filters.date_from);
-        }
-        if (filters.date_to) {
-          query = query.lte("created_at", filters.date_to);
-        }
-      }
+    const endpoint = filters?.rider_id
+      ? `/orders?${params}`
+      : `/admin/orders?${params}`;
 
-      const { data, error } = await query.order("created_at", {
-        ascending: false,
-      });
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<DeliveryRequest[]>(endpoint);
   }
 
   /**
@@ -540,178 +355,88 @@ export class RidersService {
   // ============= EARNINGS MANAGEMENT =============
 
   /**
-   * Get rider earnings
+   * Get rider earnings summary from MongoDB (via Booking aggregation)
    */
   static async getRiderEarnings(
-    riderId: string,
-    monthYear?: string,
+    _riderId: string,
+    _monthYear?: string,
   ): Promise<{ data: RiderEarning[] | null; error: any }> {
-    try {
-      let query = supabase
-        .from("rider_earnings")
-        .select("*")
-        .eq("rider_id", riderId);
-
-      if (monthYear) {
-        query = query.eq("month_year", monthYear);
-      }
-
-      const { data, error } = await query.order("earned_date", {
-        ascending: false,
-      });
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    // Earnings are computed from Booking records on the backend
+    return apiFetch<RiderEarning[]>("/earnings/summary");
   }
 
   /**
    * Get rider earnings summary
    */
   static async getRiderEarningsSummary(
-    riderId: string,
+    _riderId: string,
   ): Promise<{ data: any | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from("rider_earnings")
-        .select("amount, earning_type, earned_date, paid")
-        .eq("rider_id", riderId);
-
-      if (error) return { data: null, error };
-
-      // Calculate summary
-      const today = new Date().toISOString().split("T")[0];
-      const thisMonth = today.substring(0, 7);
-
-      const summary = {
-        total_earnings: data.reduce(
-          (sum, earning) => sum + Number(earning.amount),
-          0,
-        ),
-        this_month_earnings: data
-          .filter((earning) => earning.earned_date.startsWith(thisMonth))
-          .reduce((sum, earning) => sum + Number(earning.amount), 0),
-        today_earnings: data
-          .filter((earning) => earning.earned_date === today)
-          .reduce((sum, earning) => sum + Number(earning.amount), 0),
-        pending_payment: data
-          .filter((earning) => !earning.paid)
-          .reduce((sum, earning) => sum + Number(earning.amount), 0),
-        total_deliveries: data.filter(
-          (earning) => earning.earning_type === "delivery_fee",
-        ).length,
-      };
-
-      return { data: summary, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return apiFetch<any>("/earnings/summary");
   }
 
   // ============= STATISTICS =============
 
   /**
-   * Get overall rider statistics
+   * Get overall rider statistics computed from MongoDB
    */
-  static async getRiderStats(): Promise<{
-    data: RiderStats | null;
-    error: any;
-  }> {
-    try {
-      const { data: ridersData, error: ridersError } = await supabase
-        .from("riders")
-        .select("status, is_online, rating");
+  static async getRiderStats(): Promise<{ data: RiderStats | null; error: any }> {
+    const { data: ridersData, error } = await apiFetch<any[]>("/admin/riders");
+    if (error || !ridersData) return { data: null, error };
 
-      if (ridersError) return { data: null, error: ridersError };
+    const stats: RiderStats = {
+      total_riders: ridersData.length,
+      active_riders: ridersData.filter((r) => r.status === "approved").length,
+      online_riders: ridersData.filter((r) => r.isActive).length,
+      total_deliveries_today: 0,
+      total_earnings_today: 0,
+      average_rating:
+        ridersData.length > 0
+          ? ridersData.reduce((sum, r) => sum + Number(r.rating ?? 0), 0) /
+            ridersData.length
+          : 0,
+      completion_rate: 0,
+    };
 
-      const today = new Date().toISOString().split("T")[0];
-      const { data: deliveriesData, error: deliveriesError } = await supabase
-        .from("delivery_requests")
-        .select("status, total_amount, rider_earnings, created_at")
-        .gte("created_at", today);
-
-      if (deliveriesError) return { data: null, error: deliveriesError };
-
-      const stats: RiderStats = {
-        total_riders: ridersData.length,
-        active_riders: ridersData.filter((r) => r.status === "active").length,
-        online_riders: ridersData.filter((r) => r.is_online).length,
-        total_deliveries_today: deliveriesData.length,
-        total_earnings_today: deliveriesData.reduce(
-          (sum, d) => sum + Number(d.rider_earnings || 0),
-          0,
-        ),
-        average_rating:
-          ridersData.reduce((sum, r) => sum + Number(r.rating), 0) /
-            ridersData.length || 0,
-        completion_rate:
-          deliveriesData.length > 0
-            ? (deliveriesData.filter((d) => d.status === "delivered").length /
-                deliveriesData.length) *
-              100
-            : 0,
-      };
-
-      return { data: stats, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return { data: stats, error: null };
   }
 
   // ============= UTILITY FUNCTIONS =============
 
   /**
-   * Calculate distance between two coordinates
+   * Calculate distance between two coordinates (Haversine, client-side)
    */
   private static async calculateDistance(
     coord1: Coordinates,
     coord2: Coordinates,
   ): Promise<{ data: number | null; error: any }> {
-    try {
-      const { data, error } = await supabase.rpc("calculate_distance_km", {
-        lat1: coord1.lat,
-        lng1: coord1.lng,
-        lat2: coord2.lat,
-        lng2: coord2.lng,
-      });
-
-      return { data, error };
-    } catch (error) {
-      return { data: null, error };
-    }
+    return {
+      data: haversineKm(coord1.lat, coord1.lng, coord2.lat, coord2.lng),
+      error: null,
+    };
   }
 
   /**
    * Calculate delivery fees based on distance and type
    */
   private static calculateBaseFee(distanceKm: number, deliveryType: string) {
-    const baseFee = 5.0; // Base fee in dollars
-    const perKmRate = 1.5; // Rate per kilometer
-
+    const baseFee = 5.0;
+    const perKmRate = 1.5;
     const distanceFee = distanceKm * perKmRate;
-
     let expressFee = 0;
-    if (deliveryType === "express") {
-      expressFee = 10.0;
-    } else if (deliveryType === "same_day") {
-      expressFee = 5.0;
-    }
-
+    if (deliveryType === "express") expressFee = 10.0;
+    else if (deliveryType === "same_day") expressFee = 5.0;
     const totalAmount = baseFee + distanceFee + expressFee;
-    const riderEarnings = totalAmount * 0.85; // Rider gets 85%
-
     return {
       base_fee: baseFee,
       distance_fee: distanceFee,
       express_fee: expressFee,
       total_amount: totalAmount,
-      rider_earnings: riderEarnings,
+      rider_earnings: totalAmount * 0.85,
     };
   }
 
   /**
-   * Upload rider document
+   * Upload rider document to backend (stored locally on server)
    */
   static async uploadRiderDocument(
     riderId: string,
@@ -719,45 +444,20 @@ export class RidersService {
     file: File,
   ): Promise<{ data: string | null; error: any }> {
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${riderId}/${documentType}.${fileExt}`;
+      const token = localStorage.getItem("riderToken");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("documentType", documentType);
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("rider-documents")
-        .upload(fileName, file, { upsert: true });
+      const res = await fetch(getRiderApiUrl(`/${riderId}/documents`), {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
 
-      if (uploadError) return { data: null, error: uploadError };
-
-      const { data: urlData } = supabase.storage
-        .from("rider-documents")
-        .getPublicUrl(fileName);
-
-      // Update rider documents field
-      const { data: riderData, error: riderError } = await supabase
-        .from("riders")
-        .select("documents")
-        .eq("id", riderId)
-        .single();
-
-      if (riderError) return { data: null, error: riderError };
-
-      const updatedDocuments = {
-        ...riderData.documents,
-        [documentType]: {
-          uploaded: true,
-          verified: false,
-          url: urlData.publicUrl,
-        },
-      };
-
-      const { error: updateError } = await supabase
-        .from("riders")
-        .update({ documents: updatedDocuments })
-        .eq("id", riderId);
-
-      if (updateError) return { data: null, error: updateError };
-
-      return { data: urlData.publicUrl, error: null };
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { data: null, error: json };
+      return { data: json.url ?? null, error: null };
     } catch (error) {
       return { data: null, error };
     }
