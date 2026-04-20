@@ -38,19 +38,17 @@ interface RiderMarkerState {
 let mapsPromise: Promise<void> | null = null;
 
 function loadGoogleMaps(): Promise<void> {
-  if (typeof google !== 'undefined' && google.maps) return Promise.resolve();
+  if (typeof google !== 'undefined' && google.maps?.Map) return Promise.resolve();
   if (mapsPromise) return mapsPromise;
 
   mapsPromise = new Promise((resolve, reject) => {
-    const callbackName = '__laundrify_maps_cb';
-    (window as any)[callbackName] = () => {
-      resolve();
-      delete (window as any)[callbackName];
-    };
+    // Use initScript approach without `callback` param — avoids the
+    // "deprecated parameters" console warning from Maps v3.56+.
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&callback=${callbackName}&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&v=weekly`;
     script.async = true;
     script.defer = true;
+    script.onload = () => resolve();
     script.onerror = () => reject(new Error('Google Maps failed to load'));
     document.head.appendChild(script);
   });

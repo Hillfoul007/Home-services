@@ -966,36 +966,38 @@ if (productionConfig.isProduction()) {
 }
 
 // Keep-alive mechanism for Render deployment
+// Render free tier sleeps after ~15 min of no external traffic.
+// Ping every 4 min (well within that window) to keep the server warm.
 const setupKeepAlive = () => {
   if (productionConfig.isProduction()) {
-    const keepAliveInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const keepAliveInterval = 4 * 60 * 1000; // 4 minutes
 
     setInterval(async () => {
       try {
         const url =
           process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-        const response = await fetch(`${url}/api/health`);
+        const response = await fetch(`${url}/api/health`, {
+          signal: AbortSignal.timeout(10000), // 10 s timeout
+        });
 
         if (response.ok) {
-          console.log("🔄 Keep-alive ping successful");
+          console.log("🔄 Keep-alive ping OK");
         } else {
-          console.log(
-            "⚠��� Keep-alive ping failed with status:",
-            response.status,
-          );
+          console.warn("⚠️ Keep-alive ping:", response.status);
         }
       } catch (error) {
-        console.log("⚠️ Keep-alive ping error:", error.message);
+        console.warn("⚠️ Keep-alive ping error:", error.message);
       }
     }, keepAliveInterval);
 
-    console.log("🔄 Keep-alive mechanism started (5 min intervals)");
+    console.log("🔄 Keep-alive started (4 min intervals)");
   }
 };
 
 // ─── Active rider locations REST endpoint (for desk HTTP fallback) ─────────────
-app.get("/api/riders/active-locations", (req, res) => {
-  res.json({ success: true, riders: getActiveRidersSnapshot() });
+app.get("/api/riders/active-locations", async (req, res) => {
+  const riders = await getActiveRidersSnapshot();
+  res.json({ success: true, riders });
 });
 
 // ─── Expose broadcast helper so riders.js route can use it ────────────────────

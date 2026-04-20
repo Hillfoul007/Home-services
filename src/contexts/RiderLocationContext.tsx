@@ -109,12 +109,12 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     if (socketRef.current?.connected) return;
 
     const socket = io(`${socketUrl}/rider`, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],  // polling first for reliability
       reconnection: true,
-      reconnectionDelay: 2000,
+      reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
       reconnectionAttempts: Infinity,
-      timeout: 10000,
+      timeout: 30000,
     });
 
     socket.on('connect', () => {

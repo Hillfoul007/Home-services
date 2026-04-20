@@ -47,12 +47,14 @@ export function useRiderSocket(token?: string | null) {
       : window.location.origin;        // dev: same origin as page
 
     const socket = io(`${baseUrl}/desk`, {
-      transports: ['websocket', 'polling'],
+      // polling first → always works through proxies / Render cold starts,
+      // then socket.io upgrades to WebSocket automatically once connected.
+      transports: ['polling', 'websocket'],
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 15000,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
       reconnectionAttempts: Infinity,
-      timeout: 10000,
+      timeout: 30000,   // Render cold start can take up to 30 s
     });
 
     socketRef.current = socket;

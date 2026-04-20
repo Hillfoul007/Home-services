@@ -150,12 +150,17 @@ async function initSocketServer(httpServer) {
       methods: ["GET", "POST"],
       credentials: true,
     },
-    transports: ["websocket", "polling"],
-    // Tighter ping → dead connections detected in ~13 s instead of ~30 s
-    pingInterval: 5000,
-    pingTimeout:  8000,
+    // Accept both transports — clients start with polling then upgrade to WS
+    transports: ["polling", "websocket"],
+    // Ping tuning: detect dead connections (app killed) within ~15 s
+    pingInterval: 10000,
+    pingTimeout:  5000,
+    // How long to wait for the polling→WebSocket upgrade handshake
+    upgradeTimeout: 10000,
     // Allow larger payloads for snapshot bursts
     maxHttpBufferSize: 2e6,
+    // Allow cross-origin polling (needed for Render + different port setups)
+    allowEIO3: true,
   });
 
   if (redisAdapter) {

@@ -176,12 +176,12 @@ const RiderDeskDashboard: React.FC = () => {
       : window.location.origin;
 
     const socket = io(`${socketUrl}/rider`, {
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],  // polling first for reliability
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 8000,
+      reconnectionDelayMax: 10000,
       reconnectionAttempts: Infinity,
-      timeout: 8000,
+      timeout: 30000,   // Render cold start can take up to 30 s
     });
 
     socket.on("connect", () => {
@@ -229,16 +229,28 @@ const RiderDeskDashboard: React.FC = () => {
 
     const rider = JSON.parse(info);
 
-    // ── 1. Request location permission (asks OS dialog if not yet granted) ──
+    // ── 1. Request location permissions (foreground + background) ──────────
+    // On Android 10+, background location must be granted separately AFTER
+    // foreground is already granted. The OS shows a second dialog.
     if (Capacitor.isNativePlatform()) {
       Geolocation.checkPermissions()
-        .then((status) => {
-          const need = status.location !== "granted" || status.coarseLocation !== "granted";
-          if (need) return Geolocation.requestPermissions({ permissions: ["location", "coarseLocation"] });
+        .then(async (status) => {
+          // Step 1: foreground (fine + coarse)
+          if (status.location !== "granted") {
+            await Geolocation.requestPermissions({ permissions: ["location", "coarseLocation"] });
+          }
+          // Step 2: background — needed for foreground service GPS while app is closed
+          // @ts-ignore — 'backgroundLocation' added in @capacitor/geolocation >= 5.x
+          if (status.backgroundLocation !== "granted") {
+            try {
+              // @ts-ignore
+              await Geolocation.requestPermissions({ permissions: ["backgroundLocation"] });
+            } catch {
+              // Older plugin version or iOS — silently skip
+            }
+          }
         })
-        .catch(() => {
-          // Silently ignore — web fallback still works
-        });
+        .catch(() => {});
     }
 
     // ── 2. Persist auth so foreground service can HTTP-POST when app is closed ──

@@ -1,7 +1,7 @@
-// Laundrify Service Worker — v2.32
+// Laundrify Service Worker — v2.58
 // Auto-updates: on new deploy, takes control immediately and tells all clients to reload.
 
-const CACHE_VERSION = 'laundrify-v2.32';
+const CACHE_VERSION = 'laundrify-v2.58';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 // ── Install: skip waiting so this SW activates right away ─────────────────────
@@ -26,11 +26,13 @@ self.addEventListener('activate', (event) => {
       self.clients.claim(),
     ]).then(() => {
       // Tell every open tab: new version active → reload
-      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION });
+      return self.clients
+        .matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION });
+          });
         });
-      });
     })
   );
 });
@@ -41,7 +43,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (request.method !== 'GET') return;
-  // Skip cross-origin requests (API, etc.)
+  // Skip cross-origin requests (API, socket.io, etc.)
   if (url.origin !== self.location.origin) return;
 
   // Network-first for JS, CSS, HTML
@@ -85,9 +87,26 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// ── Message: allow client to trigger skipWaiting manually ────────────────────
+// ── Message: handle client requests ──────────────────────────────────────────
+// IMPORTANT: Do NOT return `true` from this listener unless you explicitly call
+// event.ports[0].postMessage() — otherwise Chrome throws
+// "message channel closed before a response was received".
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+  if (!event.data) return;
+
+  if (event.data.type === 'SKIP_WAITING') {
+    // skipWaiting() is async — wrap in waitUntil so the SW stays alive
+    event.waitUntil(self.skipWaiting());
+    return;
   }
+
+  if (event.data.type === 'GET_VERSION') {
+    // Respond only when a MessageChannel port is provided
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ version: CACHE_VERSION });
+    }
+    return;
+  }
+
+  // Unknown message types — explicitly ignore (no return true, no port leak)
 });
