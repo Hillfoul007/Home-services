@@ -1,10 +1,14 @@
 package com.laundrify.laundry.app;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -37,6 +41,23 @@ public class LocationPlugin extends Plugin {
 
     @PluginMethod
     public void startTracking(PluginCall call) {
+        // On targetSDK 34+ (Android 14+), starting a foreground service with
+        // foregroundServiceType="location" throws SecurityException if the app
+        // doesn't already hold ACCESS_FINE_LOCATION or ACCESS_COARSE_LOCATION
+        // at runtime. Guard here so JS falls back to watchPosition gracefully.
+        boolean hasFine = ContextCompat.checkSelfPermission(
+                getContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+        boolean hasCoarse = ContextCompat.checkSelfPermission(
+                getContext(), Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+
+        if (!hasFine && !hasCoarse) {
+            Log.w(TAG, "startTracking skipped — location permission not yet granted");
+            call.resolve(); // JS watchPosition fallback will handle tracking
+            return;
+        }
+
         LocationForegroundService.pluginRef = new java.lang.ref.WeakReference<>(this);
 
         Intent intent = new Intent(getContext(), LocationForegroundService.class);
@@ -48,7 +69,7 @@ public class LocationPlugin extends Plugin {
             getContext().startService(intent);
         }
 
-        Log.i(TAG, "startTracking called");
+        Log.i(TAG, "startTracking called — Fused Location service started");
         call.resolve();
     }
 
