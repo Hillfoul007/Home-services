@@ -47,12 +47,13 @@ export function useRiderSocket(token?: string | null) {
       : window.location.origin;        // dev: same origin as page
 
     const socket = io(`${baseUrl}/desk`, {
-      // polling first → always works through proxies / Render cold starts,
-      // then socket.io upgrades to WebSocket automatically once connected.
-      transports: ['polling', 'websocket'],
+      // WebSocket first — on server restart the WS gets a clean close event so
+      // socket.io reconnects with a fresh handshake (no stale sid). Polling-first
+      // causes 400 loops because the client keeps polling with an invalidated sid.
+      transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
+      reconnectionDelay: 1500,
+      reconnectionDelayMax: 15000,
       reconnectionAttempts: Infinity,
       timeout: 30000,   // Render cold start can take up to 30 s
     });
@@ -117,6 +118,22 @@ export function useRiderSocket(token?: string | null) {
     socket.on('disconnect', (reason) => {
       console.log('🔴 Desk socket disconnected:', reason);
       setConnected(false);
+    });
+
+    socket.on('connect_error', (err: Error & { description?: number | string }) => {
+      console.warn('Desk socket connect error:', err.message);
+      // 400 = stale session ID after server restart (polling fallback).
+      // Close the underlying engine transport so the next reconnect attempt
+      // starts a completely fresh handshake rather than looping with the old sid.
+      const is400 =
+        err.description === 400 ||
+        String(err.description).includes('400') ||
+        (err.message || '').includes('400');
+      if (is400) {
+        console.warn('Stale socket session — resetting engine for fresh handshake');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (socket.io as any).engine?.close();
+      }
     });
 
     socket.on('error', (err: unknown) => {

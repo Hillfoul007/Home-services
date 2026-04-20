@@ -109,10 +109,13 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     if (socketRef.current?.connected) return;
 
     const socket = io(`${socketUrl}/rider`, {
-      transports: ['polling', 'websocket'],  // polling first for reliability
+      // WebSocket first — on server restart WS gets a clean close so socket.io
+      // reconnects with a fresh handshake. Polling-first causes 400 loops because
+      // the client keeps polling with an invalidated session id.
+      transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
+      reconnectionDelay: 1500,
+      reconnectionDelayMax: 15000,
       reconnectionAttempts: Infinity,
       timeout: 30000,
     });
@@ -144,6 +147,21 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       console.log('🔴 Rider socket disconnected:', reason);
       setSocketConnected(false);
       socketAuthRef.current = false;
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    socket.on('connect_error', (err: Error & { description?: number | string }) => {
+      console.warn('Rider socket connect error:', err.message);
+      // 400 = stale session id after server restart — force fresh handshake
+      const is400 =
+        err.description === 400 ||
+        String(err.description).includes('400') ||
+        (err.message || '').includes('400');
+      if (is400) {
+        console.warn('Stale socket session — resetting engine for fresh handshake');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (socket.io as any).engine?.close();
+      }
     });
 
     socket.on('error', (err) => console.warn('Socket error:', err));
