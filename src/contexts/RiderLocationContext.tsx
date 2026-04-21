@@ -365,8 +365,26 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
       }
     };
 
-    const handleOnline = () => {
-      if (!socketRef.current?.connected) connectSocket();
+    const handleOnline = async () => {
+      // Reconnect socket if needed
+      if (!socketRef.current?.connected) {
+        connectSocket();
+      } else if (socketAuthRef.current) {
+        // Socket was already up but device was briefly offline — flush queue now
+        // (rider:connected already flushed on auth, but new items may have queued)
+        const queued = await dequeueAll();
+        if (queued.length > 0) {
+          const riderRaw = localStorage.getItem('riderAuth');
+          const riderId  = riderRaw ? (JSON.parse(riderRaw)._id || JSON.parse(riderRaw).id) : null;
+          console.log(`📤 Online: flushing ${queued.length} queued updates`);
+          queued.forEach(({ lat, lng, status, order_id, timestamp }) => {
+            socketRef.current?.emit('rider:location', {
+              rider_id: riderId, lat, lng,
+              status: status || 'idle', order_id: order_id || null, timestamp,
+            });
+          });
+        }
+      }
     };
 
     window.addEventListener('storage', handleStorage);
@@ -374,7 +392,20 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     window.addEventListener('online', handleOnline);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // ── Periodic watchdog: reconnect if socket silently died ──────────────────
+    // Covers Android battery-saver / aggressive OEM killers that suspend the WS
+    // keep-alive without firing a proper close event.
+    const watchdog = setInterval(() => {
+      const token = localStorage.getItem('riderToken');
+      if (!token) return;
+      if (!socketRef.current?.connected) {
+        console.log('[socket] Watchdog: socket down — reconnecting');
+        connectSocket();
+      }
+    }, 10000);
+
     return () => {
+      clearInterval(watchdog);
       stopTracking();
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('riderLogout', stopTracking);

@@ -226,7 +226,40 @@ const RiderDeskDashboard: React.FC = () => {
     socket.on("error", (e: unknown) => console.warn("[socket] error:", e));
 
     socketRef.current = socket;
+
+    // ── Reconnect on network restore ──────────────────────────────────────
+    const handleOnline = () => {
+      if (!socketRef.current?.connected) {
+        console.log("[socket] Network back online — reconnecting");
+        socketRef.current?.connect();
+      }
+    };
+
+    // ── Reconnect when app comes back to foreground ───────────────────────
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !socketRef.current?.connected) {
+        console.log("[socket] App foregrounded — reconnecting");
+        socketRef.current?.connect();
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // ── Periodic watchdog: reconnect if socket silently died ──────────────
+    // socket.io's built-in reconnection covers most cases; this catches
+    // silent hangs (e.g. Android battery saver suspending the WS keep-alive).
+    const watchdog = setInterval(() => {
+      if (!socketRef.current?.connected) {
+        console.log("[socket] Watchdog: socket down — reconnecting");
+        socketRef.current?.connect();
+      }
+    }, 10000);
+
     return () => {
+      clearInterval(watchdog);
+      window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibility);
       socket.disconnect();
       socketRef.current    = null;
       socketAuthRef.current = false;
