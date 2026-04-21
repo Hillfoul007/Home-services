@@ -38,6 +38,7 @@ import OfflineStoreAuth from "@/pages/OfflineStoreAuth";
 import OfflineStoreDeskPage from "@/pages/OfflineStoreDeskPage";
 import DeskLogin from "@/pages/desk/DeskLogin";
 import DeskDashboard from "@/pages/desk/DeskDashboard";
+import DeskReadyPage from "@/pages/desk/DeskReadyPage";
 import RiderDeskLogin from "@/pages/rider-desk/RiderDeskLogin";
 import RiderDeskDashboard from "@/pages/rider-desk/RiderDeskDashboard";
 import SchoolManagerLogin from "@/pages/school/SchoolManagerLogin";
@@ -234,6 +235,7 @@ function App() {
               {/* Vendor Desk */}
               <Route path="/desk" element={<DeskLogin />} />
               <Route path="/desk/dashboard" element={<DeskDashboard />} />
+              <Route path="/desk/ready" element={<DeskReadyPage />} />
               {/* Rider Desk */}
               <Route path="/rider-desk" element={<RiderDeskLogin />} />
               <Route path="/rider-desk/dashboard" element={<RiderDeskDashboard />} />
