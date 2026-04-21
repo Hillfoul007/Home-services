@@ -71,10 +71,6 @@ interface Order {
   coordinates?: { lat: number; lng: number };
   readyAt?: string;
   created_at?: string;
-  updated_at?: string;
-  assignedAt?: string;
-  pickedUpAt?: string;
-  deliveredAt?: string;
   _breach?: boolean;
   _timeElapsed?: string;
 }
@@ -151,17 +147,6 @@ function statusBadge(status?: string) {
     </span>
   );
 }
-
-// ─── ETA helpers (Haversine + city-speed estimate) ───────────────────────────
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-function etaMinutes(km: number): number { return Math.max(3, Math.round((km / 25) * 60)); }
 
 type SectionKey = "created" | "picked_up" | "processing" | "ready_for_delivery" | "delivered" | "completed" | "cancelled";
 
@@ -247,9 +232,6 @@ const DeskDashboard: React.FC = () => {
   // ── Real-time rider tracking via Socket.io ────────────────────────────────
   const { riderMap, connected: socketConnected, requestSnapshot } = useRiderSocket(token);
   const [selectedSocketRider, setSelectedSocketRider] = useState<RiderSocketState | null>(null);
-
-  // Idle-on-route detection: track when rider's GPS hasn't moved > 80 m
-  const riderIdleRef = useRef<Map<string, { lat: number; lng: number; stableFrom: number }>>(new Map());
 
   // Merge socket locations into the riders array for the old map + order cards
   const ridersWithSocketLocation = riders.map(r => {
@@ -374,28 +356,6 @@ const DeskDashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboard();
   }, [metricsPeriod, ordersPeriod]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-load daily tab when user switches to it or changes the date
-  useEffect(() => {
-    if (tab === 'daily') fetchDailyData(dailyDate);
-  }, [tab, dailyDate]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Update idle-on-route tracker whenever riderMap changes
-  useEffect(() => {
-    riderMap.forEach((state, riderId) => {
-      if (!state.lat || !state.lng || state.connected === false) return;
-      const prev = riderIdleRef.current.get(riderId);
-      if (!prev) {
-        riderIdleRef.current.set(riderId, { lat: state.lat, lng: state.lng, stableFrom: Date.now() });
-        return;
-      }
-      const movedM = haversineKm(prev.lat, prev.lng, state.lat, state.lng) * 1000;
-      if (movedM > 80) {
-        riderIdleRef.current.set(riderId, { lat: state.lat, lng: state.lng, stableFrom: Date.now() });
-      }
-      // < 80 m → keep stableFrom so idle clock keeps ticking
-    });
-  }, [riderMap]);
 
   // ── current section orders ──
   const sectionOrders = (() => {
@@ -1880,76 +1840,29 @@ const DeskDashboard: React.FC = () => {
                 <div className="divide-y divide-gray-50">
                   {ridersWithSocketLocation.map((r) => {
                     const liveSocket = riderMap.get(r._id);
-                    const isOnline   = liveSocket && liveSocket.connected !== false;
-
-                    // ── Idle-on-route detection ──────────────────────────────
-                    const idleInfo  = riderIdleRef.current.get(r._id);
-                    const idleMin   = idleInfo ? Math.floor((Date.now() - idleInfo.stableFrom) / 60000) : 0;
-                    const isDeliver = liveSocket?.status && liveSocket.status !== 'idle';
-                    const stuckOnRoute = isOnline && isDeliver && idleMin >= 5;
-
-                    // ── Active delivery orders for this rider ─────────────────
-                    const activeDeliveries = sections.delivered.filter(o => {
-                      if (!['in_transit', 'delivery_assigned'].includes(o.status || '')) return false;
-                      const ar = o.assignedRider;
-                      if (!ar) return false;
-                      return typeof ar === 'string' ? ar === r._id : (ar as RiderRef)._id === r._id;
-                    });
-
-                    // ── Daily count from dailyData if loaded ──────────────────
-                    const todayPickups    = dailyData ? dailyData.pickedUp.filter(o => {
-                      const ar = o.assignedRider;
-                      if (!ar) return false;
-                      return typeof ar === 'string' ? ar === r._id : (ar as RiderRef)._id === r._id;
-                    }).length : null;
-                    const todayDelivered  = dailyData ? dailyData.delivered.filter(o => {
-                      const ar = o.assignedRider;
-                      if (!ar) return false;
-                      return typeof ar === 'string' ? ar === r._id : (ar as RiderRef)._id === r._id;
-                    }).length : null;
-
-                    // ── Efficiency score (from efficiencyData if computed) ────
-                    const effEntry = efficiencyData.find((e: any) => e._id === r._id);
-                    const score    = effEntry?.score ?? null;
-
                     return (
                     <div key={r._id} className="px-4 py-3">
-                      {/* ── Header row ── */}
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-center justify-between">
                         <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium text-sm text-gray-900">{r.name}</p>
-                            {score !== null && (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                score >= 70 ? 'bg-green-100 text-green-700'
-                                : score >= 40 ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-red-100 text-red-700'
-                              }`}>
-                                ★ {score}
-                              </span>
-                            )}
-                          </div>
+                          <p className="font-medium text-sm text-gray-900">{r.name}</p>
                           <a href={`tel:${r.phone}`} className="text-xs text-blue-600">{r.phone}</a>
-                          {/* Today's run counts */}
-                          {(todayPickups !== null || todayDelivered !== null) && (todayPickups! > 0 || todayDelivered! > 0) && (
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              Today:&nbsp;
-                              {todayPickups! > 0 && <span className="text-indigo-600 font-medium">{todayPickups} pickup{todayPickups !== 1 ? 's' : ''}</span>}
-                              {todayPickups! > 0 && todayDelivered! > 0 && ' · '}
-                              {todayDelivered! > 0 && <span className="text-emerald-600 font-medium">{todayDelivered} delivered</span>}
-                            </p>
-                          )}
                         </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
+                        <div className="flex flex-col items-end gap-1">
                           {/* Connection + GPS badge */}
                           {(() => {
                             const connected = liveSocket && liveSocket.connected !== false;
                             if (!connected) {
-                              return <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">⚫ Offline</span>;
+                              return (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
+                                  ⚫ Offline
+                                </span>
+                              );
                             }
+                            // Socket connected — check if GPS is fresh
                             const locAgeMs = r.lastLocationUpdate
-                              ? Date.now() - new Date(r.lastLocationUpdate).getTime() : Infinity;
-                            const gpsLive = locAgeMs < 2 * 60_000;
+                              ? Date.now() - new Date(r.lastLocationUpdate).getTime()
+                              : Infinity;
+                            const gpsLive = locAgeMs < 2 * 60_000; // < 2 min
                             if (gpsLive) {
                               return (
                                 <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
@@ -1977,80 +1890,11 @@ const DeskDashboard: React.FC = () => {
                           </button>
                         </div>
                       </div>
-
-                      {/* ── Idle-on-route warning ── */}
-                      {stuckOnRoute && (
-                        <div className="mt-2 text-xs bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-yellow-800 flex items-center gap-1.5">
-                          ⚠️ <span>Idle on route — <strong>{idleMin} min</strong> at current location</span>
-                        </div>
-                      )}
-
-                      {/* ── Active delivery order panels ── */}
-                      {activeDeliveries.length > 0 && (
-                        <div className="mt-2 space-y-1.5">
-                          {activeDeliveries.map(o => {
-                            const orderCoords = o.coordinates?.lat && o.coordinates?.lng ? o.coordinates : null;
-                            const riderGps    = liveSocket?.lat && liveSocket?.lng ? { lat: liveSocket.lat, lng: liveSocket.lng } : null;
-
-                            // ETA from rider to customer
-                            const eta = riderGps && orderCoords
-                              ? etaMinutes(haversineKm(riderGps.lat, riderGps.lng, orderCoords.lat, orderCoords.lng))
-                              : null;
-
-                            // Actual elapsed since delivery was assigned (updated_at proxy)
-                            const elapsedMin = o.updated_at
-                              ? Math.floor((Date.now() - new Date(o.updated_at).getTime()) / 60000) : null;
-
-                            // Time budget: ETA to customer + 10 min buffer + ETA back (≈ same distance)
-                            const budget = eta !== null ? eta * 2 + 10 : null;
-                            const breached = budget !== null && elapsedMin !== null && elapsedMin > budget;
-
-                            return (
-                              <div key={String(o._id)} className={`text-xs rounded-lg px-3 py-2 border ${
-                                breached ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-100'
-                              }`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="font-semibold text-gray-800">
-                                    #{o.custom_order_id || String(o._id).slice(-6).toUpperCase()}
-                                  </span>
-                                  {breached && (
-                                    <span className="text-[10px] font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-full shrink-0">
-                                      BREACHED
-                                    </span>
-                                  )}
-                                  {!breached && budget !== null && elapsedMin !== null && (
-                                    <span className="text-[10px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full shrink-0">
-                                      ON TIME
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-gray-500">
-                                  {eta !== null && (
-                                    <span>ETA <span className="font-semibold text-gray-800">{eta} min</span></span>
-                                  )}
-                                  {elapsedMin !== null && (
-                                    <span>Elapsed <span className={`font-semibold ${breached ? 'text-red-600' : 'text-gray-800'}`}>{elapsedMin} min</span></span>
-                                  )}
-                                  {budget !== null && (
-                                    <span>Budget <span className="font-semibold text-gray-800">{budget} min</span>
-                                      <span className="text-gray-400 font-normal"> (ETA×2+10)</span>
-                                    </span>
-                                  )}
-                                </div>
-                                {o.address && (
-                                  <p className="text-gray-400 truncate mt-0.5">{o.address}</p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* ── Location map link ── */}
                       {r.location?.lat && r.location?.lng && (() => {
                         const ageMs = r.lastLocationUpdate ? Date.now() - new Date(r.lastLocationUpdate).getTime() : Infinity;
-                        const isLive   = ageMs < 2 * 60_000;
-                        const isFresh  = ageMs < 10 * 60_000;
+                        const isLive   = ageMs < 2 * 60_000;   // < 2 min
+                        const isFresh  = ageMs < 10 * 60_000;  // < 10 min
+                        const isOnline = liveSocket && liveSocket.connected !== false;
                         const borderColor = isLive ? "border-green-400" : isFresh ? "border-yellow-300" : "border-red-200";
                         const badgeBg    = isLive ? "bg-green-500" : isFresh ? "bg-yellow-400" : "bg-red-400";
                         const badgeLabel = isLive ? "LIVE" : isFresh ? "RECENT" : "STALE";
@@ -2058,7 +1902,8 @@ const DeskDashboard: React.FC = () => {
                           <div className={`mt-2 rounded-lg overflow-hidden border ${borderColor}`}>
                             <a
                               href={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}`}
-                              target="_blank" rel="noreferrer"
+                              target="_blank"
+                              rel="noreferrer"
                               className="flex items-center justify-center gap-2 py-2 bg-green-50 text-sm font-medium text-green-700 hover:bg-green-100 active:bg-green-200 transition-colors"
                             >
                               <span>🗺️</span>
@@ -2220,7 +2065,6 @@ const DeskDashboard: React.FC = () => {
                   onChange={e => {
                     setDailyDate(e.target.value);
                     setDailyData(null);
-                    // auto-load handled by the tab useEffect watching dailyDate
                   }}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
                 />
@@ -2240,8 +2084,8 @@ const DeskDashboard: React.FC = () => {
 
             {!dailyLoading && !dailyData && (
               <div className="text-center py-12 text-gray-400">
-                <p className="text-3xl mb-2">⏳</p>
-                <p className="text-sm">Loading activity…</p>
+                <p className="text-3xl mb-2">📅</p>
+                <p className="text-sm">Tap Refresh to load today's activity</p>
               </div>
             )}
 
@@ -2370,58 +2214,6 @@ const DeskDashboard: React.FC = () => {
                     <p className="text-xs text-amber-500 mt-0.5">Created</p>
                   </div>
                 </div>
-
-                {/* Per-rider breakdown */}
-                {riders.length > 0 && (() => {
-                  const breakdown = riders.map(r => {
-                    const pickups = dailyData.pickedUp.filter(o => {
-                      const ar = o.assignedRider;
-                      if (!ar) return false;
-                      return typeof ar === 'string' ? ar === r._id : (ar as RiderRef)._id === r._id;
-                    }).length;
-                    const delivered = dailyData.delivered.filter(o => {
-                      const ar = o.assignedRider;
-                      if (!ar) return false;
-                      return typeof ar === 'string' ? ar === r._id : (ar as RiderRef)._id === r._id;
-                    }).length;
-                    return { ...r, pickups, delivered };
-                  }).filter(r => r.pickups > 0 || r.delivered > 0)
-                    .sort((a, b) => (b.pickups + b.delivered) - (a.pickups + a.delivered));
-
-                  if (breakdown.length === 0) return null;
-                  return (
-                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-700 text-sm">🛵 Rider Breakdown</h3>
-                        <span className="text-xs text-gray-400">{breakdown.length} active</span>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {breakdown.map(r => (
-                          <div key={r._id} className="px-4 py-2.5 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{r.name}</p>
-                              <p className="text-xs text-gray-400">{r.phone}</p>
-                            </div>
-                            <div className="flex gap-4 text-center">
-                              <div>
-                                <p className="text-base font-bold text-indigo-700">{r.pickups}</p>
-                                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Pickup</p>
-                              </div>
-                              <div>
-                                <p className="text-base font-bold text-emerald-700">{r.delivered}</p>
-                                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Delivered</p>
-                              </div>
-                              <div>
-                                <p className="text-base font-bold text-gray-700">{r.pickups + r.delivered}</p>
-                                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Total</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
               </>
             )}
           </div>
