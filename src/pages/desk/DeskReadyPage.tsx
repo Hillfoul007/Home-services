@@ -106,16 +106,6 @@ export default function DeskReadyPage() {
         display: "flex", alignItems: "center", gap: "14px",
         padding: "16px 18px",
       }}>
-        <button
-          onClick={() => navigate("/desk/dashboard")}
-          style={{
-            background: "#f3f4f6", border: "none", borderRadius: "50%",
-            width: "40px", height: "40px", fontSize: "20px",
-            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          ←
-        </button>
         <div>
           <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 800, lineHeight: 1.1 }}>Processing</h1>
           <p style={{ margin: 0, fontSize: "13px", color: "#888" }}>Mark orders ready for delivery</p>
