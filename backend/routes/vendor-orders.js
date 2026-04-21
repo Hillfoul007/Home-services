@@ -960,6 +960,79 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
   }
 });
 
+// ─── PUT /orders/:orderId/ready — mark single order ready for delivery ────────
+
+router.put("/orders/:orderId/ready", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    if (!["in_progress", "pickup_completed", "vendor_assigned", "pickup_assigned"].includes(order.status)) {
+      return res.status(400).json({ error: `Cannot mark ready from status: ${order.status}` });
+    }
+
+    const now = indianNow();
+    order.status     = "ready_for_delivery";
+    order.readyAt    = now;
+    order.updated_at = now;
+    order.status_history.push({ status: "ready_for_delivery", changed_at: now, changed_by: "vendor", vendor_id: req.vendor_id });
+
+    await order.save();
+
+    // Customer push + DB notification + SMS (fire-and-forget)
+    (async () => {
+      try {
+        const customerId = order.customer_id;
+        if (!customerId) return;
+
+        const notificationService = require("../services/notificationService");
+        const Notification = require("../models/Notification");
+
+        await Notification.create({
+          user_id: customerId,
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Please set your preferred delivery date and time so we can deliver it to you.`,
+          type: "order_ready",
+          priority: "high",
+          action_required: true,
+          action_type: "set_delivery_date",
+          related_order: order._id,
+          data: { orderId: order._id, custom_order_id: order.custom_order_id, status: "ready_for_delivery" },
+        });
+
+        await notificationService.sendPushNotification(customerId, {
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Set your delivery date and time now.`,
+        });
+
+        try {
+          const otpService = require("../services/otpService");
+          const customerPhone = order.phone || (await User.findById(customerId, "phone"))?.phone;
+          if (customerPhone) {
+            await otpService.sendSMS(
+              customerPhone,
+              `Your laundry order ${order.custom_order_id || orderId} is ready for delivery! Please open the app to set your preferred delivery date and time.`,
+              "order_ready"
+            );
+          }
+        } catch (smsErr) {
+          console.warn("⚠️ Ready SMS failed:", smsErr.message);
+        }
+      } catch (err) {
+        console.warn("⚠️ Ready notification failed:", err.message);
+      }
+    })();
+
+    console.log(`✅ Order ${orderId} → ready_for_delivery`);
+    res.json({ success: true, message: "Order marked ready for delivery", order });
+  } catch (error) {
+    console.error("❌ Error marking order ready:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── Optimization endpoints ───────────────────────────────────────────────────
 
 const optimizationEngine = require("../services/optimizationEngine");
