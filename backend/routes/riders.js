@@ -1728,7 +1728,7 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
       body: req.body
     });
 
-    const { orderId, action, location, riderId } = req.body || {};
+    const { orderId, action, location, riderId, pickup_pieces } = req.body || {};
 
     // Validate required fields
     if (!orderId || !action) {
@@ -1814,9 +1814,8 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
       case 'start':
         order.riderStatus = 'picked_up';
         order.pickedUpAt = now;
-        order.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
-        // Keep assignedRider so rider can see this in their completed section.
-        // When admin assigns a delivery rider the field gets overwritten.
+        order.status = 'rider_pickup_done';
+        if (pickup_pieces != null) order.pickup_pieces = Number(pickup_pieces);
         break;
       case 'complete':
         order.riderStatus = 'delivered';

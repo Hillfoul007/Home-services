@@ -127,6 +127,7 @@ const RiderDeskDashboard: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [codModal, setCodModal] = useState<string | null>(null);
   const [codAmount, setCodAmount] = useState("");
+  const [piecesMap, setPiecesMap] = useState<Record<string, string>>({});
   // item photos staged per order before upload
   const [stagedItemPhotos, setStagedItemPhotos] = useState<Record<string, { preview: string; file: File }[]>>({});
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -566,13 +567,13 @@ const RiderDeskDashboard: React.FC = () => {
   };
 
   // ── order action (start / complete only — no accept/reject) ──
-  const doAction = async (orderId: string, action: "start" | "complete") => {
+  const doAction = async (orderId: string, action: "start" | "complete", pickup_pieces?: number) => {
     setActionLoading(a => ({ ...a, [orderId]: true }));
     try {
       const res = await fetch(`${getApiUrl()}/riders/order-action`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(token) },
-        body: JSON.stringify({ orderId, action }),
+        body: JSON.stringify({ orderId, action, ...(pickup_pieces != null && { pickup_pieces }) }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || "Failed"); return; }
@@ -720,7 +721,8 @@ const RiderDeskDashboard: React.FC = () => {
       toast.error("Please upload the pickup slip first");
       return;
     }
-    await doAction(orderId, "start");
+    const pieces = piecesMap[orderId] ? Number(piecesMap[orderId]) : undefined;
+    await doAction(orderId, "start", pieces);
     emitStatusUpdate("assigned", orderId);
   };
 
@@ -957,7 +959,40 @@ const RiderDeskDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* STEP 3 – Mark pickup complete */}
+                {/* STEP 3 – Pieces count input */}
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs font-bold text-gray-700 mb-2">🧺 Number of Pieces</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {[5, 10, 15, 20, 25, 30].map(n => (
+                      <button
+                        key={n}
+                        onClick={() => setPiecesMap(m => ({ ...m, [order._id]: String(n) }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                          piecesMap[order._id] === String(n)
+                            ? "bg-purple-600 text-white border-purple-600"
+                            : "bg-white text-gray-700 border-gray-300"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Other"
+                      value={[5,10,15,20,25,30].includes(Number(piecesMap[order._id])) ? "" : (piecesMap[order._id] || "")}
+                      onChange={e => setPiecesMap(m => ({ ...m, [order._id]: e.target.value }))}
+                      className="w-20 px-2 py-1.5 rounded-lg border border-gray-300 text-sm text-center"
+                    />
+                  </div>
+                  {piecesMap[order._id] && (
+                    <p className="text-xs text-purple-700 font-semibold mt-1.5">
+                      ✓ {piecesMap[order._id]} pieces
+                    </p>
+                  )}
+                </div>
+
+                {/* STEP 4 – Mark pickup complete */}
                 <button
                   onClick={() => markPickupComplete(order._id)}
                   disabled={!hasPickupSlip || completeBusy || itemsUploading}

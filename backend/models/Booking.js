@@ -67,6 +67,10 @@ const bookingSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    pickup_pieces: {
+      type: Number,
+      default: null,
+    },
     deliveredAt: {
       type: Date,
       default: null,

@@ -19,6 +19,8 @@ interface Order {
   final_amount?: number;
   total_price?: number;
   no_of_items?: number;
+  pickup_pieces?: number;
+  item_prices?: { service_name: string; quantity: number; unit_price: number; total_price: number }[];
   created_at?: string;
   readyAt?: string;
   _timeElapsed?: string;
@@ -126,11 +128,38 @@ export default function DeskReadyPage() {
               <div style={{ fontSize: "13px", color: "#888", marginBottom: "4px" }}>{order.phone}</div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
-              <span style={{ fontSize: "14px", color: "#333" }}>
-                ₹{order.final_amount ?? order.total_price ?? "—"}
-                {order.no_of_items ? ` · ${order.no_of_items} items` : ""}
-              </span>
+            {/* Pieces count */}
+            {order.pickup_pieces != null && (
+              <div style={{
+                marginTop: "8px", display: "inline-flex", alignItems: "center", gap: "6px",
+                background: "#ede9fe", borderRadius: "8px", padding: "4px 10px",
+              }}>
+                <span style={{ fontSize: "16px" }}>🧺</span>
+                <span style={{ fontSize: "13px", fontWeight: 700, color: "#6d28d9" }}>
+                  {order.pickup_pieces} pieces
+                </span>
+              </div>
+            )}
+
+            {/* Cart items */}
+            {order.item_prices && order.item_prices.length > 0 && (
+              <div style={{
+                marginTop: "10px", borderTop: "1px solid #f0f0f0", paddingTop: "10px",
+                display: "flex", flexDirection: "column", gap: "4px",
+              }}>
+                {order.item_prices.map((item, i) => (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between",
+                    fontSize: "13px", color: "#555",
+                  }}>
+                    <span>{item.service_name} × {item.quantity}</span>
+                    <span style={{ color: "#888" }}>{item.quantity} pc</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px", borderTop: "1px solid #f0f0f0", paddingTop: "10px" }}>
               <button
                 onClick={() => markReady(order._id)}
                 disabled={markingId === order._id}
