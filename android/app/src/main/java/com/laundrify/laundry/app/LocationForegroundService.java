@@ -68,6 +68,7 @@ public class LocationForegroundService extends Service {
     static volatile double lastLat      = 0;
     static volatile double lastLng      = 0;
     static volatile float  lastAccuracy = 0;
+    static volatile float  lastHeading  = 0;
     static volatile long   lastTimeMs   = 0;
 
     // Updated by LocationPlugin.onLocationReceived() whenever JS is alive
@@ -171,20 +172,21 @@ public class LocationForegroundService extends Service {
         double smoothLat = kalman.getLat();
         double smoothLng = kalman.getLng();
         float  accuracy  = loc.getAccuracy();
+        float  heading   = loc.hasBearing() ? loc.getBearing() : 0f;
 
         // Update shared volatile state
         lastLat      = smoothLat;
         lastLng      = smoothLng;
         lastAccuracy = accuracy;
+        lastHeading  = heading;
         lastTimeMs   = System.currentTimeMillis();
 
-        Log.v(TAG, String.format("Fix: %.6f, %.6f  acc=%.1fm", smoothLat, smoothLng, accuracy));
+        Log.v(TAG, String.format("Fix: %.6f, %.6f  acc=%.1fm  hdg=%.0f°", smoothLat, smoothLng, accuracy, heading));
 
         // ── Path 1: Push to JS via plugin ────────────────────────────────────
         LocationPlugin plugin = pluginRef.get();
         if (plugin != null) {
-            plugin.onLocationReceived(smoothLat, smoothLng, accuracy);
-            // lastJsCallMs is updated inside onLocationReceived
+            plugin.onLocationReceived(smoothLat, smoothLng, accuracy, heading);
         }
 
         // ── Path 2: HTTP fallback when JS/WebView is dead ────────────────────
@@ -221,7 +223,7 @@ public class LocationForegroundService extends Service {
 
         // Build JSON body matching the existing /riders/location endpoint
         String json = "{\"riderId\":\"" + riderId + "\","
-                    + "\"location\":{\"lat\":" + lat + ",\"lng\":" + lng + "},"
+                    + "\"location\":{\"lat\":" + lat + ",\"lng\":" + lng + ",\"heading\":" + lastHeading + "},"
                     + "\"timestamp\":\"" + ts + "\"}";
 
         final String finalToken = token;

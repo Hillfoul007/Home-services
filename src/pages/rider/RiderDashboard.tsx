@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,9 +27,39 @@ import TrainingVideo from '@/components/rider/TrainingVideo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 
+// ─── ETA helpers ───────────────────────────────────────────────────────────────
+interface ETAResult { durationText: string; distanceText: string; fetchedAt: number }
+const etaCache = new Map<string, ETAResult>();
+const ETA_TTL_MS = 2 * 60 * 1000; // refresh every 2 min
+
+async function fetchETA(
+  origin: { lat: number; lng: number },
+  destination: { lat: number; lng: number },
+  apiKey: string
+): Promise<{ durationText: string; distanceText: string } | null> {
+  try {
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&mode=driving&departure_time=now&traffic_model=best_guess&key=${apiKey}`;
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 8000);
+    const res  = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.status !== 'OK' || !data.routes?.length) return null;
+    const leg = data.routes[0].legs[0];
+    const duration = leg.duration_in_traffic || leg.duration;
+    return {
+      durationText: duration.text,
+      distanceText: leg.distance.text,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function RiderDashboard() {
   const navigate = useNavigate();
-  const { currentLocation, locationError } = useRiderLocation();
+  const { currentLocation, locationError, signalLost, lastLocationAt } = useRiderLocation();
   const [rider, setRider] = useState<any>(null);
   const [isActive, setIsActive] = useState(false);
   const [assignedOrders, setAssignedOrders] = useState<any[]>([]);
@@ -38,7 +68,10 @@ export default function RiderDashboard() {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastFetchError, setLastFetchError] = useState<string | null>(null);
-  const prevOrderCount = React.useRef<number>(0);
+  const [etaMap, setEtaMap] = useState<Map<string, { durationText: string; distanceText: string }>>(new Map());
+  const prevOrderCount = useRef<number>(0);
+  const etaFetchingRef = useRef<Set<string>>(new Set()); // prevent concurrent fetches for same order
+  const MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
   useEffect(() => {
     // Load rider data
@@ -104,6 +137,65 @@ export default function RiderDashboard() {
     window.addEventListener('globalVerificationStatusChanged', handler as EventListener);
     return () => window.removeEventListener('globalVerificationStatusChanged', handler as EventListener);
   }, []);
+
+  // Instant new-order notification via socket (no 30s poll delay)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail || {};
+        console.log('⚡ Instant new order from socket:', detail);
+        fetchAssignedOrders();
+        toast.success('New order assigned!', { duration: 8000 });
+      } catch (err) {
+        console.warn('riderNewOrder event error', err);
+      }
+    };
+    window.addEventListener('riderNewOrder', handler as EventListener);
+    return () => window.removeEventListener('riderNewOrder', handler as EventListener);
+  }, []);
+
+  // ETA refresh: fetch Google Maps traffic ETA for every active order with coordinates
+  useEffect(() => {
+    if (!MAPS_API_KEY || !currentLocation) return;
+
+    const activeOrders = assignedOrders.filter((o: any) => {
+      const s = (o.status || '').toLowerCase();
+      return (
+        s === 'pickup_assigned' || s === 'created' || s === 'vendor_assigned' ||
+        s === 'delivery_assigned' || s === 'in_transit' || s === 'ready_for_delivery'
+      );
+    });
+
+    activeOrders.forEach(async (order: any) => {
+      const dest =
+        order.coordinates?.lat != null && order.coordinates?.lng != null
+          ? { lat: order.coordinates.lat, lng: order.coordinates.lng }
+          : null;
+      if (!dest) return;
+
+      const key = `${order._id}`;
+      const cached = etaCache.get(key);
+      if (cached && Date.now() - cached.fetchedAt < ETA_TTL_MS) return;
+      if (etaFetchingRef.current.has(key)) return;
+
+      etaFetchingRef.current.add(key);
+      try {
+        const result = await fetchETA(currentLocation, dest, MAPS_API_KEY);
+        if (result) {
+          etaCache.set(key, { ...result, fetchedAt: Date.now() });
+          setEtaMap(prev => {
+            const next = new Map(prev);
+            next.set(key, result);
+            return next;
+          });
+        }
+      } finally {
+        etaFetchingRef.current.delete(key);
+      }
+    });
+  // Re-run when orders or location changes meaningfully (every ~2 min via lastLocationAt tick)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedOrders, currentLocation?.lat, currentLocation?.lng, MAPS_API_KEY]);
 
   // Location tracking is now handled globally by RiderLocationContext
   // GPS runs from login until logout, regardless of active/inactive status
@@ -602,7 +694,14 @@ export default function RiderDashboard() {
 
   return (
     <RiderLayout>
-      {locationError && (
+      {/* GPS signal lost — shown when no fix for >30s (app was backgrounded/sleeping) */}
+      {signalLost && (
+        <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-800 text-sm font-medium flex items-center gap-2 animate-pulse">
+          <span>⚠️</span>
+          <span>GPS signal lost — bring the app to the foreground to resume tracking</span>
+        </div>
+      )}
+      {locationError && !signalLost && (
         <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium flex items-center gap-2">
           <span>📍</span>
           <span>{locationError}</span>
@@ -669,6 +768,7 @@ export default function RiderDashboard() {
                   onPickup={(id) => handleOrderAction(id, 'start')}
                   onDeliver={(id) => handleOrderAction(id, 'complete')}
                   onNavigate={(order) => openGoogleMapsNavigation(order)}
+                  eta={etaMap.get(o._id) ?? null}
                 />
               ))
             )}
@@ -697,6 +797,7 @@ export default function RiderDashboard() {
                         onPickup={(id) => handleOrderAction(id, 'start')}
                         onDeliver={(id) => handleOrderAction(id, 'complete')}
                         onNavigate={(order) => openGoogleMapsNavigation(order)}
+                        eta={etaMap.get(o._id) ?? null}
                       />
                     ))}
                   </div>
@@ -721,6 +822,7 @@ export default function RiderDashboard() {
                         onPickup={(id) => handleOrderAction(id, 'start')}
                         onDeliver={(id) => handleOrderAction(id, 'complete')}
                         onNavigate={(order) => openGoogleMapsNavigation(order)}
+                        eta={etaMap.get(o._id) ?? null}
                       />
                     ))}
                   </div>
@@ -744,6 +846,7 @@ export default function RiderDashboard() {
                         onPickup={(id) => handleOrderAction(id, 'start')}
                         onDeliver={(id) => handleOrderAction(id, 'complete')}
                         onNavigate={(order) => openGoogleMapsNavigation(order)}
+                        eta={etaMap.get(o._id) ?? null}
                       />
                     ))}
                   </div>

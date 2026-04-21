@@ -5,7 +5,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 
 import androidx.core.content.ContextCompat;
@@ -106,6 +109,29 @@ public class LocationPlugin extends Plugin {
     }
 
     /**
+     * Show the system dialog to exclude the app from battery optimisation (Doze / OEM killers).
+     * This is the single most effective fix for tracking stopping on Xiaomi/Samsung/OnePlus.
+     * The manifest already holds REQUEST_IGNORE_BATTERY_OPTIMIZATIONS so no extra permission needed.
+     */
+    @PluginMethod
+    public void requestBatteryExemption(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+            String pkg = getContext().getPackageName();
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(pkg)) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + pkg));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                Log.i(TAG, "Battery optimisation exemption dialog shown");
+            } else {
+                Log.i(TAG, "Already exempt from battery optimisation");
+            }
+        }
+        call.resolve();
+    }
+
+    /**
      * Clear saved auth on rider logout.
      */
     @PluginMethod
@@ -126,14 +152,14 @@ public class LocationPlugin extends Plugin {
      * Called by LocationForegroundService on every smoothed GPS fix.
      * Runs on the main thread (same Looper as location callback).
      */
-    public void onLocationReceived(double lat, double lng, float accuracy) {
-        // Mark JS as alive — service uses this to decide if HTTP fallback is needed
+    public void onLocationReceived(double lat, double lng, float accuracy, float heading) {
         LocationForegroundService.lastJsCallMs = System.currentTimeMillis();
 
         JSObject data = new JSObject();
         data.put("lat",      lat);
         data.put("lng",      lng);
         data.put("accuracy", accuracy);
+        data.put("heading",  heading);  // degrees 0-360, 0 if unavailable
         data.put("ts",       System.currentTimeMillis());
         notifyListeners("location", data);
     }

@@ -57,12 +57,14 @@ export default function OrderCard({
   onNavigate,
   onPickup,
   onDeliver,
+  eta,
 }: {
   order: Order;
   currentLocation: { lat: number; lng: number } | null;
   onNavigate: (order: Order) => void;
   onPickup: (id: string) => void;
   onDeliver: (id: string) => void;
+  eta?: { durationText: string; distanceText: string } | null;
 }) {
   const navigate = useNavigate();
   const status = (order.status || '').toLowerCase();
@@ -134,15 +136,29 @@ export default function OrderCard({
             <Phone className="h-4 w-4 text-gray-400 shrink-0" />
             <a href={`tel:${order.customerPhone}`} className="text-xs text-blue-600 underline">{order.customerPhone}</a>
           </div>
-          {/* Distance indicator */}
+          {/* Distance + ETA indicator */}
           {distanceToPickup !== null && isPickupTask && (
-            <div className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-lg inline-block">
-              📍 {formatDistance(distanceToPickup)}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-lg inline-block">
+                📍 {formatDistance(distanceToPickup)}
+              </div>
+              {eta && (
+                <div className="text-xs font-medium text-purple-700 bg-purple-100 px-2 py-1 rounded-lg inline-block">
+                  🕐 {eta.durationText}
+                </div>
+              )}
             </div>
           )}
           {distanceToVendor !== null && isDeliveryTask && (
-            <div className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-lg inline-block">
-              📍 {formatDistance(distanceToVendor)}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-lg inline-block">
+                📍 {formatDistance(distanceToVendor)}
+              </div>
+              {eta && (
+                <div className="text-xs font-medium text-orange-700 bg-orange-100 px-2 py-1 rounded-lg inline-block">
+                  🕐 {eta.durationText}
+                </div>
+              )}
             </div>
           )}
         </CardDescription>
