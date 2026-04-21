@@ -9,8 +9,8 @@ APP_FLAVOR="desk"
 DIST_DIR="dist-${APP_FLAVOR}"
 APP_ID="com.laundrify.desk.app"
 APP_NAME="Laundrify Desk"
-VERSION_CODE=64
-VERSION_NAME="2.64"
+VERSION_CODE=66
+VERSION_NAME="2.66"
 DEFAULT_APP_ID="com.laundrify.laundry.app"
 DEFAULT_APP_NAME="Laundrify"
 
