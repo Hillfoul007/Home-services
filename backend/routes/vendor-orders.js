@@ -883,10 +883,9 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
     }
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-    // Query all vendor orders; we'll filter by status_history on app side to keep it simple
-    // OR: use updated_at as a rough proxy + status
+    // Query all vendor orders; filter by status_history events on selected date
     const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
-      .select("_id custom_order_id name phone address status riderStatus isPGOrder pg_name no_of_items final_amount total_price assignedRider scheduled_date delivery_date created_at updated_at readyAt status_history coordinates")
+      .select("_id custom_order_id name phone address status riderStatus isPGOrder pg_name no_of_items final_amount total_price assignedRider scheduled_date delivery_date created_at updated_at readyAt assignedAt pickedUpAt deliveredAt status_history coordinates")
       .populate("assignedRider", "name phone")
       .lean();
 
@@ -935,6 +934,9 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
         created_at: order.created_at,
         updated_at: order.updated_at,
         readyAt: order.readyAt,
+        assignedAt: order.assignedAt,
+        pickedUpAt: order.pickedUpAt,
+        deliveredAt: order.deliveredAt,
         _breach: isBreach(order),
       };
 
