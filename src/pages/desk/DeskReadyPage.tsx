@@ -72,6 +72,7 @@ export default function DeskReadyPage() {
 
   useEffect(() => {
     if (!token) { navigate("/desk"); return; }
+    localStorage.setItem("desk_last_route", "#/desk/ready");
     fetchProcessing();
   }, [fetchProcessing, token, navigate]);
 

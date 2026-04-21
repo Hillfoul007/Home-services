@@ -52,8 +52,8 @@ rm -rf "$DIST_DIR"
 # Use PowerShell Copy-Item on Windows to handle filenames with spaces reliably
 powershell.exe -Command "Copy-Item -Path 'dist' -Destination '$DIST_DIR' -Recurse"
 
-# Inject hash-based route redirect so app starts at /#/desk/dashboard (HashRouter)
-REDIRECT_SCRIPT='<script>if(!window.location.hash||window.location.hash==="#/"||window.location.hash==="#"){window.location.hash="#/desk/dashboard";}<\/script>'
+# Inject hash-based route redirect — restores last visited desk route on reload
+REDIRECT_SCRIPT='<script>(function(){var h=window.location.hash;if(!h||h==="#/"||h==="#"){var s=localStorage.getItem("desk_last_route");window.location.hash=s||"#/desk/dashboard";}})()\;<\/script>'
 if [[ "$OSTYPE" == "darwin"* ]]; then
   sed -i '' "s%</head>%${REDIRECT_SCRIPT}</head>%" "${DIST_DIR}/index.html"
 else

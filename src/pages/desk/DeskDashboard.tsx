@@ -345,6 +345,7 @@ const DeskDashboard: React.FC = () => {
   }, [token]);
 
   useEffect(() => {
+    localStorage.setItem("desk_last_route", "#/desk/dashboard");
     fetchDashboard();
     fetchRiders();
     const dashId = setInterval(fetchDashboard, 15000);
