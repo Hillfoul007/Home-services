@@ -6,6 +6,7 @@ import { getApiUrl } from "@/config/env";
 import { showLocalNotification } from "@/utils/nativeNotification";
 import RiderLiveMap from "@/components/RiderLiveMap";
 import RiderTrackingMap from "@/components/desk/RiderTrackingMap";
+import SmartRiderAssignment from "@/components/desk/SmartRiderAssignment";
 import { useRiderSocket, type RiderSocketState } from "@/hooks/useRiderSocket";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ const DeskDashboard: React.FC = () => {
   })();
 
   // Tabs
-  const [tab, setTab] = useState<"orders" | "riders" | "efficiency" | "optimize" | "daily" | "profile">("orders");
+  const [tab, setTab] = useState<"orders" | "riders" | "efficiency" | "optimize" | "daily" | "profile" | "smart">("orders");
 
   // Daily summary
   const [dailyData, setDailyData] = useState<{ pickedUp: Order[]; delivered: Order[]; created: Order[] } | null>(null);
@@ -1556,6 +1557,7 @@ const DeskDashboard: React.FC = () => {
         {([
           { key: "orders" as const, icon: "📋", label: `Orders (${counts.total})` },
           { key: "riders" as const, icon: "🛵", label: "Riders" },
+          { key: "smart" as const, icon: "🤖", label: "Smart" },
           { key: "daily" as const, icon: "📅", label: "Daily" },
           { key: "efficiency" as const, icon: "📊", label: "Efficiency" },
           { key: "optimize" as const, icon: "🗺️", label: "Optimize" },
@@ -2045,6 +2047,17 @@ const DeskDashboard: React.FC = () => {
           <OptimizeTab
             sections={sections}
             riders={availableRiders}
+            token={token}
+            fetchDashboard={fetchDashboard}
+          />
+        )}
+
+        {/* ══ SMART ASSIGNMENT TAB ══ */}
+        {tab === "smart" && (
+          <SmartRiderAssignment
+            sections={sections}
+            riders={riders}
+            riderMap={riderMap}
             token={token}
             fetchDashboard={fetchDashboard}
           />
