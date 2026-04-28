@@ -716,7 +716,7 @@ export default function RiderDashboard() {
           <p className="text-sm text-gray-400">Loading your orders…</p>
         </div>
       )}
-      {!initialLoading && <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+      {!initialLoading && <><div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="lg:col-span-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
             <div>
@@ -923,7 +923,7 @@ export default function RiderDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-      </div>}
+      </>}
 
     </RiderLayout>
   );
