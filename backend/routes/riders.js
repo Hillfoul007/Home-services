@@ -749,7 +749,8 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       })
       .populate('customer_id', 'name phone')
       .sort({ assignedAt: -1 })
-      .limit(100),
+      .limit(100)
+      .lean(),
 
       // Quick pickups assigned to this rider (last 30 days)
       QuickPickup.find({
@@ -763,6 +764,7 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       .populate('customer_id', 'name phone')
       .sort({ createdAt: -1 })
       .limit(50)
+      .lean()
     ]);
 
     console.log(`📦 Found ${regularOrders.length} bookings and ${quickPickups.length} quick pickups for rider ${riderId}`);

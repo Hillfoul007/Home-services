@@ -139,15 +139,25 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
       dateFilter = { created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } };
     }
 
-    // Build query: when period is set, filter ALL orders (including active ones) by date
+    // Build query: when period is set, filter ALL orders (including active ones) by date.
+    // When no period ("all"), fetch active orders + last 30 days to avoid unbounded scans.
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const ACTIVE_STATUSES = ['created', 'vendor_assigned', 'pickup_assigned', 'pickup_completed', 'in_progress', 'ready_for_delivery', 'delivery_assigned', 'in_transit', 'delivered'];
     const findQuery = period
       ? { assignedVendor: req.vendor_name, ...dateFilter }
-      : { assignedVendor: req.vendor_name };
+      : {
+          assignedVendor: req.vendor_name,
+          $or: [
+            { status: { $in: ACTIVE_STATUSES } },
+            { created_at: { $gte: thirtyDaysAgo } },
+          ],
+        };
 
     const allOrders = await Booking.find(findQuery)
       .populate("assignedRider", "name phone live_location_link location lastLocationUpdate isActive")
       .sort({ created_at: -1 })
-      .select("-special_instructions");
+      .select("-special_instructions")
+      .lean();
 
     const sections = {
       created: [],
@@ -160,11 +170,10 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
     };
 
     for (const order of allOrders) {
-      const obj = order.toObject ? order.toObject() : order;
-      obj._breach = isBreach(order);
-      obj._timeElapsed = timeElapsed(order.readyAt || order.created_at);
+      order._breach = isBreach(order);
+      order._timeElapsed = timeElapsed(order.readyAt || order.created_at);
       const section = getSectionForOrder(order);
-      if (sections[section]) sections[section].push(obj);
+      if (sections[section]) sections[section].push(order);
     }
 
     const counts = {
@@ -199,7 +208,7 @@ router.get("/metrics", verifyVendorToken, async (req, res) => {
     const orders = await Booking.find({
       assignedVendor: req.vendor_name,
       created_at: { $gte: since },
-    }).select("status riderStatus deliveredAt delivery_date readyAt assignedRider created_at");
+    }).select("status riderStatus deliveredAt delivery_date readyAt assignedRider created_at").lean();
 
     const total = orders.length;
     const delivered = orders.filter(o => ["delivered", "completed"].includes(o.status));

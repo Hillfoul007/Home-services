@@ -67,6 +67,7 @@ export default function RiderDashboard() {
   const [allAssignedOrders, setAllAssignedOrders] = useState<any[]>([]);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [lastFetchError, setLastFetchError] = useState<string | null>(null);
   const [etaMap, setEtaMap] = useState<Map<string, { durationText: string; distanceText: string }>>(new Map());
   const prevOrderCount = useRef<number>(0);
@@ -408,6 +409,8 @@ export default function RiderDashboard() {
         setLastFetchError('Unable to connect to server');
       }
       setDemoOrders();
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -707,7 +710,13 @@ export default function RiderDashboard() {
           <span>{locationError}</span>
         </div>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+      {initialLoading && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400">Loading your orders…</p>
+        </div>
+      )}
+      {!initialLoading && <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="lg:col-span-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
             <div>
@@ -914,6 +923,7 @@ export default function RiderDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      </div>}
 
     </RiderLayout>
   );

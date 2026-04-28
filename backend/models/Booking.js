@@ -689,6 +689,11 @@ bookingSchema.index({ payment_status: 1 });
 bookingSchema.index({ scheduled_date: 1 });
 bookingSchema.index({ created_at: -1 });
 bookingSchema.index({ "coordinates.lat": 1, "coordinates.lng": 1 });
+// Compound indexes for fast vendor dashboard and rider orders queries
+bookingSchema.index({ assignedVendor: 1, created_at: -1 });
+bookingSchema.index({ assignedVendor: 1, status: 1 });
+bookingSchema.index({ assignedRider: 1, riderStatus: 1, assignedAt: -1 });
+bookingSchema.index({ assignedRider: 1, scheduled_date: 1 });
 
 // Static method to find bookings within radius
 bookingSchema.statics.findNearby = function (lat, lng, radiusKm = 5) {

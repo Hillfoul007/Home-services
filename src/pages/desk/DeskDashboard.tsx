@@ -201,6 +201,7 @@ const DeskDashboard: React.FC = () => {
   const [availableRiders, setAvailableRiders] = useState<RiderRef[]>([]);
 
   // UI state
+  const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
@@ -280,6 +281,7 @@ const DeskDashboard: React.FC = () => {
         fetch(`${API}/orders/metrics?period=${metricsPeriod}`, { headers: authHeaders(token) }),
       ]);
 
+
       if (dashRes.status === 401) { navigate("/desk"); return; }
 
       const dashData = await dashRes.json();
@@ -325,6 +327,7 @@ const DeskDashboard: React.FC = () => {
         if (mData.success) setMetrics(mData.metrics);
       }
     } catch { /* silent */ }
+    finally { setInitialLoading(false); }
   }, [token, navigate, metricsPeriod, ordersPeriod]);
 
   // ── fetch riders ──
@@ -1583,6 +1586,14 @@ const DeskDashboard: React.FC = () => {
         {/* ══ ORDERS TAB ══ */}
         {tab === "orders" && (
           <>
+            {/* ── initial loading skeleton ── */}
+            {initialLoading && (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-gray-400">Loading orders…</p>
+              </div>
+            )}
+            {!initialLoading && <>
             {/* ── metrics bar ── */}
             {metrics && (
               <div className="mb-4">
@@ -1704,6 +1715,7 @@ const DeskDashboard: React.FC = () => {
             ) : (
               sectionOrders.map(renderOrderCard)
             )}
+            </>}
           </>
         )}
 
