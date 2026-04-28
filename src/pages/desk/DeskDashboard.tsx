@@ -344,6 +344,23 @@ const DeskDashboard: React.FC = () => {
     }
   }, []);
 
+  // ── live Redis positions (merged into riderMap every 10s) ──
+  const [redisRiderMap, setRedisRiderMap] = useState<Map<string, { lat: number | null; lng: number | null; connected: boolean; lastSeen: number | null; timestamp: string | null }>>(new Map());
+
+  const fetchLiveSnapshot = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/riders/live-snapshot`, { headers: authHeaders(token) });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) {
+        const m = new Map<string, any>();
+        (data.riders || []).forEach((r: any) => m.set(String(r._id), r));
+        setRedisRiderMap(m);
+      }
+    } catch { /* silent */ }
+  }, [token]);
+
   // ── fetch riders ──
   const fetchRiders = useCallback(async () => {
     if (!token) return;
@@ -366,11 +383,12 @@ const DeskDashboard: React.FC = () => {
     localStorage.setItem("desk_last_route", "#/desk/dashboard");
     fetchDashboard();
     fetchRiders();
-    const dashId = setInterval(fetchDashboard, 15000);
-    // Poll rider locations every 10s so the live map and order cards stay fresh
-    const ridersId = setInterval(fetchRiders, 10000);
-    return () => { clearInterval(dashId); clearInterval(ridersId); };
-  }, [fetchDashboard, fetchRiders]);
+    fetchLiveSnapshot();
+    const dashId    = setInterval(fetchDashboard, 15000);
+    const ridersId  = setInterval(fetchRiders, 10000);
+    const redisId   = setInterval(fetchLiveSnapshot, 10000);
+    return () => { clearInterval(dashId); clearInterval(ridersId); clearInterval(redisId); };
+  }, [fetchDashboard, fetchRiders, fetchLiveSnapshot]);
 
   useEffect(() => {
     fetchDashboard();
@@ -1885,7 +1903,13 @@ const DeskDashboard: React.FC = () => {
                 <h2 className="font-semibold text-gray-800 px-4 pt-4 pb-2">Your Riders ({riders.length})</h2>
                 <div className="divide-y divide-gray-50">
                   {ridersWithSocketLocation.map((r) => {
-                    const liveSocket = riderMap.get(r._id);
+                    const liveSocket  = riderMap.get(r._id);
+                    const redisRider  = redisRiderMap.get(String(r._id));
+                    // Best known location: socket > Redis > MongoDB
+                    const bestLat = liveSocket?.lat || redisRider?.lat || r.location?.lat || null;
+                    const bestLng = liveSocket?.lng || redisRider?.lng || r.location?.lng || null;
+                    const bestTs  = liveSocket?.timestamp || redisRider?.timestamp || r.lastLocationUpdate || null;
+                    const isSocketLive = !!(liveSocket && liveSocket.connected !== false);
                     return (
                     <div key={r._id} className="px-4 py-3">
                       <div className="flex items-center justify-between">
@@ -1936,29 +1960,29 @@ const DeskDashboard: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                      {r.location?.lat && r.location?.lng && (() => {
-                        const ageMs = r.lastLocationUpdate ? Date.now() - new Date(r.lastLocationUpdate).getTime() : Infinity;
-                        const isLive   = ageMs < 2 * 60_000;   // < 2 min
-                        const isFresh  = ageMs < 10 * 60_000;  // < 10 min
-                        const isOnline = liveSocket && liveSocket.connected !== false;
+                      {bestLat && bestLng && (() => {
+                        const ageMs = bestTs ? Date.now() - new Date(bestTs).getTime() : Infinity;
+                        const isLive   = isSocketLive || ageMs < 2 * 60_000;
+                        const isFresh  = ageMs < 10 * 60_000;
                         const borderColor = isLive ? "border-green-400" : isFresh ? "border-yellow-300" : "border-red-200";
                         const badgeBg    = isLive ? "bg-green-500" : isFresh ? "bg-yellow-400" : "bg-red-400";
                         const badgeLabel = isLive ? "LIVE" : isFresh ? "RECENT" : "STALE";
+                        const locLabel   = isSocketLive ? "Open Location" : "Last Known Location";
                         return (
                           <div className={`mt-2 rounded-lg overflow-hidden border ${borderColor}`}>
                             <a
-                              href={`https://www.google.com/maps?q=${r.location.lat},${r.location.lng}`}
+                              href={`https://www.google.com/maps?q=${bestLat},${bestLng}`}
                               target="_blank"
                               rel="noreferrer"
                               className="flex items-center justify-center gap-2 py-2 bg-green-50 text-sm font-medium text-green-700 hover:bg-green-100 active:bg-green-200 transition-colors"
                             >
                               <span>🗺️</span>
-                              <span>{isOnline ? "Open Location" : "Last Known Location"}</span>
+                              <span>{locLabel}</span>
                               <span className={`text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full ${badgeBg}`}>{badgeLabel}</span>
                             </a>
-                            {r.lastLocationUpdate && (
+                            {bestTs && (
                               <p className={`text-[10px] text-center py-1 bg-gray-50 ${isLive ? "text-green-600 font-medium" : isFresh ? "text-yellow-600" : "text-red-400"}`}>
-                                {isLive ? "● " : ""}Last updated: {timeSince(r.lastLocationUpdate)}
+                                {isLive ? "● " : ""}Last updated: {timeSince(bestTs)}
                               </p>
                             )}
                           </div>

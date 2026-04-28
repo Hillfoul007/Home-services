@@ -105,6 +105,37 @@ router.get("/", verifyVendorToken, async (req, res) => {
   }
 });
 
+// ─── GET live Redis positions for all this vendor's riders ──────────────────
+// GET /api/vendor/riders/live-snapshot
+router.get("/live-snapshot", verifyVendorToken, async (req, res) => {
+  try {
+    const dbRiders = await Rider.find({ created_by_vendor: req.vendor_id })
+      .select("_id name phone").lean();
+
+    const { getRiderState } = require("../socketServer");
+
+    const result = await Promise.all(dbRiders.map(async (r) => {
+      const state = await getRiderState(r._id);
+      return {
+        _id: r._id,
+        name: r.name,
+        phone: r.phone,
+        lat: state?.lat || null,
+        lng: state?.lng || null,
+        status: state?.status || "offline",
+        connected: state?.connected || false,
+        lastSeen: state?.lastSeen || null,
+        timestamp: state?.timestamp || null,
+      };
+    }));
+
+    res.json({ success: true, riders: result });
+  } catch (err) {
+    console.error("❌ live-snapshot error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Reset rider password
 // PATCH /api/vendor/riders/:riderId/reset-password
 router.patch("/:riderId/reset-password", verifyVendorToken, async (req, res) => {
