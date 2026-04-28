@@ -618,6 +618,76 @@ router.post('/location', verifyRiderToken, async (req, res) => {
   }
 });
 
+// ─── GET current position of a specific rider (from Redis, no DB hit) ─────────
+// GET /api/riders/location/current?riderId=xxx  (vendor auth)
+router.get('/location/current', async (req, res) => {
+  try {
+    const { riderId } = req.query;
+    if (!riderId) return res.status(400).json({ error: 'riderId required' });
+
+    const { getRiderState } = require('../socketServer');
+    const state = await getRiderState(riderId);
+
+    if (!state || !state.lat) {
+      // Fall back to MongoDB last known position
+      const rider = await Rider.findById(riderId).select('name phone location lastLocationUpdate isActive').lean();
+      if (!rider) return res.status(404).json({ error: 'Rider not found' });
+      return res.json({
+        source: 'mongodb',
+        rider_id: riderId,
+        name: rider.name,
+        phone: rider.phone,
+        lat: rider.location?.lat || null,
+        lng: rider.location?.lng || null,
+        lastSeen: rider.lastLocationUpdate || null,
+        connected: false,
+      });
+    }
+
+    res.json({
+      source: 'redis',
+      rider_id: riderId,
+      name: state.name,
+      phone: state.phone,
+      lat: state.lat,
+      lng: state.lng,
+      status: state.status,
+      order_id: state.order_id,
+      speed_ms: state.speed_ms || 0,
+      lastSeen: state.lastSeen,
+      connected: state.connected,
+    });
+  } catch (err) {
+    console.error('❌ location/current error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET 24-hr location history trail for a rider ──────────────────────────
+// GET /api/riders/location/history?riderId=xxx&hours=24
+router.get('/location/history', async (req, res) => {
+  try {
+    const { riderId, hours = '24' } = req.query;
+    if (!riderId) return res.status(400).json({ error: 'riderId required' });
+
+    const hrsNum  = Math.min(parseInt(hours, 10) || 24, 24);
+    const sinceMs = Date.now() - hrsNum * 60 * 60 * 1000;
+
+    const { getRiderLocationHistory } = require('../socketServer');
+    const trail = await getRiderLocationHistory(riderId, sinceMs, Date.now());
+
+    if (!trail) {
+      // Redis not available — return empty with a flag
+      return res.json({ riderId, hours: hrsNum, points: [], source: 'unavailable' });
+    }
+
+    res.json({ riderId, hours: hrsNum, points: trail, source: 'redis', count: trail.length });
+  } catch (err) {
+    console.error('❌ location/history error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Toggle rider active status
 router.post('/toggle-status', verifyRiderToken, async (req, res) => {
   try {

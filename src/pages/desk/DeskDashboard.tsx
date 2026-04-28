@@ -234,6 +234,7 @@ const DeskDashboard: React.FC = () => {
   // ── Real-time rider tracking via Socket.io ────────────────────────────────
   const { riderMap, connected: socketConnected, requestSnapshot } = useRiderSocket(token);
   const [selectedSocketRider, setSelectedSocketRider] = useState<RiderSocketState | null>(null);
+  const [trailModal, setTrailModal] = useState<{ riderId: string; name: string; points: { lat: number; lng: number; ts: number }[]; loading: boolean } | null>(null);
 
   // Merge socket locations into the riders array for the old map + order cards
   const ridersWithSocketLocation = riders.map(r => {
@@ -329,6 +330,19 @@ const DeskDashboard: React.FC = () => {
     } catch { /* silent */ }
     finally { setInitialLoading(false); }
   }, [token, navigate, metricsPeriod, ordersPeriod]);
+
+  // ── fetch 24hr trail for a rider ──
+  const openRiderTrail = useCallback(async (riderId: string, name: string) => {
+    setTrailModal({ riderId, name, points: [], loading: true });
+    try {
+      const { getApiUrl } = await import('@/config/env');
+      const res = await fetch(`${getApiUrl()}/riders/location/history?riderId=${riderId}&hours=24`);
+      const data = await res.json();
+      setTrailModal(prev => prev ? { ...prev, points: data.points || [], loading: false } : null);
+    } catch {
+      setTrailModal(prev => prev ? { ...prev, loading: false } : null);
+    }
+  }, []);
 
   // ── fetch riders ──
   const fetchRiders = useCallback(async () => {
@@ -1795,6 +1809,23 @@ const DeskDashboard: React.FC = () => {
                           {selectedSocketRider.lat.toFixed(5)}, {selectedSocketRider.lng.toFixed(5)}
                         </p>
                       )}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {selectedSocketRider.lat && (
+                          <a
+                            href={`https://www.google.com/maps?q=${selectedSocketRider.lat},${selectedSocketRider.lng}`}
+                            target="_blank" rel="noreferrer"
+                            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium"
+                          >
+                            📍 Open in Maps
+                          </a>
+                        )}
+                        <button
+                          onClick={() => openRiderTrail(selectedSocketRider.rider_id, selectedSocketRider.name)}
+                          className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg font-medium"
+                        >
+                          🕐 24hr Trail
+                        </button>
+                      </div>
                     </div>
                     <button
                       onClick={() => setSelectedSocketRider(null)}
@@ -1939,6 +1970,82 @@ const DeskDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ══ 24HR TRAIL MODAL ══ */}
+        {trailModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <div>
+                  <p className="font-semibold text-gray-900">🕐 24hr Trail — {trailModal.name}</p>
+                  <p className="text-xs text-gray-400">{trailModal.loading ? 'Loading…' : `${trailModal.points.length} location points`}</p>
+                </div>
+                <button onClick={() => setTrailModal(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+              </div>
+
+              {trailModal.loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-7 h-7 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : trailModal.points.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className="text-gray-400 text-sm">No location data found for the last 24 hours.</p>
+                  <p className="text-gray-300 text-xs mt-1">Make sure Redis (REDIS_URL) is configured and the rider has been active.</p>
+                </div>
+              ) : (
+                <div className="p-4 space-y-3">
+                  {/* Quick stats */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-purple-50 rounded-xl p-3 text-center">
+                      <p className="text-lg font-bold text-purple-700">{trailModal.points.length}</p>
+                      <p className="text-xs text-purple-500">Points</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-xl p-3 text-center">
+                      <p className="text-sm font-bold text-blue-700">
+                        {new Date(trailModal.points[0].ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-xs text-blue-500">First seen</p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-3 text-center">
+                      <p className="text-sm font-bold text-green-700">
+                        {new Date(trailModal.points[trailModal.points.length - 1].ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-xs text-green-500">Last seen</p>
+                    </div>
+                  </div>
+                  {/* Open full trail in Google Maps */}
+                  <a
+                    href={(() => {
+                      const pts = trailModal.points;
+                      const last = pts[pts.length - 1];
+                      const first = pts[0];
+                      return `https://www.google.com/maps/dir/${first.lat},${first.lng}/${last.lat},${last.lng}`;
+                    })()}
+                    target="_blank" rel="noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium"
+                  >
+                    📍 Open Start → End in Google Maps
+                  </a>
+                  {/* Last 10 positions */}
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-1">Recent positions (last 10)</p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {trailModal.points.slice(-10).reverse().map((p, i) => (
+                      <a
+                        key={i}
+                        href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+                        target="_blank" rel="noreferrer"
+                        className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs"
+                      >
+                        <span className="font-mono text-gray-600">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</span>
+                        <span className="text-gray-400 shrink-0 ml-2">{new Date(p.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

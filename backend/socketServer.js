@@ -53,7 +53,9 @@ async function initRedis() {
 // ─── State store (Redis when available, in-memory fallback) ───────────────────
 const activeRiders = new Map(); // in-memory fallback
 
-const REDIS_TTL = 10 * 60; // 10 min TTL in Redis
+const REDIS_STATE_TTL   = 24 * 60 * 60; // 24 hr — rider state survives the full day
+const REDIS_HISTORY_TTL = 24 * 60 * 60; // 24 hr location history
+const HISTORY_MAX_POINTS = 2000;         // ~1 point per 43 s over 24 hrs
 
 async function getRiderState(riderId) {
   const id = String(riderId);
@@ -73,19 +75,45 @@ async function setRiderState(riderId, data) {
 
   if (redisClient) {
     try {
-      await redisClient.setex(`rider:state:${id}`, REDIS_TTL, JSON.stringify(updated));
+      await redisClient.setex(`rider:state:${id}`, REDIS_STATE_TTL, JSON.stringify(updated));
       await redisClient.sadd("rider:active_ids", id);
-      await redisClient.expire("rider:active_ids", REDIS_TTL);
+      await redisClient.expire("rider:active_ids", REDIS_STATE_TTL);
     } catch { /* fall through */ }
   }
   activeRiders.set(id, updated); // always keep in-memory mirror
   return updated;
 }
 
+// Append a lat/lng point to the rider's 24-hr history trail (sorted set by timestamp).
+async function appendLocationHistory(riderId, lat, lng, ts) {
+  if (!redisClient) return;
+  const key   = `rider:history:${String(riderId)}`;
+  const score = ts || Date.now();
+  const value = JSON.stringify({ lat, lng, ts: score });
+  try {
+    await redisClient.zadd(key, score, value);
+    // Keep at most HISTORY_MAX_POINTS entries (drop oldest)
+    await redisClient.zremrangebyrank(key, 0, -(HISTORY_MAX_POINTS + 1));
+    await redisClient.expire(key, REDIS_HISTORY_TTL);
+  } catch { /* silent */ }
+}
+
+// Fetch location history for a rider, optionally within a time window.
+async function getRiderLocationHistory(riderId, sinceMs, untilMs) {
+  if (!redisClient) return null; // caller falls back to empty
+  const key  = `rider:history:${String(riderId)}`;
+  const min  = sinceMs  || '-inf';
+  const max  = untilMs  || '+inf';
+  try {
+    const raw = await redisClient.zrangebyscore(key, min, max);
+    return raw.map(r => JSON.parse(r));
+  } catch { return null; }
+}
+
 async function getAllRiders() {
   const now    = Date.now();
   const result = [];
-  const STALE  = 10 * 60 * 1000; // 10 min
+  const STALE  = 24 * 60 * 60 * 1000; // 24 hr
 
   if (redisClient) {
     try {
@@ -285,6 +313,9 @@ async function initSocketServer(httpServer) {
         speed_ms:   speed_ms || 0,
         lastDbWrite: shouldWrite ? now : (state?.lastDbWrite || 0),
       });
+
+      // Append to 24-hr history trail (fire-and-forget, non-blocking)
+      appendLocationHistory(riderId, lat, lng, now).catch(() => {});
     });
 
     // ── Status change ──────────────────────────────────────────────────────
@@ -355,6 +386,7 @@ async function initSocketServer(httpServer) {
 async function broadcastRiderLocation(riderId, lat, lng, status, orderId, name, phone) {
   if (!io) return;
 
+  const now = Date.now();
   await setRiderState(riderId, {
     lat,
     lng,
@@ -365,6 +397,8 @@ async function broadcastRiderLocation(riderId, lat, lng, status, orderId, name, 
     timestamp: new Date().toISOString(),
     connected: true,
   });
+
+  appendLocationHistory(riderId, lat, lng, now).catch(() => {});
 
   io.of("/desk").emit("rider:location_update", {
     rider_id:  String(riderId),
@@ -383,4 +417,4 @@ async function getActiveRidersSnapshot() {
   return getAllRiders();
 }
 
-module.exports = { initSocketServer, broadcastRiderLocation, getActiveRidersSnapshot };
+module.exports = { initSocketServer, broadcastRiderLocation, getActiveRidersSnapshot, getRiderState, getRiderLocationHistory };
