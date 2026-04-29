@@ -90,6 +90,8 @@ router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
 
     const bookingOrders = await Booking.find(bookingQuery)
       .populate("assignedRider", "name phone live_location_link location lastLocationUpdate isActive")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .sort({ created_at: -1 })
       .select("-special_instructions");
 
@@ -155,6 +157,8 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
 
     const allOrders = await Booking.find(findQuery)
       .populate("assignedRider", "name phone live_location_link location lastLocationUpdate isActive")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .sort({ created_at: -1 })
       .select("-special_instructions")
       .lean();

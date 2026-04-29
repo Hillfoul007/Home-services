@@ -589,6 +589,14 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       delete updateData.assigned_rider;
     }
 
+    // Normalize pickupRider / deliveryRider (nullify sentinel value)
+    if (updateData.pickupRider === '__unassigned__' || updateData.pickupRider === '') {
+      updateData.pickupRider = null;
+    }
+    if (updateData.deliveryRider === '__unassigned__' || updateData.deliveryRider === '') {
+      updateData.deliveryRider = null;
+    }
+
     // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
     const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
     if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
@@ -650,7 +658,11 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       bookingId,
       updateData,
       { new: true, runValidators: true }
-    ).populate("customer_id", "full_name phone email");
+    )
+    .populate("customer_id", "full_name phone email")
+    .populate("assignedRider", "name phone")
+    .populate("pickupRider", "name phone")
+    .populate("deliveryRider", "name phone");
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
@@ -1098,6 +1110,9 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     const bookings = await Booking.find(query)
       .populate("customer_id", "full_name phone email")
       .populate("rider_id", "full_name phone")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
@@ -1126,6 +1141,9 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     const offlineBookings = await Booking.find(offlineQuery)
       .populate("customer_id", "full_name phone email")
       .populate("rider_id", "full_name phone")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .sort({ created_at: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
@@ -1201,6 +1219,9 @@ router.get("/bookings/search", verifyAdminAccess, async (req, res) => {
     const orders = await Booking.find(query)
       .populate("customer_id", "full_name phone email")
       .populate("rider_id", "full_name name phone live_location_link")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .sort({ created_at: -1 })
       .limit(parseInt(limit))
       .select(
@@ -1235,6 +1256,9 @@ router.get("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     const booking = await Booking.findById(bookingId)
       .populate("customer_id", "full_name phone email user_type created_at")
       .populate("rider_id", "full_name phone")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .select("+item_prices +charges_breakdown");
 
     if (!booking) {

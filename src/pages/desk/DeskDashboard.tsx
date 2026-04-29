@@ -69,6 +69,8 @@ interface Order {
   no_of_items?: number;
   assignedRider?: RiderRef | string | null;
   assignedRiderPhone?: string;
+  pickupRider?: { _id: string; name: string; phone: string } | null;
+  deliveryRider?: { _id: string; name: string; phone: string } | null;
   coordinates?: { lat: number; lng: number };
   readyAt?: string;
   created_at?: string;
@@ -1036,7 +1038,13 @@ const DeskDashboard: React.FC = () => {
               {order._timeElapsed && (
                 <span className="text-xs text-gray-400">{order._timeElapsed}</span>
               )}
-              {riderName && (
+              {order.pickupRider && (
+                <span className="text-xs text-indigo-600 font-medium">🧺 {order.pickupRider.name}</span>
+              )}
+              {order.deliveryRider && (
+                <span className="text-xs text-emerald-600 font-medium">🚚 {order.deliveryRider.name}</span>
+              )}
+              {!order.pickupRider && !order.deliveryRider && riderName && (
                 <span className="text-xs text-indigo-600 font-medium">🛵 {riderName}</span>
               )}
             </div>
@@ -1109,6 +1117,34 @@ const DeskDashboard: React.FC = () => {
                   <div className="flex justify-between">
                     <span className="text-gray-500">Ready at</span>
                     <span className="font-medium">{timeSince(order.readyAt)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* pickup / delivery rider record */}
+            {(order.pickupRider || order.deliveryRider) && (
+              <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs space-y-1">
+                {order.pickupRider && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-indigo-500 font-semibold">🧺 Pickup Rider</span>
+                    <div className="text-right">
+                      <span className="font-medium text-indigo-700">{order.pickupRider.name}</span>
+                      {order.pickupRider.phone && (
+                        <a href={`tel:${order.pickupRider.phone}`} className="block text-blue-500 underline">{order.pickupRider.phone}</a>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {order.deliveryRider && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-emerald-500 font-semibold">🚚 Delivery Rider</span>
+                    <div className="text-right">
+                      <span className="font-medium text-emerald-700">{order.deliveryRider.name}</span>
+                      {order.deliveryRider.phone && (
+                        <a href={`tel:${order.deliveryRider.phone}`} className="block text-blue-500 underline">{order.deliveryRider.phone}</a>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -37,6 +37,16 @@ const bookingSchema = new mongoose.Schema(
       ref: "Rider",
       default: null,
     },
+    pickupRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Rider",
+      default: null,
+    },
+    deliveryRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Rider",
+      default: null,
+    },
     assignedRiderPhone: {
       type: String,
       default: null,

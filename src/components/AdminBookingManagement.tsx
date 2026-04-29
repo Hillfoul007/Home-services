@@ -99,6 +99,8 @@ interface Booking {
   assignedVendor?: string;
   assignedVendorId?: string;
   vendorGroupLink?: string;
+  pickupRider?: { _id: string; name: string; phone: string } | string | null;
+  deliveryRider?: { _id: string; name: string; phone: string } | string | null;
   items_images?: Array<{
     file_id: string;
     filename: string;
@@ -1722,13 +1724,21 @@ const AdminBookingManagement: React.FC = () => {
                             <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
-                        {booking.rider && (() => {
+                        {(() => {
+                          const pr = booking.pickupRider && typeof booking.pickupRider === "object" ? (booking.pickupRider as any).name : null;
+                          const dr = booking.deliveryRider && typeof booking.deliveryRider === "object" ? (booking.deliveryRider as any).name : null;
+                          if (pr || dr) return (
+                            <div className="flex flex-col gap-0.5">
+                              {pr && <div className="flex items-center gap-1"><span className="text-xs">🧺</span><span className="text-xs text-indigo-700 font-medium">{pr}</span></div>}
+                              {dr && <div className="flex items-center gap-1"><span className="text-xs">🚚</span><span className="text-xs text-emerald-700 font-medium">{dr}</span></div>}
+                            </div>
+                          );
+                          if (!booking.rider) return null;
                           const riderObj = riders.find(r => r._id === booking.rider || r.name === booking.rider);
-                          const riderLabel = riderObj ? riderObj.name : booking.rider;
                           return (
                             <div className="flex items-center gap-2">
                               <span className="text-sm">🛵</span>
-                              <span className="text-sm text-indigo-700 font-medium">{riderLabel}</span>
+                              <span className="text-sm text-indigo-700 font-medium">{riderObj ? riderObj.name : booking.rider}</span>
                             </div>
                           );
                         })()}
@@ -1912,6 +1922,17 @@ const AdminBookingManagement: React.FC = () => {
                             <span className="text-sm text-green-700">{booking.assignedVendor}</span>
                           </div>
                         )}
+                        {(() => {
+                          const pr = booking.pickupRider && typeof booking.pickupRider === "object" ? (booking.pickupRider as any).name : null;
+                          const dr = booking.deliveryRider && typeof booking.deliveryRider === "object" ? (booking.deliveryRider as any).name : null;
+                          if (!pr && !dr) return null;
+                          return (
+                            <div className="flex flex-col gap-0.5 mt-1">
+                              {pr && <div className="flex items-center gap-1"><span className="text-xs">🧺</span><span className="text-xs text-indigo-700 font-medium">{pr}</span></div>}
+                              {dr && <div className="flex items-center gap-1"><span className="text-xs">🚚</span><span className="text-xs text-emerald-700 font-medium">{dr}</span></div>}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="space-y-2">
@@ -2256,6 +2277,16 @@ const AdminBookingManagement: React.FC = () => {
                         <div className="text-xs text-gray-400 self-center">
                           {booking.created_at ? formatDate(booking.created_at) : ''}
                         </div>
+                        {booking.pickupRider && typeof booking.pickupRider === "object" && (
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium self-center">
+                            🧺 {(booking.pickupRider as any).name}
+                          </span>
+                        )}
+                        {booking.deliveryRider && typeof booking.deliveryRider === "object" && (
+                          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium self-center">
+                            🚚 {(booking.deliveryRider as any).name}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex gap-2 shrink-0 flex-wrap">
@@ -2375,35 +2406,57 @@ const AdminBookingManagement: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Vendor & Rider */}
-                      {(booking.assignedVendor || riderName) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {booking.assignedVendor && (
-                            <div className="bg-white rounded-lg border p-4">
-                              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assigned Vendor</p>
-                              <div className="flex items-center gap-2">
-                                <Store className="h-4 w-4 text-green-600" />
-                                <span className="font-medium text-sm">{booking.assignedVendor}</span>
+                      {/* Vendor & Riders */}
+                      {(() => {
+                        const prObj = booking.pickupRider && typeof booking.pickupRider === "object" ? booking.pickupRider as { _id: string; name: string; phone: string } : null;
+                        const drObj = booking.deliveryRider && typeof booking.deliveryRider === "object" ? booking.deliveryRider as { _id: string; name: string; phone: string } : null;
+                        const hasAny = booking.assignedVendor || riderName || prObj || drObj;
+                        if (!hasAny) return null;
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {booking.assignedVendor && (
+                              <div className="bg-white rounded-lg border p-4">
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assigned Vendor</p>
+                                <div className="flex items-center gap-2">
+                                  <Store className="h-4 w-4 text-green-600" />
+                                  <span className="font-medium text-sm">{booking.assignedVendor}</span>
+                                </div>
                               </div>
-                            </div>
-                          )}
-                          {riderName && (
-                            <div className="bg-white rounded-lg border p-4">
-                              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assigned Rider</p>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-base">🛵</span>
-                                <span className="font-medium text-sm text-indigo-700">{riderName}</span>
+                            )}
+                            {prObj && (
+                              <div className="bg-indigo-50 rounded-lg border border-indigo-100 p-4">
+                                <p className="text-xs font-semibold text-indigo-500 uppercase mb-2">🧺 Pickup Rider</p>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-sm text-indigo-700">{prObj.name}</span>
+                                </div>
+                                {prObj.phone && <a href={`tel:${prObj.phone}`} className="text-xs text-blue-600 hover:underline">{prObj.phone}</a>}
                               </div>
-                              {riderObj?.phone && (
-                                <a href={`tel:${riderObj.phone}`} className="text-xs text-blue-600 hover:underline">{riderObj.phone}</a>
-                              )}
-                              {riderObj?.live_location_link && (
-                                <a href={riderObj.live_location_link} target="_blank" rel="noreferrer" className="block text-xs text-green-600 hover:underline mt-1">📍 Live Location</a>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                            )}
+                            {drObj && (
+                              <div className="bg-emerald-50 rounded-lg border border-emerald-100 p-4">
+                                <p className="text-xs font-semibold text-emerald-500 uppercase mb-2">🚚 Delivery Rider</p>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-sm text-emerald-700">{drObj.name}</span>
+                                </div>
+                                {drObj.phone && <a href={`tel:${drObj.phone}`} className="text-xs text-blue-600 hover:underline">{drObj.phone}</a>}
+                              </div>
+                            )}
+                            {!prObj && !drObj && riderName && (
+                              <div className="bg-white rounded-lg border p-4">
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assigned Rider</p>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-base">🛵</span>
+                                  <span className="font-medium text-sm text-indigo-700">{riderName}</span>
+                                </div>
+                                {riderObj?.phone && <a href={`tel:${riderObj.phone}`} className="text-xs text-blue-600 hover:underline">{riderObj.phone}</a>}
+                                {riderObj?.live_location_link && (
+                                  <a href={riderObj.live_location_link} target="_blank" rel="noreferrer" className="block text-xs text-green-600 hover:underline mt-1">📍 Live Location</a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Special instructions */}
                       {(booking.special_instructions || booking.additional_details) && (
@@ -2577,6 +2630,16 @@ const AdminBookingManagement: React.FC = () => {
                           <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
                             {getStatusLabel(booking.status)}
                           </Badge>
+                          {booking.pickupRider && typeof booking.pickupRider === "object" && (
+                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                              🧺 {(booking.pickupRider as any).name}
+                            </span>
+                          )}
+                          {booking.deliveryRider && typeof booking.deliveryRider === "object" && (
+                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                              🚚 {(booking.deliveryRider as any).name}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <div className="text-sm font-medium">₹{booking.final_amount ?? booking.total_price}</div>
@@ -3154,77 +3217,55 @@ const AdminBookingManagement: React.FC = () => {
                 ) : null}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Assign Rider</Label>
-                  <Select
-                    value={editingBooking.rider ?? "__unassigned__"}
-                    onValueChange={(value) => {
-                      setEditingBooking((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              rider: value === "__unassigned__" ? null : value,
-                            }
-                          : prev,
-                      );
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                      {riders.length > 0 ? (
-                        riders
-                          .map((rider) => {
-                            let distance = null;
-
-                            // Only calculate distance if both booking and rider have coordinates
-                            if (bookingAddressCoords && bookingAddressCoords.lat && bookingAddressCoords.lng &&
-                                rider.location && rider.location.lat && rider.location.lng) {
-                              try {
-                                const R = 6371;
-                                const dLat = (rider.location.lat - bookingAddressCoords.lat) * (Math.PI / 180);
-                                const dLng = (rider.location.lng - bookingAddressCoords.lng) * (Math.PI / 180);
-                                const a =
-                                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                                  Math.cos(bookingAddressCoords.lat * (Math.PI / 180)) * Math.cos(rider.location.lat * (Math.PI / 180)) *
-                                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
-                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                                distance = R * c;
-                              } catch (e) {
-                                distance = null;
-                              }
-                            }
-
-                            return { rider, distance };
-                          })
-                          .sort((a, b) => {
-                            // Sort by distance if available, then by name
-                            if (a.distance !== null && b.distance !== null) {
-                              return a.distance - b.distance;
-                            }
-                            return a.rider.name.localeCompare(b.rider.name);
-                          })
-                          .map(({ rider, distance }) => {
-                            const distanceLabel = distance !== null ? ` • ${distance.toFixed(1)} km` : "";
-                            return (
-                              <SelectItem key={rider._id} value={rider._id}>
-                                {rider.name}{distanceLabel}
-                              </SelectItem>
-                            );
-                          })
-                      ) : (
-                        <SelectItem value="no-riders" disabled>
-                          No riders available
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500 mt-1">Assign delivery rider for this order</p>
-                </div>
-              </div>
+              {/* Rider assignments */}
+              {(() => {
+                const riderSelectOptions = (
+                  <>
+                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                    {riders.length > 0 ? riders.map(r => (
+                      <SelectItem key={r._id} value={r._id}>{r.name}</SelectItem>
+                    )) : (
+                      <SelectItem value="no-riders" disabled>No riders available</SelectItem>
+                    )}
+                  </>
+                );
+                const pickupRiderId = (() => {
+                  const pr = editingBooking.pickupRider;
+                  if (!pr) return "__unassigned__";
+                  if (typeof pr === "object") return pr._id;
+                  return pr;
+                })();
+                const deliveryRiderId = (() => {
+                  const dr = editingBooking.deliveryRider;
+                  if (!dr) return "__unassigned__";
+                  if (typeof dr === "object") return dr._id;
+                  return dr;
+                })();
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>🧺 Pickup Rider</Label>
+                      <Select value={pickupRiderId} onValueChange={(value) =>
+                        setEditingBooking(prev => prev ? { ...prev, pickupRider: value === "__unassigned__" ? null : value } : prev)
+                      }>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{riderSelectOptions}</SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500 mt-1">Rider who picks up the laundry</p>
+                    </div>
+                    <div>
+                      <Label>🚚 Delivery Rider</Label>
+                      <Select value={deliveryRiderId} onValueChange={(value) =>
+                        setEditingBooking(prev => prev ? { ...prev, deliveryRider: value === "__unassigned__" ? null : value } : prev)
+                      }>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{riderSelectOptions}</SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500 mt-1">Rider who delivers the laundry</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="border-t pt-4">
                 <h4 className="mb-4 font-semibold flex items-center gap-2">
@@ -3232,6 +3273,21 @@ const AdminBookingManagement: React.FC = () => {
                   Location Details
                 </h4>
                 <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="edit-address">Customer Address</Label>
+                    <Textarea
+                      id="edit-address"
+                      rows={3}
+                      placeholder="Full delivery address"
+                      value={editingBooking.address || ""}
+                      onChange={(e) =>
+                        setEditingBooking((prev) =>
+                          prev ? { ...prev, address: e.target.value } : prev
+                        )
+                      }
+                      className="mt-1 resize-none"
+                    />
+                  </div>
                   <div>
                     <Label htmlFor="google-maps-link">Google Maps Link (for reminders)</Label>
                     <Input
@@ -3618,6 +3674,9 @@ const AdminBookingManagement: React.FC = () => {
                         status: mapToBackendStatus(normalizeStatus(editingBooking.status)),
                         final_amount: totals.final,
                         total_price: totals.total,
+                        address: editingBooking.address || "",
+                        pickupRider: (() => { const pr = editingBooking.pickupRider; if (!pr) return null; if (typeof pr === "object") return pr._id; return pr; })(),
+                        deliveryRider: (() => { const dr = editingBooking.deliveryRider; if (!dr) return null; if (typeof dr === "object") return dr._id; return dr; })(),
                         scheduled_date: editingBooking.scheduled_date,
                         scheduled_time: editingBooking.scheduled_time,
                         delivery_date: editingBooking.delivery_date || "",
