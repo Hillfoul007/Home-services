@@ -1326,17 +1326,24 @@ const AdminBookingManagement: React.FC = () => {
   };
 
   const applyBookingUpdate = (bookingId: string, update: Partial<Booking>) => {
-    setBookings((prev) => {
+    const patchList = (prev: Booking[]): Booking[] => {
       const index = prev.findIndex((b) => b._id === bookingId);
-      if (index !== -1) {
-        const updated = { ...prev[index], ...update };
-        const next = [...prev];
-        next[index] = updated;
-        return next;
-      } else {
-        return [...prev, update as Booking];
-      }
-    });
+      if (index === -1) return prev;
+      const next = [...prev];
+      next[index] = { ...prev[index], ...update };
+      return next;
+    };
+    setBookings(patchList);
+    setBucketA(patchList);
+    setBucketB(patchList);
+    setFilteredBookings(patchList);
+    setFilteredPickupOrders(patchList);
+    setFilteredReadyOrders(patchList);
+    setCompletedOrders(patchList);
+    setFilteredCompletedOrders(patchList);
+    setOfflineOrders(patchList);
+    setFilteredOfflineOrders(patchList);
+    setAllOrdersList(patchList);
   };
 
   const setMutationFlag = (bookingId: string, key: MutationKey, value: boolean) => {
