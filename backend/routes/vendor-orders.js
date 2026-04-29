@@ -969,6 +969,82 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
   }
 });
 
+// ─── GET rider daily breakdown: per-rider pickups and delivery assignments ─────
+// GET /api/vendor/orders/rider-daily?date=YYYY-MM-DD
+router.get("/rider-daily", verifyVendorToken, async (req, res) => {
+  try {
+    let startOfDay;
+    if (req.query.date) {
+      startOfDay = new Date(`${req.query.date}T00:00:00+05:30`);
+    } else {
+      const now = new Date();
+      startOfDay = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      startOfDay.setHours(0, 0, 0, 0);
+    }
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
+      .select("_id custom_order_id name phone address status isPGOrder pg_name no_of_items final_amount total_price assignedRider scheduled_date delivery_date status_history")
+      .populate("assignedRider", "name phone")
+      .lean();
+
+    const riderMap = new Map();
+
+    for (const order of allOrders) {
+      const history = order.status_history || [];
+      const rider = order.assignedRider;
+      if (!rider || typeof rider !== "object" || !rider._id) continue;
+
+      const pickupAssignedToday = history.some(h => {
+        if (h.status !== "pickup_assigned") return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
+      });
+
+      const deliveryAssignedToday = history.some(h => {
+        if (h.status !== "delivery_assigned") return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
+      });
+
+      if (!pickupAssignedToday && !deliveryAssignedToday) continue;
+
+      const riderId = String(rider._id);
+      if (!riderMap.has(riderId)) {
+        riderMap.set(riderId, { riderId, riderName: rider.name, riderPhone: rider.phone, pickups: [], deliveries: [] });
+      }
+
+      const entry = riderMap.get(riderId);
+      const obj = {
+        _id: order._id,
+        custom_order_id: order.custom_order_id,
+        name: order.name,
+        phone: order.phone,
+        status: order.status,
+        isPGOrder: order.isPGOrder,
+        pg_name: order.pg_name,
+        no_of_items: order.no_of_items,
+        final_amount: order.final_amount,
+        total_price: order.total_price,
+        scheduled_date: order.scheduled_date,
+        delivery_date: order.delivery_date,
+        address: order.address,
+      };
+      if (pickupAssignedToday) entry.pickups.push(obj);
+      if (deliveryAssignedToday) entry.deliveries.push(obj);
+    }
+
+    const riders = Array.from(riderMap.values()).sort(
+      (a, b) => (b.pickups.length + b.deliveries.length) - (a.pickups.length + a.deliveries.length)
+    );
+
+    res.json({ success: true, queried_date: req.query.date || startOfDay.toISOString().slice(0, 10), riders });
+  } catch (error) {
+    console.error("❌ Error fetching rider daily:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── PUT /orders/:orderId/ready — mark single order ready for delivery ────────
 
 router.put("/orders/:orderId/ready", verifyVendorToken, async (req, res) => {

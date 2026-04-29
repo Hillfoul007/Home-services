@@ -109,6 +109,14 @@ interface DashboardCounts {
   breach: number;
 }
 
+interface RiderDailyEntry {
+  riderId: string;
+  riderName: string;
+  riderPhone: string;
+  pickups: Order[];
+  deliveries: Order[];
+}
+
 // ─── Status labels / colours ──────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, string> = {
@@ -179,6 +187,8 @@ const DeskDashboard: React.FC = () => {
   const [dailyData, setDailyData] = useState<{ pickedUp: Order[]; delivered: Order[]; created: Order[] } | null>(null);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [dailyDate, setDailyDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [riderDailyData, setRiderDailyData] = useState<RiderDailyEntry[]>([]);
+  const [expandedRider, setExpandedRider] = useState<string | null>(null);
 
   // Dashboard data
   const [sections, setSections] = useState<DashboardSections>({
@@ -650,10 +660,17 @@ const DeskDashboard: React.FC = () => {
     setDailyLoading(true);
     try {
       const d = date || dailyDate;
-      const res = await fetch(`${API}/orders/daily-summary?date=${d}`, { headers: authHeaders(token) });
-      if (res.ok) {
-        const data = await res.json();
+      const [summaryRes, riderRes] = await Promise.all([
+        fetch(`${API}/orders/daily-summary?date=${d}`, { headers: authHeaders(token) }),
+        fetch(`${API}/orders/rider-daily?date=${d}`, { headers: authHeaders(token) }),
+      ]);
+      if (summaryRes.ok) {
+        const data = await summaryRes.json();
         if (data.success) setDailyData({ pickedUp: data.pickedUp || [], delivered: data.delivered || [], created: data.created || [] });
+      }
+      if (riderRes.ok) {
+        const rData = await riderRes.json();
+        if (rData.success) setRiderDailyData(rData.riders || []);
       }
     } catch { /* silent */ }
     finally { setDailyLoading(false); }
@@ -2222,6 +2239,8 @@ const DeskDashboard: React.FC = () => {
                   onChange={e => {
                     setDailyDate(e.target.value);
                     setDailyData(null);
+                    setRiderDailyData([]);
+                    setExpandedRider(null);
                   }}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
                 />
@@ -2371,6 +2390,93 @@ const DeskDashboard: React.FC = () => {
                     <p className="text-xs text-amber-500 mt-0.5">Created</p>
                   </div>
                 </div>
+
+                {/* By Rider */}
+                {riderDailyData.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-800 text-sm">🛵 By Rider</h3>
+                      <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-bold">
+                        {riderDailyData.length} rider{riderDailyData.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {riderDailyData.map(r => {
+                        const total = r.pickups.length + r.deliveries.length;
+                        const isOpen = expandedRider === r.riderId;
+                        return (
+                          <div key={r.riderId}>
+                            <button
+                              className="w-full px-4 py-3 flex items-center justify-between gap-2 hover:bg-gray-50 text-left"
+                              onClick={() => setExpandedRider(isOpen ? null : r.riderId)}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-sm text-gray-900">{r.riderName}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">{r.riderPhone}</p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {r.pickups.length > 0 && (
+                                  <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                                    🧺 {r.pickups.length}
+                                  </span>
+                                )}
+                                {r.deliveries.length > 0 && (
+                                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                                    🚚 {r.deliveries.length}
+                                  </span>
+                                )}
+                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-bold">{total}</span>
+                                <span className="text-gray-400 text-xs">{isOpen ? "▲" : "▼"}</span>
+                              </div>
+                            </button>
+                            {isOpen && (
+                              <div className="px-4 pb-3 space-y-2">
+                                {r.pickups.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-indigo-700 mb-1">🧺 Pickups ({r.pickups.length})</p>
+                                    <div className="space-y-1">
+                                      {r.pickups.map(o => (
+                                        <div key={String(o._id)} className="flex items-center justify-between gap-2 bg-indigo-50 rounded-lg px-3 py-2">
+                                          <div className="min-w-0 flex-1">
+                                            <span className="text-xs font-medium text-gray-800">{o.custom_order_id || String(o._id).slice(-6).toUpperCase()}</span>
+                                            <span className="text-xs text-gray-500 ml-2 truncate">{o.isPGOrder ? o.pg_name : o.name}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            {statusBadge(o.status)}
+                                            <span className="text-xs text-gray-400">₹{o.final_amount ?? o.total_price ?? 0}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {r.deliveries.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-emerald-700 mb-1">🚚 Deliveries ({r.deliveries.length})</p>
+                                    <div className="space-y-1">
+                                      {r.deliveries.map(o => (
+                                        <div key={String(o._id)} className="flex items-center justify-between gap-2 bg-emerald-50 rounded-lg px-3 py-2">
+                                          <div className="min-w-0 flex-1">
+                                            <span className="text-xs font-medium text-gray-800">{o.custom_order_id || String(o._id).slice(-6).toUpperCase()}</span>
+                                            <span className="text-xs text-gray-500 ml-2 truncate">{o.isPGOrder ? o.pg_name : o.name}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            {statusBadge(o.status)}
+                                            <span className="text-xs text-gray-400">₹{o.final_amount ?? o.total_price ?? 0}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
