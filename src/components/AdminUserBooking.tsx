@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { vendorService } from "@/services/vendorService";
 import { X } from "lucide-react";
-import { parseGoogleMapsLink, isGoogleMapsUrl } from "@/utils/mapsLinkParser";
+import { isGoogleMapsUrl, resolveAndParseGoogleMapsLink } from "@/utils/mapsLinkParser";
 import { locationService } from "@/services/locationService";
 import VendorTimeSlotSelector from "@/components/VendorTimeSlotSelector";
 
@@ -321,7 +321,7 @@ const AdminUserBooking: React.FC = () => {
         // Parse coordinates out of the saved maps link (if any)
         let savedCoordinates: { lat: number; lng: number } | null = null;
         if (savedMapsLink && isGoogleMapsUrl(savedMapsLink)) {
-          const parsed = parseGoogleMapsLink(savedMapsLink);
+          const parsed = await resolveAndParseGoogleMapsLink(savedMapsLink);
           savedCoordinates = parsed.coordinates || null;
         }
 
@@ -968,7 +968,7 @@ const AdminUserBooking: React.FC = () => {
                   onBlur={async (e) => {
                     const mapsLink = e.target.value.trim();
                     if (mapsLink && isGoogleMapsUrl(mapsLink)) {
-                      const parsed = parseGoogleMapsLink(mapsLink);
+                      const parsed = await resolveAndParseGoogleMapsLink(mapsLink);
 
                       if (parsed.coordinates) {
                         setBookingData(prev => ({

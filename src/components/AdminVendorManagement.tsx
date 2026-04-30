@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Edit3, Trash2, MapPin, Phone, Star, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/apiClient';
-import { parseGoogleMapsLink, calculateDistance } from '@/utils/mapsLinkParser';
+import { resolveAndParseGoogleMapsLink, calculateDistance } from '@/utils/mapsLinkParser';
 
 interface VendorDetails {
   id?: string;
@@ -97,7 +97,7 @@ const AdminVendorManagement: React.FC = () => {
     }
   }, []);
 
-  const handleGoogleMapsLinkChange = (link: string) => {
+  const handleGoogleMapsLinkChange = async (link: string) => {
     setFormData({ ...formData, googleMapsLink: link });
 
     if (!link.trim()) {
@@ -105,8 +105,7 @@ const AdminVendorManagement: React.FC = () => {
       return;
     }
 
-    // Parse the Google Maps link
-    const parsed = parseGoogleMapsLink(link);
+    const parsed = await resolveAndParseGoogleMapsLink(link);
 
     if (parsed.error) {
       toast.error(parsed.error);

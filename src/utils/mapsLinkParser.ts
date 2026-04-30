@@ -178,6 +178,68 @@ export const extractAddressFromMapsUrl = (mapsUrl: string): string | null => {
 };
 
 /**
+ * Resolve a (possibly shortened) Google Maps URL and extract coordinates.
+ * For short URLs (maps.app.goo.gl / goo.gl/maps) this calls the backend to follow
+ * the redirect chain; for full URLs it falls back to parseGoogleMapsLink directly.
+ */
+export const resolveAndParseGoogleMapsLink = async (
+  mapsUrl: string,
+  adminToken?: string
+): Promise<ParsedMapsLink> => {
+  const trimmed = mapsUrl.trim();
+  const isShortUrl = /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(trimmed);
+
+  if (!isShortUrl) {
+    return parseGoogleMapsLink(trimmed);
+  }
+
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (adminToken) headers["admin-token"] = adminToken;
+
+    const res = await fetch("/api/admin/resolve-maps-url", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ url: trimmed }),
+    });
+
+    if (!res.ok) {
+      return {
+        coordinates: null,
+        address: null,
+        placeId: null,
+        error: "Could not resolve shortened URL. Please use the full Google Maps link.",
+      };
+    }
+
+    const data = await res.json();
+
+    if (data.coordinates) {
+      return { coordinates: data.coordinates, address: null, placeId: null, error: null };
+    }
+
+    // Backend resolved URL but no coords — try parsing the expanded URL client-side
+    if (data.resolvedUrl) {
+      return parseGoogleMapsLink(data.resolvedUrl);
+    }
+
+    return {
+      coordinates: null,
+      address: null,
+      placeId: null,
+      error: "Could not extract coordinates from the provided URL. Please ensure it's a valid Google Maps link.",
+    };
+  } catch {
+    return {
+      coordinates: null,
+      address: null,
+      placeId: null,
+      error: "Network error while resolving URL. Please try again.",
+    };
+  }
+};
+
+/**
  * Calculate distance between two coordinates using Haversine formula
  * Returns distance in kilometers
  */

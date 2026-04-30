@@ -34,7 +34,7 @@ import { getSortedServices } from "@/data/laundryServices";
 import { QuickPickupService, type QuickPickupDetails } from "@/services/quickPickupService";
 import { formatDateTimeIST, formatDateOnlyIST } from "@/utils/timeUtils";
 import ReminderModal from "@/components/ReminderModal";
-import { parseGoogleMapsLink, isGoogleMapsUrl } from "@/utils/mapsLinkParser";
+import { isGoogleMapsUrl, resolveAndParseGoogleMapsLink } from "@/utils/mapsLinkParser";
 
 interface ItemPrice {
   service_name?: string;
@@ -3345,10 +3345,10 @@ const AdminBookingManagement: React.FC = () => {
                             : prev,
                         );
                       }}
-                      onBlur={(e) => {
+                      onBlur={async (e) => {
                         const mapsLink = e.target.value.trim();
                         if (mapsLink && isGoogleMapsUrl(mapsLink)) {
-                          const parsed = parseGoogleMapsLink(mapsLink);
+                          const parsed = await resolveAndParseGoogleMapsLink(mapsLink);
                           if (parsed.coordinates && !parsed.error) {
                             setEditingBooking((prev) =>
                               prev

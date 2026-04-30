@@ -4039,4 +4039,69 @@ function isPointInPolygon(point, polygon) {
   return inside;
 }
 
+// ============= RESOLVE SHORT GOOGLE MAPS URL =============
+// Follows goo.gl / maps.app.goo.gl redirects and extracts lat/lng from the final URL
+router.post("/resolve-maps-url", async (req, res) => {
+  const { url } = req.body;
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ success: false, error: "url is required" });
+  }
+
+  const trimmed = url.trim();
+  const isShortUrl = /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(trimmed);
+
+  if (!isShortUrl) {
+    return res.json({ success: true, resolvedUrl: trimmed });
+  }
+
+  try {
+    // Follow redirects without downloading body — just read the Location header chain
+    const resolveRedirects = (inputUrl, maxHops = 10) =>
+      new Promise((resolve, reject) => {
+        let hops = 0;
+        const follow = (currentUrl) => {
+          if (hops++ >= maxHops) return reject(new Error("Too many redirects"));
+          const lib = currentUrl.startsWith("https") ? require("https") : require("http");
+          lib.get(currentUrl, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+            res.destroy(); // don't read body
+            const loc = res.headers["location"];
+            if (loc && res.statusCode >= 300 && res.statusCode < 400) {
+              const next = loc.startsWith("http") ? loc : new URL(loc, currentUrl).href;
+              follow(next);
+            } else {
+              resolve(currentUrl);
+            }
+          }).on("error", reject);
+        };
+        follow(inputUrl);
+      });
+
+    const finalUrl = await resolveRedirects(trimmed);
+
+    // Extract coordinates from the resolved URL
+    const patterns = [
+      /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/,
+      /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+      /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+      /loc:(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+    ];
+
+    for (const pat of patterns) {
+      const m = finalUrl.match(pat);
+      if (m) {
+        const lat = parseFloat(m[1]);
+        const lng = parseFloat(m[2]);
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          return res.json({ success: true, resolvedUrl: finalUrl, coordinates: { lat, lng } });
+        }
+      }
+    }
+
+    return res.json({ success: true, resolvedUrl: finalUrl, coordinates: null });
+  } catch (err) {
+    console.error("resolve-maps-url error:", err.message);
+    return res.status(500).json({ success: false, error: "Could not resolve URL: " + err.message });
+  }
+});
+
 module.exports = router;
