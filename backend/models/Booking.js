@@ -333,6 +333,10 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    item_count: {
+      type: Number,
+      default: null,
+    },
     items_images: {
       type: [
         {
