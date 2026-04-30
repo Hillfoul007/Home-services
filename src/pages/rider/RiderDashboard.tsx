@@ -281,7 +281,8 @@ export default function RiderDashboard() {
         // Show all assigned orders (active + today's completed) — backend now controls the 30-day window
         const visible = sorted.filter((o: any) => {
           const s = (o.riderStatus || 'assigned').toLowerCase();
-          return s !== 'cancelled';
+          const orderStatus = (o.status || '').toLowerCase();
+          return s !== 'cancelled' && orderStatus !== 'completed';
         });
 
         // If we have current location, prioritize by proximity to pickup

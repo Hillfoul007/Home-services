@@ -812,6 +812,7 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       Booking.find({
         assignedRider: riderId,
         riderStatus: { $nin: ['cancelled'] },
+        status: { $ne: 'completed' },
         $or: [
           { assignedAt: { $gte: thirtyDaysAgo } },
           { scheduled_date: { $gte: thirtyDaysAgo.toISOString().split('T')[0] } },
@@ -826,7 +827,7 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       // Quick pickups assigned to this rider (last 30 days)
       QuickPickup.find({
         rider_id: riderId,
-        status: { $nin: ['cancelled'] },
+        status: { $nin: ['cancelled', 'completed'] },
         $or: [
           { createdAt: { $gte: thirtyDaysAgo } },
           { status: { $in: ['assigned', 'accepted', 'picked_up'] } }
