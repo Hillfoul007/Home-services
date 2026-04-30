@@ -2497,7 +2497,7 @@ const AdminBookingManagement: React.FC = () => {
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.items_images!.map(img => (
                                     <a key={img.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} alt="item" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
+                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} alt="item" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2509,7 +2509,7 @@ const AdminBookingManagement: React.FC = () => {
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.rider_pickup_slips!.map(slip => (
                                     <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="pickup slip" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
+                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="pickup slip" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2521,7 +2521,7 @@ const AdminBookingManagement: React.FC = () => {
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.rider_payment_slips!.map(slip => (
                                     <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="payment ss" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
+                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="payment ss" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2533,7 +2533,7 @@ const AdminBookingManagement: React.FC = () => {
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.vendor_payment_slips!.map(slip => (
                                     <a key={slip.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} alt="vendor slip" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
+                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} alt="vendor slip" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2545,7 +2545,7 @@ const AdminBookingManagement: React.FC = () => {
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.pickup_photos!.map((p, i) => (
                                     <a key={p + i} href={p} target="_blank" rel="noreferrer">
-                                      <img src={p} alt="pickup" className="w-24 h-24 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
+                                      <img src={p} alt="pickup" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2557,7 +2557,7 @@ const AdminBookingManagement: React.FC = () => {
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.delivery_photos!.map((p, i) => (
                                     <a key={p + i} href={p} target="_blank" rel="noreferrer">
-                                      <img src={p} alt="delivery" className="w-24 h-24 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
+                                      <img src={p} alt="delivery" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2701,7 +2701,7 @@ const AdminBookingManagement: React.FC = () => {
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.items_images!.map(img => (
                                       <a key={img.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} alt="item" className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
+                                        <img src={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} alt="item" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2713,7 +2713,7 @@ const AdminBookingManagement: React.FC = () => {
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.rider_pickup_slips!.map(slip => (
                                       <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="pickup slip" className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
+                                        <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="pickup slip" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2725,7 +2725,7 @@ const AdminBookingManagement: React.FC = () => {
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.rider_payment_slips!.map(slip => (
                                       <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="payment ss" className="w-20 h-20 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
+                                        <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="payment ss" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2737,7 +2737,7 @@ const AdminBookingManagement: React.FC = () => {
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.vendor_payment_slips!.map(slip => (
                                       <a key={slip.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} alt="vendor slip" className="w-20 h-20 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
+                                        <img src={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} alt="vendor slip" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2749,7 +2749,7 @@ const AdminBookingManagement: React.FC = () => {
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.pickup_photos!.map((p, i) => (
                                       <a key={p + i} href={p} target="_blank" rel="noreferrer">
-                                        <img src={p} alt="pickup" className="w-20 h-20 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
+                                        <img src={p} alt="pickup" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2761,7 +2761,7 @@ const AdminBookingManagement: React.FC = () => {
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.delivery_photos!.map((p, i) => (
                                       <a key={p + i} href={p} target="_blank" rel="noreferrer">
-                                        <img src={p} alt="delivery" className="w-20 h-20 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
+                                        <img src={p} alt="delivery" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2992,7 +2992,7 @@ const AdminBookingManagement: React.FC = () => {
                     <div className="flex gap-2 flex-wrap">
                       {b.pickup_photos!.map((p, i) => (
                         <a key={p + i} href={p} target="_blank" rel="noreferrer">
-                          <img src={p} alt="pickup" className="w-24 h-24 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
+                          <img src={p} alt="pickup" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-purple-200 hover:opacity-80 cursor-pointer" />
                         </a>
                       ))}
                     </div>
@@ -3004,7 +3004,7 @@ const AdminBookingManagement: React.FC = () => {
                     <div className="flex gap-2 flex-wrap">
                       {b.delivery_photos!.map((p, i) => (
                         <a key={p + i} href={p} target="_blank" rel="noreferrer">
-                          <img src={p} alt="delivery" className="w-24 h-24 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
+                          <img src={p} alt="delivery" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-teal-200 hover:opacity-80 cursor-pointer" />
                         </a>
                       ))}
                     </div>

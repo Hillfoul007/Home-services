@@ -56,7 +56,7 @@ function getSectionForOrder(order) {
   if (s === "in_progress") return "processing";
 
   // Picked up = rider picked up from customer, heading to laundry
-  if (["pickup_assigned", "pickup_completed"].includes(s)) return "picked_up";
+  if (["pickup_assigned", "pickup_completed", "rider_pickup_done"].includes(s)) return "picked_up";
 
   // Created = new order, needs pickup rider assigned
   return "created";
@@ -469,6 +469,9 @@ router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
     const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
     downloadStream.on("error", () => res.status(404).json({ error: "Image not found" }));
     res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("ETag", `"${fileId}"`);
+    if (req.headers['if-none-match'] === `"${fileId}"`) { res.status(304).end(); return; }
     downloadStream.pipe(res);
   } catch (error) {
     console.error("❌ Error retrieving items image:", error);
@@ -499,6 +502,9 @@ router.get("/public/orders/:orderId/payment-slip/:fileId", async (req, res) => {
     const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
     downloadStream.on("error", () => res.status(404).json({ error: "File not found" }));
     res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("ETag", `"${fileId}"`);
+    if (req.headers['if-none-match'] === `"${fileId}"`) { res.status(304).end(); return; }
     downloadStream.pipe(res);
   } catch (error) {
     console.error("❌ Error retrieving payment slip:", error);

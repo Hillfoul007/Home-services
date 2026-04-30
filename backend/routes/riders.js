@@ -2610,6 +2610,9 @@ router.get('/public/orders/:orderId/slip/:fileId', async (req, res) => {
     const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
     downloadStream.on('error', () => res.status(404).json({ message: 'File not found' }));
     res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('ETag', `"${fileId}"`);
+    if (req.headers['if-none-match'] === `"${fileId}"`) { res.status(304).end(); return; }
     downloadStream.pipe(res);
   } catch (error) {
     console.error('❌ Slip retrieval error:', error);
