@@ -2749,7 +2749,7 @@ router.post('/orders/:orderId/in-transit', verifyRiderToken, async (req, res) =>
 router.post('/orders/:orderId/complete-pickup', verifyRiderToken, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { item_count, timestamp } = req.body;
+    const { item_count, pickup_pieces, timestamp } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(400).json({ message: 'Invalid order ID' });
@@ -2762,7 +2762,7 @@ router.post('/orders/:orderId/complete-pickup', verifyRiderToken, async (req, re
     booking.riderStatus = 'picked_up';
     booking.pickedUpAt = now;
     booking.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
-    booking.item_count = item_count || booking.item_count || 1;
+    booking.pickup_pieces = pickup_pieces || item_count || booking.pickup_pieces || null;
     // Clear rider assignment - admin will assign delivery rider
     booking.assignedRider = null;
     booking.assignedRiderPhone = null;

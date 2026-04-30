@@ -997,7 +997,7 @@ export default function RiderOrders() {
       const res = await fetch(getRiderApiUrl(`/orders/${orderId}/complete-pickup`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ item_count: itemCount, timestamp: new Date().toISOString() }),
+        body: JSON.stringify({ pickup_pieces: itemCount, timestamp: new Date().toISOString() }),
       });
       if (res.ok) {
         toast.success('Pickup completed! Order marked as picked up.');
@@ -1007,7 +1007,7 @@ export default function RiderOrders() {
         const res2 = await fetch(getRiderApiUrl(`/orders/${orderId}/update`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ status: 'pickup_completed', item_count: itemCount, updatedBy: 'rider' }),
+          body: JSON.stringify({ status: 'pickup_completed', pickup_pieces: itemCount, updatedBy: 'rider' }),
         });
         if (res2.ok) {
           toast.success('Pickup completed!');

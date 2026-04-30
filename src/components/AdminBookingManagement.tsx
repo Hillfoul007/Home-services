@@ -128,7 +128,7 @@ interface Booking {
     filename: string;
     uploaded_at?: string;
   }>;
-  item_count?: number;
+  pickup_pieces?: number;
 }
 
 const ORDER_FLOW_STEPS = [
@@ -1774,9 +1774,9 @@ const AdminBookingManagement: React.FC = () => {
                           <DollarSign className="h-4 w-4 text-green-600" />
                           <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
                         </div>
-                        {booking.item_count != null && (
+                        {booking.pickup_pieces != null && (
                           <div className="flex items-center gap-1">
-                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-semibold">🧺 {booking.item_count} pcs (rider)</span>
+                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-semibold">🧺 {booking.pickup_pieces} pcs (rider)</span>
                           </div>
                         )}
                       </div>
@@ -1970,9 +1970,9 @@ const AdminBookingManagement: React.FC = () => {
                           <DollarSign className="h-4 w-4 text-green-600" />
                           <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
                         </div>
-                        {booking.item_count != null && (
+                        {booking.pickup_pieces != null && (
                           <div className="flex items-center gap-1">
-                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-semibold">🧺 {booking.item_count} pcs (rider)</span>
+                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-semibold">🧺 {booking.pickup_pieces} pcs (rider)</span>
                           </div>
                         )}
                       </div>
@@ -2305,9 +2305,9 @@ const AdminBookingManagement: React.FC = () => {
                             🚚 {(booking.deliveryRider as any).name}
                           </span>
                         )}
-                        {booking.item_count != null && (
+                        {booking.pickup_pieces != null && (
                           <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold self-center">
-                            🧺 {booking.item_count} pcs
+                            🧺 {booking.pickup_pieces} pcs
                           </span>
                         )}
                       </div>
@@ -2397,10 +2397,10 @@ const AdminBookingManagement: React.FC = () => {
                             <p className="text-sm">{formatDate(booking.completed_at)}</p>
                           </div>
                         )}
-                        {booking.item_count != null && (
+                        {booking.pickup_pieces != null && (
                           <div className="bg-indigo-50 rounded-lg border border-indigo-200 p-3">
                             <p className="text-xs text-indigo-500 mb-1">Pieces (Rider)</p>
-                            <p className="text-sm font-bold text-indigo-700">🧺 {booking.item_count} pcs</p>
+                            <p className="text-sm font-bold text-indigo-700">🧺 {booking.pickup_pieces} pcs</p>
                           </div>
                         )}
                       </div>
@@ -2669,9 +2669,9 @@ const AdminBookingManagement: React.FC = () => {
                               🚚 {(booking.deliveryRider as any).name}
                             </span>
                           )}
-                          {booking.item_count != null && (
+                          {booking.pickup_pieces != null && (
                             <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
-                              🧺 {booking.item_count} pcs
+                              🧺 {booking.pickup_pieces} pcs
                             </span>
                           )}
                         </div>

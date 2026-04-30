@@ -333,7 +333,7 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-    item_count: {
+    pickup_pieces: {
       type: Number,
       default: null,
     },
