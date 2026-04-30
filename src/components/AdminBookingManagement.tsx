@@ -3050,6 +3050,12 @@ const AdminBookingManagement: React.FC = () => {
           </DialogHeader>
           {editingBooking && (
             <div className="space-y-4">
+              {editingBooking.pickup_pieces != null && (
+                <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2">
+                  <span className="text-indigo-600 font-semibold text-sm">🧺 Rider Pickup Count:</span>
+                  <span className="text-indigo-800 font-bold text-lg">{editingBooking.pickup_pieces} pcs</span>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-status">Status</Label>
