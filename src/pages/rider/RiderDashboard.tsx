@@ -395,6 +395,11 @@ export default function RiderDashboard() {
 
         setUpcomingOrders(upcoming);
 
+      } else if (response.status === 401 || response.status === 400) {
+        localStorage.removeItem('riderToken');
+        localStorage.removeItem('riderAuth');
+        navigate('/rider/login');
+        return;
       } else {
         console.warn('Failed to fetch assigned orders:', response.status, response.statusText);
         setLastFetchError(`Server error: ${response.status}`);

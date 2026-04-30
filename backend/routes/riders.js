@@ -108,7 +108,8 @@ const verifyRiderToken = (req, res, next) => {
     req.rider = decoded;
     next();
   } catch (error) {
-    res.status(400).json({ message: 'Invalid token.' });
+    const msg = error.name === 'TokenExpiredError' ? 'Token expired.' : 'Invalid token.';
+    res.status(401).json({ message: msg });
   }
 };
 
@@ -352,7 +353,7 @@ router.post('/verify-otp', async (req, res) => {
 
       const token = jwt.sign(
         { riderId: demoRider._id, phone: demoRider.phone },
-        process.env.JWT_SECRET || 'fallback_secret_for_demo',
+        process.env.JWT_SECRET || 'fallback_secret',
         { expiresIn: '7d' }
       );
 
@@ -464,7 +465,7 @@ router.post('/login', async (req, res) => {
 
       const token = jwt.sign(
         { riderId: demoRider._id, phone: demoRider.phone },
-        process.env.JWT_SECRET || 'fallback_secret_for_demo',
+        process.env.JWT_SECRET || 'fallback_secret',
         { expiresIn: '7d' }
       );
 

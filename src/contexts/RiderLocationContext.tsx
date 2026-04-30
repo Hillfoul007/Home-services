@@ -271,13 +271,20 @@ export function RiderLocationProvider({ children }: { children: React.ReactNode 
     try {
       const ctrl = new AbortController();
       const tid  = setTimeout(() => ctrl.abort(), 8000);
-      await fetch(getRiderApiUrl('/location'), {
+      const res = await fetch(getRiderApiUrl('/location'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ riderId, location, timestamp: ts }),
         signal: ctrl.signal,
       });
       clearTimeout(tid);
+      if (res.status === 401 || res.status === 400) {
+        // Token invalid/expired — clear stored credentials so rider is forced to re-login
+        localStorage.removeItem('riderToken');
+        localStorage.removeItem('riderAuth');
+        window.location.href = '/rider/login';
+        return;
+      }
     } catch {
       enqueue({ lat: location.lat, lng: location.lng, status: 'idle', order_id: null, timestamp: ts });
     }

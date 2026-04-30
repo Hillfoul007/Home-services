@@ -748,6 +748,11 @@ export default function RiderOrders() {
         if (isDev) {
           toast.success('Order data loaded from API');
         }
+      } else if (response.status === 401 || response.status === 400) {
+        localStorage.removeItem('riderToken');
+        localStorage.removeItem('riderAuth');
+        navigate('/rider/login');
+        return;
       } else {
         console.warn(`⚠️ API responded with ${response.status}, using mock data`);
         useMockData(`API error: ${response.status}`);

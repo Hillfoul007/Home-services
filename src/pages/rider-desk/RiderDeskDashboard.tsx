@@ -360,13 +360,19 @@ const RiderDeskDashboard: React.FC = () => {
         if (!t) return;
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), 8000);
-        await fetch(getRiderApiUrl("/location"), {
+        const res = await fetch(getRiderApiUrl("/location"), {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
           body: JSON.stringify({ riderId: rider._id, location: loc, timestamp: ts }),
           signal: ctrl.signal,
         });
         clearTimeout(tid);
+        if (res.status === 401 || res.status === 400) {
+          localStorage.removeItem('rider_desk_token');
+          localStorage.removeItem('rider_desk_info');
+          navigate('/rider-desk');
+          return;
+        }
       } catch {
         enqueue({ lat: loc.lat, lng: loc.lng, status, order_id, timestamp: ts });
       }
@@ -492,7 +498,7 @@ const RiderDeskDashboard: React.FC = () => {
     if (!token) return;
     try {
       const res = await fetch(`${getApiUrl()}/riders/desk-orders`, { headers: authHeaders(token) });
-      if (res.status === 401) { navigate("/rider-desk"); return; }
+      if (res.status === 401 || res.status === 400) { navigate("/rider-desk"); return; }
       const data = await res.json();
 
       if (data.success) {
