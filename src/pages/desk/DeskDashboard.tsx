@@ -67,6 +67,7 @@ interface Order {
   isPGOrder?: boolean;
   pg_name?: string;
   no_of_items?: number;
+  item_count?: number;
   assignedRider?: RiderRef | string | null;
   assignedRiderPhone?: string;
   pickupRider?: { _id: string; name: string; phone: string } | null;
@@ -1035,6 +1036,11 @@ const DeskDashboard: React.FC = () => {
                   ? `${order.no_of_items} items`
                   : `₹${(order.final_amount ?? order.total_price ?? 0).toLocaleString()}`}
               </p>
+              {order.item_count != null && (
+                <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">
+                  🧺 {order.item_count} pcs
+                </span>
+              )}
               {order._timeElapsed && (
                 <span className="text-xs text-gray-400">{order._timeElapsed}</span>
               )}
