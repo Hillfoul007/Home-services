@@ -2316,7 +2316,7 @@ const DeskDashboard: React.FC = () => {
                   ) : (
                     <div className="divide-y divide-gray-50">
                       {dailyData.pickedUp.map(o => {
-                        const riderObj = typeof o.assignedRider === 'object' && o.assignedRider ? o.assignedRider as RiderRef : null;
+                        const pickupRiderObj = o.pickupRider || (typeof o.assignedRider === 'object' && o.assignedRider ? o.assignedRider as RiderRef : null);
                         return (
                           <div key={String(o._id)} className="px-4 py-3 flex items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
@@ -2326,7 +2326,7 @@ const DeskDashboard: React.FC = () => {
                               </div>
                               <p className="text-xs text-gray-500 truncate mt-0.5">
                                 {o.isPGOrder ? o.pg_name : o.name}
-                                {riderObj?.name && <span className="ml-1 text-indigo-600">· 🛵 {riderObj.name}</span>}
+                                {pickupRiderObj?.name && <span className="ml-1 text-indigo-600">· 🧺 {pickupRiderObj.name}</span>}
                               </p>
                               {o.delivery_date && (
                                 <p className="text-xs text-purple-600 mt-0.5">🚚 Deliver by: {formatShortDate(o.delivery_date)}</p>
@@ -2353,7 +2353,7 @@ const DeskDashboard: React.FC = () => {
                   ) : (
                     <div className="divide-y divide-gray-50">
                       {dailyData.delivered.map(o => {
-                        const riderObj = typeof o.assignedRider === 'object' && o.assignedRider ? o.assignedRider as RiderRef : null;
+                        const deliveryRiderObj = o.deliveryRider || (typeof o.assignedRider === 'object' && o.assignedRider ? o.assignedRider as RiderRef : null);
                         return (
                           <div key={String(o._id)} className="px-4 py-3 flex items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
@@ -2363,7 +2363,7 @@ const DeskDashboard: React.FC = () => {
                               </div>
                               <p className="text-xs text-gray-500 truncate mt-0.5">
                                 {o.isPGOrder ? o.pg_name : o.name}
-                                {riderObj?.name && <span className="ml-1 text-emerald-600">· 🛵 {riderObj.name}</span>}
+                                {deliveryRiderObj?.name && <span className="ml-1 text-emerald-600">· 🚚 {deliveryRiderObj.name}</span>}
                               </p>
                             </div>
                             <span className="text-xs text-gray-400 shrink-0">₹{(o.final_amount ?? o.total_price ?? 0)}</span>

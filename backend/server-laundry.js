@@ -1031,6 +1031,10 @@ const server = httpServer.listen(PORT, () => {
   // Start keep-alive mechanism
   setupKeepAlive();
 
+  // Auto-delete GridFS files from completed/cancelled orders older than 7 days
+  const { startGridfsCleanup } = require("./services/gridfsCleanup");
+  startGridfsCleanup();
+
   // Google Sheets integration removed
 });
 

@@ -897,10 +897,11 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
     // Query all vendor orders; we'll filter by status_history on app side to keep it simple
-    // OR: use updated_at as a rough proxy + status
     const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
-      .select("_id custom_order_id name phone address status riderStatus isPGOrder pg_name no_of_items final_amount total_price assignedRider scheduled_date delivery_date created_at updated_at readyAt status_history coordinates")
+      .select("_id custom_order_id name phone address status riderStatus isPGOrder pg_name no_of_items final_amount total_price assignedRider pickupRider deliveryRider scheduled_date delivery_date created_at updated_at readyAt status_history coordinates")
       .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .lean();
 
     const todayPickedUp = [];
@@ -910,10 +911,11 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
     for (const order of allOrders) {
       const history = order.status_history || [];
 
-      // Check if pickup_completed or rider_pickup_done event happened on the selected date
+      // Pickup_assigned is the event recorded in status_history when rider is assigned for pickup.
+      // Also accept pickup_completed/rider_pickup_done/in_progress for older orders.
       const pickedToday = history.some(h => {
         const s = h.status;
-        if (!(s === "pickup_completed" || s === "rider_pickup_done" || s === "in_progress")) return false;
+        if (!(s === "pickup_assigned" || s === "pickup_completed" || s === "rider_pickup_done" || s === "in_progress")) return false;
         const t = h.changed_at && new Date(h.changed_at);
         return t && t >= startOfDay && t < endOfDay;
       });
@@ -943,6 +945,8 @@ router.get("/daily-summary", verifyVendorToken, async (req, res) => {
         final_amount: order.final_amount,
         total_price: order.total_price,
         assignedRider: order.assignedRider,
+        pickupRider: order.pickupRider,
+        deliveryRider: order.deliveryRider,
         scheduled_date: order.scheduled_date,
         delivery_date: order.delivery_date,
         created_at: order.created_at,
@@ -988,16 +992,25 @@ router.get("/rider-daily", verifyVendorToken, async (req, res) => {
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
     const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
-      .select("_id custom_order_id name phone address status isPGOrder pg_name no_of_items final_amount total_price assignedRider scheduled_date delivery_date status_history")
+      .select("_id custom_order_id name phone address status isPGOrder pg_name no_of_items final_amount total_price assignedRider pickupRider deliveryRider scheduled_date delivery_date status_history")
       .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .lean();
 
     const riderMap = new Map();
 
+    const getOrCreateEntry = (rider) => {
+      if (!rider || typeof rider !== "object" || !rider._id) return null;
+      const riderId = String(rider._id);
+      if (!riderMap.has(riderId)) {
+        riderMap.set(riderId, { riderId, riderName: rider.name, riderPhone: rider.phone, pickups: [], deliveries: [] });
+      }
+      return riderMap.get(riderId);
+    };
+
     for (const order of allOrders) {
       const history = order.status_history || [];
-      const rider = order.assignedRider;
-      if (!rider || typeof rider !== "object" || !rider._id) continue;
 
       const pickupAssignedToday = history.some(h => {
         if (h.status !== "pickup_assigned") return false;
@@ -1013,12 +1026,6 @@ router.get("/rider-daily", verifyVendorToken, async (req, res) => {
 
       if (!pickupAssignedToday && !deliveryAssignedToday) continue;
 
-      const riderId = String(rider._id);
-      if (!riderMap.has(riderId)) {
-        riderMap.set(riderId, { riderId, riderName: rider.name, riderPhone: rider.phone, pickups: [], deliveries: [] });
-      }
-
-      const entry = riderMap.get(riderId);
       const obj = {
         _id: order._id,
         custom_order_id: order.custom_order_id,
@@ -1034,8 +1041,18 @@ router.get("/rider-daily", verifyVendorToken, async (req, res) => {
         delivery_date: order.delivery_date,
         address: order.address,
       };
-      if (pickupAssignedToday) entry.pickups.push(obj);
-      if (deliveryAssignedToday) entry.deliveries.push(obj);
+
+      if (pickupAssignedToday) {
+        // Use pickupRider if explicitly set, else fall back to assignedRider
+        const entry = getOrCreateEntry(order.pickupRider || order.assignedRider);
+        if (entry) entry.pickups.push(obj);
+      }
+
+      if (deliveryAssignedToday) {
+        // Use deliveryRider if explicitly set, else fall back to assignedRider
+        const entry = getOrCreateEntry(order.deliveryRider || order.assignedRider);
+        if (entry) entry.deliveries.push(obj);
+      }
     }
 
     const riders = Array.from(riderMap.values()).sort(
