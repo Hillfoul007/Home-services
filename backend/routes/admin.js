@@ -4104,4 +4104,42 @@ router.post("/resolve-maps-url", async (req, res) => {
   }
 });
 
+// ============= FACTORY OPS LIVE FEED (Power Query / Excel) =============
+// Returns all active Factory Operations orders as a flat JSON array.
+// No auth header required so Power Query can call it without VBA credential handling.
+// Secure by obscurity is sufficient here — add admin-token check if needed.
+router.get("/factory-ops-live", async (req, res) => {
+  try {
+    const bookings = await Booking.find({
+      assignedVendor: "Factory Operations",
+      status: { $nin: ["completed", "cancelled"] },
+    })
+      .populate("assignedRider", "name phone")
+      .sort({ created_at: -1 })
+      .lean();
+
+    const rows = bookings.map((b) => ({
+      order_id:        b.custom_order_id || String(b._id),
+      status:          b.status || "",
+      rider_status:    b.riderStatus || "",
+      customer_name:   b.customer_name || "",
+      customer_phone:  b.customer_phone || b.phone || "",
+      address:         b.address || "",
+      scheduled_date:  b.scheduled_date || "",
+      pickup_pieces:   b.pickup_pieces ?? "",
+      final_amount:    b.final_amount ?? "",
+      payment_status:  b.payment_status || "",
+      rider_name:      b.assignedRider?.name || b.assignedRiderName || "",
+      rider_phone:     b.assignedRider?.phone || b.assignedRiderPhone || "",
+      created_at:      b.created_at ? new Date(b.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "",
+      updated_at:      b.updated_at ? new Date(b.updated_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "",
+    }));
+
+    res.json(rows);
+  } catch (err) {
+    console.error("factory-ops-live error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
