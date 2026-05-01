@@ -4120,6 +4120,13 @@ router.get("/factory-ops-live", async (req, res) => {
       .lean();
 
     const fmt = (d) => d ? new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "";
+    const fmtDateTime = (date, time) => {
+      const d = (date || "").trim();
+      const t = (time || "").trim();
+      if (!d && !t) return "";
+      if (d && t) return `${d} ${t}`;
+      return d || t;
+    };
 
     const rows = bookings.map((b) => ({
       order_id:        b.custom_order_id || String(b._id),
@@ -4128,9 +4135,9 @@ router.get("/factory-ops-live", async (req, res) => {
       customer_name:   b.name || b.customer_name || b.customer_id?.full_name || b.customer_id?.name || "",
       customer_phone:  b.phone || b.customer_phone || b.customer_id?.phone || "",
       address:         b.address || "",
-      pickup_date:     b.scheduled_date || "",
+      pickup_date:     fmtDateTime(b.scheduled_date, b.scheduled_time),
       picked_up_at:    fmt(b.pickedUpAt),
-      delivery_date:   b.delivery_date || "",
+      delivery_date:   fmtDateTime(b.delivery_date, b.delivery_time),
       delivered_at:    fmt(b.deliveredAt),
       pickup_pieces:   b.pickup_pieces ?? "",
       final_amount:    b.final_amount ?? "",
