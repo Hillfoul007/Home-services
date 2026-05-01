@@ -4115,24 +4115,30 @@ router.get("/factory-ops-live", async (req, res) => {
       status: { $nin: ["completed", "cancelled"] },
     })
       .populate("assignedRider", "name phone")
+      .populate("customer_id", "full_name name phone")
       .sort({ created_at: -1 })
       .lean();
+
+    const fmt = (d) => d ? new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "";
 
     const rows = bookings.map((b) => ({
       order_id:        b.custom_order_id || String(b._id),
       status:          b.status || "",
       rider_status:    b.riderStatus || "",
-      customer_name:   b.customer_name || "",
-      customer_phone:  b.customer_phone || b.phone || "",
+      customer_name:   b.name || b.customer_name || b.customer_id?.full_name || b.customer_id?.name || "",
+      customer_phone:  b.phone || b.customer_phone || b.customer_id?.phone || "",
       address:         b.address || "",
-      scheduled_date:  b.scheduled_date || "",
+      pickup_date:     b.scheduled_date || "",
+      picked_up_at:    fmt(b.pickedUpAt),
+      delivery_date:   b.delivery_date || "",
+      delivered_at:    fmt(b.deliveredAt),
       pickup_pieces:   b.pickup_pieces ?? "",
       final_amount:    b.final_amount ?? "",
       payment_status:  b.payment_status || "",
       rider_name:      b.assignedRider?.name || b.assignedRiderName || "",
       rider_phone:     b.assignedRider?.phone || b.assignedRiderPhone || "",
-      created_at:      b.created_at ? new Date(b.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "",
-      updated_at:      b.updated_at ? new Date(b.updated_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "",
+      created_at:      fmt(b.created_at),
+      updated_at:      fmt(b.updated_at),
     }));
 
     res.json(rows);
