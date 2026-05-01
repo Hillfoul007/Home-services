@@ -59,7 +59,7 @@ function AppRedirectGuard() {
     // Map app IDs to their correct starting routes
     const appRoutes: Record<string, { prefix: string; login: string }> = {
       "com.laundrify.desk.app":  { prefix: "/desk",       login: "/desk" },
-      "com.laundrify.rider.app": { prefix: "/rider-desk",  login: "/rider-desk" },
+      "com.laundrify.rider.app": { prefix: "/rider-desk",  login: "/rider-desk/dashboard" },
       "com.laundrify.laundry.app": { prefix: "/",          login: "/" },
     };
 

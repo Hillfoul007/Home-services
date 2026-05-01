@@ -2631,6 +2631,7 @@ router.get('/desk-orders', verifyRiderToken, async (req, res) => {
     const orders = await Booking.find({
       assignedRider: riderId,
       riderStatus: { $in: ['assigned', 'accepted', 'in_transit'] },
+      status: { $nin: ['completed', 'cancelled'] },
     })
       .sort({ assignedAt: -1 })
       .select(
