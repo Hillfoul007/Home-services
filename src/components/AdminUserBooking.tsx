@@ -934,10 +934,12 @@ const AdminUserBooking: React.FC = () => {
                 value={bookingData.address}
                 onChange={(e) => {
                   const newAddress = e.target.value;
-                  setBookingData({ ...bookingData, address: newAddress });
-                  // Fetch vendors when address changes (use existing coordinates if available)
+                  // Clear coordinates and maps link — they belonged to the old address.
+                  // Passing stale coordinates to fetchVendorsForAddress skips geocoding and
+                  // measures distance from the wrong location.
+                  setBookingData({ ...bookingData, address: newAddress, coordinates: null, mapsLink: "" });
                   if (newAddress.trim().length > 5) {
-                    fetchVendorsForAddress(newAddress, bookingData.coordinates);
+                    fetchVendorsForAddress(newAddress, null);
                   }
                 }}
                 rows={3}
