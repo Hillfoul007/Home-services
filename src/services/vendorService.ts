@@ -150,14 +150,24 @@ export class VendorService {
         console.warn('⚠️ Geocoding failed, using fallback method:', geocodeError);
       }
 
-      // Fallback: Use simplified address parsing for common Gurugram areas
+      // Fallback: Use simplified address parsing for common Gurugram areas.
+      // IMPORTANT: check specific sectors/landmarks FIRST, then try sector-number
+      // extraction, and only fall back to the generic city centre last.
+      // Previously 'gurugram'/'gurgaon' were in the same loop as specific sectors,
+      // so "Sector 104, Gurugram" matched 'gurugram' and returned the city centre
+      // before the sector-number extraction could run — producing wrong distances.
       const addressLower = address.toLowerCase();
 
-      // Common Gurugram sector coordinates (approximate)
-      const sectorCoordinates: Record<string, { lat: number; lng: number }> = {
+      // Step 1 — named sectors / landmarks (no city-level keywords here)
+      const namedAreaCoordinates: Record<string, { lat: number; lng: number }> = {
         'sector 69': { lat: 28.3984, lng: 77.0648 },
         'sector 70': { lat: 28.3920, lng: 77.0580 },
         'sector 71': { lat: 28.3890, lng: 77.0520 },
+        'sector 104': { lat: 28.4020, lng: 76.9756 },
+        'sector 105': { lat: 28.4050, lng: 76.9710 },
+        'sector 106': { lat: 28.4080, lng: 76.9680 },
+        'sector 109': { lat: 28.4100, lng: 76.9640 },
+        'sector 110': { lat: 28.4120, lng: 76.9600 },
         'sector 14': { lat: 28.4595, lng: 77.0266 },
         'sector 25': { lat: 28.4949, lng: 77.0828 },
         'sector 54': { lat: 28.4211, lng: 77.0869 },
@@ -167,49 +177,63 @@ export class VendorService {
         'sector 56': { lat: 28.4150, lng: 77.0750 },
         'sector 43': { lat: 28.4450, lng: 77.0480 },
         'sector 32': { lat: 28.4750, lng: 77.0650 },
+        'sector 39': { lat: 28.4480, lng: 77.0720 },
+        'sector 31': { lat: 28.4680, lng: 77.0680 },
+        'sector 28': { lat: 28.4750, lng: 77.0590 },
         'cyber city': { lat: 28.4949, lng: 77.0828 },
         'mg road': { lat: 28.4595, lng: 77.0266 },
         'golf course road': { lat: 28.4211, lng: 77.0869 },
         'sohna road': { lat: 28.4089, lng: 77.0520 },
         'dwarka expressway': { lat: 28.4089, lng: 76.9560 },
-        'gurgaon': { lat: 28.4595, lng: 77.0266 },
-        'gurugram': { lat: 28.4595, lng: 77.0266 },
         'dlf': { lat: 28.4211, lng: 77.0869 },
-        'phase': { lat: 28.4700, lng: 77.0800 }
       };
 
-      // Find matching sector/area
-      for (const [area, coords] of Object.entries(sectorCoordinates)) {
+      for (const [area, coords] of Object.entries(namedAreaCoordinates)) {
         if (addressLower.includes(area)) {
           console.log(`📍 Found fallback coordinates for ${area}:`, coords);
           return coords;
         }
       }
 
-      // Try to extract sector number if not found in the predefined list
+      // Step 2 — extract any sector number not in the named list above
       const sectorMatch = addressLower.match(/sector[\s\-]*([0-9]+)/);
       if (sectorMatch) {
         const sectorNum = parseInt(sectorMatch[1]);
-        console.log(`📍 Extracting fallback coordinates for Sector ${sectorNum}`);
+        console.log(`📍 Estimating coordinates for Sector ${sectorNum}`);
 
-        // Generate approximate coordinates based on sector number
-        // Gurugram sectors are roughly arranged in a grid pattern
-        const baseLat = 28.4595;
-        const baseLng = 77.0266;
-        const latOffset = (sectorNum % 10) * 0.008; // Approximate 800m per sector
-        const lngOffset = Math.floor(sectorNum / 10) * 0.008;
+        // Sectors 80–115 are along Dwarka Expressway (SW of old city)
+        if (sectorNum >= 80 && sectorNum <= 115) {
+          const offset = sectorNum - 80;
+          return {
+            lat: 28.4400 - offset * 0.003,
+            lng: 77.0100 - offset * 0.004,
+          };
+        }
 
-        const estimatedCoords = {
-          lat: baseLat + latOffset,
-          lng: baseLng + lngOffset
+        // Sectors 57–79 are along Southern Peripheral Road / Golf Course Ext.
+        if (sectorNum >= 57 && sectorNum <= 79) {
+          const offset = sectorNum - 57;
+          return {
+            lat: 28.4050 + offset * 0.004,
+            lng: 77.0500 + offset * 0.003,
+          };
+        }
+
+        // Remaining sectors: rough grid around old Gurugram
+        return {
+          lat: 28.4595 + (sectorNum % 10) * 0.006,
+          lng: 77.0266 + Math.floor(sectorNum / 10) * 0.006,
         };
-
-        console.log(`📍 Estimated coordinates for Sector ${sectorNum}:`, estimatedCoords);
-        return estimatedCoords;
       }
 
-      // Default coordinates for Gurugram city center
-      console.log('📍 Using default Gurugram coordinates for address:', address);
+      // Step 3 — city-level fallback (last resort)
+      if (addressLower.includes('gurgaon') || addressLower.includes('gurugram')) {
+        console.log('📍 Using Gurugram city-centre fallback for address:', address);
+        return { lat: 28.4595, lng: 77.0266 };
+      }
+
+      // Absolute default
+      console.log('📍 Using absolute default coordinates for address:', address);
       return { lat: 28.4595, lng: 77.0266 };
 
     } catch (error) {

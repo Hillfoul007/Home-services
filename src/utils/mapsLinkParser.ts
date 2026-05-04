@@ -33,7 +33,25 @@ export const parseGoogleMapsLink = (mapsUrl: string): ParsedMapsLink => {
   const url = mapsUrl.trim();
 
   try {
-    // Try to match !3d<lat>!4d<lng> format embedded in Google Maps data parameter
+    // Priority 1: directions URL destination — /dir//DEST_LAT,DEST_LNG/
+    // Must be checked BEFORE the @lat,lng pattern because directions URLs contain
+    // both: the real destination in the path AND a map-view centre after @.
+    // e.g. maps/dir//28.4808056,76.9987778/@28.4620885,77.0027487,14z/...
+    // The @ coordinates are only the camera position, NOT the destination.
+    if (url.includes('/dir/')) {
+      const dirPattern = /\/dir\/\/(-?\d+\.?\d*),(-?\d+\.?\d*)/;
+      const dirMatch = url.match(dirPattern);
+      if (dirMatch) {
+        const lat = parseFloat(dirMatch[1]);
+        const lng = parseFloat(dirMatch[2]);
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          result.coordinates = { lat, lng };
+          return result;
+        }
+      }
+    }
+
+    // Priority 2: !3d<lat>!4d<lng> embedded in the data= parameter (place pin)
     // e.g. /data=...!3d28.4595!4d77.0266
     const dataCoordPattern = /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/;
     const dataCoordMatch = url.match(dataCoordPattern);
@@ -48,8 +66,7 @@ export const parseGoogleMapsLink = (mapsUrl: string): ParsedMapsLink => {
       }
     }
 
-    // Try to match coordinates in @lat,lng format (common in Google Maps share links)
-    // Pattern: /@(-?\d+\.?\d*),(-?\d+\.?\d*)
+    // Priority 3: @lat,lng map-view centre (share/place links without a data pin)
     const coordPattern = /@(-?\d+\.?\d*),(-?\d+\.?\d*)/;
     const coordMatch = url.match(coordPattern);
 
