@@ -7,9 +7,9 @@ const Address = require("../models/Address");
 
 const router = express.Router();
 
-// Helper function to calculate distance between two points
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Radius of the Earth in km
+// Straight-line fallback (Haversine)
+const haversineDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -18,9 +18,26 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
-  return d;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+// Road distance via OSRM (driving profile = motorcycle-accurate).
+// Falls back to Haversine if OSRM is unreachable.
+const calculateDistance = async (lat1, lon1, lat2, lon2) => {
+  try {
+    // OSRM uses lng,lat order
+    const url = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=false`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`OSRM ${res.status}`);
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.length) throw new Error("No route");
+    return data.routes[0].distance / 1000; // metres → km
+  } catch {
+    return haversineDistance(lat1, lon1, lat2, lon2);
+  }
 };
 
 // Create a new booking
@@ -1130,25 +1147,20 @@ router.get("/pending", async (req, res) => {
       .populate("customer_id", "full_name phone email")
       .sort({ created_at: -1 });
 
-    // Filter bookings within 10km range
-    const nearbyBookings = bookings.filter((booking) => {
-      if (
-        !booking.coordinates ||
-        !booking.coordinates.lat ||
-        !booking.coordinates.lng
-      ) {
-        return false; // Skip bookings without coordinates
-      }
+    // Filter bookings within 10km road distance
+    const bookingsWithCoords = bookings.filter(
+      (b) => b.coordinates?.lat && b.coordinates?.lng
+    );
 
-      const distance = calculateDistance(
-        lat,
-        lng,
-        booking.coordinates.lat,
-        booking.coordinates.lng,
-      );
+    const distanceResults = await Promise.all(
+      bookingsWithCoords.map((booking) =>
+        calculateDistance(lat, lng, booking.coordinates.lat, booking.coordinates.lng)
+      )
+    );
 
-      return distance <= 10; // 10km range
-    });
+    const nearbyBookings = bookingsWithCoords.filter(
+      (_, i) => distanceResults[i] <= 10
+    );
 
     res.json({ bookings: nearbyBookings });
   } catch (error) {

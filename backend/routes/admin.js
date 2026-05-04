@@ -13,28 +13,38 @@ const notificationService = require("../services/notificationService");
 const router = express.Router();
 
 // ============= DISTANCE CALCULATION HELPER =============
-// Calculate distance between two coordinates using Haversine formula (in km)
-const calculateDistance = (coord1, coord2) => {
-  if (!coord1 || !coord2 || coord1.lat === undefined || coord1.lng === undefined || coord2.lat === undefined || coord2.lng === undefined) {
-    return null;
-  }
-
-  const R = 6371; // Earth's radius in kilometers
-  const lat1 = (coord1.lat * Math.PI) / 180;
-  const lat2 = (coord2.lat * Math.PI) / 180;
-  const dLat = ((coord2.lat - coord1.lat) * Math.PI) / 180;
-  const dLng = ((coord2.lng - coord1.lng) * Math.PI) / 180;
-
+// Straight-line fallback (Haversine)
+const haversineDistance = (coord1, coord2) => {
+  if (!coord1 || !coord2 || coord1.lat == null || coord2.lat == null) return null;
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(coord2.lat - coord1.lat);
+  const dLng = toRad(coord2.lng - coord1.lng);
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) *
-      Math.cos(lat2) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(coord1.lat)) * Math.cos(toRad(coord2.lat)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 100) / 100;
+};
 
-  return Math.round(distance * 100) / 100; // Round to 2 decimal places
+// Road distance via OSRM driving profile (motorcycle-accurate).
+// Falls back to Haversine if OSRM is unreachable.
+const calculateDistance = async (coord1, coord2) => {
+  if (!coord1 || !coord2 || coord1.lat == null || coord2.lat == null) return null;
+  try {
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${coord1.lng},${coord1.lat};${coord2.lng},${coord2.lat}?overview=false`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`OSRM ${res.status}`);
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.length) throw new Error("No route");
+    return Math.round(data.routes[0].distance / 10) / 100; // metres → km, 2 dp
+  } catch {
+    return haversineDistance(coord1, coord2);
+  }
 };
 
 // Middleware to verify admin access
@@ -2023,8 +2033,8 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
     // Calculate distance if coordinates are provided
     let calculatedDistance = vendorData.distance || 0;
     if (bookingCoordinates && bookingCoordinates.lat && bookingCoordinates.lng && selectedVendor.coordinates) {
-      calculatedDistance = calculateDistance(bookingCoordinates, selectedVendor.coordinates);
-      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor (using Google Maps coordinates)`);
+      calculatedDistance = await calculateDistance(bookingCoordinates, selectedVendor.coordinates);
+      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor (road distance)`);
     } else if (!selectedVendor.coordinates) {
       console.warn(`⚠️ Vendor ${selectedVendor.name} has no coordinates. Please add Google Maps link to vendor profile.`);
     }
@@ -2602,20 +2612,19 @@ router.post("/riders/distance-from-location", verifyAdminAccess, async (req, res
 
     const riders = await Rider.find({ isActive: true }).lean();
 
-    // Calculate distance for each rider
-    const ridersWithDistance = riders.map(rider => {
-      let distance = null;
-      if (rider.location && rider.location.lat && rider.location.lng) {
-        distance = calculateDistance(
-          { lat, lng },
-          { lat: rider.location.lat, lng: rider.location.lng }
-        );
-      }
-      return {
-        ...rider,
-        distance_from_location: distance
-      };
-    });
+    // Calculate road distance for each rider (OSRM, falls back to Haversine)
+    const ridersWithDistance = await Promise.all(
+      riders.map(async (rider) => {
+        let distance = null;
+        if (rider.location && rider.location.lat && rider.location.lng) {
+          distance = await calculateDistance(
+            { lat, lng },
+            { lat: rider.location.lat, lng: rider.location.lng }
+          );
+        }
+        return { ...rider, distance_from_location: distance };
+      })
+    );
 
     // Sort by distance (nulls last)
     ridersWithDistance.sort((a, b) => {

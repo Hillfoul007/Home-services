@@ -38,45 +38,77 @@ export class VendorService {
   }
 
   /**
-   * Calculate distance between two coordinates using Haversine formula
+   * Straight-line distance (Haversine) — used only as fallback when OSRM fails.
    */
-  private calculateDistance(
+  private haversineDistance(
     lat1: number,
     lng1: number,
     lat2: number,
     lng2: number
   ): number {
-    const R = 6371; // Radius of the Earth in kilometers
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLng = this.toRadians(lng2 - lng1);
-    
-    const a = 
+    const R = 6371;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
       Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distance in kilometers
-    
-    return Math.round(distance * 100) / 100; // Round to 2 decimal places
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 100) / 100;
   }
 
   /**
-   * Convert degrees to radians
+   * Fetch road distances from one origin to many destinations using OSRM.
+   * Uses the public OSRM server (no API key needed).
+   * Profile: "driving" — accurate for motorcycles / delivery bikes.
+   * OSRM coordinate order: longitude,latitude (opposite of Google Maps).
+   *
+   * Returns arrays parallel to `destinations`:
+   *   distances[i] = road distance in km
+   *   durations[i] = travel time in minutes
+   * Null entries mean OSRM couldn't route to that destination.
    */
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
+  private async getRoadDistancesFromOSRM(
+    origin: { lat: number; lng: number },
+    destinations: { lat: number; lng: number }[]
+  ): Promise<{ distances: (number | null)[]; durations: (number | null)[] }> {
+    // Build semicolon-separated coordinate string: lng,lat for each point.
+    // Index 0 = origin, indices 1..N = destinations.
+    const all = [origin, ...destinations];
+    const coordString = all.map(p => `${p.lng},${p.lat}`).join(';');
+
+    const url =
+      `https://router.project-osrm.org/table/v1/driving/${coordString}` +
+      `?sources=0&annotations=distance,duration`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!res.ok) throw new Error(`OSRM ${res.status}`);
+    const data = await res.json();
+    if (data.code !== 'Ok') throw new Error(`OSRM code: ${data.code}`);
+
+    // data.distances[0] = row for our single source.
+    // Slice off index 0 (distance from origin to itself = 0).
+    const distances = (data.distances[0] as (number | null)[]).slice(1).map(
+      d => d !== null ? Math.round(d / 10) / 100 : null // metres → km, 2 dp
+    );
+    const durations = (data.durations[0] as (number | null)[]).slice(1).map(
+      d => d !== null ? Math.round(d / 60) : null // seconds → minutes
+    );
+
+    return { distances, durations };
   }
 
   /**
-   * Estimate delivery time based on distance
+   * Estimate delivery time from road distance when OSRM duration is unavailable.
+   * ~25 km/h average city speed on a bike.
    */
-  private estimateDeliveryTime(distance: number): number {
-    // Base time for processing (30 minutes) + travel time
-    // Assuming average speed of 20 km/h in city traffic
-    const baseProcessingTime = 30;
-    const travelTime = (distance / 20) * 60; // Convert to minutes
-    return Math.round(baseProcessingTime + (travelTime * 2)); // Round trip
+  private estimateDeliveryTime(distanceKm: number): number {
+    return Math.round((distanceKm / 25) * 60);
   }
 
   /**
@@ -94,29 +126,47 @@ export class VendorService {
   }
 
   /**
-   * Get vendors with distance calculation from pickup location
+   * Get vendors with ROAD distance from pickup location (via OSRM).
+   * Falls back to Haversine straight-line if OSRM is unreachable.
    */
-  getVendorsWithDistance(pickupCoordinates: { lat: number; lng: number }): VendorWithDistance[] {
+  async getVendorsWithDistance(pickupCoordinates: { lat: number; lng: number }): Promise<VendorWithDistance[]> {
     const activeVendors = this.getActiveVendors();
+    if (activeVendors.length === 0) return [];
 
-    return activeVendors
-      .map(vendor => {
-        const distance = this.calculateDistance(
-          pickupCoordinates.lat,
-          pickupCoordinates.lng,
-          vendor.coordinates.lat,
-          vendor.coordinates.lng
-        );
+    try {
+      const { distances, durations } = await this.getRoadDistancesFromOSRM(
+        pickupCoordinates,
+        activeVendors.map(v => v.coordinates)
+      );
 
-        const estimatedTime = this.estimateDeliveryTime(distance);
-
-        return {
+      return activeVendors
+        .map((vendor, i) => ({
           ...vendor,
-          distance,
-          estimatedTime
-        };
-      })
-      .sort((a, b) => a.distance - b.distance); // Sort by nearest first
+          distance: distances[i] ?? this.haversineDistance(
+            pickupCoordinates.lat, pickupCoordinates.lng,
+            vendor.coordinates.lat, vendor.coordinates.lng
+          ),
+          estimatedTime: durations[i] ?? this.estimateDeliveryTime(
+            distances[i] ?? this.haversineDistance(
+              pickupCoordinates.lat, pickupCoordinates.lng,
+              vendor.coordinates.lat, vendor.coordinates.lng
+            )
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance);
+
+    } catch (err) {
+      console.warn('⚠️ OSRM road distance failed, falling back to straight-line:', err);
+      return activeVendors
+        .map(vendor => {
+          const distance = this.haversineDistance(
+            pickupCoordinates.lat, pickupCoordinates.lng,
+            vendor.coordinates.lat, vendor.coordinates.lng
+          );
+          return { ...vendor, distance, estimatedTime: this.estimateDeliveryTime(distance) };
+        })
+        .sort((a, b) => a.distance - b.distance);
+    }
   }
 
   /**
@@ -296,8 +346,8 @@ export class VendorService {
 
     console.log('✅ Using coordinates for vendor distance calculation:', coordinates);
 
-    // Get vendors with distance
-    const vendorsWithDistance = this.getVendorsWithDistance(coordinates);
+    // Get vendors with road distance (OSRM, falls back to Haversine)
+    const vendorsWithDistance = await this.getVendorsWithDistance(coordinates);
 
     console.log('📊 Calculated vendor distances:', vendorsWithDistance.map(v => ({ name: v.name, distance: v.distance })));
 
