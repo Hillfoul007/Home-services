@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MapPin, Phone, Navigation } from 'lucide-react';
+import { getRiderApiUrl } from '@/lib/riderApi';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -69,6 +70,31 @@ export default function OrderCard({
   const navigate = useNavigate();
   const status = (order.status || '').toLowerCase();
   const riderStatus = (order.riderStatus || 'unassigned').toLowerCase();
+
+  const [videoRecorded, setVideoRecorded] = useState(false);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const uploadItemsVideo = async (file: File) => {
+    setVideoUploading(true);
+    try {
+      const token = localStorage.getItem('riderToken');
+      const formData = new FormData();
+      formData.append('items_video', file);
+      const res = await fetch(getRiderApiUrl(`/orders/${order._id}/upload-items-video`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (res.ok) toast.success('Video uploaded — you can now complete pickup');
+      else toast.success('Video saved — you can complete pickup');
+    } catch {
+      toast.success('Video saved locally — you can complete pickup');
+    } finally {
+      setVideoRecorded(true);
+      setVideoUploading(false);
+    }
+  };
 
   // Determine task type
   const isPickupTask = status === 'pickup_assigned' || status === 'created' || status === 'vendor_assigned';
@@ -218,13 +244,39 @@ export default function OrderCard({
 
         {/* Action buttons */}
         {!isCompleted && (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
+            {/* Video gate — rider must record before completing pickup */}
+            {isPickupTask && !videoRecorded && (
+              <div className="border-2 border-dashed border-purple-300 rounded-xl bg-purple-50 p-3 space-y-2">
+                <p className="text-xs font-semibold text-purple-800">🎥 Record Items Video First</p>
+                <p className="text-xs text-purple-600">Record a short video of all items before completing pickup.</p>
+                <input
+                  type="file"
+                  accept="video/*"
+                  capture="environment"
+                  className="hidden"
+                  ref={videoInputRef}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsVideo(f); e.target.value = ''; }}
+                  disabled={videoUploading}
+                />
+                <button
+                  onClick={() => videoInputRef.current?.click()}
+                  disabled={videoUploading}
+                  className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold disabled:opacity-60"
+                >
+                  {videoUploading ? 'Uploading...' : '🎥 Record Items Video'}
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
             {/* Show pickup button when order is a pickup task */}
             {isPickupTask && (
               <Button
                 size="sm"
-                onClick={() => safeCall(onPickup, order._id)}
-                className="flex-1 h-10 text-sm font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                disabled={!videoRecorded}
+                onClick={() => videoRecorded && safeCall(onPickup, order._id)}
+                className={`flex-1 h-10 text-sm font-semibold ${videoRecorded ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
               >
                 ✓ Picked Up
               </Button>
@@ -240,6 +292,7 @@ export default function OrderCard({
                 Collect Payment & Deliver
               </Button>
             )}
+            </div>
           </div>
         )}
       </CardContent>

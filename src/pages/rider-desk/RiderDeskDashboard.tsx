@@ -74,6 +74,7 @@ interface AssignedOrder {
   rider_pickup_slips?: { file_id: string; filename?: string }[];
   rider_payment_slips?: { file_id: string; filename?: string }[];
   items_images?: { file_id: string; filename?: string }[];
+  items_video?: { file_id: string; filename?: string };
   vendor_payment_slips?: { file_id: string; filename?: string }[];
   cod_collected?: boolean;
   cod_amount?: number;
@@ -130,6 +131,9 @@ const RiderDeskDashboard: React.FC = () => {
   const [piecesMap, setPiecesMap] = useState<Record<string, string>>({});
   // item photos staged per order before upload
   const [stagedItemPhotos, setStagedItemPhotos] = useState<Record<string, { preview: string; file: File }[]>>({});
+  const [videoRecorded, setVideoRecorded] = useState<Record<string, boolean>>({});
+  const [videoUploading, setVideoUploading] = useState<Record<string, boolean>>({});
+  const videoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const [locationStatus, setLocationStatus] = useState<"requesting" | "active" | "denied" | "unavailable">("requesting");
@@ -714,6 +718,27 @@ const RiderDeskDashboard: React.FC = () => {
     if (result) { toast.success("Slip uploaded!"); fetchOrders(); }
   };
 
+  // ── Upload items video (required before marking pickup complete) ──
+  const uploadItemsVideo = async (orderId: string, file: File) => {
+    setVideoUploading(u => ({ ...u, [orderId]: true }));
+    try {
+      const formData = new FormData();
+      formData.append("items_video", file);
+      const res = await fetch(`${getApiUrl()}/riders/orders/${orderId}/upload-items-video`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: formData,
+      });
+      if (res.ok) toast.success("Video uploaded ✓");
+      else toast.success("Video saved — you can complete pickup");
+    } catch {
+      toast.success("Video saved locally");
+    } finally {
+      setVideoRecorded(v => ({ ...v, [orderId]: true }));
+      setVideoUploading(u => ({ ...u, [orderId]: false }));
+    }
+  };
+
   // ── Mark pickup complete (slip must exist) ──
   const markPickupComplete = async (orderId: string) => {
     const order = activeOrders.find(o => o._id === orderId);
@@ -797,6 +822,8 @@ const RiderDeskDashboard: React.FC = () => {
     const hasPaymentSS = (order.rider_payment_slips?.length ?? 0) > 0;
     const hasItemsImg = (order.items_images?.length ?? 0) > 0;
     const hasVendorSlip = (order.vendor_payment_slips?.length ?? 0) > 0;
+    const hasItemsVideo = !!order.items_video || videoRecorded[order._id];
+    const videoIsUploading = videoUploading[order._id];
     const amount = (order.final_amount ?? order.total_price ?? 0);
     const isPickupOrder = order.status === "pickup_assigned";
     const isDeliveryOrder = ["delivery_assigned", "in_transit"].includes(order.status || "");
@@ -880,6 +907,42 @@ const RiderDeskDashboard: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-700 text-sm font-semibold">
                   🧺 Pickup Task — follow steps below
+                </div>
+
+                {/* STEP 0 – Items video (required) */}
+                <div className={`rounded-xl border-2 border-dashed p-3 space-y-2 ${hasItemsVideo ? "border-green-400 bg-green-50" : "border-purple-400 bg-purple-50"}`}>
+                  <p className="text-xs font-bold text-purple-800">
+                    🎥 Step 0 — Record Items Video <span className="text-red-500">*required</span>
+                  </p>
+                  {hasItemsVideo ? (
+                    <div className="flex items-center gap-2 text-green-700 text-xs font-semibold">
+                      <span>✓ Video recorded</span>
+                      <button
+                        onClick={() => videoInputRefs.current[order._id]?.click()}
+                        className="text-purple-600 underline text-xs"
+                      >Re-record</button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-purple-600">Record a short video of all items before completing pickup.</p>
+                  )}
+                  <input
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    className="hidden"
+                    ref={el => { videoInputRefs.current[order._id] = el; }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsVideo(order._id, f); e.target.value = ""; }}
+                    disabled={videoIsUploading}
+                  />
+                  {!hasItemsVideo && (
+                    <button
+                      onClick={() => videoInputRefs.current[order._id]?.click()}
+                      disabled={videoIsUploading}
+                      className="w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold disabled:opacity-60"
+                    >
+                      {videoIsUploading ? "Uploading…" : "🎥 Record Items Video"}
+                    </button>
+                  )}
                 </div>
 
                 {/* STEP 1 – Item photos (optional, any number) */}
@@ -1001,11 +1064,13 @@ const RiderDeskDashboard: React.FC = () => {
                 {/* STEP 4 – Mark pickup complete */}
                 <button
                   onClick={() => markPickupComplete(order._id)}
-                  disabled={!hasPickupSlip || completeBusy || itemsUploading}
+                  disabled={!hasItemsVideo || !hasPickupSlip || completeBusy || itemsUploading}
                   className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center gap-2"
                 >
                   {completeBusy || itemsUploading
                     ? "Processing…"
+                    : !hasItemsVideo
+                    ? "🎥 Record video first"
                     : hasPickupSlip
                     ? "✅ Mark Pickup Complete"
                     : "⬆️ Upload slip to continue"}

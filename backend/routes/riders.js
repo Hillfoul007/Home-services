@@ -66,6 +66,9 @@ router.get('/test', (req, res) => {
   });
 });
 
+// Memory storage multer for video uploads (GridFS streaming)
+const uploadVideo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -2496,6 +2499,42 @@ router.post('/orders/:orderId/upload-pickup-slip', verifyRiderToken, async (req,
   }
 });
 
+// Upload items video before completing pickup
+router.post('/orders/:orderId/upload-items-video', verifyRiderToken, uploadVideo.single('items_video'), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!req.file) return res.status(400).json({ error: 'No video file provided' });
+
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+    const ext = req.file.originalname?.split('.').pop() || 'mp4';
+    const filename = `order_${orderId}_items_video_${Date.now()}.${ext}`;
+    const uploadStream = bucket.openUploadStream(filename, {
+      contentType: req.file.mimetype || 'video/mp4',
+      metadata: { orderId, riderId: req.rider?.riderId, type: 'items_video', uploadedAt: new Date() },
+    });
+
+    uploadStream.on('error', () => res.status(500).json({ error: 'Failed to upload video' }));
+    uploadStream.on('finish', async () => {
+      try {
+        const order = await Booking.findById(orderId);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        order.items_video = { file_id: uploadStream.id, filename, uploaded_at: new Date() };
+        await order.save();
+        res.json({ success: true, file_id: uploadStream.id, filename });
+      } catch (err) {
+        res.status(500).json({ error: 'Failed to save order after upload' });
+      }
+    });
+
+    uploadStream.write(req.file.buffer);
+    uploadStream.end();
+  } catch (error) {
+    console.error('❌ Rider items video upload error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Upload item photo(s) during pickup — saved to items_images so admin can see them
 router.post('/orders/:orderId/upload-item-photo', verifyRiderToken, async (req, res) => {
   try {
@@ -2638,7 +2677,7 @@ router.get('/desk-orders', verifyRiderToken, async (req, res) => {
         '_id custom_order_id name phone address mapsLink status riderStatus ' +
         'final_amount total_price item_prices assignedAt acceptedAt pickedUpAt ' +
         'deliveredAt readyAt cod_collected cod_amount delivery_date scheduled_date ' +
-        'rider_pickup_slips rider_payment_slips items_images vendor_payment_slips created_at'
+        'rider_pickup_slips rider_payment_slips items_images items_video vendor_payment_slips created_at'
       );
 
     const doneOrders = await Booking.find({
