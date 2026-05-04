@@ -9,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Edit, RefreshCw, Search, CheckCircle, AlertCircle, UserPlus } from "lucide-react";
+import { Plus, Trash2, Edit, RefreshCw, Search, CheckCircle, AlertCircle, UserPlus, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 
@@ -126,6 +127,7 @@ const AdminSchoolBooking: React.FC = () => {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editPaymentStatus, setEditPaymentStatus] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   // ── Ref to track active dropdown close ──
   const dropdownTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -163,6 +165,101 @@ const AdminSchoolBooking: React.FC = () => {
   }, [orderSchoolFilter, orderMemberFilter, orderStatusFilter]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  // ─── Excel Export ──────────────────────────────────────────────────────────
+
+  const exportToExcel = async () => {
+    setExporting(true);
+    try {
+      // Fetch all matching orders (no pagination cap)
+      const params = new URLSearchParams();
+      if (orderSchoolFilter !== "all") params.set("school_id", orderSchoolFilter);
+      if (orderMemberFilter.trim()) params.set("member_id", orderMemberFilter.trim());
+      if (orderStatusFilter !== "all") params.set("status", orderStatusFilter);
+      params.set("limit", "10000");
+      const res = await apiClient.adminRequest<any>(`/school-orders?${params.toString()}`);
+      const allOrders: SchoolOrder[] = res.data?.data || [];
+
+      if (allOrders.length === 0) { toast.error("No orders to export"); return; }
+
+      const fmt = (d: string | null) => d ? new Date(d).toLocaleDateString("en-IN") : "-";
+      const dateKey = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+      // ── Sheet 1: All Orders ──
+      const allRows = allOrders.map(o => ({
+        "Order ID":       o.custom_order_id,
+        "School":         o.school_name,
+        "Member ID":      o.member_id,
+        "Student Name":   o.member_name,
+        "Service":        SVC_LABELS[o.service] || o.service,
+        "Items":          o.items_count,
+        "Price/Item (₹)": o.price_per_item,
+        "Total (₹)":      o.total_amount,
+        "Status":         o.status,
+        "Payment":        o.payment_status,
+        "Pickup Date":    fmt(o.pickup_date),
+        "Delivery Date":  fmt(o.delivery_date),
+        "Created":        fmt(o.created_at),
+      }));
+
+      // ── Sheet 2: Student-wise summary ──
+      const studentMap = new Map<string, { name: string; school: string; orders: number; items: number; total: number }>();
+      for (const o of allOrders) {
+        const key = o.member_id;
+        const existing = studentMap.get(key) || { name: o.member_name, school: o.school_name, orders: 0, items: 0, total: 0 };
+        existing.orders += 1;
+        existing.items  += o.items_count;
+        existing.total  += o.total_amount;
+        studentMap.set(key, existing);
+      }
+      const studentRows = [...studentMap.entries()]
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([id, v]) => ({
+          "Member ID":    id,
+          "Student Name": v.name,
+          "School":       v.school,
+          "Total Orders": v.orders,
+          "Total Items":  v.items,
+          "Total (₹)":    v.total,
+        }));
+
+      // ── Sheet 3: Date-wise summary ──
+      const dateMap = new Map<string, { orders: number; items: number; total: number }>();
+      for (const o of allOrders) {
+        const key = dateKey(o.created_at);
+        const existing = dateMap.get(key) || { orders: 0, items: 0, total: 0 };
+        existing.orders += 1;
+        existing.items  += o.items_count;
+        existing.total  += o.total_amount;
+        dateMap.set(key, existing);
+      }
+      const dateRows = [...dateMap.entries()]
+        .sort((a, b) => new Date(a[0].split("/").reverse().join("-")).getTime() - new Date(b[0].split("/").reverse().join("-")).getTime())
+        .map(([date, v]) => ({
+          "Date":         date,
+          "Total Orders": v.orders,
+          "Total Items":  v.items,
+          "Total (₹)":    v.total,
+        }));
+
+      // ── Build workbook ──
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows),     "All Orders");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(studentRows), "Student-wise");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dateRows),    "Date-wise");
+
+      const schoolLabel = orderSchoolFilter !== "all"
+        ? (schools.find(s => s._id === orderSchoolFilter)?.school_code || "SCH")
+        : "ALL";
+      const filename = `school_orders_${schoolLabel}_${new Date().toISOString().slice(0,10)}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      toast.success(`Exported ${allOrders.length} orders to ${filename}`);
+    } catch (err: any) {
+      toast.error(err.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // ─── School change ─────────────────────────────────────────────────────────
 
@@ -723,9 +820,16 @@ const AdminSchoolBooking: React.FC = () => {
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base">All School Orders</CardTitle>
-            <Button size="sm" variant="outline" onClick={fetchOrders} className="flex items-center gap-1">
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={fetchOrders} className="flex items-center gap-1">
+                <RefreshCw className="w-3.5 h-3.5" /> Refresh
+              </Button>
+              <Button size="sm" variant="outline" onClick={exportToExcel} disabled={exporting}
+                className="flex items-center gap-1 border-green-400 text-green-700 hover:bg-green-50">
+                <Download className="w-3.5 h-3.5" />
+                {exporting ? "Exporting…" : "Export Excel"}
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
             <Select value={orderSchoolFilter} onValueChange={setOrderSchoolFilter}>
