@@ -95,6 +95,9 @@ export default function RiderOrders() {
   const [showPaymentQR, setShowPaymentQR] = useState(false);
 
   // Delivery task state
+  const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>('online');
+  const [cashCollected, setCashCollected] = useState(false);
+  const [cashCollecting, setCashCollecting] = useState(false);
   const [paymentPhoto, setPaymentPhoto] = useState<string | null>(null);
   const [paymentPhotoUploading, setPaymentPhotoUploading] = useState(false);
   const [completingDelivery, setCompletingDelivery] = useState(false);
@@ -1051,11 +1054,43 @@ export default function RiderOrders() {
     }
   };
 
+  // Mark cash collected from customer
+  const markCashCollected = async () => {
+    if (!orderId) return;
+    setCashCollecting(true);
+    try {
+      const token = localStorage.getItem('riderToken');
+      const amount = order?.final_amount ?? order?.total_price ?? 0;
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/cod-collected`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ amount }),
+      });
+      if (res.ok) {
+        setCashCollected(true);
+        toast.success(`Cash ₹${amount} marked as collected`);
+      } else {
+        // Mark locally so rider can still proceed
+        setCashCollected(true);
+        toast.success('Cash marked as collected (will sync)');
+      }
+    } catch {
+      setCashCollected(true);
+      toast.success('Cash marked as collected (offline)');
+    } finally {
+      setCashCollecting(false);
+    }
+  };
+
   // Complete delivery - mark order as delivered
   const completeDelivery = async () => {
     if (!orderId) return;
-    if (!paymentPhoto) {
+    if (paymentMethod === 'online' && !paymentPhoto) {
       toast.error('Upload payment screenshot before completing delivery');
+      return;
+    }
+    if (paymentMethod === 'cash' && !cashCollected) {
+      toast.error('Mark cash as collected before completing delivery');
       return;
     }
     setCompletingDelivery(true);
@@ -1064,7 +1099,7 @@ export default function RiderOrders() {
       const res = await fetch(getRiderApiUrl(`/orders/${orderId}/complete-delivery`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ payment_photo: paymentPhoto, timestamp: new Date().toISOString() }),
+        body: JSON.stringify({ payment_photo: paymentPhoto, payment_method: paymentMethod, timestamp: new Date().toISOString() }),
       });
       if (res.ok) {
         toast.success('Delivery completed! Order marked as delivered.');
@@ -1827,6 +1862,63 @@ export default function RiderOrders() {
     </CardHeader>
     <CardContent className="flex flex-col gap-5">
 
+      {/* Payment Method Toggle */}
+      <div>
+        <Label className="text-sm font-semibold text-green-800 mb-2 block">Payment Method</Label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setPaymentMethod('online'); setCashCollected(false); }}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${paymentMethod === 'online' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-700 border-green-300 hover:bg-green-50'}`}
+          >
+            📱 Online / UPI
+          </button>
+          <button
+            onClick={() => { setPaymentMethod('cash'); setPaymentPhoto(null); }}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${paymentMethod === 'cash' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'}`}
+          >
+            💵 Cash
+          </button>
+        </div>
+      </div>
+
+      {paymentMethod === 'cash' ? (
+        /* ── Cash Payment Flow ── */
+        <div className="flex flex-col gap-4">
+          <div className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 text-center">
+            <p className="text-sm text-amber-700">Collect cash from customer</p>
+            <p className="text-2xl font-bold text-amber-800 mt-1">
+              ₹{(order.final_amount ?? order.total_price ?? 0).toLocaleString()}
+            </p>
+          </div>
+          {cashCollected ? (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+              <span className="text-green-800 font-semibold text-sm">Cash collected ✓</span>
+            </div>
+          ) : (
+            <Button
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl text-base"
+              onClick={markCashCollected}
+              disabled={cashCollecting}
+            >
+              {cashCollecting ? 'Marking...' : '💵 Mark Cash Collected'}
+            </Button>
+          )}
+          <Button
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base disabled:opacity-50"
+            onClick={completeDelivery}
+            disabled={completingDelivery || !cashCollected}
+          >
+            {completingDelivery ? 'Completing...' : '✅ Submit Delivery'}
+          </Button>
+          {!cashCollected && (
+            <p className="text-xs text-amber-600 text-center">Mark cash as collected to enable submit</p>
+          )}
+        </div>
+      ) : (
+        /* ── Online / UPI Payment Flow ── */
+        <>
+
       {/* Step 1: QR Code */}
       <div>
         <Label className="text-sm font-semibold text-green-800 mb-3 block">1. Show QR to Customer for Payment</Label>
@@ -1941,6 +2033,9 @@ export default function RiderOrders() {
           <p className="text-xs text-green-600 text-center mt-1">Upload payment screenshot to enable submit</p>
         )}
       </div>
+
+        </>
+      )}
 
     </CardContent>
   </Card>

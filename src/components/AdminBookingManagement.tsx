@@ -129,6 +129,9 @@ interface Booking {
     uploaded_at?: string;
   }>;
   pickup_pieces?: number;
+  cod_collected?: boolean;
+  cod_amount?: number;
+  cod_collected_at?: string;
 }
 
 const ORDER_FLOW_STEPS = [
@@ -2310,6 +2313,11 @@ const AdminBookingManagement: React.FC = () => {
                             🧺 {booking.pickup_pieces} pcs
                           </span>
                         )}
+                        {booking.cod_collected && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold self-center border border-green-300">
+                            💵 Cash Received ₹{booking.cod_amount ?? booking.final_amount ?? ''}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex gap-2 shrink-0 flex-wrap">
@@ -2417,6 +2425,12 @@ const AdminBookingManagement: React.FC = () => {
                           {booking.coupon_code && <div className="flex justify-between text-blue-600"><span>Coupon</span><span>{booking.coupon_code}</span></div>}
                           <div className="flex justify-between border-t pt-2 font-bold text-base"><span>Final Amount</span><span className="text-green-700">₹{booking.final_amount ?? '—'}</span></div>
                           {(booking.wallet_cashback ?? 0) > 0 && <div className="flex justify-between text-purple-600 text-xs"><span>Cashback to Wallet</span><span>{booking.wallet_cashback}% = ₹{((booking.final_amount || 0) * (booking.wallet_cashback || 0) / 100).toFixed(2)}</span></div>}
+                          {booking.cod_collected && (
+                            <div className="flex justify-between mt-2 pt-2 border-t border-green-200 text-green-700 font-semibold">
+                              <span>💵 Cash Received</span>
+                              <span>₹{booking.cod_amount ?? booking.final_amount ?? '—'}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2674,6 +2688,11 @@ const AdminBookingManagement: React.FC = () => {
                               🧺 {booking.pickup_pieces} pcs
                             </span>
                           )}
+                          {booking.cod_collected && (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold border border-green-300">
+                              💵 Cash ₹{booking.cod_amount ?? booking.final_amount ?? ''}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <div className="text-sm font-medium">₹{booking.final_amount ?? booking.total_price}</div>
@@ -2884,6 +2903,12 @@ const AdminBookingManagement: React.FC = () => {
                     <div className="flex justify-between text-green-600">
                       <span>Wallet Applied:</span>
                       <span>-₹{viewingBooking.wallet_applied}</span>
+                    </div>
+                  )}
+                  {viewingBooking.cod_collected && (
+                    <div className="flex justify-between border-t pt-2 text-green-700 font-bold">
+                      <span>💵 Cash Received:</span>
+                      <span>₹{viewingBooking.cod_amount ?? viewingBooking.final_amount}</span>
                     </div>
                   )}
                 </div>

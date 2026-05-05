@@ -235,10 +235,6 @@ const DeskDashboard: React.FC = () => {
   // Item autocomplete search state per row index
   const [itemSearch, setItemSearch] = useState<Record<number, string>>({});
 
-  // Video recording state for picked_up → processing gate
-  const [videoRecorded, setVideoRecorded] = useState<Record<string, boolean>>({});
-  const [videoUploading, setVideoUploading] = useState<Record<string, boolean>>({});
-  const videoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Rider efficiency data
   const [efficiencyData, setEfficiencyData] = useState<any[]>([]);
@@ -540,31 +536,6 @@ const DeskDashboard: React.FC = () => {
     finally { setUploading(u => ({ ...u, [orderId + "_pay"]: false })); }
   };
 
-  // ── upload items video (required before processing) ──
-  const uploadItemsVideo = async (orderId: string, file: File) => {
-    setVideoUploading(u => ({ ...u, [orderId]: true }));
-    try {
-      const formData = new FormData();
-      formData.append("items_video", file);
-      const res = await fetch(`${API}/orders/orders/${orderId}/upload-items-video`, {
-        method: "POST",
-        headers: authHeaders(token),
-        body: formData,
-      });
-      if (res.ok) {
-        toast.success("Video uploaded — you can now move to Processing");
-        setVideoRecorded(v => ({ ...v, [orderId]: true }));
-      } else {
-        // Even if upload fails, allow proceeding (network issues)
-        toast.success("Video recorded — proceeding to cart");
-        setVideoRecorded(v => ({ ...v, [orderId]: true }));
-      }
-    } catch {
-      toast.success("Video saved locally — proceeding to cart");
-      setVideoRecorded(v => ({ ...v, [orderId]: true }));
-    }
-    finally { setVideoUploading(u => ({ ...u, [orderId]: false })); }
-  };
 
   // ── compute rider efficiency ──
   const computeEfficiency = useCallback(() => {
@@ -1293,31 +1264,11 @@ const DeskDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {/* ── Video gate: must record before cart ── */}
-                  {!videoRecorded[order._id] ? (
-                    <div className="border-2 border-dashed border-purple-300 rounded-xl bg-purple-50 p-3 space-y-2">
-                      <p className="text-xs font-semibold text-purple-800">🎥 Record Item Video First</p>
-                      <p className="text-xs text-purple-600">Record a short video of all items before moving to processing.</p>
-                      <input type="file" accept="video/*" capture="environment" className="hidden"
-                        ref={el => { videoInputRefs.current[order._id] = el; }}
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemsVideo(order._id, f); e.target.value = ""; }}
-                        disabled={videoUploading[order._id]}
-                      />
-                      <button
-                        onClick={() => videoInputRefs.current[order._id]?.click()}
-                        disabled={videoUploading[order._id]}
-                        className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold disabled:opacity-60"
-                      >
-                        {videoUploading[order._id] ? "Uploading video..." : "🎥 Record Items Video"}
-                      </button>
-                    </div>
-                  ) : null}
-
                   {/* Cart editor or open button */}
                   {!isCartEditing ? (
                     <button
-                      onClick={() => { if (!videoRecorded[order._id]) { toast.error("Record item video first"); return; } openCartEditor(order); }}
-                      className={`w-full py-2.5 rounded-xl text-sm font-semibold ${videoRecorded[order._id] ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+                      onClick={() => openCartEditor(order)}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
                       🛒 {(order.item_prices?.length ?? 0) > 0 ? "Edit Cart & Move to Processing" : "Create Cart & Move to Processing"}
                     </button>

@@ -128,6 +128,7 @@ const RiderDeskDashboard: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [codModal, setCodModal] = useState<string | null>(null);
   const [codAmount, setCodAmount] = useState("");
+  const [paymentMethodMap, setPaymentMethodMap] = useState<Record<string, 'online' | 'cash'>>({});
   const [piecesMap, setPiecesMap] = useState<Record<string, string>>({});
   // item photos staged per order before upload
   const [stagedItemPhotos, setStagedItemPhotos] = useState<Record<string, { preview: string; file: File }[]>>({});
@@ -628,6 +629,23 @@ const RiderDeskDashboard: React.FC = () => {
     finally { setActionLoading(a => ({ ...a, [orderId + "_transit"]: false })); }
   };
 
+  // ── quick cash collect (no modal — uses order final_amount directly) ──
+  const quickCashCollect = async (orderId: string, amount: number) => {
+    setActionLoading(a => ({ ...a, [orderId + "_cod"]: true }));
+    try {
+      const res = await fetch(`${getApiUrl()}/riders/orders/${orderId}/cod-collected`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify({ amount }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.message || "Failed"); return; }
+      toast.success(`Cash ₹${amount} marked as collected`);
+      fetchOrders();
+    } catch { toast.error("Network error"); }
+    finally { setActionLoading(a => ({ ...a, [orderId + "_cod"]: false })); }
+  };
+
   // ── submit COD collection ──
   const submitCOD = async (orderId: string) => {
     const amount = parseFloat(codAmount);
@@ -771,8 +789,13 @@ const RiderDeskDashboard: React.FC = () => {
   const markDelivered = async (orderId: string) => {
     const order = activeOrders.find(o => o._id === orderId);
     if (!order) return;
-    if (!(order.rider_payment_slips?.length)) {
+    const isCash = (paymentMethodMap[orderId] || 'online') === 'cash';
+    if (!isCash && !(order.rider_payment_slips?.length)) {
       toast.error("Please upload the payment photo first");
+      return;
+    }
+    if (isCash && !order.cod_collected) {
+      toast.error("Mark cash as collected before completing delivery");
       return;
     }
     await doAction(orderId, "complete");
@@ -848,7 +871,7 @@ const RiderDeskDashboard: React.FC = () => {
               </span>
               {isPickupOrder && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">🧺 Pickup</span>}
               {isDeliveryOrder && <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">🚚 Delivery</span>}
-              {order.cod_collected && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">COD ✓</span>}
+              {order.cod_collected && <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-medium border border-green-300">💵 Cash Received</span>}
             </div>
             <p className="text-xs text-gray-500 mt-0.5 truncate">{order.name} · ₹{amount.toLocaleString()}</p>
           </div>
@@ -1079,68 +1102,105 @@ const RiderDeskDashboard: React.FC = () => {
             )}
 
             {/* ════════ DELIVERY TASK ════════ */}
-            {!isDone && isDeliveryOrder && (
+            {!isDone && isDeliveryOrder && (() => {
+              const isCash = (paymentMethodMap[order._id] || 'online') === 'cash';
+              const codBusy = actionLoading[order._id + "_cod"];
+              return (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 text-sm font-semibold">
                   🚚 Delivery Task — follow steps below
                 </div>
 
-                {/* COD collection */}
-                {!order.cod_collected ? (
+                {/* Payment method toggle */}
+                <div className="flex gap-2">
                   <button
-                    onClick={() => { setCodModal(order._id); setCodAmount(String(amount)); }}
-                    className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl text-sm"
+                    onClick={() => setPaymentMethodMap(m => ({ ...m, [order._id]: 'online' }))}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${!isCash ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-700 border-green-300'}`}
                   >
-                    💰 Collect Payment (₹{amount.toLocaleString()})
+                    📱 Online / UPI
                   </button>
-                ) : (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
-                    ✓ <span className="font-medium">Payment Collected: ₹{(order.cod_amount || amount).toLocaleString()}</span>
-                  </div>
-                )}
-
-                {/* Payment photo (mandatory) */}
-                <div className="rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-3 space-y-2">
-                  <p className="text-xs font-bold text-orange-800">
-                    💳 Upload Payment Photo <span className="text-red-500">*required</span>
-                  </p>
-                  {hasPaymentSS && (
-                    <div className="flex gap-2 flex-wrap">
-                      {[...(order.rider_payment_slips || []), ...(order.vendor_payment_slips || [])].map(s => (
-                        <a key={s.file_id} href={imgUrl(s.file_id)} target="_blank" rel="noreferrer">
-                          <img src={imgUrl(s.file_id)} alt="payment"
-                            className="w-16 h-16 object-cover rounded-lg border border-green-300 ring-2 ring-green-400" />
-                        </a>
-                      ))}
-                      <span className="self-center text-xs text-green-700 font-semibold">✓ Uploaded</span>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <label className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border-2 text-xs font-semibold cursor-pointer ${hasPaymentSS ? "border-green-400 bg-green-50 text-green-700" : "border-orange-400 bg-white text-orange-700"}`}>
-                      <input type="file" accept="image/*" capture="environment" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentPhoto(order._id, f); e.target.value = ""; }}
-                        disabled={paymentUploading} />
-                      {paymentUploading ? "Uploading…" : hasPaymentSS ? "📸 Re-take" : "📸 Take Payment Photo"}
-                    </label>
-                    <label className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold cursor-pointer">
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentPhoto(order._id, f); e.target.value = ""; }}
-                        disabled={paymentUploading} />
-                      🖼️ Gallery
-                    </label>
-                  </div>
+                  <button
+                    onClick={() => setPaymentMethodMap(m => ({ ...m, [order._id]: 'cash' }))}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${isCash ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300'}`}
+                  >
+                    💵 Cash
+                  </button>
                 </div>
 
-                {/* Mark delivered */}
-                <button
-                  onClick={() => markDelivered(order._id)}
-                  disabled={!hasPaymentSS || completeBusy}
-                  className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
-                >
-                  {completeBusy ? "Processing…" : hasPaymentSS ? "✅ Mark Delivered" : "⬆️ Upload payment photo first"}
-                </button>
+                {isCash ? (
+                  /* ── Cash flow ── */
+                  <>
+                    <div className="bg-amber-50 rounded-xl border border-amber-200 px-3 py-3 text-center">
+                      <p className="text-xs text-amber-700">Collect cash from customer</p>
+                      <p className="text-xl font-bold text-amber-800 mt-0.5">₹{amount.toLocaleString()}</p>
+                    </div>
+                    {order.cod_collected ? (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                        ✓ <span className="font-medium">Cash collected: ₹{(order.cod_amount || amount).toLocaleString()}</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => quickCashCollect(order._id, amount)}
+                        disabled={codBusy}
+                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm"
+                      >
+                        {codBusy ? "Marking…" : `💵 Mark Cash Collected`}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => markDelivered(order._id)}
+                      disabled={!order.cod_collected || completeBusy}
+                      className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {completeBusy ? "Processing…" : order.cod_collected ? "✅ Mark Delivered" : "Mark cash collected first"}
+                    </button>
+                  </>
+                ) : (
+                  /* ── Online / UPI flow ── */
+                  <>
+                    {/* Payment photo (mandatory for online) */}
+                    <div className="rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-3 space-y-2">
+                      <p className="text-xs font-bold text-orange-800">
+                        💳 Upload Payment Screenshot <span className="text-red-500">*required</span>
+                      </p>
+                      {hasPaymentSS && (
+                        <div className="flex gap-2 flex-wrap">
+                          {[...(order.rider_payment_slips || []), ...(order.vendor_payment_slips || [])].map(s => (
+                            <a key={s.file_id} href={imgUrl(s.file_id)} target="_blank" rel="noreferrer">
+                              <img src={imgUrl(s.file_id)} alt="payment"
+                                className="w-16 h-16 object-cover rounded-lg border border-green-300 ring-2 ring-green-400" />
+                            </a>
+                          ))}
+                          <span className="self-center text-xs text-green-700 font-semibold">✓ Uploaded</span>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <label className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border-2 text-xs font-semibold cursor-pointer ${hasPaymentSS ? "border-green-400 bg-green-50 text-green-700" : "border-orange-400 bg-white text-orange-700"}`}>
+                          <input type="file" accept="image/*" capture="environment" className="hidden"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentPhoto(order._id, f); e.target.value = ""; }}
+                            disabled={paymentUploading} />
+                          {paymentUploading ? "Uploading…" : hasPaymentSS ? "📸 Re-take" : "📸 Take Screenshot"}
+                        </label>
+                        <label className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold cursor-pointer">
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadPaymentPhoto(order._id, f); e.target.value = ""; }}
+                            disabled={paymentUploading} />
+                          🖼️ Gallery
+                        </label>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => markDelivered(order._id)}
+                      disabled={!hasPaymentSS || completeBusy}
+                      className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+                    >
+                      {completeBusy ? "Processing…" : hasPaymentSS ? "✅ Mark Delivered" : "⬆️ Upload screenshot first"}
+                    </button>
+                  </>
+                )}
               </div>
-            )}
+              );
+            })()}
 
             {/* Uploaded files (done orders) */}
             {isDone && (hasItemsImg || hasPickupSlip || hasPaymentSS || hasVendorSlip) && (

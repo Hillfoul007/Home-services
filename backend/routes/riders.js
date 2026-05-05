@@ -2719,7 +2719,7 @@ router.post('/orders/:orderId/cod-collected', verifyRiderToken, async (req, res)
     if (!order) return res.status(404).json({ message: 'Order not found or not assigned to you' });
 
     // Allow COD collection for any active delivery assignment
-    const allowedStatuses = ['assigned', 'accepted', 'picked_up', 'in_transit', 'delivered'];
+    const allowedStatuses = ['assigned', 'accepted', 'picked_up', 'in_transit', 'ready_for_delivery', 'delivered'];
     if (!allowedStatuses.includes(order.riderStatus)) {
       return res.status(400).json({ message: 'Cannot collect COD for this order status' });
     }
@@ -2839,7 +2839,7 @@ router.post('/orders/:orderId/complete-pickup', verifyRiderToken, async (req, re
 router.post('/orders/:orderId/complete-delivery', verifyRiderToken, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { payment_photo, timestamp } = req.body;
+    const { payment_photo, payment_method, timestamp } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.status(400).json({ message: 'Invalid order ID' });
@@ -2853,6 +2853,11 @@ router.post('/orders/:orderId/complete-delivery', verifyRiderToken, async (req, 
     booking.deliveredAt = now;
     booking.status = 'delivered';
     if (payment_photo) booking.payment_photo = payment_photo;
+    if (payment_method === 'cash' && !booking.cod_collected) {
+      booking.cod_collected = true;
+      booking.cod_amount = booking.final_amount || booking.total_price || 0;
+      booking.cod_collected_at = now;
+    }
     booking.updated_at = now;
     await booking.save();
 
