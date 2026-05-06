@@ -4164,15 +4164,26 @@ router.get("/factory-ops-live", async (req, res) => {
   }
 });
 
-// ── Trigger GridFS media cleanup immediately ──────────────────────────────────
+// ── Trigger media cleanup immediately (GridFS + Cloudinary) ──────────────────
 router.post("/cleanup-media", verifyAdminAccess, async (req, res) => {
   try {
-    const { runCleanup } = require("../services/gridfsCleanup");
-    const result = await runCleanup();
+    const { runCleanup, runCloudinaryCleanup, getCloudinaryUsage } = require("../services/gridfsCleanup");
+    const [gridfs, cloudinary, storage] = await Promise.all([
+      runCleanup(),
+      runCloudinaryCleanup(),
+      getCloudinaryUsage(),
+    ]);
+    const parts = [];
+    if (gridfs.files > 0) parts.push(`GridFS: ${gridfs.files} files removed from ${gridfs.orders} orders`);
+    if (!cloudinary.skipped && cloudinary.deleted > 0) parts.push(`Cloudinary: ${cloudinary.deleted} files removed from ${cloudinary.orders} orders`);
+    if (cloudinary.skipped && !cloudinary.error) parts.push(`Cloudinary storage OK (${cloudinary.pct})`);
+    const message = parts.length ? parts.join(" | ") : "Nothing to clean up";
     res.json({
       success: true,
-      message: `Cleanup complete: ${result.orders} orders cleaned, ${result.files} files deleted, ${result.chunks} chunks removed`,
-      ...result,
+      message,
+      gridfs,
+      cloudinary,
+      storage,
     });
   } catch (err) {
     console.error("❌ Manual cleanup error:", err.message);

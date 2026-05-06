@@ -78,7 +78,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setCleanupState({ running: true, result: null });
     try {
       const res = await apiClient.adminRequest<any>("/admin/cleanup-media", { method: "POST" });
-      setCleanupState({ running: false, result: res.message || "Done" });
+      const body = res.data;
+      const storage = body?.storage;
+      const storageNote = storage ? ` | ☁️ Cloudinary: ${storage.used_mb} MB / ${storage.limit_gb} GB (${storage.pct}%)` : "";
+      setCleanupState({ running: false, result: (body?.message || "Done") + storageNote });
     } catch {
       setCleanupState({ running: false, result: "Cleanup failed — check server logs" });
     }
