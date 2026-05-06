@@ -702,6 +702,10 @@ const AdminBookingManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  // Resolve file URL — Cloudinary URLs are used directly; GridFS IDs go through the backend proxy
+  const mediaUrl = (fileId: string, apiPath: string) =>
+    fileId?.startsWith('http') ? fileId : apiPath;
+
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
@@ -2520,7 +2524,7 @@ const AdminBookingManagement: React.FC = () => {
                               <div>
                                 <p className="text-xs font-semibold text-purple-700 mb-2">🎥 Items Video (Desk)</p>
                                 <video
-                                  src={`/api/vendor/orders/public/orders/${booking._id}/items-video/${booking.items_video.file_id}`}
+                                  src={mediaUrl(booking.items_video.file_id, `/api/vendor/orders/public/orders/${booking._id}/items-video/${booking.items_video.file_id}`)}
                                   controls
                                   className="w-full max-h-56 rounded-lg border border-purple-200"
                                   preload="metadata"
@@ -2532,8 +2536,8 @@ const AdminBookingManagement: React.FC = () => {
                                 <p className="text-xs font-semibold text-gray-600 mb-2">📷 Item Photos (Desk) — {booking.items_images!.length} photo{booking.items_images!.length !== 1 ? 's' : ''}</p>
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.items_images!.map(img => (
-                                    <a key={img.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} alt="item" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
+                                    <a key={img.file_id} href={mediaUrl(img.file_id, `/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`)} target="_blank" rel="noreferrer">
+                                      <img src={mediaUrl(img.file_id, `/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`)} alt="item" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2544,8 +2548,8 @@ const AdminBookingManagement: React.FC = () => {
                                 <p className="text-xs font-semibold text-indigo-600 mb-2">🧾 Rider Pickup Slip — {booking.rider_pickup_slips!.length} slip{booking.rider_pickup_slips!.length !== 1 ? 's' : ''}</p>
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.rider_pickup_slips!.map(slip => (
-                                    <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="pickup slip" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
+                                    <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                                      <img src={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} alt="pickup slip" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2556,8 +2560,8 @@ const AdminBookingManagement: React.FC = () => {
                                 <p className="text-xs font-semibold text-green-600 mb-2">💳 Rider Payment Screenshot — {booking.rider_payment_slips!.length} screenshot{booking.rider_payment_slips!.length !== 1 ? 's' : ''}</p>
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.rider_payment_slips!.map(slip => (
-                                    <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="payment ss" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
+                                    <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                                      <img src={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} alt="payment ss" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2568,8 +2572,8 @@ const AdminBookingManagement: React.FC = () => {
                                 <p className="text-xs font-semibold text-orange-600 mb-2">🧾 Vendor Payment Slips — {booking.vendor_payment_slips!.length} slip{booking.vendor_payment_slips!.length !== 1 ? 's' : ''}</p>
                                 <div className="flex gap-2 flex-wrap">
                                   {booking.vendor_payment_slips!.map(slip => (
-                                    <a key={slip.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                      <img src={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} alt="vendor slip" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
+                                    <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                                      <img src={mediaUrl(slip.file_id, `/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`)} alt="vendor slip" loading="lazy" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
                                     </a>
                                   ))}
                                 </div>
@@ -2734,7 +2738,7 @@ const AdminBookingManagement: React.FC = () => {
                                 <div>
                                   <p className="text-xs font-semibold text-purple-700 mb-2">🎥 Items Video (Desk)</p>
                                   <video
-                                    src={`/api/vendor/orders/public/orders/${booking._id}/items-video/${booking.items_video.file_id}`}
+                                    src={mediaUrl(booking.items_video.file_id, `/api/vendor/orders/public/orders/${booking._id}/items-video/${booking.items_video.file_id}`)}
                                     controls
                                     className="w-full max-h-48 rounded-lg border border-purple-200"
                                     preload="metadata"
@@ -2746,8 +2750,8 @@ const AdminBookingManagement: React.FC = () => {
                                   <p className="text-xs font-semibold text-gray-600 mb-2">📷 Item Photos (Desk)</p>
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.items_images!.map(img => (
-                                      <a key={img.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`} alt="item" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
+                                      <a key={img.file_id} href={mediaUrl(img.file_id, `/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`)} target="_blank" rel="noreferrer">
+                                        <img src={mediaUrl(img.file_id, `/api/vendor/orders/public/orders/${booking._id}/items-image/${img.file_id}`)} alt="item" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2758,8 +2762,8 @@ const AdminBookingManagement: React.FC = () => {
                                   <p className="text-xs font-semibold text-indigo-600 mb-2">🧾 Rider Pickup Slip</p>
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.rider_pickup_slips!.map(slip => (
-                                      <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="pickup slip" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
+                                      <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                                        <img src={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} alt="pickup slip" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2770,8 +2774,8 @@ const AdminBookingManagement: React.FC = () => {
                                   <p className="text-xs font-semibold text-green-600 mb-2">💳 Rider Payment Screenshot</p>
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.rider_payment_slips!.map(slip => (
-                                      <a key={slip.file_id} href={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`} alt="payment ss" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
+                                      <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                                        <img src={mediaUrl(slip.file_id, `/api/riders/public/orders/${booking._id}/slip/${slip.file_id}`)} alt="payment ss" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2782,8 +2786,8 @@ const AdminBookingManagement: React.FC = () => {
                                   <p className="text-xs font-semibold text-orange-600 mb-2">🧾 Vendor Payment Slips</p>
                                   <div className="flex gap-2 flex-wrap">
                                     {booking.vendor_payment_slips!.map(slip => (
-                                      <a key={slip.file_id} href={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                                        <img src={`/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`} alt="vendor slip" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
+                                      <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                                        <img src={mediaUrl(slip.file_id, `/api/vendor/orders/public/orders/${booking._id}/payment-slip/${slip.file_id}`)} alt="vendor slip" loading="lazy" className="w-20 h-20 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
                                       </a>
                                     ))}
                                   </div>
@@ -2925,12 +2929,12 @@ const AdminBookingManagement: React.FC = () => {
                         {viewingBooking.rider_pickup_slips!.map((slip) => (
                           <a
                             key={slip.file_id}
-                            href={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                            href={mediaUrl(slip.file_id, `/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`)}
                             target="_blank"
                             rel="noreferrer"
                           >
                             <img
-                              src={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                              src={mediaUrl(slip.file_id, `/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`)}
                               alt="pickup slip"
                               className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer"
                             />
@@ -2946,12 +2950,12 @@ const AdminBookingManagement: React.FC = () => {
                         {viewingBooking.rider_payment_slips!.map((slip) => (
                           <a
                             key={slip.file_id}
-                            href={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                            href={mediaUrl(slip.file_id, `/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`)}
                             target="_blank"
                             rel="noreferrer"
                           >
                             <img
-                              src={`/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`}
+                              src={mediaUrl(slip.file_id, `/api/riders/public/orders/${viewingBooking._id}/slip/${slip.file_id}`)}
                               alt="payment screenshot"
                               className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer"
                             />
@@ -2983,7 +2987,7 @@ const AdminBookingManagement: React.FC = () => {
                   <div>
                     <p className="text-xs font-semibold text-purple-700 mb-2">🎥 Items Video (Desk)</p>
                     <video
-                      src={`/api/vendor/orders/public/orders/${b._id}/items-video/${b.items_video.file_id}`}
+                      src={mediaUrl(b.items_video.file_id, `/api/vendor/orders/public/orders/${b._id}/items-video/${b.items_video.file_id}`)}
                       controls
                       className="w-full max-h-56 rounded-lg border border-purple-200"
                       preload="metadata"
@@ -2995,8 +2999,8 @@ const AdminBookingManagement: React.FC = () => {
                     <p className="text-xs font-semibold text-gray-600 mb-2">📷 Item Photos (Desk)</p>
                     <div className="flex gap-2 flex-wrap">
                       {b.items_images!.map(img => (
-                        <a key={img.file_id} href={`/api/vendor/orders/public/orders/${b._id}/items-image/${img.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`/api/vendor/orders/public/orders/${b._id}/items-image/${img.file_id}`} alt="item" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
+                        <a key={img.file_id} href={mediaUrl(img.file_id, `/api/vendor/orders/public/orders/${b._id}/items-image/${img.file_id}`)} target="_blank" rel="noreferrer">
+                          <img src={mediaUrl(img.file_id, `/api/vendor/orders/public/orders/${b._id}/items-image/${img.file_id}`)} alt="item" className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 hover:opacity-80 cursor-pointer" />
                         </a>
                       ))}
                     </div>
@@ -3007,8 +3011,8 @@ const AdminBookingManagement: React.FC = () => {
                     <p className="text-xs font-semibold text-indigo-600 mb-2">🧾 Rider Pickup Slip</p>
                     <div className="flex gap-2 flex-wrap">
                       {b.rider_pickup_slips!.map(slip => (
-                        <a key={slip.file_id} href={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} alt="pickup slip" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
+                        <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/riders/public/orders/${b._id}/slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                          <img src={mediaUrl(slip.file_id, `/api/riders/public/orders/${b._id}/slip/${slip.file_id}`)} alt="pickup slip" className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-200 hover:opacity-80 cursor-pointer" />
                         </a>
                       ))}
                     </div>
@@ -3019,8 +3023,8 @@ const AdminBookingManagement: React.FC = () => {
                     <p className="text-xs font-semibold text-green-600 mb-2">💳 Rider Payment Screenshot</p>
                     <div className="flex gap-2 flex-wrap">
                       {b.rider_payment_slips!.map(slip => (
-                        <a key={slip.file_id} href={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`/api/riders/public/orders/${b._id}/slip/${slip.file_id}`} alt="payment ss" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
+                        <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/riders/public/orders/${b._id}/slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                          <img src={mediaUrl(slip.file_id, `/api/riders/public/orders/${b._id}/slip/${slip.file_id}`)} alt="payment ss" className="w-24 h-24 object-cover rounded-lg border-2 border-green-200 hover:opacity-80 cursor-pointer" />
                         </a>
                       ))}
                     </div>
@@ -3031,8 +3035,8 @@ const AdminBookingManagement: React.FC = () => {
                     <p className="text-xs font-semibold text-orange-600 mb-2">🧾 Vendor Payment Slips</p>
                     <div className="flex gap-2 flex-wrap">
                       {b.vendor_payment_slips!.map(slip => (
-                        <a key={slip.file_id} href={`/api/vendor/orders/public/orders/${b._id}/payment-slip/${slip.file_id}`} target="_blank" rel="noreferrer">
-                          <img src={`/api/vendor/orders/public/orders/${b._id}/payment-slip/${slip.file_id}`} alt="vendor slip" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
+                        <a key={slip.file_id} href={mediaUrl(slip.file_id, `/api/vendor/orders/public/orders/${b._id}/payment-slip/${slip.file_id}`)} target="_blank" rel="noreferrer">
+                          <img src={mediaUrl(slip.file_id, `/api/vendor/orders/public/orders/${b._id}/payment-slip/${slip.file_id}`)} alt="vendor slip" className="w-24 h-24 object-cover rounded-lg border-2 border-orange-200 hover:opacity-80 cursor-pointer" />
                         </a>
                       ))}
                     </div>
