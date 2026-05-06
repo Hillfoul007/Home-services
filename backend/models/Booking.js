@@ -340,7 +340,7 @@ const bookingSchema = new mongoose.Schema(
     items_images: {
       type: [
         {
-          file_id: mongoose.Schema.Types.ObjectId,
+          file_id: mongoose.Schema.Types.Mixed,
           filename: String,
           uploaded_at: Date,
         },
@@ -349,7 +349,7 @@ const bookingSchema = new mongoose.Schema(
     },
     items_video: {
       type: {
-        file_id: mongoose.Schema.Types.ObjectId,
+        file_id: mongoose.Schema.Types.Mixed,
         filename: String,
         uploaded_at: Date,
       },
@@ -358,7 +358,7 @@ const bookingSchema = new mongoose.Schema(
     vendor_payment_slips: {
       type: [
         {
-          file_id: mongoose.Schema.Types.ObjectId,
+          file_id: mongoose.Schema.Types.Mixed,
           filename: String,
           uploaded_at: Date,
         },
@@ -368,7 +368,7 @@ const bookingSchema = new mongoose.Schema(
     rider_pickup_slips: {
       type: [
         {
-          file_id: mongoose.Schema.Types.ObjectId,
+          file_id: mongoose.Schema.Types.Mixed,
           filename: String,
           uploaded_at: Date,
         },
@@ -378,7 +378,7 @@ const bookingSchema = new mongoose.Schema(
     rider_payment_slips: {
       type: [
         {
-          file_id: mongoose.Schema.Types.ObjectId,
+          file_id: mongoose.Schema.Types.Mixed,
           filename: String,
           uploaded_at: Date,
         },

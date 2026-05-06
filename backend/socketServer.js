@@ -1,137 +1,60 @@
 /**
  * socketServer.js  –  Real-time rider location tracking via Socket.io
  *
- * Architecture:
- *   Rider App ──ws──► /rider namespace ──► in-memory + optional Redis ──► /desk namespace
- *
- * Redis (optional):
- *   Set REDIS_URL in env to enable:
- *   • @socket.io/redis-adapter  →  scales across multiple server instances
- *   • ioredis state store       →  rider positions survive server restarts
- *   Falls back to in-memory Map if Redis is unavailable.
+ * State is kept in-memory (Maps). Data survives as long as the process is up.
+ * No Redis dependency.
  *
  * Throttling:
- *   Server broadcasts EVERY location update to the desk immediately.
- *   MongoDB writes are throttled: skipped if rider moved < 10 m AND last write < 20 s ago.
+ *   Broadcasts EVERY location update to desk immediately.
+ *   MongoDB writes throttled: skipped if rider moved < 10 m AND last write < 20 s ago.
  *   Stationary heartbeat: emitted to desk every 10 s even when rider hasn't moved.
- *
- * WebSocket tuning:
- *   pingInterval 5 s / pingTimeout 8 s  → dead connections detected within ~13 s.
  */
 
 const { Server } = require("socket.io");
 const jwt        = require("jsonwebtoken");
 const Rider      = require("./models/Rider");
 
-// ─── Optional Redis ────────────────────────────────────────────────────────────
-let redisAdapter  = null;
-let redisClient   = null; // ioredis client for state storage
+// ─── In-memory state ──────────────────────────────────────────────────────────
+const activeRiders  = new Map(); // riderId → state object
+const locationHistory = new Map(); // riderId → [{lat, lng, ts}, ...]
 
-async function initRedis() {
-  const url = process.env.REDIS_URL;
-  if (!url) return;
+const HISTORY_MAX_POINTS = 2000;
+const STALE_MS           = 24 * 60 * 60 * 1000; // 24 hr
 
-  try {
-    const Redis       = require("ioredis");
-    const { createAdapter } = require("@socket.io/redis-adapter");
-
-    const pub = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
-    const sub = pub.duplicate();
-
-    await Promise.all([pub.connect(), sub.connect()]);
-
-    redisAdapter = createAdapter(pub, sub);
-    redisClient  = pub;
-    console.log("✅ Redis adapter connected:", url);
-  } catch (err) {
-    console.warn("⚠️  Redis unavailable, using in-memory adapter:", err.message);
-    redisAdapter = null;
-    redisClient  = null;
-  }
-}
-
-// ─── State store (Redis when available, in-memory fallback) ───────────────────
-const activeRiders = new Map(); // in-memory fallback
-
-const REDIS_STATE_TTL   = 24 * 60 * 60; // 24 hr — rider state survives the full day
-const REDIS_HISTORY_TTL = 24 * 60 * 60; // 24 hr location history
-const HISTORY_MAX_POINTS = 2000;         // ~1 point per 43 s over 24 hrs
-
+// ─── State helpers ────────────────────────────────────────────────────────────
 async function getRiderState(riderId) {
-  const id = String(riderId);
-  if (redisClient) {
-    try {
-      const raw = await redisClient.get(`rider:state:${id}`);
-      return raw ? JSON.parse(raw) : null;
-    } catch { /* fall through */ }
-  }
-  return activeRiders.get(id) || null;
+  return activeRiders.get(String(riderId)) || null;
 }
 
 async function setRiderState(riderId, data) {
   const id       = String(riderId);
-  const existing = await getRiderState(id) || {};
+  const existing = activeRiders.get(id) || {};
   const updated  = { ...existing, ...data, lastSeen: Date.now() };
-
-  if (redisClient) {
-    try {
-      await redisClient.setex(`rider:state:${id}`, REDIS_STATE_TTL, JSON.stringify(updated));
-      await redisClient.sadd("rider:active_ids", id);
-      await redisClient.expire("rider:active_ids", REDIS_STATE_TTL);
-    } catch { /* fall through */ }
-  }
-  activeRiders.set(id, updated); // always keep in-memory mirror
+  activeRiders.set(id, updated);
   return updated;
 }
 
-// Append a lat/lng point to the rider's 24-hr history trail (sorted set by timestamp).
-async function appendLocationHistory(riderId, lat, lng, ts) {
-  if (!redisClient) return;
-  const key   = `rider:history:${String(riderId)}`;
-  const score = ts || Date.now();
-  const value = JSON.stringify({ lat, lng, ts: score });
-  try {
-    await redisClient.zadd(key, score, value);
-    // Keep at most HISTORY_MAX_POINTS entries (drop oldest)
-    await redisClient.zremrangebyrank(key, 0, -(HISTORY_MAX_POINTS + 1));
-    await redisClient.expire(key, REDIS_HISTORY_TTL);
-  } catch { /* silent */ }
+function appendLocationHistory(riderId, lat, lng, ts) {
+  const id   = String(riderId);
+  const list = locationHistory.get(id) || [];
+  list.push({ lat, lng, ts: ts || Date.now() });
+  if (list.length > HISTORY_MAX_POINTS) list.splice(0, list.length - HISTORY_MAX_POINTS);
+  locationHistory.set(id, list);
 }
 
-// Fetch location history for a rider, optionally within a time window.
 async function getRiderLocationHistory(riderId, sinceMs, untilMs) {
-  if (!redisClient) return null; // caller falls back to empty
-  const key  = `rider:history:${String(riderId)}`;
-  const min  = sinceMs  || '-inf';
-  const max  = untilMs  || '+inf';
-  try {
-    const raw = await redisClient.zrangebyscore(key, min, max);
-    return raw.map(r => JSON.parse(r));
-  } catch { return null; }
+  const id   = String(riderId);
+  const list = locationHistory.get(id) || [];
+  const from = sinceMs || 0;
+  const to   = untilMs || Infinity;
+  return list.filter(p => p.ts >= from && p.ts <= to);
 }
 
 async function getAllRiders() {
   const now    = Date.now();
   const result = [];
-  const STALE  = 24 * 60 * 60 * 1000; // 24 hr
-
-  if (redisClient) {
-    try {
-      const ids = await redisClient.smembers("rider:active_ids");
-      for (const id of ids) {
-        const raw = await redisClient.get(`rider:state:${id}`);
-        if (!raw) continue;
-        const state = JSON.parse(raw);
-        if (now - state.lastSeen < STALE) {
-          result.push({ rider_id: id, ...state });
-        }
-      }
-      return result;
-    } catch { /* fall through to in-memory */ }
-  }
-
   activeRiders.forEach((state, id) => {
-    if (now - state.lastSeen < STALE) {
+    if (now - state.lastSeen < STALE_MS) {
       result.push({ rider_id: id, ...state });
     } else {
       activeRiders.delete(id);
@@ -169,32 +92,19 @@ function distanceMetres(lat1, lng1, lat2, lng2) {
 let io = null;
 
 async function initSocketServer(httpServer) {
-  // Try Redis first (non-blocking — falls back if unavailable)
-  await initRedis();
-
   io = new Server(httpServer, {
     cors: {
       origin: process.env.CORS_ORIGIN || "*",
       methods: ["GET", "POST"],
       credentials: true,
     },
-    // Accept both transports — clients start with polling then upgrade to WS
     transports: ["polling", "websocket"],
-    // Ping tuning: detect dead connections (app killed) within ~15 s
     pingInterval: 10000,
     pingTimeout:  5000,
-    // How long to wait for the polling→WebSocket upgrade handshake
     upgradeTimeout: 10000,
-    // Allow larger payloads for snapshot bursts
     maxHttpBufferSize: 2e6,
-    // Allow cross-origin polling (needed for Render + different port setups)
     allowEIO3: true,
   });
-
-  if (redisAdapter) {
-    io.adapter(redisAdapter);
-    console.log("🔌 Socket.io using Redis adapter");
-  }
 
   const riderNS = io.of("/rider");
   const deskNS  = io.of("/desk");
@@ -223,7 +133,6 @@ async function initSocketServer(httpServer) {
         riderInfo = { name: "Rider", phone: "" };
       }
 
-      // Preserve previous status/location — don't reset to idle on reconnect
       const prevState = await getRiderState(riderId);
 
       await setRiderState(riderId, {
@@ -238,9 +147,6 @@ async function initSocketServer(httpServer) {
       console.log(`[socket] Rider authenticated: ${riderId} (${riderInfo.name})`);
       socket.emit("rider:connected", { message: "Connected", rider_id: riderId });
 
-      // Send the desk an immediate "online" signal.
-      // If we have a previous location, send it as location_update so the desk
-      // shows a real position immediately (not just a status badge with no coords).
       if (prevState?.lat && prevState?.lng) {
         deskNS.emit("rider:location_update", {
           rider_id:  riderId,
@@ -274,8 +180,6 @@ async function initSocketServer(httpServer) {
       const now   = Date.now();
       const ts    = timestamp || new Date().toISOString();
 
-      // ── Always broadcast to desk immediately ───────────────────────────────
-      // Desk needs every update for real-time map. Don't throttle broadcasts.
       const payload = {
         rider_id: riderId,
         name:     riderInfo?.name || state?.name || "Rider",
@@ -290,11 +194,10 @@ async function initSocketServer(httpServer) {
       };
       deskNS.emit("rider:location_update", payload);
 
-      // ── Throttled MongoDB write (only on significant movement) ─────────────
       const hasPrev    = state?.lat && state?.lng;
       const dist       = hasPrev ? distanceMetres(state.lat, state.lng, lat, lng) : Infinity;
       const lastWrite  = state?.lastDbWrite || 0;
-      const shouldWrite = dist >= 10 || (now - lastWrite) > 20000; // 10 m OR 20 s
+      const shouldWrite = dist >= 10 || (now - lastWrite) > 20000;
 
       if (shouldWrite) {
         Rider.findByIdAndUpdate(
@@ -314,8 +217,7 @@ async function initSocketServer(httpServer) {
         lastDbWrite: shouldWrite ? now : (state?.lastDbWrite || 0),
       });
 
-      // Append to 24-hr history trail (fire-and-forget, non-blocking)
-      appendLocationHistory(riderId, lat, lng, now).catch(() => {});
+      appendLocationHistory(riderId, lat, lng, now);
     });
 
     // ── Status change ──────────────────────────────────────────────────────
@@ -362,7 +264,6 @@ async function initSocketServer(httpServer) {
       console.log(`[socket] Desk authenticated: ${socket.id}`);
       socket.emit("desk:connected", { message: "Connected" });
 
-      // Full snapshot of all currently tracked riders
       const snapshot = await getAllRiders();
       socket.emit("riders:snapshot", snapshot);
     });
@@ -378,7 +279,7 @@ async function initSocketServer(httpServer) {
     });
   });
 
-  console.log("✅ Socket.io rider tracking initialised");
+  console.log("✅ Socket.io rider tracking initialised (in-memory)");
   return io;
 }
 
@@ -398,7 +299,7 @@ async function broadcastRiderLocation(riderId, lat, lng, status, orderId, name, 
     connected: true,
   });
 
-  appendLocationHistory(riderId, lat, lng, now).catch(() => {});
+  appendLocationHistory(riderId, lat, lng, now);
 
   io.of("/desk").emit("rider:location_update", {
     rider_id:  String(riderId),

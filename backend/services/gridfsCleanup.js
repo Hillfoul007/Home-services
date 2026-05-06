@@ -131,9 +131,10 @@ async function runCleanup() {
 async function runCloudinaryCleanup() {
   try {
     const usage    = await cloudinary.api.usage();
-    const used     = usage.storage.usage;
-    const limit    = usage.storage.limit;
-    const pct      = used / limit;
+    // Cloudinary returns storage.usage and storage.limit (bytes)
+    const used     = usage.storage?.usage ?? usage.storage?.used ?? 0;
+    const limit    = usage.storage?.limit ?? usage.storage?.allocated ?? 1;
+    const pct      = limit > 0 ? used / limit : 0;
     const pctLabel = (pct * 100).toFixed(1) + "%";
 
     if (pct < CLOUDINARY_THRESHOLD) {
@@ -235,9 +236,9 @@ async function runCloudinaryCleanup() {
 async function getCloudinaryUsage() {
   try {
     const usage = await cloudinary.api.usage();
-    const used  = usage.storage.usage;
-    const limit = usage.storage.limit;
-    const pct   = Math.round((used / limit) * 100);
+    const used  = usage.storage?.usage ?? usage.storage?.used ?? 0;
+    const limit = usage.storage?.limit ?? usage.storage?.allocated ?? 1;
+    const pct   = limit > 0 ? Math.round((used / limit) * 100) : 0;
     return {
       used_mb:  Math.round(used / 1024 / 1024),
       limit_gb: Math.round(limit / 1024 / 1024 / 1024),
