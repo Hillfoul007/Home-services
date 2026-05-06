@@ -15,13 +15,12 @@ async function runCleanup() {
 
   try {
     const orders = await Booking.find({
-      status: { $in: ["delivered", "completed", "cancelled"] },
+      status: { $in: ["completed", "cancelled"] },
       $and: [
         {
           $or: [
-            { completed_at:  { $lt: cutoff } },
-            { deliveredAt:   { $lt: cutoff } },
-            { completed_at: null, deliveredAt: null, updated_at: { $lt: cutoff } },
+            { completed_at: { $lt: cutoff } },
+            { completed_at: null, updated_at: { $lt: cutoff } },
           ],
         },
         {
@@ -101,7 +100,7 @@ function startGridfsCleanup() {
     setInterval(runCleanup, INTERVAL_MS);
   }, 10 * 1000);
 
-  console.log("🧹 GridFS auto-cleanup scheduled (runs every 6h, removes files from delivered/completed/cancelled orders >2 days old)");
+  console.log("🧹 GridFS auto-cleanup scheduled (runs every 6h, removes files from completed/cancelled orders >2 days old)");
 }
 
 module.exports = { startGridfsCleanup, runCleanup };

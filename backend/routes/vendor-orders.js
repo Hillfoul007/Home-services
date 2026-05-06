@@ -457,6 +457,8 @@ router.put("/orders/:orderId/mark-ready", verifyVendorToken, async (req, res) =>
 router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
   try {
     const { orderId, fileId } = req.params;
+    if (fileId.startsWith("http")) return res.redirect(fileId);
+
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
 
@@ -485,6 +487,7 @@ router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
 router.get("/public/orders/:orderId/payment-slip/:fileId", async (req, res) => {
   try {
     const { orderId, fileId } = req.params;
+    if (fileId.startsWith("http")) return res.redirect(fileId);
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
 
@@ -519,31 +522,14 @@ router.post("/orders/:orderId/upload-items-video", verifyVendorToken, uploadVide
     const { orderId } = req.params;
     if (!req.file) return res.status(400).json({ error: "No video file provided" });
 
-    const conn = mongoose.connection;
-    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
-    const ext = req.file.originalname?.split(".").pop() || "mp4";
-    const filename = `order_${orderId}_items_video_${Date.now()}.${ext}`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      contentType: req.file.mimetype || "video/mp4",
-      metadata: { orderId, vendorId: req.vendor_id, type: "items_video", uploadedAt: new Date() },
-    });
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || "video/mp4", "laundrify/items-videos");
 
-    uploadStream.on("error", () => res.status(500).json({ error: "Failed to upload video" }));
-    uploadStream.on("finish", async () => {
-      try {
-        const fileId = uploadStream.id;
-        const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
-        if (!order) return res.status(404).json({ error: "Order not found" });
-        order.items_video = { file_id: fileId, filename, uploaded_at: new Date() };
-        await order.save();
-        res.json({ success: true, message: "Video uploaded successfully", file_id: fileId, filename });
-      } catch (err) {
-        res.status(500).json({ error: "Failed to save order after upload" });
-      }
-    });
-
-    uploadStream.write(req.file.buffer);
-    uploadStream.end();
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    order.items_video = { file_id: url, filename: url, uploaded_at: new Date() };
+    await order.save();
+    res.json({ success: true, message: "Video uploaded successfully", file_id: url, url });
   } catch (error) {
     console.error("❌ Error uploading items video:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -555,6 +541,7 @@ router.post("/orders/:orderId/upload-items-video", verifyVendorToken, uploadVide
 router.get("/public/orders/:orderId/items-video/:fileId", async (req, res) => {
   try {
     const { orderId, fileId } = req.params;
+    if (fileId.startsWith("http")) return res.redirect(fileId);
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
 
@@ -598,32 +585,16 @@ router.post("/orders/:orderId/upload-items-image", verifyVendorToken, upload.sin
     const { orderId } = req.params;
     if (!req.file) return res.status(400).json({ error: "No image file provided" });
 
-    const conn = mongoose.connection;
-    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
-    const filename = `order_${orderId}_items_${Date.now()}.jpg`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      metadata: { orderId, vendorId: req.vendor_id, uploadedAt: new Date() },
-    });
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || "image/jpeg", "laundrify/item-photos");
 
-    uploadStream.on("error", () => res.status(500).json({ error: "Failed to upload image" }));
-    uploadStream.on("finish", async () => {
-      try {
-        const fileId = uploadStream.id;
-        const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
-        if (!order) return res.status(404).json({ error: "Order not found" });
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
 
-        if (!order.items_images) order.items_images = [];
-        order.items_images.push({ file_id: fileId, filename, uploaded_at: new Date() });
-        await order.save();
-
-        res.json({ success: true, message: "Image uploaded successfully", file_id: fileId, filename });
-      } catch (err) {
-        res.status(500).json({ error: "Failed to save order after upload" });
-      }
-    });
-
-    uploadStream.write(req.file.buffer);
-    uploadStream.end();
+    if (!order.items_images) order.items_images = [];
+    order.items_images.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, message: "Image uploaded successfully", file_id: url, url });
   } catch (error) {
     console.error("❌ Error uploading items image:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -653,30 +624,15 @@ router.post("/orders/:orderId/upload-payment-ss", verifyVendorToken, upload.sing
     const { orderId } = req.params;
     if (!req.file) return res.status(400).json({ error: "No image file provided" });
 
-    const conn = mongoose.connection;
-    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
-    const filename = `order_${orderId}_payment_${Date.now()}.jpg`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      metadata: { orderId, vendorId: req.vendor_id, type: "payment_ss", uploadedAt: new Date() },
-    });
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || "image/jpeg", "laundrify/payment-screenshots");
 
-    uploadStream.on("error", () => res.status(500).json({ error: "Failed to upload image" }));
-    uploadStream.on("finish", async () => {
-      try {
-        const fileId = uploadStream.id;
-        const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
-        if (!order) return res.status(404).json({ error: "Order not found" });
-        if (!order.vendor_payment_slips) order.vendor_payment_slips = [];
-        order.vendor_payment_slips.push({ file_id: fileId, filename, uploaded_at: new Date() });
-        await order.save();
-        res.json({ success: true, message: "Payment SS uploaded", file_id: fileId, filename });
-      } catch (err) {
-        res.status(500).json({ error: "Failed to save order after upload" });
-      }
-    });
-
-    uploadStream.write(req.file.buffer);
-    uploadStream.end();
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!order.vendor_payment_slips) order.vendor_payment_slips = [];
+    order.vendor_payment_slips.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, message: "Payment SS uploaded", file_id: url, url });
   } catch (error) {
     console.error("❌ Error uploading payment SS:", error);
     res.status(500).json({ error: "Internal server error" });

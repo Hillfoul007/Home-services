@@ -2463,36 +2463,19 @@ router.post('/orders/:orderId/upload-pickup-slip', verifyRiderToken, async (req,
       ],
     });
 
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found or not assigned to you' });
-    }
+    if (!order) return res.status(404).json({ message: 'Order not found or not assigned to you' });
 
-    // Expect base64 image in body
     const { image_base64, mime_type } = req.body;
-    if (!image_base64) {
-      return res.status(400).json({ message: 'image_base64 is required' });
-    }
+    if (!image_base64) return res.status(400).json({ message: 'image_base64 is required' });
 
-    const conn = require('mongoose').connection;
-    const { GridFSBucket, ObjectId } = require('mongoose').mongo;
-    const bucket = new GridFSBucket(conn.db);
-
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
     const buffer = Buffer.from(image_base64, 'base64');
-    const filename = `rider_pickup_${orderId}_${Date.now()}.jpg`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      metadata: { orderId, riderId: req.rider.riderId, type: 'pickup_slip' },
-    });
+    const url = await uploadToCloudinary(buffer, mime_type || 'image/jpeg', 'laundrify/pickup-slips');
 
-    uploadStream.on('finish', async () => {
-      if (!order.rider_pickup_slips) order.rider_pickup_slips = [];
-      order.rider_pickup_slips.push({ file_id: uploadStream.id, filename, uploaded_at: new Date() });
-      await order.save();
-      res.json({ success: true, file_id: uploadStream.id.toString(), filename });
-    });
-
-    uploadStream.on('error', () => res.status(500).json({ message: 'Upload failed' }));
-    uploadStream.write(buffer);
-    uploadStream.end();
+    if (!order.rider_pickup_slips) order.rider_pickup_slips = [];
+    order.rider_pickup_slips.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, file_id: url, url });
   } catch (error) {
     console.error('❌ Pickup slip upload error:', error);
     res.status(500).json({ message: 'Upload failed' });
@@ -2505,30 +2488,14 @@ router.post('/orders/:orderId/upload-items-video', verifyRiderToken, uploadVideo
     const { orderId } = req.params;
     if (!req.file) return res.status(400).json({ error: 'No video file provided' });
 
-    const conn = mongoose.connection;
-    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
-    const ext = req.file.originalname?.split('.').pop() || 'mp4';
-    const filename = `order_${orderId}_items_video_${Date.now()}.${ext}`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      contentType: req.file.mimetype || 'video/mp4',
-      metadata: { orderId, riderId: req.rider?.riderId, type: 'items_video', uploadedAt: new Date() },
-    });
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || 'video/mp4', 'laundrify/items-videos');
 
-    uploadStream.on('error', () => res.status(500).json({ error: 'Failed to upload video' }));
-    uploadStream.on('finish', async () => {
-      try {
-        const order = await Booking.findById(orderId);
-        if (!order) return res.status(404).json({ error: 'Order not found' });
-        order.items_video = { file_id: uploadStream.id, filename, uploaded_at: new Date() };
-        await order.save();
-        res.json({ success: true, file_id: uploadStream.id, filename });
-      } catch (err) {
-        res.status(500).json({ error: 'Failed to save order after upload' });
-      }
-    });
-
-    uploadStream.write(req.file.buffer);
-    uploadStream.end();
+    const order = await Booking.findById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    order.items_video = { file_id: url, filename: url, uploaded_at: new Date() };
+    await order.save();
+    res.json({ success: true, file_id: url, url });
   } catch (error) {
     console.error('❌ Rider items video upload error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2553,26 +2520,14 @@ router.post('/orders/:orderId/upload-item-photo', verifyRiderToken, async (req, 
     const { image_base64, mime_type } = req.body;
     if (!image_base64) return res.status(400).json({ message: 'image_base64 is required' });
 
-    const conn = require('mongoose').connection;
-    const { GridFSBucket } = require('mongoose').mongo;
-    const bucket = new GridFSBucket(conn.db);
-
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
     const buffer = Buffer.from(image_base64, 'base64');
-    const filename = `rider_item_${orderId}_${Date.now()}.jpg`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      metadata: { orderId, riderId: req.rider.riderId, type: 'item_photo' },
-    });
+    const url = await uploadToCloudinary(buffer, mime_type || 'image/jpeg', 'laundrify/item-photos');
 
-    uploadStream.on('finish', async () => {
-      if (!order.items_images) order.items_images = [];
-      order.items_images.push({ file_id: uploadStream.id, filename, uploaded_at: new Date() });
-      await order.save();
-      res.json({ success: true, file_id: uploadStream.id.toString(), filename });
-    });
-
-    uploadStream.on('error', () => res.status(500).json({ message: 'Upload failed' }));
-    uploadStream.write(buffer);
-    uploadStream.end();
+    if (!order.items_images) order.items_images = [];
+    order.items_images.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, file_id: url, url });
   } catch (error) {
     console.error('❌ Item photo upload error:', error);
     res.status(500).json({ message: 'Upload failed' });
@@ -2597,30 +2552,16 @@ router.post('/orders/:orderId/upload-payment-ss', verifyRiderToken, async (req, 
     }
 
     const { image_base64, mime_type } = req.body;
-    if (!image_base64) {
-      return res.status(400).json({ message: 'image_base64 is required' });
-    }
+    if (!image_base64) return res.status(400).json({ message: 'image_base64 is required' });
 
-    const conn = require('mongoose').connection;
-    const { GridFSBucket } = require('mongoose').mongo;
-    const bucket = new GridFSBucket(conn.db);
-
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
     const buffer = Buffer.from(image_base64, 'base64');
-    const filename = `rider_payment_${orderId}_${Date.now()}.jpg`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      metadata: { orderId, riderId: req.rider.riderId, type: 'payment_ss' },
-    });
+    const url = await uploadToCloudinary(buffer, mime_type || 'image/jpeg', 'laundrify/payment-screenshots');
 
-    uploadStream.on('finish', async () => {
-      if (!order.rider_payment_slips) order.rider_payment_slips = [];
-      order.rider_payment_slips.push({ file_id: uploadStream.id, filename, uploaded_at: new Date() });
-      await order.save();
-      res.json({ success: true, file_id: uploadStream.id.toString(), filename });
-    });
-
-    uploadStream.on('error', () => res.status(500).json({ message: 'Upload failed' }));
-    uploadStream.write(buffer);
-    uploadStream.end();
+    if (!order.rider_payment_slips) order.rider_payment_slips = [];
+    order.rider_payment_slips.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, file_id: url, url });
   } catch (error) {
     console.error('❌ Payment SS upload error:', error);
     res.status(500).json({ message: 'Upload failed' });
@@ -2632,6 +2573,11 @@ router.post('/orders/:orderId/upload-payment-ss', verifyRiderToken, async (req, 
 router.get('/public/orders/:orderId/slip/:fileId', async (req, res) => {
   try {
     const { orderId, fileId } = req.params;
+
+    // New uploads: file_id is a Cloudinary URL — redirect directly
+    if (fileId.startsWith('http')) return res.redirect(fileId);
+
+    // Old uploads: stream from GridFS
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
 
