@@ -28,6 +28,7 @@ import {
   Image,
   MapPin as MapIcon,
   Bell,
+  Trash2,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
@@ -70,6 +71,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     totalRevenue: "₹0",
     loading: true,
   });
+
+  const [cleanupState, setCleanupState] = useState<{ running: boolean; result: string | null }>({ running: false, result: null });
+
+  const runMediaCleanup = async () => {
+    setCleanupState({ running: true, result: null });
+    try {
+      const res = await apiClient.adminRequest<any>("/admin/cleanup-media", { method: "POST" });
+      setCleanupState({ running: false, result: res.message || "Done" });
+    } catch {
+      setCleanupState({ running: false, result: "Cleanup failed — check server logs" });
+    }
+  };
 
   // Fetch real statistics from API
   const fetchStats = async () => {
@@ -220,7 +233,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span>Book for User</span>
             </Button>
             
-            <Button 
+            <Button
               onClick={() => setActiveTab("locations")}
               className="h-20 flex flex-col items-center justify-center space-y-2"
               variant="outline"
@@ -228,7 +241,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <MapPin className="h-6 w-6" />
               <span>Service Locations</span>
             </Button>
+
+            <Button
+              onClick={runMediaCleanup}
+              disabled={cleanupState.running}
+              className="h-20 flex flex-col items-center justify-center space-y-2 border-red-200 text-red-700 hover:bg-red-50"
+              variant="outline"
+            >
+              <Trash2 className="h-6 w-6" />
+              <span>{cleanupState.running ? "Cleaning…" : "Free DB Space"}</span>
+            </Button>
           </div>
+          {cleanupState.result && (
+            <p className={`mt-3 text-sm px-1 ${cleanupState.result.includes("failed") ? "text-red-600" : "text-green-700"}`}>
+              🧹 {cleanupState.result}
+            </p>
+          )}
         </CardContent>
       </Card>
 

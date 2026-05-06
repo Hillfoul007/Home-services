@@ -4164,4 +4164,20 @@ router.get("/factory-ops-live", async (req, res) => {
   }
 });
 
+// ── Trigger GridFS media cleanup immediately ──────────────────────────────────
+router.post("/cleanup-media", verifyAdminAccess, async (req, res) => {
+  try {
+    const { runCleanup } = require("../services/gridfsCleanup");
+    const result = await runCleanup();
+    res.json({
+      success: true,
+      message: `Cleanup complete: ${result.orders} orders cleaned, ${result.files} files deleted, ${result.chunks} chunks removed`,
+      ...result,
+    });
+  } catch (err) {
+    console.error("❌ Manual cleanup error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
