@@ -30,7 +30,6 @@ import {
   QrCode
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { QRCodeSVG } from 'qrcode.react';
 import RiderLayout from '@/components/rider/RiderLayout';
 import CustomerVerificationService from '@/services/customerVerificationService';
 import globalVerificationManager from '@/utils/globalVerificationManager';
@@ -1924,16 +1923,13 @@ export default function RiderOrders() {
         <Label className="text-sm font-semibold text-green-800 mb-3 block">1. Show QR to Customer for Payment</Label>
         <div className="flex flex-col items-center gap-3">
           <div className="bg-white rounded-2xl p-4 shadow-md border-2 border-green-200">
-            <p className="text-center text-xs text-gray-500 font-medium mb-3">Paytm ❤️ UPI</p>
-            <QRCodeSVG
-              value={`upi://pay?pa=7011585587@ptyes&pn=Laundrify&am=${order.final_amount ?? order.total_price ?? 0}&cu=INR`}
-              size={220}
-              bgColor="#ffffff"
-              fgColor="#1a1a2e"
-              level="H"
+            <img
+              src="/images/laundrify-upi-qr.png"
+              alt="Laundrify UPI QR Code"
+              className="w-56 h-56 object-contain mx-auto"
             />
             <p className="text-center text-sm font-bold text-gray-800 mt-3">7011585587@ptyes</p>
-            <p className="text-center text-xs text-gray-500 mt-1">Scan with any UPI app</p>
+            <p className="text-center text-xs text-gray-500 mt-1">Scan with any UPI app · Paytm · PhonePe · BHIM</p>
           </div>
           {/* Price breakdown */}
           {(() => {
