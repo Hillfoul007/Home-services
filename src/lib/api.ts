@@ -52,6 +52,14 @@ class ApiClient {
     }
   }
 
+  adminRequest<T>(endpoint: string, options: RequestInit = {}) {
+    const adminHeaders = {
+      "admin-token": import.meta.env.VITE_ADMIN_SECRET || "",
+      ...((options.headers as Record<string, string>) || {}),
+    };
+    return this.request<T>(endpoint, { ...options, headers: adminHeaders });
+  }
+
   setToken(token: string | null) {
     this.token = token;
     if (token) {
@@ -303,25 +311,25 @@ export const packageApi = {
 // Admin API
 export const adminApi = {
   // Packages Management
-  getPackages: () => apiClient['request']('/admin/packages'),
-  
-  createPackage: (data: any) => apiClient['request']('/admin/packages', {
+  getPackages: () => apiClient.adminRequest('/admin/packages'),
+
+  createPackage: (data: any) => apiClient.adminRequest('/admin/packages', {
     method: 'POST',
     body: JSON.stringify(data)
   }),
-  
-  updatePackage: (id: string, data: any) => apiClient['request'](`/admin/packages/${id}`, {
+
+  updatePackage: (id: string, data: any) => apiClient.adminRequest(`/admin/packages/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data)
   }),
-  
-  assignPackage: (userId: string, packageId: string) => apiClient['request'](`/admin/users/${userId}/assign-package`, {
+
+  assignPackage: (userId: string, packageId: string) => apiClient.adminRequest(`/admin/users/${userId}/assign-package`, {
     method: 'POST',
     body: JSON.stringify({ packageId })
   }),
-  
+
   // Get all assigned user packages (History)
-  getAllUserPackages: () => apiClient['request']('/admin/users-packages')
+  getAllUserPackages: () => apiClient.adminRequest('/admin/users-packages')
 };
 
 // Export types for better TypeScript support
