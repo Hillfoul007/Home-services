@@ -8,18 +8,15 @@ const crypto = require("crypto");
 
 const router = express.Router();
 
-// Initialize Razorpay — fail fast if keys are missing rather than using placeholder values
-if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set in production");
-  } else {
-    console.warn("⚠️ Razorpay keys not configured — payment endpoints will fail");
+function getRazorpay() {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    throw new Error("Razorpay keys not configured");
   }
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
 }
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
-});
 
 // GET /packages - List all active packages for users to browse
 router.get("/", async (req, res) => {
@@ -57,7 +54,7 @@ router.post("/create-order", async (req, res) => {
       receipt: `pkg_rcpt_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     };
 
-    const order = await razorpay.orders.create(options);
+    const order = await getRazorpay().orders.create(options);
 
     res.json({
       success: true,

@@ -127,8 +127,7 @@ const AdminAssignedPackages: React.FC = () => {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearchingUsers(true);
-        // Use apiClient temporarily to bypass type limitations in adminApi
-        const response: any = await apiClient['request'](`/admin/users/search?q=${encodeURIComponent(userSearchTerm)}`);
+        const response: any = await apiClient.adminRequest(`/admin/users/search?q=${encodeURIComponent(userSearchTerm)}`);
         if (response.data && response.data.users) {
           setUserSearchResults(response.data.users);
         }
