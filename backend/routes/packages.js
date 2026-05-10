@@ -32,42 +32,12 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /packages/create-order - Create Razorpay order for package
-router.post("/create-order", async (req, res) => {
-  try {
-    const { packageId, userId } = req.body;
-
-    if (!packageId || !userId) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
-
-    const packageDef = await Package.findById(packageId);
-    if (!packageDef || !packageDef.is_active) {
-      return res.status(404).json({ success: false, message: "Package not found or inactive" });
-    }
-
-    const amountInPaise = Math.round(packageDef.price * 100);
-
-    const options = {
-      amount: amountInPaise,
-      currency: "INR",
-      receipt: `pkg_rcpt_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-    };
-
-    const order = await getRazorpay().orders.create(options);
-
-    res.json({
-      success: true,
-      order: {
-        id: order.id,
-        amount: order.amount,
-        currency: order.currency,
-      },
-    });
-  } catch (error) {
-    console.error("Error creating package order:", error);
-    res.status(500).json({ success: false, message: "Failed to create payment order" });
-  }
+// POST /packages/create-order - Deprecated: purchases now go via WhatsApp
+router.post("/create-order", (req, res) => {
+  res.status(410).json({
+    success: false,
+    message: "Online payment is not available. Please contact us on WhatsApp: +91 7011585587 to purchase a package.",
+  });
 });
 
 // POST /packages/verify-payment - Verify payment and assign package
