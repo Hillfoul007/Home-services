@@ -895,9 +895,29 @@ const RiderDeskDashboard: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-sm"><span className="text-gray-400">👤</span><span className="font-medium">{order.name}</span></div>
               {order.phone && (
-                <a href={`tel:${order.phone}`} className="flex items-center gap-2 text-blue-600 text-sm">
-                  <span>📞</span><span className="font-semibold">{order.phone}</span>
-                </a>
+                <div className="flex items-center gap-2">
+                  <a href={`tel:${order.phone}`} className="flex items-center gap-2 text-blue-600 text-sm">
+                    <span>📞</span><span className="font-semibold">{order.phone}</span>
+                  </a>
+                  {(() => {
+                    const digits = order.phone.replace(/[^0-9]/g, '');
+                    const waNum = digits.startsWith('91') ? digits : `91${digits}`;
+                    return (
+                      <a
+                        href={`https://wa.me/${waNum}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center w-6 h-6 rounded-full bg-[#25D366] hover:bg-[#1ebe5d] shrink-0"
+                        title="Chat on WhatsApp"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.558 4.118 1.535 5.847L.057 23.569a.5.5 0 0 0 .609.61l5.76-1.51A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.884 9.884 0 0 1-5.031-1.373l-.36-.214-3.732.978.998-3.648-.235-.374A9.862 9.862 0 0 1 2.1 12C2.1 6.529 6.529 2.1 12 2.1c5.471 0 9.9 4.429 9.9 9.9 0 5.471-4.429 9.9-9.9 9.9z"/>
+                        </svg>
+                      </a>
+                    );
+                  })()}
+                </div>
               )}
               {order.address && (
                 <div className="flex items-start gap-2 text-sm">
@@ -1158,6 +1178,22 @@ const RiderDeskDashboard: React.FC = () => {
                 ) : (
                   /* ── Online / UPI flow ── */
                   <>
+                    {/* QR Code */}
+                    <div className="flex flex-col items-center bg-white rounded-2xl p-4 shadow-sm border-2 border-green-200">
+                      <img
+                        src="/images/laundrify-upi-qr.png"
+                        alt="Laundrify UPI QR Code"
+                        className="w-52 h-52 object-contain"
+                      />
+                      <p className="text-sm font-bold text-gray-800 mt-2">7011585587@ptyes</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Scan with any UPI app · Paytm · PhonePe · BHIM</p>
+                      <a
+                        href={`upi://pay?pa=7011585587@ptyes&pn=Laundrify&am=${amount}&cu=INR`}
+                        className="mt-3 w-full py-2 rounded-xl bg-green-600 text-white text-xs font-semibold text-center active:bg-green-700"
+                      >
+                        Open in UPI App · ₹{amount.toLocaleString()}
+                      </a>
+                    </div>
                     {/* Payment photo (mandatory for online) */}
                     <div className="rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-3 space-y-2">
                       <p className="text-xs font-bold text-orange-800">

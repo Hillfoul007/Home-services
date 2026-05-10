@@ -115,6 +115,7 @@ router.post("/verify-payment", async (req, res) => {
     const userPackage = new UserPackage({
       user_id: user._id,
       package_id: packageDef._id,
+      purchase_price: packageDef.price,
       amount_credited: packageDef.wallet_amount,
       validity_start: validityStart,
       validity_end: validityEnd,

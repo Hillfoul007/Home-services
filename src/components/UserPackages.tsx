@@ -6,11 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { packageApi } from "@/lib/api";
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
+const SUPPORT_WHATSAPP = "917011585587";
 
 interface UserPackagesProps {
   currentUser: any;
@@ -26,15 +22,6 @@ export default function UserPackages({ currentUser, onClose }: UserPackagesProps
 
   useEffect(() => {
     fetchData();
-    // Load Razorpay script
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
   }, []);
 
   const fetchData = async () => {
@@ -69,75 +56,19 @@ export default function UserPackages({ currentUser, onClose }: UserPackagesProps
     }
   };
 
-  const handlePurchase = async (pkg: any) => {
-    try {
-      if (!window.Razorpay) {
-        toast.error("Payment SDK not loaded. Please try again.");
-        return;
-      }
-
-      // Step 1: Create Order via backend
-      const orderRes = await packageApi.createOrder({
-        packageId: pkg._id,
-        userId: currentUser._id,
-      });
-
-      if (!orderRes.data?.success) {
-        throw new Error(orderRes.data?.message || "Failed to create order");
-      }
-
-      const { order } = orderRes.data;
-
-      // Step 2: Open Razorpay checkout
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "YOUR_KEY_ID",
-        amount: order.amount,
-        currency: order.currency,
-        name: "Laundrify Packages",
-        description: `Purchase ${pkg.name}`,
-        order_id: order.id,
-        handler: async function (response: any) {
-          try {
-            // Step 3: Verify payment on backend
-            const verifyRes = await packageApi.verifyPayment({
-               razorpay_order_id: response.razorpay_order_id,
-               razorpay_payment_id: response.razorpay_payment_id,
-               razorpay_signature: response.razorpay_signature,
-               packageId: pkg._id,
-               userId: currentUser._id,
-            });
-
-            if (verifyRes.data?.success) {
-               toast.success("Package purchased successfully!");
-               fetchData(); // Refresh UI
-            } else {
-               throw new Error(verifyRes.data?.message || "Payment verification failed");
-            }
-          } catch (err: any) {
-            console.error(err);
-            toast.error(err.message || "Something went wrong during verification.");
-          }
-        },
-        prefill: {
-          name: currentUser.full_name || currentUser.name,
-          contact: currentUser.phone,
-          email: currentUser.email || "",
-        },
-        theme: {
-          color: "#4f46e5",
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", function (response: any) {
-        toast.error(`Payment Failed: ${response.error.description || "Unknown error"}`);
-      });
-      
-      rzp.open();
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || "Failed to initiate purchase.");
-    }
+  const handlePurchase = (pkg: any) => {
+    const userName = currentUser.full_name || currentUser.name || "Customer";
+    const userPhone = currentUser.phone || "";
+    const message =
+      `Hi, I'd like to buy the *${pkg.name}* package.\n\n` +
+      `Package Details:\n` +
+      `• Price: ₹${pkg.price}\n` +
+      `• Wallet Credit: ₹${pkg.wallet_amount}\n` +
+      `• Validity: ${pkg.validity_days} days\n\n` +
+      `My Details:\n` +
+      `• Name: ${userName}\n` +
+      `• Phone: ${userPhone}`;
+    window.open(`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
   const isExpired = validity ? new Date(validity) < new Date() : true;
