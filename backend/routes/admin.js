@@ -2400,7 +2400,7 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
 router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive, whatsapp_group_invite_link } = req.body;
+    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive, whatsapp_group_invite_link, vendor_id, password } = req.body;
 
     console.log(`📝 Updating vendor: ${vendorId}`);
 
@@ -2409,28 +2409,37 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
       return res.status(400).json({ error: "Vendor ID is required and must be valid" });
     }
 
-    const vendor = await Vendor.findByIdAndUpdate(
-      vendorId,
-      {
-        name,
-        address,
-        coordinates,
-        services,
-        contactPhone,
-        rating,
-        description,
-        operatingHours,
-        minimumOrderValue,
-        deliveryTime,
-        whatsapp_group_invite_link,
-        isActive: isActive !== undefined ? isActive : true,
-      },
-      { new: true, runValidators: true }
-    );
+    const vendor = await Vendor.findById(vendorId);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
     }
+
+    // Update standard fields
+    if (name !== undefined) vendor.name = name;
+    if (address !== undefined) vendor.address = address;
+    if (coordinates !== undefined) vendor.coordinates = coordinates;
+    if (services !== undefined) vendor.services = services;
+    if (contactPhone !== undefined) vendor.contactPhone = contactPhone;
+    if (rating !== undefined) vendor.rating = rating;
+    if (description !== undefined) vendor.description = description;
+    if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
+    if (minimumOrderValue !== undefined) vendor.minimumOrderValue = minimumOrderValue;
+    if (deliveryTime !== undefined) vendor.deliveryTime = deliveryTime;
+    if (whatsapp_group_invite_link !== undefined) vendor.whatsapp_group_invite_link = whatsapp_group_invite_link;
+    if (isActive !== undefined) vendor.isActive = isActive;
+
+    // Update login credentials if provided
+    if (vendor_id !== undefined && vendor_id.trim()) vendor.vendor_id = vendor_id.trim();
+    if (password) {
+      const bcryptjs = require("bcryptjs");
+      const salt = await bcryptjs.genSalt(10);
+      vendor.password_hash = await bcryptjs.hash(password, salt);
+      vendor.temp_password = password;
+      console.log(`🔐 Password updated for vendor: ${vendor.name}`);
+    }
+
+    await vendor.save();
 
     console.log(`✅ Vendor updated successfully: ${vendor.name}`);
     res.json({ success: true, vendor });

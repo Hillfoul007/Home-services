@@ -15,6 +15,7 @@ import { resolveAndParseGoogleMapsLink, calculateDistance } from '@/utils/mapsLi
 interface VendorDetails {
   id?: string;
   _id?: string;
+  vendor_id?: string;
   name: string;
   address: string;
   coordinates: {
@@ -43,6 +44,8 @@ interface FormData {
   rating: string;
   whatsapp_group_invite_link: string;
   googleMapsLink: string;
+  vendor_id: string;
+  password: string;
 }
 
 const AVAILABLE_SERVICES = [
@@ -65,6 +68,7 @@ const AdminVendorManagement: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState<{ vendor_id: string; temp_password: string; name?: string } | null>(null);
   const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     address: '',
@@ -75,6 +79,8 @@ const AdminVendorManagement: React.FC = () => {
     rating: '4.5',
     whatsapp_group_invite_link: '',
     googleMapsLink: '',
+    vendor_id: '',
+    password: '',
   });
   const [calculatedDistance, setCalculatedDistance] = useState<number | null>(null);
   const [userCoordinates, setUserCoordinates] = useState<{ lat: number; lng: number } | null>(null);
@@ -262,7 +268,7 @@ const AdminVendorManagement: React.FC = () => {
     }
 
     try {
-      const updatedVendor: VendorDetails = {
+      const updatedVendor: VendorDetails & { password?: string } = {
         ...editingVendor,
         name: formData.name,
         address: formData.address,
@@ -277,7 +283,12 @@ const AdminVendorManagement: React.FC = () => {
           .filter((s) => s),
         rating: parseFloat(formData.rating),
         whatsapp_group_invite_link: formData.whatsapp_group_invite_link,
+        vendor_id: formData.vendor_id || undefined,
       };
+
+      if (formData.password) {
+        updatedVendor.password = formData.password;
+      }
 
       const response = await apiClient.adminRequest(`/admin/vendors/${vendorId}`, {
         method: 'PUT',
@@ -363,8 +374,11 @@ const AdminVendorManagement: React.FC = () => {
       rating: '4.5',
       whatsapp_group_invite_link: '',
       googleMapsLink: '',
+      vendor_id: '',
+      password: '',
     });
     setCalculatedDistance(null);
+    setShowPassword(false);
   };
 
   const openEditDialog = (vendor: VendorDetails) => {
@@ -379,8 +393,11 @@ const AdminVendorManagement: React.FC = () => {
       rating: (vendor.rating || 4.5).toString(),
       whatsapp_group_invite_link: vendor.whatsapp_group_invite_link || '',
       googleMapsLink: '',
+      vendor_id: vendor.vendor_id || '',
+      password: '',
     });
     setCalculatedDistance(null);
+    setShowPassword(false);
     setIsEditDialogOpen(true);
   };
 
@@ -661,6 +678,38 @@ const AdminVendorManagement: React.FC = () => {
           </DialogHeader>
           {editingVendor && (
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 border rounded-lg">
+                <div>
+                  <Label htmlFor="edit-vendor-login-id">Vendor Login ID</Label>
+                  <Input
+                    id="edit-vendor-login-id"
+                    placeholder="e.g., V123456"
+                    value={formData.vendor_id}
+                    onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Login username for vendor portal</p>
+                </div>
+                <div>
+                  <Label htmlFor="edit-vendor-password">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-vendor-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Leave blank to keep current"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 text-xs"
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Min 6 characters</p>
+                </div>
+              </div>
               <div>
                 <Label htmlFor="edit-vendor-name">Vendor Name *</Label>
                 <Input
