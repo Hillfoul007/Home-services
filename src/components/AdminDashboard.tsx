@@ -49,13 +49,14 @@ import AdminAssignedPackages from "./AdminAssignedPackages";
 import AdminPushNotifications from "./AdminPushNotifications";
 import AdminSchoolManagement from "./AdminSchoolManagement";
 import AdminSchoolBooking from "./AdminSchoolBooking";
+import AdminHotelManagement from "./AdminHotelManagement";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -461,6 +462,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">School Orders</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("hotels")}
+              variant={activeTab === "hotels" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🏨</span>
+              <span className="hidden sm:inline">Hotels</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("wallet")}
               variant={activeTab === "wallet" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -576,6 +585,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-indigo-900 text-sm"><strong>📋 School Orders:</strong> Book laundry orders for school members. Select school → search member by name or ID → choose service (Wash & Iron / Wash & Fold) → set items count and custom price. Orders are saved in a separate collection and visible to the school manager portal.</p>
             </div>
             <AdminSchoolBooking />
+          </TabsContent>
+
+          <TabsContent value="hotels">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+              <p className="text-indigo-900 text-sm"><strong>🏨 Hotel Management:</strong> Add hotels and create laundry entries using the item list from the physical slip. Input quantities for each article, optionally set prices to calculate amounts, generate a bill, mark payments as paid (with paid-till date), and export to Excel.</p>
+            </div>
+            <AdminHotelManagement />
           </TabsContent>
 
           <TabsContent value="wallet">

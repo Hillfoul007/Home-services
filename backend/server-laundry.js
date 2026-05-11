@@ -545,6 +545,15 @@ try {
 
 // Google Sheets integration removed
 
+// Hotel management routes
+try {
+  const hotelManagementRoutes = require("./routes/hotel-management");
+  app.use("/api/hotel-management", hotelManagementRoutes);
+  console.log("🔗 Hotel Management routes registered at /api/hotel-management");
+} catch (error) {
+  console.error("❌ Failed to load Hotel Management routes:", error.message);
+}
+
 // School management routes
 try {
   const schoolManagementRoutes = require("./routes/school-management");
