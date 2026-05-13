@@ -4,7 +4,7 @@
  * Comprehensive rider assignment dashboard:
  *  1. Rider State Overview (Idle / Assigned / Back-to-Factory / Offline) + shift management
  *  2. Workload distribution with balance warning
- *  3. Smart geo-cluster suggestions (≤2.5 km, 2–4 orders) with one-click multi-assign
+ *  3. Smart geo-cluster suggestions (≤5 km, 2–4 orders) with one-click multi-assign
  *  4. Rider performance table with ETA, efficiency score, completed-today
  */
 
@@ -83,7 +83,7 @@ interface Props {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CLUSTER_RADIUS_KM = 2.5;
+const CLUSTER_RADIUS_KM = 5;
 const MAX_PER_CLUSTER = 4;
 const AVG_SPEED_KMH = 20; // urban motorcycle
 
