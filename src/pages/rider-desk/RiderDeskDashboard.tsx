@@ -81,6 +81,9 @@ interface AssignedOrder {
   assignedAt?: string;
   acceptedAt?: string;
   pickedUpAt?: string;
+  pickupRider?: string | null;
+  deliveryRider?: string | null;
+  assignedRider?: string | null;
 }
 
 // ─── Kalman filter (web / iOS path) ──────────────────────────────────────────
@@ -840,7 +843,12 @@ const RiderDeskDashboard: React.FC = () => {
 
   const renderOrder = (order: AssignedOrder, isDone = false) => {
     const expanded = expandedId === order._id;
-    const rs = order.riderStatus || "assigned";
+    const myId = riderInfo?._id;
+    const isAssignedAsPickup = myId && (order.pickupRider === myId || String(order.pickupRider) === myId);
+    const isAssignedAsDelivery = myId && (order.deliveryRider === myId || String(order.deliveryRider) === myId);
+    // "unassigned" is the DB default — treat it as "assigned" so the badge reads correctly
+    const rawRs = order.riderStatus || "assigned";
+    const rs = rawRs === "unassigned" ? "assigned" : rawRs;
     const hasPickupSlip = (order.rider_pickup_slips?.length ?? 0) > 0;
     const hasPaymentSS = (order.rider_payment_slips?.length ?? 0) > 0;
     const hasItemsImg = (order.items_images?.length ?? 0) > 0;
@@ -848,8 +856,8 @@ const RiderDeskDashboard: React.FC = () => {
     const hasItemsVideo = !!order.items_video || videoRecorded[order._id];
     const videoIsUploading = videoUploading[order._id];
     const amount = (order.final_amount ?? order.total_price ?? 0);
-    const isPickupOrder = order.status === "pickup_assigned";
-    const isDeliveryOrder = ["delivery_assigned", "in_transit"].includes(order.status || "");
+    const isPickupOrder = order.status === "pickup_assigned" || !!isAssignedAsPickup;
+    const isDeliveryOrder = ["delivery_assigned", "in_transit", "ready_for_delivery"].includes(order.status || "") || !!isAssignedAsDelivery;
     const staged = stagedItemPhotos[order._id] || [];
     const slipUploading = uploading[order._id + "_slip"];
     const paymentUploading = uploading[order._id + "_payment"];

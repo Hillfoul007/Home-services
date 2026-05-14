@@ -1844,7 +1844,11 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
     try {
       order = await Booking.findOne({
         _id: orderId,
-        assignedRider: req.rider?.riderId
+        $or: [
+          { assignedRider: req.rider?.riderId },
+          { pickupRider: req.rider?.riderId },
+          { deliveryRider: req.rider?.riderId },
+        ],
       });
     } catch (dbErr) {
       console.error('❌ DB query error while fetching order:', dbErr);
@@ -2460,6 +2464,8 @@ router.post('/orders/:orderId/upload-pickup-slip', verifyRiderToken, async (req,
       $or: [
         { assignedRider: req.rider.riderId },
         { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
       ],
     });
 
@@ -2512,6 +2518,8 @@ router.post('/orders/:orderId/upload-item-photo', verifyRiderToken, async (req, 
       $or: [
         { assignedRider: req.rider.riderId },
         { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
       ],
     });
 
@@ -2544,6 +2552,8 @@ router.post('/orders/:orderId/upload-payment-ss', verifyRiderToken, async (req, 
       $or: [
         { assignedRider: req.rider.riderId },
         { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
       ],
     });
 
@@ -2666,6 +2676,8 @@ router.post('/orders/:orderId/cod-collected', verifyRiderToken, async (req, res)
       $or: [
         { assignedRider: req.rider.riderId },
         { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
       ],
     });
 
@@ -2703,12 +2715,18 @@ router.post('/orders/:orderId/in-transit', verifyRiderToken, async (req, res) =>
 
     const order = await Booking.findOne({
       _id: orderId,
-      assignedRider: req.rider.riderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
+      ],
     });
 
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (!['accepted', 'picked_up'].includes(order.riderStatus)) {
+    const isDeliveryRider = order.deliveryRider?.toString() === req.rider.riderId;
+    const allowedStatuses = ['accepted', 'picked_up', 'assigned', 'unassigned'];
+    if (!isDeliveryRider && !allowedStatuses.includes(order.riderStatus)) {
       return res.status(400).json({ message: `Cannot mark in-transit from: ${order.riderStatus}` });
     }
 
