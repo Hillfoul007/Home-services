@@ -1,4 +1,4 @@
-import { HashRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -239,6 +239,8 @@ function App() {
               {/* Rider Desk */}
               <Route path="/rider-desk" element={<RiderDeskLogin />} />
               <Route path="/rider-desk/dashboard" element={<RiderDeskDashboard />} />
+              <Route path="/desk-rider" element={<Navigate to="/rider-desk" replace />} />
+              <Route path="/desk-rider/dashboard" element={<Navigate to="/rider-desk/dashboard" replace />} />
               {/* School Manager */}
               <Route path="/school-manager" element={<SchoolManagerLogin />} />
               <Route path="/school-manager/dashboard" element={<SchoolManagerDashboard />} />
