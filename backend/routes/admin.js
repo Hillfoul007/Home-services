@@ -660,6 +660,13 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     updateData.updated_at = new Date(indianTime);
     updateData.updated_by_admin = true;
 
+    // Get the old booking to check status change and detect new rider assignments
+    const oldBooking = await Booking.findById(bookingId);
+    const oldStatus = oldBooking?.status;
+    const oldAssignedRider = oldBooking?.assignedRider?.toString();
+    const oldPickupRider = oldBooking?.pickupRider?.toString();
+    const oldDeliveryRider = oldBooking?.deliveryRider?.toString();
+
     // When a rider is newly assigned, stamp assignedAt and set riderStatus
     const newAssignedRider = updateData.assignedRider?.toString();
     const riderIsNewlyAssigned = newAssignedRider && newAssignedRider !== oldAssignedRider;
@@ -668,10 +675,11 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       if (!updateData.riderStatus) updateData.riderStatus = 'assigned';
     }
 
-    // Get the old booking to check status change
-    const oldBooking = await Booking.findById(bookingId);
-    const oldStatus = oldBooking?.status;
-    const oldAssignedRider = oldBooking?.assignedRider?.toString();
+    const newPickupRider = updateData.pickupRider?.toString && updateData.pickupRider?.toString();
+    const pickupRiderIsNew = newPickupRider && newPickupRider !== oldPickupRider;
+
+    const newDeliveryRider = updateData.deliveryRider?.toString && updateData.deliveryRider?.toString();
+    const deliveryRiderIsNew = newDeliveryRider && newDeliveryRider !== oldDeliveryRider;
 
     const booking = await Booking.findByIdAndUpdate(
       bookingId,
@@ -837,21 +845,20 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       }
     }
 
-    // Notify rider when newly assigned via admin panel
-    if (riderIsNewlyAssigned) {
+    // Notify riders when newly assigned via admin panel
+    const notifyRider = (riderId, type) => {
       (async () => {
         try {
-          await riderNotificationService.createOrderAssignmentNotification(
-            newAssignedRider,
-            booking,
-            'regular'
-          );
-          console.log(`📢 Rider assignment notification sent to rider ${newAssignedRider}`);
-        } catch (notifErr) {
-          console.error('⚠️ Failed to send rider assignment notification:', notifErr.message);
+          await riderNotificationService.createOrderAssignmentNotification(riderId, booking, type);
+          console.log(`📢 ${type} rider notification sent to ${riderId}`);
+        } catch (err) {
+          console.error(`⚠️ Failed to send ${type} rider notification:`, err.message);
         }
       })();
-    }
+    };
+    if (riderIsNewlyAssigned)  notifyRider(newAssignedRider, 'regular');
+    if (pickupRiderIsNew)      notifyRider(newPickupRider, 'Pickup');
+    if (deliveryRiderIsNew)    notifyRider(newDeliveryRider, 'Delivery');
 
     console.log("✅ Booking updated by admin:", booking._id);
     console.log("✅ Updated timestamp:", booking.updated_at);

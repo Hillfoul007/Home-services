@@ -2614,27 +2614,34 @@ router.get('/desk-orders', verifyRiderToken, async (req, res) => {
     const riderId = req.rider.riderId;
 
     const orders = await Booking.find({
-      assignedRider: riderId,
-      riderStatus: { $in: ['assigned', 'accepted', 'in_transit'] },
       status: { $nin: ['completed', 'cancelled'] },
+      $or: [
+        { assignedRider: riderId, riderStatus: { $in: ['assigned', 'accepted', 'in_transit'] } },
+        { pickupRider: riderId },
+        { deliveryRider: riderId },
+      ],
     })
       .sort({ assignedAt: -1 })
       .select(
         '_id custom_order_id name phone address mapsLink status riderStatus ' +
         'final_amount total_price item_prices assignedAt acceptedAt pickedUpAt ' +
         'deliveredAt readyAt cod_collected cod_amount delivery_date scheduled_date ' +
+        'pickupRider deliveryRider assignedRider ' +
         'rider_pickup_slips rider_payment_slips items_images items_video vendor_payment_slips created_at'
       );
 
     const doneOrders = await Booking.find({
-      assignedRider: riderId,
-      riderStatus: { $in: ['picked_up', 'delivered', 'completed'] },
+      $or: [
+        { assignedRider: riderId, riderStatus: { $in: ['picked_up', 'delivered', 'completed'] } },
+        { pickupRider: riderId, status: { $in: ['completed', 'delivered', 'pickup_completed', 'ready_for_delivery'] } },
+        { deliveryRider: riderId, status: { $in: ['completed', 'delivered'] } },
+      ],
     })
       .sort({ deliveredAt: -1 })
       .limit(20)
       .select(
         '_id custom_order_id name phone address status riderStatus final_amount ' +
-        'total_price item_prices deliveredAt completedAt cod_collected cod_amount'
+        'total_price item_prices deliveredAt completedAt cod_collected cod_amount pickupRider deliveryRider assignedRider'
       );
 
     res.json({
