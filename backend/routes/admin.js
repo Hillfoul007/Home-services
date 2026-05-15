@@ -589,12 +589,19 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     }
 
     // Normalize rider field: frontend may send `rider` while schema uses `assignedRider`
+    // Only update assignedRider when rider is explicitly provided (not undefined/null unless intentional)
     if (typeof updateData.rider !== 'undefined') {
-      updateData.assignedRider = updateData.rider;
+      // null means explicit unassign; a string means new assignment
+      if (updateData.rider !== null) {
+        updateData.assignedRider = updateData.rider;
+      } else {
+        // Only clear assignedRider if the caller explicitly passed rider: null
+        // (not when rider field is just missing from payload which becomes undefined→null)
+        updateData.assignedRider = null;
+      }
       delete updateData.rider;
     }
     if (typeof updateData.assigned_rider !== 'undefined') {
-      // support snake_case too
       updateData.assignedRider = updateData.assigned_rider;
       delete updateData.assigned_rider;
     }

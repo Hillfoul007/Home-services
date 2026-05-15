@@ -79,6 +79,7 @@ interface Booking {
   payment_status?: string;
   item_prices?: ItemPrice[];
   rider?: string | null;
+  assignedRider?: { _id: string; name: string; phone: string } | string | null;
   vendor?: string | null;
   address_details?: AddressDetails;
   special_instructions?: string;
@@ -1748,12 +1749,16 @@ const AdminBookingManagement: React.FC = () => {
                               {dr && <div className="flex items-center gap-1"><span className="text-xs">🚚</span><span className="text-xs text-emerald-700 font-medium">{dr}</span></div>}
                             </div>
                           );
-                          if (!booking.rider) return null;
-                          const riderObj = riders.find(r => r._id === booking.rider || r.name === booking.rider);
+                          const ar = booking.assignedRider;
+                          const riderKey = booking.rider || (typeof ar === 'object' ? ar?._id : ar);
+                          const arName = typeof ar === 'object' ? ar?.name : null;
+                          if (!riderKey && !arName) return null;
+                          const riderObj = riderKey ? riders.find(r => r._id === riderKey || r.name === riderKey) : null;
+                          const displayName = arName || riderObj?.name || (typeof riderKey === 'string' ? riderKey : null);
                           return (
                             <div className="flex items-center gap-2">
                               <span className="text-sm">🛵</span>
-                              <span className="text-sm text-indigo-700 font-medium">{riderObj ? riderObj.name : booking.rider}</span>
+                              <span className="text-sm text-indigo-700 font-medium">{displayName}</span>
                             </div>
                           );
                         })()}
@@ -2261,10 +2266,10 @@ const AdminBookingManagement: React.FC = () => {
           <div className="space-y-3">
             {allOrdersList.map((booking) => {
               const isExpanded = allOrdersExpandedId === booking._id;
-              const riderObj = booking.rider
-                ? riders.find(r => r._id === booking.rider || r.name === booking.rider)
-                : null;
-              const riderName = riderObj?.name || (typeof booking.rider === 'string' ? booking.rider : null);
+              const _ar = booking.assignedRider;
+              const _riderKey = booking.rider || (typeof _ar === 'object' ? _ar?._id : _ar);
+              const riderObj = _riderKey ? riders.find(r => r._id === _riderKey || r.name === _riderKey) : null;
+              const riderName = (typeof _ar === 'object' && _ar?.name) ? _ar.name : (riderObj?.name || (typeof _riderKey === 'string' ? _riderKey : null));
               const hasMedia = booking.items_video
                 || (booking.items_images?.length ?? 0) > 0
                 || (booking.rider_pickup_slips?.length ?? 0) > 0
@@ -3751,7 +3756,14 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_date: editingBooking.delivery_date || "",
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
-                        rider: editingBooking.rider || null,
+                        // Preserve existing assignedRider — the edit dialog has no rider selector
+                        // so we must never send rider: null (which would erase the assignment).
+                        rider: (() => {
+                          if (editingBooking.rider != null) return editingBooking.rider;
+                          const ar = editingBooking.assignedRider;
+                          if (!ar) return undefined;
+                          return typeof ar === 'object' ? ar._id : ar;
+                        })(),
                         cashback_amount: editingBooking.cashback_amount || 0,
                         cashback: editingBooking.cashback || 0,
                         wallet_cashback: editingBooking.wallet_cashback || 0,
