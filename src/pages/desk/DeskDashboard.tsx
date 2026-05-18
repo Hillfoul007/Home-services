@@ -77,6 +77,7 @@ interface Order {
   created_at?: string;
   _breach?: boolean;
   _timeElapsed?: string;
+  is_reservice?: boolean;
 }
 
 interface Metrics {
@@ -987,6 +988,9 @@ const DeskDashboard: React.FC = () => {
               <span className="font-semibold text-sm text-gray-900">{orderLabel}</span>
               {order.isPGOrder && (
                 <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">PG</span>
+              )}
+              {order.is_reservice && (
+                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">🔁 Reservice</span>
               )}
               {statusBadge(order.status)}
               {isBreach && (

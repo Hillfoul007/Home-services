@@ -74,6 +74,7 @@ const AdminUserBooking: React.FC = () => {
     address: "",
     special_instructions: "",
     is_quick_pickup: false,
+    is_reservice: false,
     assignedVendor: "",
     mapsLink: "",
     coordinates: null as { lat: number; lng: number } | null,
@@ -469,6 +470,7 @@ const AdminUserBooking: React.FC = () => {
         created_by_admin: true,
         is_quick_pickup: bookingData.is_quick_pickup || false,
         quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
+        is_reservice: bookingData.is_reservice || false,
         assignedVendor: selectedVendor ? decodeHtmlEntities(selectedVendor.name) : "",
         assignedVendorId: selectedVendor?.id || "",
         assignedVendorDetails: selectedVendor ? {
@@ -523,6 +525,7 @@ const AdminUserBooking: React.FC = () => {
           address: "",
           special_instructions: "",
           is_quick_pickup: false,
+          is_reservice: false,
           assignedVendor: "",
           mapsLink: "",
           coordinates: null,
@@ -923,6 +926,24 @@ const AdminUserBooking: React.FC = () => {
                 <Label htmlFor="quick-pickup" className="mb-0 cursor-pointer">
                   Mark as Quick Pickup Order 🚀
                 </Label>
+              </div>
+
+              <div className="md:col-span-2">
+                <Label htmlFor="reservice">Reservice</Label>
+                <Select
+                  value={bookingData.is_reservice ? "yes" : "no"}
+                  onValueChange={(value) =>
+                    setBookingData({ ...bookingData, is_reservice: value === "yes" })
+                  }
+                >
+                  <SelectTrigger id="reservice" className="mt-1">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="yes">Yes — Reservice</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

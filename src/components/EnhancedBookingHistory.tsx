@@ -162,6 +162,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                 wallet_applied: booking.cashback || 0,
                 wallet_cashback: booking.wallet_cashback || 0,
                 isQuickPickup: booking.is_quick_pickup || false,
+                isReservice: booking.is_reservice || false,
                 isPGOrder: false,
                 createdAt: booking.created_at || booking.createdAt,
                 created_at: booking.created_at,
@@ -253,6 +254,7 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
             wallet_cashback: booking.wallet_cashback || 0,
             payment_status: booking.payment_status || booking.paymentStatus,
             isQuickPickup: booking.is_quick_pickup || false,
+            isReservice: booking.is_reservice || false,
           }));
 
           console.log(
@@ -1040,6 +1042,16 @@ const EnhancedBookingHistory: React.FC<EnhancedBookingHistoryProps> =
                                   {(booking as any).quick_pickup_tag || booking.quickPickupNote}
                                 </div>
                               )}
+                            </div>
+                          )}
+
+                          {/* Reservice Indicator */}
+                          {(booking.isReservice || (booking as any).is_reservice) && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <div className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                <RefreshCw className="h-3 w-3" />
+                                <span>🔁 Reservice</span>
+                              </div>
                             </div>
                           )}
 
