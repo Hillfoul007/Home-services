@@ -31,6 +31,7 @@ type Order = {
   discount_amount?: number;
   cashback?: number;
   wallet_applied?: number;
+  is_reservice?: boolean;
 };
 
 function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -142,7 +143,12 @@ export default function OrderCard({
               {isCompleted && <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">✅ DONE</span>}
               <div className="font-medium text-sm truncate">{order.customerName || 'Customer'}</div>
             </div>
-            <div className="text-xs text-muted-foreground mt-1">{orderLabel} {order.type ? `• ${order.type}` : ''}</div>
+            <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
+              <span>{orderLabel} {order.type ? `• ${order.type}` : ''}</span>
+              {order.is_reservice && (
+                <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">🔁 Reservice</span>
+              )}
+            </div>
           </div>
           <div className="text-xs text-gray-600 text-right space-y-1 shrink-0">
             {order.pickupTime && (

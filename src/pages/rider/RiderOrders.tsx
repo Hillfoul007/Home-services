@@ -1732,9 +1732,14 @@ export default function RiderOrders() {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-blue-800">Order Type</Label>
-                <Badge variant={isQuickPickup ? "secondary" : "default"} className="text-sm">
-                  {isQuickPickup ? "Quick Pickup" : "Regular Order"}
-                </Badge>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant={isQuickPickup ? "secondary" : "default"} className="text-sm">
+                    {isQuickPickup ? "Quick Pickup" : "Regular Order"}
+                  </Badge>
+                  {(order as any).is_reservice && (
+                    <Badge className="bg-orange-100 text-orange-800 text-sm">🔁 Reservice</Badge>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>

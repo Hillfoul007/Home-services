@@ -333,6 +333,11 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    is_reservice: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     pickup_pieces: {
       type: Number,
       default: null,
