@@ -133,6 +133,7 @@ interface Booking {
   cod_collected?: boolean;
   cod_amount?: number;
   cod_collected_at?: string;
+  is_reservice?: boolean;
 }
 
 const ORDER_FLOW_STEPS = [
@@ -3125,6 +3126,25 @@ const AdminBookingManagement: React.FC = () => {
                   </Select>
                 </div>
                 <div>
+                  <Label htmlFor="edit-reservice">Reservice</Label>
+                  <Select
+                    value={editingBooking.is_reservice ? "yes" : "no"}
+                    onValueChange={(value) =>
+                      setEditingBooking((prev) =>
+                        prev ? { ...prev, is_reservice: value === "yes" } : prev
+                      )
+                    }
+                  >
+                    <SelectTrigger id="edit-reservice">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no">No</SelectItem>
+                      <SelectItem value="yes">Yes — Reservice</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="edit-discount">Discount %</Label>
                   <Input
                     id="edit-discount"
@@ -3775,6 +3795,7 @@ const AdminBookingManagement: React.FC = () => {
                         wallet_cashback: editingBooking.wallet_cashback || 0,
                         discount_percent: editingBooking.discount_percent || 0,
                         discount_amount: totals.details?.discount || 0,
+                        is_reservice: editingBooking.is_reservice || false,
                       };
 
                       // Only include coordinates if they exist (for old orders that don't have them)
