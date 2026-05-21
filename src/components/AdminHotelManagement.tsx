@@ -90,6 +90,8 @@ interface Hotel {
 interface OrderItem {
   name: string;
   qty: number;
+  guest_qty: number;
+  staff_qty: number;
   dc_qty: number;
   price: number;
   amount: number;
@@ -129,7 +131,7 @@ interface Rider {
   phone: string;
 }
 
-type ItemInputs = { [item: string]: { qty: string; dcQty: string; price: string } };
+type ItemInputs = { [item: string]: { guestQty: string; staffQty: string; dcQty: string; price: string } };
 type SubTab = "hotels" | "new-entry" | "bills";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -282,9 +284,9 @@ const AdminHotelManagement: React.FC = () => {
 
   // ── Entry form ──────────────────────────────────────────────────────────────
 
-  const updateItemField = (item: string, field: "qty" | "dcQty" | "price", val: string) => {
+  const updateItemField = (item: string, field: "guestQty" | "staffQty" | "dcQty" | "price", val: string) => {
     setItemInputs(prev => {
-      const existing = prev[item] ?? { qty: "", dcQty: "", price: "" };
+      const existing = prev[item] ?? { guestQty: "", staffQty: "", dcQty: "", price: "" };
       return { ...prev, [item]: { ...existing, [field]: val } };
     });
   };
@@ -294,7 +296,7 @@ const AdminHotelManagement: React.FC = () => {
     for (const item of HOTEL_ITEMS) {
       const inp = itemInputs[item];
       if (!inp) continue;
-      const qty = parseFloat(inp.qty) || 0;
+      const qty = (parseFloat(inp.guestQty) || 0) + (parseFloat(inp.staffQty) || 0);
       const price = parseFloat(inp.price) || 0;
       if (qty > 0 && price > 0) total += qty * price;
     }
@@ -309,11 +311,13 @@ const AdminHotelManagement: React.FC = () => {
     const items: OrderItem[] = HOTEL_ITEMS.flatMap(name => {
       const inp = itemInputs[name];
       if (!inp) return [];
-      const qty = parseFloat(inp.qty) || 0;
+      const guest_qty = parseFloat(inp.guestQty) || 0;
+      const staff_qty = parseFloat(inp.staffQty) || 0;
       const dc_qty = parseFloat(inp.dcQty) || 0;
+      const qty = guest_qty + staff_qty;
       if (qty <= 0 && dc_qty <= 0) return [];
       const price = parseFloat(inp.price) || 0;
-      return [{ name, qty, dc_qty, price, amount: qty * price }];
+      return [{ name, qty, guest_qty, staff_qty, dc_qty, price, amount: qty * price }];
     });
 
     if (items.length === 0) { toast.error("Enter at least one item quantity"); return; }
@@ -459,15 +463,17 @@ const AdminHotelManagement: React.FC = () => {
       ["Hotel:", order.hotel_name],
       ["Address:", order.hotel_address],
       [],
-      ["No.", "Article", "Pcs", "DC Pcs", "Price (₹)", "Amount (₹)"],
+      ["No.", "Article", "Guest", "Staff", "DC Pcs", "Price (₹)", "Amount (₹)"],
       ...order.items.map((item, idx) => [
-        idx + 1, item.name, item.qty || "",
+        idx + 1, item.name,
+        item.guest_qty > 0 ? item.guest_qty : "",
+        item.staff_qty > 0 ? item.staff_qty : "",
         item.dc_qty > 0 ? item.dc_qty : "",
         item.price > 0 ? item.price : "",
         item.amount > 0 ? item.amount : "",
       ]),
       [],
-      ["", "", "", "", "TOTAL", order.total > 0 ? order.total : ""],
+      ["", "", "", "", "", "TOTAL", order.total > 0 ? order.total : ""],
       [],
       ["Status:", order.status],
       ["Pickup Date:", order.pickup_date || ""],
@@ -481,7 +487,7 @@ const AdminHotelManagement: React.FC = () => {
       ["THANK YOU FOR YOUR FAITH ON US."],
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 5 }, { wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
+    ws["!cols"] = [{ wch: 5 }, { wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, ws, "Invoice");
     XLSX.writeFile(wb, `Laundrify_${order.invoice_no}_${order.hotel_name.replace(/\s+/g, "_")}.xlsx`);
     toast.success("Excel downloaded");
@@ -693,7 +699,8 @@ const AdminHotelManagement: React.FC = () => {
                     <tr className="bg-gray-800 text-white">
                       <th className="px-3 py-2 text-left w-8 font-medium">#</th>
                       <th className="px-3 py-2 text-left font-medium">Article</th>
-                      <th className="px-3 py-2 text-center w-24 font-medium">Pcs</th>
+                      <th className="px-2 py-2 text-center w-24 font-medium bg-emerald-700">Guest</th>
+                      <th className="px-2 py-2 text-center w-24 font-medium bg-amber-700">Staff</th>
                       <th className="px-2 py-2 text-center w-24 font-medium bg-violet-700">DC Pcs</th>
                       <th className="px-3 py-2 text-center w-32 font-medium">
                         Price (₹) <span className="text-xs font-normal opacity-70">optional</span>
@@ -703,9 +710,11 @@ const AdminHotelManagement: React.FC = () => {
                   </thead>
                   <tbody>
                     {HOTEL_ITEMS.map((item, idx) => {
-                      const inp = itemInputs[item] ?? { qty: "", dcQty: "", price: "" };
-                      const qty = parseFloat(inp.qty) || 0;
+                      const inp = itemInputs[item] ?? { guestQty: "", staffQty: "", dcQty: "", price: "" };
+                      const guestQty = parseFloat(inp.guestQty) || 0;
+                      const staffQty = parseFloat(inp.staffQty) || 0;
                       const dcQty = parseFloat(inp.dcQty) || 0;
+                      const qty = guestQty + staffQty;
                       const price = parseFloat(inp.price) || 0;
                       const amount = qty > 0 && price > 0 ? qty * price : null;
                       const hasAny = qty > 0 || dcQty > 0;
@@ -713,10 +722,15 @@ const AdminHotelManagement: React.FC = () => {
                         <tr key={item} className={`border-b transition-colors ${hasAny ? "bg-blue-50" : "hover:bg-gray-50"}`}>
                           <td className="px-3 py-1.5 text-gray-400 text-xs">{idx + 1}</td>
                           <td className="px-3 py-1.5 font-medium text-gray-800">{item}</td>
-                          <td className="px-3 py-1.5">
-                            <Input type="number" min="0" value={inp.qty}
-                              onChange={e => updateItemField(item, "qty", e.target.value)}
-                              className="h-8 text-center" placeholder="0" />
+                          <td className="px-2 py-1.5 bg-emerald-50">
+                            <Input type="number" min="0" value={inp.guestQty}
+                              onChange={e => updateItemField(item, "guestQty", e.target.value)}
+                              className="h-8 text-center border-emerald-300 focus:border-emerald-500" placeholder="0" />
+                          </td>
+                          <td className="px-2 py-1.5 bg-amber-50">
+                            <Input type="number" min="0" value={inp.staffQty}
+                              onChange={e => updateItemField(item, "staffQty", e.target.value)}
+                              className="h-8 text-center border-amber-300 focus:border-amber-500" placeholder="0" />
                           </td>
                           <td className="px-2 py-1.5 bg-violet-50">
                             <Input type="number" min="0" value={inp.dcQty}
@@ -737,7 +751,7 @@ const AdminHotelManagement: React.FC = () => {
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-900 text-white">
-                      <td colSpan={5} className="px-3 py-2 text-right font-bold">TOTAL</td>
+                      <td colSpan={6} className="px-3 py-2 text-right font-bold">TOTAL</td>
                       <td className="px-3 py-2 text-right font-bold">
                         {entryTotal > 0 ? `₹${entryTotal.toFixed(2)}` : "—"}
                       </td>
@@ -983,7 +997,8 @@ const AdminHotelManagement: React.FC = () => {
                   <tr className="bg-gray-800 text-white">
                     <th className="border border-gray-600 px-2 py-1.5 text-left w-8">No.</th>
                     <th className="border border-gray-600 px-2 py-1.5 text-left">Article</th>
-                    <th className="border border-gray-600 px-2 py-1.5 text-center w-12">Pcs</th>
+                    <th className="border border-gray-600 px-2 py-1.5 text-center w-12 bg-emerald-700">Guest</th>
+                    <th className="border border-gray-600 px-2 py-1.5 text-center w-12 bg-amber-700">Staff</th>
                     <th className="border border-gray-600 px-2 py-1.5 text-center w-12 bg-violet-700">DC Pcs</th>
                     <th className="border border-gray-600 px-2 py-1.5 text-right w-20">Price</th>
                     <th className="border border-gray-600 px-2 py-1.5 text-right w-24">Amount</th>
@@ -994,7 +1009,8 @@ const AdminHotelManagement: React.FC = () => {
                     <tr key={item.name} className="border-b">
                       <td className="border border-gray-200 px-2 py-1 text-gray-400">{idx + 1}</td>
                       <td className="border border-gray-200 px-2 py-1 font-medium">{item.name}</td>
-                      <td className="border border-gray-200 px-2 py-1 text-center">{item.qty || "—"}</td>
+                      <td className="border border-gray-200 px-2 py-1 text-center bg-emerald-50 text-emerald-800 font-medium">{item.guest_qty > 0 ? item.guest_qty : "—"}</td>
+                      <td className="border border-gray-200 px-2 py-1 text-center bg-amber-50 text-amber-800 font-medium">{item.staff_qty > 0 ? item.staff_qty : "—"}</td>
                       <td className="border border-gray-200 px-2 py-1 text-center bg-violet-50 text-violet-800 font-medium">{item.dc_qty > 0 ? item.dc_qty : "—"}</td>
                       <td className="border border-gray-200 px-2 py-1 text-right">{item.price > 0 ? `₹${item.price}` : "—"}</td>
                       <td className="border border-gray-200 px-2 py-1 text-right font-semibold">{item.amount > 0 ? `₹${item.amount.toFixed(2)}` : "—"}</td>
@@ -1003,7 +1019,7 @@ const AdminHotelManagement: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-100 font-bold">
-                    <td colSpan={5} className="border border-gray-300 px-2 py-1.5 text-right">TOTAL</td>
+                    <td colSpan={6} className="border border-gray-300 px-2 py-1.5 text-right">TOTAL</td>
                     <td className="border border-gray-300 px-2 py-1.5 text-right">{viewOrder.total > 0 ? `₹${viewOrder.total.toFixed(2)}` : "—"}</td>
                   </tr>
                 </tfoot>
