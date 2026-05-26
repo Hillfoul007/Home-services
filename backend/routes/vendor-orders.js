@@ -368,7 +368,7 @@ router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) 
 
 // ─── PUT mark order ready for delivery ───────────────────────────────────────
 
-router.put("/orders/:orderId/mark-ready", verifyVendorToken, async (req, res) => {
+router.put("/:orderId/mark-ready", verifyVendorToken, async (req, res) => {
   try {
     const { orderId } = req.params;
 
@@ -1028,9 +1028,9 @@ router.get("/rider-daily", verifyVendorToken, async (req, res) => {
   }
 });
 
-// ─── PUT /orders/:orderId/ready — mark single order ready for delivery ────────
+// ─── PUT /:orderId/ready — mark single order ready for delivery ──────────────
 
-router.put("/orders/:orderId/ready", verifyVendorToken, async (req, res) => {
+router.put("/:orderId/ready", verifyVendorToken, async (req, res) => {
   try {
     const { orderId } = req.params;
 
