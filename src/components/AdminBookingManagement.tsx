@@ -1211,8 +1211,8 @@ const AdminBookingManagement: React.FC = () => {
   }, [editingBooking?._id, showEditDialog]);
 
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
-    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned", "rider_pickup_done"].includes(normalizeStatus(b.status)));
-    const b = bookingsToRebucket.filter(b => ["pickup_completed", "in_progress", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+    const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned", "rider_pickup_done", "pickup_completed"].includes(normalizeStatus(b.status)));
+    const b = bookingsToRebucket.filter(b => ["in_progress", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
     setBucketA(a);
     setBucketB(b);
   };
@@ -1594,7 +1594,7 @@ const AdminBookingManagement: React.FC = () => {
               {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : 'Ready for Delivery'}
             </h3>
             <span className="text-sm text-gray-500">
-              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["pickup_completed","in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
+              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
             </span>
           </div>
           <div>
@@ -1713,6 +1713,7 @@ const AdminBookingManagement: React.FC = () => {
                   <SelectItem value="created">Order Created</SelectItem>
                   <SelectItem value="vendor_assigned">Vendor Assigned</SelectItem>
                   <SelectItem value="rider_pickup_done">Rider Picked Up</SelectItem>
+                  <SelectItem value="pickup_completed">Pickup Complete</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1930,7 +1931,6 @@ const AdminBookingManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pickup_completed">Pickup Complete</SelectItem>
                   <SelectItem value="in_progress">Processing</SelectItem>
                   <SelectItem value="ready_for_delivery">Ready for Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
