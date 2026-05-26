@@ -158,6 +158,11 @@ const ORDER_FLOW_STEPS = [
     description: "Laundry collected from the customer.",
   },
   {
+    value: "in_progress",
+    label: "Processing",
+    description: "Laundry is being cleaned at the vendor.",
+  },
+  {
     value: "ready_for_delivery",
     label: "Ready for Delivery",
     description: "Laundry processed and ready to return.",
@@ -192,10 +197,9 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
   pickup_scheduled: "vendor_assigned",
   pickup_in_progress: "vendor_assigned",
   picked_up: "pickup_completed",
-  processing: "ready_for_delivery",
+  processing: "in_progress",
   delivered_to_vendor: "ready_for_delivery",
-  in_process: "ready_for_delivery",
-  in_progress: "ready_for_delivery",
+  in_process: "in_progress",
   ready_for_pickup: "ready_for_delivery",
   out_for_delivery: "ready_for_delivery",
   delivery_assigned: "ready_for_delivery",
@@ -441,6 +445,8 @@ const getStatusColor = (status: string) => {
       return "bg-orange-100 text-orange-800";
     case "pickup_completed":
       return "bg-purple-100 text-purple-800";
+    case "in_progress":
+      return "bg-violet-100 text-violet-800";
     case "ready_for_delivery":
       return "bg-sky-100 text-sky-800";
     case "delivered":
@@ -466,6 +472,8 @@ const getStatusIcon = (status: string) => {
       return <Package className="h-4 w-4" />;
     case "pickup_completed":
       return <CheckCircle className="h-4 w-4" />;
+    case "in_progress":
+      return <RefreshCw className="h-4 w-4" />;
     case "ready_for_delivery":
       return <Clock className="h-4 w-4" />;
     case "delivered":
@@ -1204,7 +1212,7 @@ const AdminBookingManagement: React.FC = () => {
 
   const rebucketBookings = (bookingsToRebucket: Booking[]) => {
     const a = bookingsToRebucket.filter(b => ["created", "vendor_assigned", "rider_pickup_done"].includes(normalizeStatus(b.status)));
-    const b = bookingsToRebucket.filter(b => ["pickup_completed", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
+    const b = bookingsToRebucket.filter(b => ["pickup_completed", "in_progress", "ready_for_delivery", "delivered"].includes(normalizeStatus(b.status)));
     setBucketA(a);
     setBucketB(b);
   };
@@ -1586,7 +1594,7 @@ const AdminBookingManagement: React.FC = () => {
               {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : 'Ready for Delivery'}
             </h3>
             <span className="text-sm text-gray-500">
-              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["pickup_completed","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
+              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["pickup_completed","in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
             </span>
           </div>
           <div>
@@ -1848,6 +1856,11 @@ const AdminBookingManagement: React.FC = () => {
                             </>
                           )}
                           {normalizeStatus(booking.status) === 'pickup_completed' && (
+                            <Button size="sm" className="bg-violet-600 text-white" onClick={() => updateBookingStatus(booking._id, 'in_progress')}>
+                              ⚙️ Move to Processing
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'in_progress' && (
                             <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
                               Mark Ready for Delivery
                             </Button>
@@ -1886,8 +1899,8 @@ const AdminBookingManagement: React.FC = () => {
         <div className={viewMode === 'pickup' ? 'hidden' : ''}>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold">Ready for Delivery</h3>
-              <p className="text-sm text-gray-500">Orders ready to be delivered back to customers</p>
+              <h3 className="text-lg font-semibold">Processing / Ready for Delivery</h3>
+              <p className="text-sm text-gray-500">Orders being cleaned or ready to be delivered back to customers</p>
             </div>
             <div className="text-right bg-green-50 p-3 rounded-lg border border-green-200">
               <div className="text-xs text-gray-600 font-medium">Total to Collect</div>
@@ -1917,6 +1930,8 @@ const AdminBookingManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pickup_completed">Pickup Complete</SelectItem>
+                  <SelectItem value="in_progress">Processing</SelectItem>
                   <SelectItem value="ready_for_delivery">Ready for Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                 </SelectContent>
@@ -2047,6 +2062,11 @@ const AdminBookingManagement: React.FC = () => {
                             </>
                           )}
                           {normalizeStatus(booking.status) === 'pickup_completed' && (
+                            <Button size="sm" className="bg-violet-600 text-white" onClick={() => updateBookingStatus(booking._id, 'in_progress')}>
+                              ⚙️ Move to Processing
+                            </Button>
+                          )}
+                          {normalizeStatus(booking.status) === 'in_progress' && (
                             <Button size="sm" className="bg-sky-600 text-white" onClick={() => updateBookingStatus(booking._id, 'ready_for_delivery')}>
                               Mark Ready for Delivery
                             </Button>
@@ -2074,7 +2094,7 @@ const AdminBookingManagement: React.FC = () => {
             ) : (
               <Card>
                 <CardContent className="py-6 text-center">
-                  <p className="text-gray-600">No orders ready for delivery</p>
+                  <p className="text-gray-600">No orders in processing or ready for delivery</p>
                 </CardContent>
               </Card>
             )}

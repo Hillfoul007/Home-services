@@ -1270,12 +1270,21 @@ const DeskDashboard: React.FC = () => {
 
                   {/* Cart editor or open button */}
                   {!isCartEditing ? (
-                    <button
-                      onClick={() => openCartEditor(order)}
-                      className="w-full py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
-                    >
-                      🛒 {(order.item_prices?.length ?? 0) > 0 ? "Edit Cart & Move to Processing" : "Create Cart & Move to Processing"}
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => updateStatus(order._id, "in_progress")}
+                        disabled={loading}
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white"
+                      >
+                        ⚙️ Move to Processing
+                      </button>
+                      <button
+                        onClick={() => openCartEditor(order)}
+                        className="w-full py-2 rounded-xl text-sm font-medium border border-indigo-300 bg-indigo-50 text-indigo-700"
+                      >
+                        🛒 {(order.item_prices?.length ?? 0) > 0 ? "Edit Cart & Move to Processing" : "Create Cart & Move to Processing"}
+                      </button>
+                    </div>
                   ) : (
                     <div className="border border-indigo-200 rounded-xl overflow-hidden">
                       <div className="bg-indigo-600 px-4 py-2 flex items-center justify-between">

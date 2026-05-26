@@ -368,7 +368,7 @@ router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) 
 
 // ─── PUT mark order ready for delivery ───────────────────────────────────────
 
-router.put("/:orderId/mark-ready", verifyVendorToken, async (req, res) => {
+router.put("/orders/:orderId/mark-ready", verifyVendorToken, async (req, res) => {
   try {
     const { orderId } = req.params;
 
