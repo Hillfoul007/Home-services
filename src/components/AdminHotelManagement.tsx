@@ -182,6 +182,7 @@ const AdminHotelManagement: React.FC = () => {
   const [entryNotes, setEntryNotes] = useState("");
   const [guestLaundryPcs, setGuestLaundryPcs] = useState("");
   const [staffLaundryPcs, setStaffLaundryPcs] = useState("");
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // Bills
   const [filterHotelId, setFilterHotelId] = useState("all");
@@ -236,7 +237,7 @@ const AdminHotelManagement: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (subTab === "new-entry") {
+    if (subTab === "new-entry" && !editingOrderId) {
       fetchNextInvoice();
       setEntryDate(todayStr());
       setItemInputs({});
@@ -250,6 +251,32 @@ const AdminHotelManagement: React.FC = () => {
       setStaffLaundryPcs("");
     }
   }, [subTab]);
+
+  const openEditOrder = (order: HotelOrder) => {
+    setEditingOrderId(order._id);
+    setInvoiceNo(order.invoice_no);
+    setSelectedHotelId(order.hotel_id);
+    setEntryDate(order.date);
+    setPickupDate(order.pickup_date || "");
+    setPickupTime(order.pickup_time || "");
+    setDropDate(order.drop_date || "");
+    setDropTime(order.drop_time || "");
+    setEntryNotes(order.notes || "");
+    setGuestLaundryPcs(String(order.guest_laundry_pcs || ""));
+    setStaffLaundryPcs(String(order.staff_laundry_pcs || ""));
+    // Pre-fill item inputs from saved items
+    const inputs: ItemInputs = {};
+    for (const item of order.items) {
+      inputs[item.name] = {
+        qty: item.qty > 0 ? String(item.qty) : "",
+        dcQty: item.dc_qty > 0 ? String(item.dc_qty) : "",
+        price: item.price > 0 ? String(item.price) : "",
+      };
+    }
+    setItemInputs(inputs);
+    setViewOrder(null);
+    setSubTab("new-entry");
+  };
 
   // ── Hotels CRUD ─────────────────────────────────────────────────────────────
 
@@ -324,27 +351,47 @@ const AdminHotelManagement: React.FC = () => {
 
     if (items.length === 0) { toast.error("Enter at least one item quantity"); return; }
 
+    const total = items.reduce((s, i) => s + i.amount, 0);
     setLoading(true);
     try {
-      await apiClient.adminRequest("/hotel-management/orders", {
-        method: "POST",
-        body: {
-          hotel_id: hotel._id,
-          hotel_name: hotel.name,
-          hotel_address: hotel.address,
-          date: entryDate,
-          items,
-          total: items.reduce((s, i) => s + i.amount, 0),
-          pickup_date: pickupDate,
-          pickup_time: pickupTime,
-          drop_date: dropDate,
-          drop_time: dropTime,
-          notes: entryNotes,
-          guest_laundry_pcs: parseInt(guestLaundryPcs) || 0,
-          staff_laundry_pcs: parseInt(staffLaundryPcs) || 0,
-        },
-      });
-      toast.success("Entry saved!");
+      if (editingOrderId) {
+        await apiClient.adminRequest(`/hotel-management/orders/${editingOrderId}`, {
+          method: "PATCH",
+          body: {
+            items,
+            total,
+            pickup_date: pickupDate,
+            pickup_time: pickupTime,
+            drop_date: dropDate,
+            drop_time: dropTime,
+            notes: entryNotes,
+            guest_laundry_pcs: parseInt(guestLaundryPcs) || 0,
+            staff_laundry_pcs: parseInt(staffLaundryPcs) || 0,
+          },
+        });
+        toast.success("Entry updated!");
+        setEditingOrderId(null);
+      } else {
+        await apiClient.adminRequest("/hotel-management/orders", {
+          method: "POST",
+          body: {
+            hotel_id: hotel._id,
+            hotel_name: hotel.name,
+            hotel_address: hotel.address,
+            date: entryDate,
+            items,
+            total,
+            pickup_date: pickupDate,
+            pickup_time: pickupTime,
+            drop_date: dropDate,
+            drop_time: dropTime,
+            notes: entryNotes,
+            guest_laundry_pcs: parseInt(guestLaundryPcs) || 0,
+            staff_laundry_pcs: parseInt(staffLaundryPcs) || 0,
+          },
+        });
+        toast.success("Entry saved!");
+      }
       fetchOrders();
       setSubTab("bills");
     } catch (e: any) {
@@ -477,12 +524,10 @@ const AdminHotelManagement: React.FC = () => {
       [],
       ["", "", "", "", "TOTAL", order.total > 0 ? order.total : ""],
       [],
-      ...((order.guest_laundry_pcs || 0) > 0 || (order.staff_laundry_pcs || 0) > 0 ? [
-        ["Guest & Staff Laundry"],
-        ...((order.guest_laundry_pcs || 0) > 0 ? [["Guest Laundry:", `${order.guest_laundry_pcs} pcs`]] : []),
-        ...((order.staff_laundry_pcs || 0) > 0 ? [["Staff Laundry:", `${order.staff_laundry_pcs} pcs`]] : []),
-        [],
-      ] : []),
+      ["Guest & Staff Laundry"],
+      ["Guest Laundry:", `${order.guest_laundry_pcs || 0} pcs`],
+      ["Staff Laundry:", `${order.staff_laundry_pcs || 0} pcs`],
+      [],
       ["Status:", order.status],
       ["Pickup Date:", order.pickup_date || ""],
       ["Drop Date:", order.drop_date || ""],
@@ -612,12 +657,25 @@ const AdminHotelManagement: React.FC = () => {
                     {h.address && <div className="text-sm text-gray-500">{h.address}</div>}
                     {h.contact && <div className="text-sm text-gray-500">Contact: {h.contact}</div>}
                     {h.phone && <div className="text-sm text-gray-500">{h.phone}</div>}
-                    <div className="text-xs text-blue-600 mt-1">
+                    <button className="text-xs text-blue-600 mt-1 hover:underline text-left" onClick={() => { setFilterHotelId(h._id); setSubTab("bills"); }}>
                       {orders.filter(o => o.hotel_id === h._id).length} entries &bull;{" "}
                       {orders.filter(o => o.hotel_id === h._id && o.is_paid).length} paid
-                    </div>
+                    </button>
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+                    <Button size="sm" variant="outline" className="text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => {
+                      setFilterHotelId(h._id);
+                      setSubTab("bills");
+                    }}>
+                      <List className="h-3 w-3 mr-1" /> Entries
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-green-700 border-green-200 hover:bg-green-50" onClick={() => {
+                      setSelectedHotelId(h._id);
+                      setEditingOrderId(null);
+                      setSubTab("new-entry");
+                    }}>
+                      <Plus className="h-3 w-3 mr-1" /> New Entry
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => {
                       setHotelForm({ name: h.name, address: h.address, contact: h.contact, phone: h.phone });
                       setEditingHotelId(h._id);
@@ -639,7 +697,16 @@ const AdminHotelManagement: React.FC = () => {
       {subTab === "new-entry" && (
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>New Hotel Laundry Entry</CardTitle></CardHeader>
+            <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+              {editingOrderId ? `Edit Entry — ${invoiceNo}` : "New Hotel Laundry Entry"}
+              {editingOrderId && (
+                <Button size="sm" variant="outline" onClick={() => { setEditingOrderId(null); setSubTab("bills"); }}>
+                  Cancel Edit
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
             <CardContent className="space-y-4">
               {/* Basic info */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -784,7 +851,7 @@ const AdminHotelManagement: React.FC = () => {
               <div className="flex gap-3 justify-end">
                 <Button variant="outline" onClick={() => setItemInputs({})}>Clear Items</Button>
                 <Button onClick={saveEntry} disabled={loading} className="bg-green-600 hover:bg-green-700">
-                  {loading ? "Saving…" : "Save Entry & Generate Bill"}
+                  {loading ? "Saving…" : editingOrderId ? "Update Entry" : "Save Entry & Generate Bill"}
                 </Button>
               </div>
             </CardContent>
@@ -908,6 +975,9 @@ const AdminHotelManagement: React.FC = () => {
                     <div className="flex gap-1.5 flex-wrap pt-1">
                       <Button size="sm" variant="outline" onClick={() => setViewOrder(order)} className="flex items-center gap-1">
                         <Eye className="h-3 w-3" /> View
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openEditOrder(order)} className="flex items-center gap-1 text-violet-700 border-violet-200">
+                        <Edit2 className="h-3 w-3" /> Edit
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => exportOrderToExcel(order)} className="flex items-center gap-1">
                         <FileDown className="h-3 w-3" /> Excel
@@ -1043,30 +1113,33 @@ const AdminHotelManagement: React.FC = () => {
                   </tr>
                 </tfoot>
               </table>
-              {((viewOrder.guest_laundry_pcs || 0) > 0 || (viewOrder.staff_laundry_pcs || 0) > 0) && (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {(viewOrder.guest_laundry_pcs || 0) > 0 && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded px-3 py-2 text-center">
-                      <div className="text-emerald-600 font-semibold">Guest Laundry</div>
-                      <div className="text-xl font-bold text-emerald-800">{viewOrder.guest_laundry_pcs} <span className="text-sm font-normal">pcs</span></div>
-                    </div>
-                  )}
-                  {(viewOrder.staff_laundry_pcs || 0) > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-center">
-                      <div className="text-amber-600 font-semibold">Staff Laundry</div>
-                      <div className="text-xl font-bold text-amber-800">{viewOrder.staff_laundry_pcs} <span className="text-sm font-normal">pcs</span></div>
-                    </div>
-                  )}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-emerald-50 border border-emerald-200 rounded px-3 py-2 text-center">
+                  <div className="text-emerald-600 font-semibold">Guest Laundry</div>
+                  <div className="text-xl font-bold text-emerald-800">
+                    {viewOrder.guest_laundry_pcs || 0} <span className="text-sm font-normal">pcs</span>
+                  </div>
                 </div>
-              )}
+                <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-center">
+                  <div className="text-amber-600 font-semibold">Staff Laundry</div>
+                  <div className="text-xl font-bold text-amber-800">
+                    {viewOrder.staff_laundry_pcs || 0} <span className="text-sm font-normal">pcs</span>
+                  </div>
+                </div>
+              </div>
 
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2 flex-wrap">
                 <div className={`font-bold ${viewOrder.is_paid ? "text-green-700" : "text-red-600"}`}>
                   {viewOrder.is_paid ? `✓ PAID on ${viewOrder.paid_date}${viewOrder.paid_till ? ` (till ${viewOrder.paid_till})` : ""}` : "⏳ PAYMENT PENDING"}
                 </div>
-                <Button size="sm" onClick={() => exportOrderToExcel(viewOrder)} className="flex items-center gap-1">
-                  <FileDown className="h-3 w-3" /> Export Excel
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => openEditOrder(viewOrder)} className="flex items-center gap-1 text-violet-700 border-violet-200">
+                    <Edit2 className="h-3 w-3" /> Edit Entry
+                  </Button>
+                  <Button size="sm" onClick={() => exportOrderToExcel(viewOrder)} className="flex items-center gap-1">
+                    <FileDown className="h-3 w-3" /> Export Excel
+                  </Button>
+                </div>
               </div>
               <div className="text-xs text-gray-400 border-t pt-2 text-center">
                 Missing Article, if any, should be reported on call on the same day.<br />THANK YOU FOR YOUR FAITH ON US.
