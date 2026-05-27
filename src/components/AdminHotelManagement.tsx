@@ -477,10 +477,10 @@ const AdminHotelManagement: React.FC = () => {
       [],
       ["", "", "", "", "TOTAL", order.total > 0 ? order.total : ""],
       [],
-      ...(order.guest_laundry_pcs > 0 || order.staff_laundry_pcs > 0 ? [
+      ...((order.guest_laundry_pcs || 0) > 0 || (order.staff_laundry_pcs || 0) > 0 ? [
         ["Guest & Staff Laundry"],
-        ...(order.guest_laundry_pcs > 0 ? [["Guest Laundry:", `${order.guest_laundry_pcs} pcs`]] : []),
-        ...(order.staff_laundry_pcs > 0 ? [["Staff Laundry:", `${order.staff_laundry_pcs} pcs`]] : []),
+        ...((order.guest_laundry_pcs || 0) > 0 ? [["Guest Laundry:", `${order.guest_laundry_pcs} pcs`]] : []),
+        ...((order.staff_laundry_pcs || 0) > 0 ? [["Staff Laundry:", `${order.staff_laundry_pcs} pcs`]] : []),
         [],
       ] : []),
       ["Status:", order.status],
@@ -504,9 +504,11 @@ const AdminHotelManagement: React.FC = () => {
   const exportAllToExcel = () => {
     const wb = XLSX.utils.book_new();
     const rows: (string | number)[][] = [
-      ["Invoice No", "Hotel", "Date", "Items", "Total (₹)", "Status", "Rider", "Payment", "Paid Date", "Paid Till"],
+      ["Invoice No", "Hotel", "Date", "Items", "Total (₹)", "Guest Laundry (pcs)", "Staff Laundry (pcs)", "Status", "Rider", "Payment", "Paid Date", "Paid Till"],
       ...filteredOrders.map(o => [
         o.invoice_no, o.hotel_name, o.date, o.items.length, o.total,
+        o.guest_laundry_pcs || 0,
+        o.staff_laundry_pcs || 0,
         STATUS_LABELS[o.status]?.label || o.status,
         o.rider_name || "",
         o.is_paid ? "PAID" : "UNPAID",
@@ -517,7 +519,7 @@ const AdminHotelManagement: React.FC = () => {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"] = [
       { wch: 18 }, { wch: 22 }, { wch: 12 }, { wch: 8 }, { wch: 12 },
-      { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+      { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, "All Bills");
     XLSX.writeFile(wb, `Laundrify_Hotel_Bills_${todayStr()}.xlsx`);
@@ -1041,15 +1043,15 @@ const AdminHotelManagement: React.FC = () => {
                   </tr>
                 </tfoot>
               </table>
-              {(viewOrder.guest_laundry_pcs > 0 || viewOrder.staff_laundry_pcs > 0) && (
+              {((viewOrder.guest_laundry_pcs || 0) > 0 || (viewOrder.staff_laundry_pcs || 0) > 0) && (
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  {viewOrder.guest_laundry_pcs > 0 && (
+                  {(viewOrder.guest_laundry_pcs || 0) > 0 && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded px-3 py-2 text-center">
                       <div className="text-emerald-600 font-semibold">Guest Laundry</div>
                       <div className="text-xl font-bold text-emerald-800">{viewOrder.guest_laundry_pcs} <span className="text-sm font-normal">pcs</span></div>
                     </div>
                   )}
-                  {viewOrder.staff_laundry_pcs > 0 && (
+                  {(viewOrder.staff_laundry_pcs || 0) > 0 && (
                     <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-center">
                       <div className="text-amber-600 font-semibold">Staff Laundry</div>
                       <div className="text-xl font-bold text-amber-800">{viewOrder.staff_laundry_pcs} <span className="text-sm font-normal">pcs</span></div>

@@ -113,6 +113,7 @@ router.post("/orders", verifyAdmin, async (req, res) => {
       pickup_date, pickup_time, pickup_notes,
       drop_date, drop_time, drop_notes,
       notes,
+      guest_laundry_pcs, staff_laundry_pcs,
     } = req.body;
 
     if (!hotel_id) return res.status(400).json({ success: false, error: "hotel_id required" });
@@ -127,6 +128,8 @@ router.post("/orders", verifyAdmin, async (req, res) => {
       pickup_date, pickup_time, pickup_notes,
       drop_date, drop_time, drop_notes,
       notes,
+      guest_laundry_pcs: guest_laundry_pcs || 0,
+      staff_laundry_pcs: staff_laundry_pcs || 0,
       status: pickup_date ? "pickup_scheduled" : "pending",
     });
 
@@ -146,6 +149,8 @@ router.patch("/orders/:id", verifyAdmin, async (req, res) => {
       "drop_date", "drop_time", "drop_notes",
       "assigned_rider_id", "rider_name", "rider_phone",
       "is_paid", "paid_date", "paid_till",
+      "guest_laundry_pcs", "staff_laundry_pcs",
+      "items", "total",
     ];
     const update = {};
     for (const key of allowed) {

@@ -4,6 +4,7 @@ const itemSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     qty: { type: Number, default: 0, min: 0 },
+    dc_qty: { type: Number, default: 0, min: 0 },
     price: { type: Number, default: 0, min: 0 },
     amount: { type: Number, default: 0, min: 0 },
   },
@@ -71,6 +72,10 @@ const hotelOrderSchema = new mongoose.Schema(
     paid_till: { type: String, default: "" },
 
     notes: { type: String, default: "" },
+
+    // Guest & Staff laundry
+    guest_laundry_pcs: { type: Number, default: 0, min: 0 },
+    staff_laundry_pcs: { type: Number, default: 0, min: 0 },
   },
   { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
 );
