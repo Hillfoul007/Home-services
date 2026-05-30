@@ -2454,6 +2454,78 @@ router.post('/desk-login', async (req, res) => {
   }
 });
 
+// ── OTP-based rider desk login ────────────────────────────────────────────────
+
+router.post('/desk-send-otp', async (req, res) => {
+  try {
+    const phone = (req.body.phone || '').replace(/\D/g, '');
+    if (!phone) return res.status(400).json({ success: false, message: 'Phone is required' });
+
+    const rider = await Rider.findOne({ phone });
+    if (!rider) return res.status(404).json({ success: false, message: 'No rider account found for this phone number' });
+
+    if (rider.status !== 'approved') {
+      return res.status(403).json({ success: false, message: 'Your account is not active. Contact your vendor.' });
+    }
+
+    const otp = otpService.generateOTP();
+    otpService.storeOTP(phone, otp, 'rider_desk');
+
+    const smsResult = await otpService.sendOTP(phone, otp, 'rider desk login');
+    if (!smsResult.success) {
+      return res.status(500).json({ success: false, message: 'Failed to send OTP. Try again.' });
+    }
+
+    console.log(`✅ Rider desk OTP sent to ${phone}`);
+    res.json({ success: true, message: 'OTP sent successfully', phone });
+  } catch (error) {
+    console.error('❌ Rider desk send-otp error:', error);
+    res.status(500).json({ success: false, message: 'Server error. Try again.' });
+  }
+});
+
+router.post('/desk-verify-otp', async (req, res) => {
+  try {
+    const phone = (req.body.phone || '').replace(/\D/g, '');
+    const otp = (req.body.otp || '').trim();
+
+    if (!phone || !otp) return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
+
+    const result = otpService.verifyOTP(phone, otp, 'rider_desk');
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.error || 'Invalid OTP' });
+    }
+
+    const rider = await Rider.findOne({ phone });
+    if (!rider) return res.status(404).json({ success: false, message: 'Rider not found' });
+
+    if (rider.status !== 'approved') {
+      return res.status(403).json({ success: false, message: 'Your account is not active.' });
+    }
+
+    const token = jwt.sign(
+      { riderId: rider._id, phone: rider.phone },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    console.log(`✅ Rider desk OTP login: ${rider.name}`);
+    res.json({
+      success: true,
+      token,
+      rider: {
+        _id: rider._id,
+        name: rider.name,
+        phone: rider.phone,
+        live_location_link: rider.live_location_link || null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Rider desk verify-otp error:', error);
+    res.status(500).json({ success: false, message: 'Verification failed. Try again.' });
+  }
+});
+
 // Upload pickup slip (item list photo) for an order
 router.post('/orders/:orderId/upload-pickup-slip', verifyRiderToken, async (req, res) => {
   try {
