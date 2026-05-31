@@ -262,24 +262,28 @@ const generateWhatsAppMessage = (booking: Booking): string => {
     ? ((booking.final_amount * booking.wallet_cashback) / 100).toFixed(2)
     : "0.00";
 
-  const message = `Order Confirmed! 🎉 Congratulations! Your order has been confirmed and picked up. Please find below the details:
+  const cashbackDeducted = (booking.cashback || 0).toFixed(2);
+  const cashbackEarned = walletCashbackAmount;
+  const totalAmount = (booking.final_amount || booking.total_price || 0).toFixed(2);
 
+  const message = `✅ *Order Confirmed!*
+
+Dear ${booking.name || "Customer"}, your laundry order has been confirmed and picked up successfully.
+
+*Order Details:*
 Order ID: ${booking.custom_order_id}
-Tentative delivery date: ${formatDateForMessage(deliveryDate)}
-Tentative delivery time: ${formatTimeForMessage(deliveryTime)}
+Delivery Date: ${formatDateForMessage(deliveryDate)}
+Delivery Time: ${formatTimeForMessage(deliveryTime)}
 Address: ${booking.address || "N/A"}
-Services requested: ${servicesList}
-Total amount to pay: ₹${(booking.final_amount || booking.total_price || 0).toFixed(2)}
-Old Cashback (deducted from wallet): ₹${(booking.cashback || 0).toFixed(2)}
-New Cashback (added to wallet): ₹${walletCashbackAmount}
+Services: ${servicesList}
 
-Thank you for choosing Laundrify! 😊🧺
+*Payment Summary:*
+Total Amount: ₹${totalAmount}${Number(cashbackDeducted) > 0 ? `\nWallet Applied: ₹${cashbackDeducted}` : ""}${Number(cashbackEarned) > 0 ? `\nCashback Earned: ₹${cashbackEarned}` : ""}
 
-Dear Customer, Please Download and login to the app with the below link for the bill details:
+For bill details, visit: www.laundrify.online
 
-www.Laundrify.online
-
-Thanks, Team Laundrify!`;
+Thank you for choosing Laundrify!
+_Team Laundrify_`;
 
   return message;
 };
@@ -703,6 +707,62 @@ interface VendorOption {
   name: string;
 }
 
+const WhatsAppPreviewModal: React.FC<{ message: string; phone: string; onClose: () => void }> = ({ message, phone, onClose }) => {
+  const [copied, setCopied] = React.useState(false);
+
+  const cleanPhone = phone.replace(/\D/g, '');
+  const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+  const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-green-600" />
+            WhatsApp Confirmation
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Message preview — WhatsApp bubble style */}
+          <div className="bg-[#e7ffd8] rounded-xl p-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed border border-green-100 max-h-72 overflow-y-auto font-[system-ui]">
+            {message}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleCopy}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors ${copied ? "bg-emerald-600 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+            >
+              {copied ? "✓ Copied!" : "📋 Copy Message"}
+            </button>
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={onClose}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-green-600 hover:bg-green-700 text-white transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Send on WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bucketA, setBucketA] = useState<Booking[]>([]);
@@ -767,6 +827,11 @@ const AdminBookingManagement: React.FC = () => {
   const [reminderType, setReminderType] = useState<'pickup' | 'delivery'>('pickup');
   const [reminderMessage, setReminderMessage] = useState('');
   const [reminderVendorGroupLink, setReminderVendorGroupLink] = useState<string | undefined>();
+
+  // WhatsApp confirmation preview modal
+  const [showWAModal, setShowWAModal] = useState(false);
+  const [waModalMessage, setWaModalMessage] = useState('');
+  const [waModalPhone, setWaModalPhone] = useState('');
 
 
   const fetchVendors = async () => {
@@ -972,9 +1037,16 @@ const AdminBookingManagement: React.FC = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; offlineOrders?: Booking[] }>(`/admin/bookings?limit=100`);
+      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; offlineOrders?: Booking[]; bookings?: Booking[] }>(`/admin/bookings?limit=100`);
       if (res.data) {
-        const allBookings = [...(res.data.bucketA || []), ...(res.data.bucketB || [])];
+        // Support both response formats: {bucketA, bucketB} and legacy {bookings}
+        const rawA = res.data.bucketA || [];
+        const rawB = res.data.bucketB || [];
+        const rawAll = rawA.length || rawB.length
+          ? [...rawA, ...rawB]
+          : (res.data.bookings || []);
+
+        const allBookings = rawAll;
         const processed = allBookings.map((b: any) => ({
           ...b,
           status: normalizeStatus(b.status),
@@ -990,11 +1062,9 @@ const AdminBookingManagement: React.FC = () => {
         }));
         setOfflineOrders(offlineProcessed);
 
-        // Bucket filtering - only online orders assigned to vendors
-        const a = (res.data.bucketA || []).filter(b => (b as any).assignedVendor);
-        const b = (res.data.bucketB || []).filter(b => (b as any).assignedVendor);
-        setBucketA(a);
-        setBucketB(b);
+        // Bucket filtering — show all orders regardless of vendor assignment
+        setBucketA(rawA.length ? rawA : processed.filter(b => ["created","vendor_assigned","rider_pickup_done","pickup_completed"].includes(normalizeStatus(b.status))));
+        setBucketB(rawB.length ? rawB : processed.filter(b => ["in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))));
       }
       setLoading(false);
     } catch (e) {
@@ -1060,7 +1130,10 @@ const AdminBookingManagement: React.FC = () => {
         if (cancelled) return;
 
         if (response.data) {
-          const updates: Booking[] = [...(response.data.bucketA || []), ...(response.data.bucketB || []), ...(response.data.offlineOrders || [])];
+          const rawUpdates = response.data.bucketA || response.data.bucketB
+            ? [...(response.data.bucketA || []), ...(response.data.bucketB || [])]
+            : (response.data.bookings || []);
+          const updates: Booking[] = [...rawUpdates, ...(response.data.offlineOrders || [])];
           console.log(`🔄 Poll returned ${updates.length} updated bookings`);
           if (updates.length > 0) {
             updates.forEach((b) => {
@@ -1822,8 +1895,9 @@ const AdminBookingManagement: React.FC = () => {
                             variant="outline"
                             className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
                             onClick={() => {
-                              const message = generateWhatsAppMessage(booking);
-                              sendWhatsAppMessage(booking.phone, message);
+                              setWaModalMessage(generateWhatsAppMessage(booking));
+                              setWaModalPhone(booking.phone);
+                              setShowWAModal(true);
                             }}
                           >
                             <MessageCircle className="h-4 w-4 mr-1" />
@@ -2027,8 +2101,9 @@ const AdminBookingManagement: React.FC = () => {
                             variant="outline"
                             className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
                             onClick={() => {
-                              const message = generateWhatsAppMessage(booking);
-                              sendWhatsAppMessage(booking.phone, message);
+                              setWaModalMessage(generateWhatsAppMessage(booking));
+                              setWaModalPhone(booking.phone);
+                              setShowWAModal(true);
                             }}
                           >
                             <MessageCircle className="h-4 w-4 mr-1" />
@@ -2372,7 +2447,7 @@ const AdminBookingManagement: React.FC = () => {
                           size="sm"
                           variant="outline"
                           className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
-                          onClick={() => { sendWhatsAppMessage(booking.phone, generateWhatsAppMessage(booking)); }}
+                          onClick={() => { setWaModalMessage(generateWhatsAppMessage(booking)); setWaModalPhone(booking.phone); setShowWAModal(true); }}
                         >
                           <MessageCircle className="h-4 w-4" />
                         </Button>
@@ -2736,7 +2811,7 @@ const AdminBookingManagement: React.FC = () => {
                             size="sm"
                             variant="outline"
                             className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
-                            onClick={() => { const message = generateWhatsAppMessage(booking); sendWhatsAppMessage(booking.phone, message); }}
+                            onClick={() => { setWaModalMessage(generateWhatsAppMessage(booking)); setWaModalPhone(booking.phone); setShowWAModal(true); }}
                           >
                             <MessageCircle className="h-4 w-4" />
                           </Button>
@@ -3878,6 +3953,15 @@ const AdminBookingManagement: React.FC = () => {
         vendorGroupLink={reminderVendorGroupLink}
         reminderType={reminderType}
       />
+
+      {/* WhatsApp Confirmation Preview Modal */}
+      {showWAModal && (
+        <WhatsAppPreviewModal
+          message={waModalMessage}
+          phone={waModalPhone}
+          onClose={() => setShowWAModal(false)}
+        />
+      )}
 
 
     </div>

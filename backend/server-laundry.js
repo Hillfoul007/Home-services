@@ -100,6 +100,28 @@ app.use("/api/pg-orders", (req, res, next) => {
   next();
 });
 
+// Disable caching for all vendor (desk) and admin dynamic endpoints
+app.use("/api/vendor", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+app.use("/api/admin", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+app.use("/api/riders", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // Additional CORS middleware to ensure headers are always set
 app.use((req, res, next) => {
   const origin = req.headers.origin;
