@@ -565,6 +565,15 @@ try {
   console.error("❌ Failed to load Offline Store routes:", error.message);
 }
 
+// Store Portal routes
+try {
+  const storeRoutes = require("./routes/store");
+  app.use("/api/store", storeRoutes);
+  console.log("🔗 Store routes registered at /api/store");
+} catch (error) {
+  console.error("❌ Failed to load Store routes:", error.message);
+}
+
 // Google Sheets integration removed
 
 // Hotel management routes

@@ -427,6 +427,31 @@ const bookingSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    // STORE PORTAL FIELDS
+    is_store_order: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    store_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      default: null,
+    },
+    store_code: {
+      type: String,
+      default: null,
+    },
+    assigned_store_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      default: null,
+    },
+    assigned_store_name: {
+      type: String,
+      default: null,
+    },
     customer_name: {
       type: String,
       default: "",
