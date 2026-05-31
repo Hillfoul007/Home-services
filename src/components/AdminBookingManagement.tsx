@@ -888,18 +888,22 @@ const AdminBookingManagement: React.FC = () => {
 
   const fetchCompletedOrders = async () => {
     try {
-      const res = await apiClient.adminRequest<{ bookings?: Booking[] }>(`/admin/bookings?status=completed&limit=50`);
+      const res = await apiClient.adminRequest<any>(`/admin/bookings?status=completed,cancelled&limit=100`);
       if (res.data) {
-        const anyData: any = res.data as any;
-        const list = anyData.bookings || [...(anyData.bucketA || []), ...(anyData.bucketB || [])];
+        const list = [
+          ...(res.data.bucketC || []),
+          ...(res.data.bucketA || []),
+          ...(res.data.bucketB || []),
+          ...(res.data.bookings || []),
+        ].filter((b: any) => ["completed", "cancelled"].includes(b.status));
         const processed = list.map((b: any) => ({
           ...b,
           status: normalizeStatus(b.status),
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
         processed.sort((a, b) => {
-          const dateA = new Date(a.completed_at || a.updated_at || 0).getTime();
-          const dateB = new Date(b.completed_at || b.updated_at || 0).getTime();
+          const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
+          const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
           return dateB - dateA;
         });
         setCompletedOrders(processed);
@@ -1037,24 +1041,23 @@ const AdminBookingManagement: React.FC = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; offlineOrders?: Booking[]; bookings?: Booking[] }>(`/admin/bookings?limit=100`);
+      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; bucketC?: Booking[]; offlineOrders?: Booking[]; bookings?: Booking[] }>(`/admin/bookings?limit=100`);
       if (res.data) {
-        // Support both response formats: {bucketA, bucketB} and legacy {bookings}
         const rawA = res.data.bucketA || [];
         const rawB = res.data.bucketB || [];
-        const rawAll = rawA.length || rawB.length
-          ? [...rawA, ...rawB]
+        const rawC = res.data.bucketC || [];
+        // Support both response formats: {bucketA, bucketB, bucketC} and legacy {bookings}
+        const rawAll = rawA.length || rawB.length || rawC.length
+          ? [...rawA, ...rawB, ...rawC]
           : (res.data.bookings || []);
 
-        const allBookings = rawAll;
-        const processed = allBookings.map((b: any) => ({
+        const processed = rawAll.map((b: any) => ({
           ...b,
           status: normalizeStatus(b.status),
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
         setBookings(processed);
 
-        // Use offline orders directly from API response
         const offlineProcessed = (res.data.offlineOrders || []).map((b: any) => ({
           ...b,
           status: normalizeStatus(b.status),
@@ -1062,7 +1065,6 @@ const AdminBookingManagement: React.FC = () => {
         }));
         setOfflineOrders(offlineProcessed);
 
-        // Bucket filtering — show all orders regardless of vendor assignment
         setBucketA(rawA.length ? rawA : processed.filter(b => ["created","vendor_assigned","rider_pickup_done","pickup_completed"].includes(normalizeStatus(b.status))));
         setBucketB(rawB.length ? rawB : processed.filter(b => ["in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))));
       }
@@ -1130,8 +1132,8 @@ const AdminBookingManagement: React.FC = () => {
         if (cancelled) return;
 
         if (response.data) {
-          const rawUpdates = response.data.bucketA || response.data.bucketB
-            ? [...(response.data.bucketA || []), ...(response.data.bucketB || [])]
+          const rawUpdates = (response.data.bucketA || response.data.bucketB || (response.data as any).bucketC)
+            ? [...(response.data.bucketA || []), ...(response.data.bucketB || []), ...((response.data as any).bucketC || [])]
             : (response.data.bookings || []);
           const updates: Booking[] = [...rawUpdates, ...(response.data.offlineOrders || [])];
           console.log(`🔄 Poll returned ${updates.length} updated bookings`);

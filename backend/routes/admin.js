@@ -1073,85 +1073,64 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       });
     }
 
-    // Define new order-flow buckets. Include commonly used statuses like 'pending' and 'confirmed'
-    const BUCKET_A = ["pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "rider_pickup_done"];
-    const BUCKET_B = ["pickup_completed", "delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered"];
+    // Define order-flow buckets
+    const BUCKET_A = ["pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "rider_pickup_done", "pickup_completed"];
+    const BUCKET_B = ["delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered"];
+    const BUCKET_C = ["completed", "cancelled"];
+    const ALL_STATUSES = [...BUCKET_A, ...BUCKET_B, ...BUCKET_C];
 
-    // By default return a broad set of relevant statuses (exclude completed/cancelled later)
-    const relevantStatuses = [...new Set([...
-      BUCKET_A,
-      ...BUCKET_B,
-      // include other statuses that might appear in the system
-      "pending",
-      "confirmed",
-      "created",
-      "vendor_assigned",
-      "rider_pickup_done",
-      "ready_for_delivery",
-      "pickup_assigned",
-      "pickup_completed",
-      "delivery_assigned",
-      "in_progress",
-      "delivered_to_vendor",
-      "delivered",
-    ])];
+    let query = { is_offline_order: { $ne: true } };
 
-    let query = { is_offline_order: { $ne: true } }; // Exclude offline orders from buckets
-
-    // If a specific status filter is provided, respect it
-    const hasExplicitStatusFilter = !!(status && status !== "all");
-    if (hasExplicitStatusFilter) {
-      // Allow comma-separated status filters
-      if (status.includes(",")) {
-        const arr = status.split(",").map((s) => s.trim());
-        query.status = { $in: arr };
-      } else {
-        query.status = status;
-      }
+    // ── Status filter ────────────────────────────────────────────────────────
+    if (modified_since) {
+      // Polling: return every status so stale-bucket UI is kept in sync
+      query.status = { $in: ALL_STATUSES };
+    } else if (status && status !== "all") {
+      query.status = status.includes(",")
+        ? { $in: status.split(",").map((s) => s.trim()) }
+        : status;
     } else {
-      query.status = { $in: relevantStatuses };
+      // Default view: all statuses (limit handles volume)
+      query.status = { $in: ALL_STATUSES };
     }
 
-    // Customer filter
+    // ── Customer filter ──────────────────────────────────────────────────────
     if (customer_id) {
       query.customer_id = customer_id;
     }
 
-    // Date range filter (created_at)
+    // ── Date range filter ────────────────────────────────────────────────────
     if (start_date || end_date) {
       query.created_at = {};
       if (start_date) query.created_at.$gte = new Date(start_date);
       if (end_date) query.created_at.$lte = new Date(end_date);
     }
 
-    // Search filter
+    // ── Search filter (use $and so it doesn't clobber the status filter) ────
     if (search) {
       const searchRegex = { $regex: search, $options: "i" };
-      query.$or = [
-        { custom_order_id: searchRegex },
-        { name: searchRegex },
-        { phone: searchRegex },
-        { service: searchRegex },
-        { address: searchRegex },
+      query.$and = [
+        { $or: [
+          { custom_order_id: searchRegex },
+          { name: searchRegex },
+          { phone: searchRegex },
+          { service: searchRegex },
+          { address: searchRegex },
+        ]},
       ];
     }
 
-    // Exclude cancelled and completed orders from default buckets unless explicitly requested
-    if (!hasExplicitStatusFilter) {
-      query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
-    }
-
-    // Filter by modified_since (returns only bookings updated after the provided ISO timestamp)
+    // ── modified_since filter (polling incremental updates) ──────────────────
     if (modified_since) {
       try {
         const sinceDate = new Date(modified_since);
         if (!isNaN(sinceDate.getTime())) {
           query.updated_at = { $gt: sinceDate };
         } else {
-          console.warn('⚠️ Invalid modified_since value provided to /admin/bookings:', modified_since);
+          console.warn('⚠️ Invalid modified_since value:', modified_since);
         }
       } catch (e) {
-        console.warn('⚠️ Error parsing modified_since parameter:', e.message);
+        console.warn('⚠️ Error parsing modified_since:', e.message);
       }
     }
 
@@ -1172,6 +1151,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     // Split into buckets - exclude offline orders from buckets
     const bucketA = bookings.filter((b) => BUCKET_A.includes(b.status) && b.is_offline_order !== true);
     const bucketB = bookings.filter((b) => BUCKET_B.includes(b.status) && b.is_offline_order !== true);
+    const bucketC = bookings.filter((b) => BUCKET_C.includes(b.status) && b.is_offline_order !== true);
 
     // Sort buckets by nearest pickup time (scheduled_date + scheduled_time)
     const parsePickupTime = (b) => {
@@ -1184,6 +1164,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
 
     bucketA.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
     bucketB.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
+    bucketC.sort((x, y) => new Date(y.updated_at || y.created_at || 0) - new Date(x.updated_at || x.created_at || 0));
 
     // Fetch offline orders separately
     const offlineQuery = { is_offline_order: true };
@@ -1198,11 +1179,12 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       .skip(parseInt(offset))
       .select("+item_prices +charges_breakdown +is_offline_order +assignedVendor +assignedVendorDetails");
 
-    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}. Offline orders: ${offlineBookings.length}`);
+    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}, C=${bucketC.length}. Offline orders: ${offlineBookings.length}`);
 
     res.json({
       bucketA,
       bucketB,
+      bucketC,
       offlineOrders: offlineBookings,
       bookings: status && status !== "all" ? bookings : undefined,
       pagination: {

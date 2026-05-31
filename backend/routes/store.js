@@ -22,25 +22,18 @@ const verifyStoreToken = (req, res, next) => {
 };
 
 const verifyAdmin = (req, res, next) => {
-  try {
-    const token =
-      req.headers["admin-token"] ||
-      (req.headers.authorization || "").replace("Bearer ", "");
-    if (!token) return res.status(401).json({ error: "Admin token required" });
-    // Accept any non-empty admin-token (matches existing admin pattern in the codebase)
-    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
-    if (token === adminPassword || token === process.env.ADMIN_TOKEN) {
-      return next();
-    }
-    // Also accept JWT admin tokens
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      if (decoded.role === "admin" || decoded.isAdmin) return next();
-    } catch {}
-    res.status(403).json({ error: "Unauthorized" });
-  } catch {
-    res.status(403).json({ error: "Unauthorized" });
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production")
+      return res.status(500).json({ success: false, error: "Admin not configured" });
+    return next(); // allow in dev without secret
   }
+  const token =
+    req.headers["admin-token"] ||
+    (req.headers.authorization || "").replace("Bearer ", "");
+  if (!token || token !== secret)
+    return res.status(401).json({ success: false, error: "Unauthorized: Invalid admin token" });
+  next();
 };
 
 // ─── Store Auth ────────────────────────────────────────────────────────────────
@@ -282,7 +275,7 @@ router.delete("/orders/:orderId", verifyStoreToken, async (req, res) => {
 // ─── Admin Endpoints ───────────────────────────────────────────────────────────
 
 // GET /api/store/admin/stores
-router.get("/admin/stores", async (req, res) => {
+router.get("/admin/stores", verifyAdmin, async (req, res) => {
   try {
     const stores = await Store.find().select("+temp_password").sort({ created_at: -1 });
     res.json({ success: true, stores });
@@ -292,7 +285,7 @@ router.get("/admin/stores", async (req, res) => {
 });
 
 // POST /api/store/admin/stores
-router.post("/admin/stores", async (req, res) => {
+router.post("/admin/stores", verifyAdmin, async (req, res) => {
   try {
     const { store_name, phone, address, password } = req.body;
     if (!store_name || !password)
@@ -327,7 +320,7 @@ router.post("/admin/stores", async (req, res) => {
 });
 
 // PUT /api/store/admin/stores/:id
-router.put("/admin/stores/:id", async (req, res) => {
+router.put("/admin/stores/:id", verifyAdmin, async (req, res) => {
   try {
     const { store_name, phone, address, is_active, password } = req.body;
     const store = await Store.findById(req.params.id).select("+password_hash +temp_password");
@@ -351,7 +344,7 @@ router.put("/admin/stores/:id", async (req, res) => {
 });
 
 // DELETE /api/store/admin/stores/:id
-router.delete("/admin/stores/:id", async (req, res) => {
+router.delete("/admin/stores/:id", verifyAdmin, async (req, res) => {
   try {
     await Store.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: "Store deleted" });
@@ -361,7 +354,7 @@ router.delete("/admin/stores/:id", async (req, res) => {
 });
 
 // GET /api/store/admin/orders  — all store orders + admin-assigned
-router.get("/admin/orders", async (req, res) => {
+router.get("/admin/orders", verifyAdmin, async (req, res) => {
   try {
     const { filterStatus, storeId, sortBy = "recent" } = req.query;
     const sort = sortBy === "oldest" ? 1 : -1;
@@ -383,7 +376,7 @@ router.get("/admin/orders", async (req, res) => {
 });
 
 // PUT /api/store/admin/orders/:orderId/status
-router.put("/admin/orders/:orderId/status", async (req, res) => {
+router.put("/admin/orders/:orderId/status", verifyAdmin, async (req, res) => {
   try {
     const { status } = req.body;
     const order = await Booking.findById(req.params.orderId);
@@ -400,7 +393,7 @@ router.put("/admin/orders/:orderId/status", async (req, res) => {
 });
 
 // PUT /api/store/admin/orders/:orderId/assign  — assign a regular booking to a store
-router.put("/admin/orders/:orderId/assign", async (req, res) => {
+router.put("/admin/orders/:orderId/assign", verifyAdmin, async (req, res) => {
   try {
     const { store_id } = req.body;
     const store = await Store.findById(store_id);
@@ -421,7 +414,7 @@ router.put("/admin/orders/:orderId/assign", async (req, res) => {
 });
 
 // GET /api/store/admin/customer-lookup
-router.get("/admin/customer-lookup", async (req, res) => {
+router.get("/admin/customer-lookup", verifyAdmin, async (req, res) => {
   try {
     const { phone } = req.query;
     const User = require("../models/User");

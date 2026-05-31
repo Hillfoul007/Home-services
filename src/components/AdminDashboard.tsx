@@ -50,13 +50,15 @@ import AdminPushNotifications from "./AdminPushNotifications";
 import AdminSchoolManagement from "./AdminSchoolManagement";
 import AdminSchoolBooking from "./AdminSchoolBooking";
 import AdminHotelManagement from "./AdminHotelManagement";
+import AdminStoreManagement from "./AdminStoreManagement";
+import AdminStoreOrders from "./AdminStoreOrders";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels" | "stores" | "store-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -470,6 +472,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Hotels</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("stores")}
+              variant={activeTab === "stores" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🏪</span>
+              <span className="hidden sm:inline">Stores</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("store-orders")}
+              variant={activeTab === "store-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🛒</span>
+              <span className="hidden sm:inline">Store Orders</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("wallet")}
               variant={activeTab === "wallet" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -592,6 +610,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-indigo-900 text-sm"><strong>🏨 Hotel Management:</strong> Add hotels and create laundry entries using the item list from the physical slip. Input quantities for each article, optionally set prices to calculate amounts, generate a bill, mark payments as paid (with paid-till date), and export to Excel.</p>
             </div>
             <AdminHotelManagement />
+          </TabsContent>
+
+          <TabsContent value="stores">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>🏪 Store Management:</strong> Create and manage store accounts. Each store gets a unique Store ID for login and a 5-letter code used in order IDs. Order ID format: <code className="bg-blue-100 px-1 rounded">STORE{"{CODE}"}JanA0001</code> — letter increments A→B after 9999 orders.</p>
+            </div>
+            <AdminStoreManagement />
+          </TabsContent>
+
+          <TabsContent value="store-orders">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>🛒 Store Orders:</strong> View all orders created by stores (with STORE… IDs) and all orders assigned to stores by admin. All order statuses (created → pending → confirmed → processing → ready → completed → delivered) work identically to normal orders.</p>
+            </div>
+            <AdminStoreOrders />
           </TabsContent>
 
           <TabsContent value="wallet">

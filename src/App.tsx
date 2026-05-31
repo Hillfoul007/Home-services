@@ -36,6 +36,8 @@ import AdminVehicleManagement from "@/components/AdminVehicleManagement";
 import VehicleDashboard from "@/components/VehicleDashboard";
 import OfflineStoreAuth from "@/pages/OfflineStoreAuth";
 import OfflineStoreDeskPage from "@/pages/OfflineStoreDeskPage";
+import StoreLogin from "@/pages/store/StoreLogin";
+import StoreDashboard from "@/pages/store/StoreDashboard";
 import DeskLogin from "@/pages/desk/DeskLogin";
 import DeskDashboard from "@/pages/desk/DeskDashboard";
 import DeskReadyPage from "@/pages/desk/DeskReadyPage";
@@ -232,6 +234,9 @@ function App() {
               <Route path="/driver/dashboard" element={<VehicleDashboard />} />
               <Route path="/offlinestore/login" element={<OfflineStoreAuth />} />
               <Route path="/offlinestore/desk" element={<OfflineStoreDeskPage />} />
+              {/* Store Portal */}
+              <Route path="/store" element={<StoreLogin />} />
+              <Route path="/store/dashboard" element={<StoreDashboard />} />
               {/* Vendor Desk */}
               <Route path="/desk" element={<DeskLogin />} />
               <Route path="/desk/dashboard" element={<DeskDashboard />} />
