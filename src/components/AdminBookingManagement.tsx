@@ -990,11 +990,8 @@ const AdminBookingManagement: React.FC = () => {
         }));
         setOfflineOrders(offlineProcessed);
 
-        // Bucket filtering - only online orders assigned to vendors
-        const a = (res.data.bucketA || []).filter(b => (b as any).assignedVendor);
-        const b = (res.data.bucketB || []).filter(b => (b as any).assignedVendor);
-        setBucketA(a);
-        setBucketB(b);
+        setBucketA(res.data.bucketA || []);
+        setBucketB(res.data.bucketB || []);
       }
       setLoading(false);
     } catch (e) {

@@ -559,6 +559,44 @@ router.post("/users", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// ── ONE-TIME recovery: restore orders bulk-completed on 2026-05-31 ──────────
+router.post("/recovery/restore-bulk-completed", verifyAdminAccess, async (req, res) => {
+  try {
+    const BULK_START = new Date("2026-05-31T04:10:00.000Z");
+    const BULK_END   = new Date("2026-05-31T05:30:00.000Z");
+    const dryRun     = req.query.dry === "1";
+
+    const affected = await Booking.find({
+      updated_at: { $gte: BULK_START, $lte: BULK_END },
+      status:     { $in: ["pickup_completed", "completed"] },
+    }).select("_id custom_order_id status status_history").lean();
+
+    let restored = 0; const details = [];
+    for (const b of affected) {
+      const history = (b.status_history || [])
+        .map(h => ({ status: h.status, ts: new Date(h.changed_at || h.timestamp || 0).getTime() }))
+        .filter(h => h.ts < BULK_START.getTime())
+        .sort((a, c) => c.ts - a.ts);
+
+      const prevStatus = history[0]?.status || "vendor_assigned";
+      details.push({ id: b.custom_order_id || b._id, from: b.status, to: prevStatus });
+
+      if (!dryRun) {
+        await Booking.findByIdAndUpdate(b._id, {
+          status: prevStatus,
+          updated_at: history[0]?.ts ? new Date(history[0].ts) : BULK_START,
+          $unset: { updated_by_admin: "" },
+        });
+      }
+      restored++;
+    }
+
+    res.json({ success: true, dryRun, total: affected.length, restored, details });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Update booking (admin override)
 router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
   try {
