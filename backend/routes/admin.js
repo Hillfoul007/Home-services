@@ -560,22 +560,45 @@ router.post("/users", verifyAdminAccess, async (req, res) => {
 });
 
 // ── ONE-TIME recovery: restore orders bulk-completed on 2026-05-31 ──────────
+// The server stores updated_at as IST-string-parsed-as-UTC, so the bulk
+// updates (which happened at ~04:14 UTC real time) appear as ~09:44 UTC in DB.
 router.post("/recovery/restore-bulk-completed", verifyAdminAccess, async (req, res) => {
   try {
-    const BULK_START = new Date("2026-05-31T04:10:00.000Z");
-    const BULK_END   = new Date("2026-05-31T05:30:00.000Z");
+    // IST timestamps stored as UTC: 09:44–10:20 IST = "09:44–10:20 UTC" in DB
+    const BULK_START = new Date("2026-05-31T09:40:00.000Z");
+    const BULK_END   = new Date("2026-05-31T10:30:00.000Z");
     const dryRun     = req.query.dry === "1";
+
+    // First check what the DB actually has so we can debug
+    const sampleCheck = await Booking.findOne({ status: "completed" })
+      .select("updated_at custom_order_id").lean();
 
     const affected = await Booking.find({
       updated_at: { $gte: BULK_START, $lte: BULK_END },
       status:     { $in: ["pickup_completed", "completed"] },
-    }).select("_id custom_order_id status status_history").lean();
+    }).select("_id custom_order_id status updated_at status_history").lean();
 
-    let restored = 0; const details = [];
+    if (affected.length === 0) {
+      // Try a wider window to help debug
+      const wider = await Booking.find({
+        status: { $in: ["pickup_completed", "completed"] },
+      }).sort({ updated_at: -1 }).limit(3).select("updated_at custom_order_id status").lean();
+      return res.json({
+        success: false,
+        message: "No orders found in bulk window. Check wideSample for actual timestamps.",
+        bulkWindow: { start: BULK_START, end: BULK_END },
+        sampleCompleted: sampleCheck,
+        wideSample: wider,
+      });
+    }
+
+    let restored = 0;
+    const details = [];
+
     for (const b of affected) {
       const history = (b.status_history || [])
-        .map(h => ({ status: h.status, ts: new Date(h.changed_at || h.timestamp || 0).getTime() }))
-        .filter(h => h.ts < BULK_START.getTime())
+        .map(h => ({ status: h.status, ts: new Date(h.changed_at || 0).getTime() }))
+        .filter(h => h.ts > 0 && h.ts < BULK_START.getTime())
         .sort((a, c) => c.ts - a.ts);
 
       const prevStatus = history[0]?.status || "vendor_assigned";
@@ -584,16 +607,16 @@ router.post("/recovery/restore-bulk-completed", verifyAdminAccess, async (req, r
       if (!dryRun) {
         await Booking.findByIdAndUpdate(b._id, {
           status: prevStatus,
-          updated_at: history[0]?.ts ? new Date(history[0].ts) : BULK_START,
-          $unset: { updated_by_admin: "" },
+          updated_at: history[0]?.ts ? new Date(history[0].ts) : new Date(BULK_START.getTime() - 60000),
         });
       }
       restored++;
     }
 
-    res.json({ success: true, dryRun, total: affected.length, restored, details });
+    res.json({ success: true, dryRun, total: affected.length, restored, details: details.slice(0, 50) });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error("Recovery error:", err);
+    res.status(500).json({ success: false, error: err.message, stack: err.stack?.split('\n').slice(0, 5) });
   }
 });
 
