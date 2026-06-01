@@ -142,8 +142,8 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
     }
 
     // Build query: when period is set, filter ALL orders (including active ones) by date.
-    // When no period ("all"), fetch active orders + last 30 days to avoid unbounded scans.
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // When no period ("all"), fetch active orders + last 90 days (to include recent completed/cancelled).
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     const ACTIVE_STATUSES = ['created', 'vendor_assigned', 'pickup_assigned', 'pickup_completed', 'in_progress', 'ready_for_delivery', 'delivery_assigned', 'in_transit', 'delivered'];
     const findQuery = period
       ? { assignedVendor: req.vendor_name, ...dateFilter }
@@ -151,7 +151,7 @@ router.get("/dashboard", verifyVendorToken, async (req, res) => {
           assignedVendor: req.vendor_name,
           $or: [
             { status: { $in: ACTIVE_STATUSES } },
-            { created_at: { $gte: thirtyDaysAgo } },
+            { created_at: { $gte: ninetyDaysAgo } },
           ],
         };
 

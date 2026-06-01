@@ -784,7 +784,7 @@ const AdminBookingManagement: React.FC = () => {
   const [mutationState, setMutationState] = useState<Record<string, MutationFlags>>({});
 
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'|'offline'|'all_orders'>('both');
+  const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'|'offline'|'all_orders'|'history'>('both');
   const [offlineOrders, setOfflineOrders] = useState<Booking[]>([]);
   const [filteredOfflineOrders, setFilteredOfflineOrders] = useState<Booking[]>([]);
   const [offlineSearchTerm, setOfflineSearchTerm] = useState("");
@@ -1067,6 +1067,19 @@ const AdminBookingManagement: React.FC = () => {
 
         setBucketA(rawA.length ? rawA : processed.filter(b => ["created","vendor_assigned","rider_pickup_done","pickup_completed"].includes(normalizeStatus(b.status))));
         setBucketB(rawB.length ? rawB : processed.filter(b => ["in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))));
+
+        // Populate completedOrders from bucketC so the Completed Orders section renders
+        if (rawC.length > 0) {
+          const cProcessed = rawC.map((b: any) => ({
+            ...b,
+            status: normalizeStatus(b.status),
+            item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+          })).sort((a: any, b: any) =>
+            new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+          );
+          setCompletedOrders(cProcessed);
+          filterCompletedOrders(cProcessed);
+        }
       }
       setLoading(false);
     } catch (e) {
@@ -1666,7 +1679,7 @@ const AdminBookingManagement: React.FC = () => {
           <div className="flex items-center gap-3">
             <Button size="sm" variant="ghost" onClick={() => setViewMode('both')}>Back</Button>
             <h3 className="text-lg font-semibold">
-              {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : 'Ready for Delivery'}
+              {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : viewMode === 'history' ? 'Completed / Cancelled Orders' : 'Ready for Delivery'}
             </h3>
             <span className="text-sm text-gray-500">
               {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
@@ -1745,6 +1758,12 @@ const AdminBookingManagement: React.FC = () => {
           <button onClick={() => setViewMode('all_orders')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'all_orders' ? 'bg-amber-50 shadow-sm border-amber-300' : 'bg-transparent')}>
             <Search className="h-4 w-4 text-amber-600" />
             <span className="text-sm font-medium text-amber-700">All Orders</span>
+          </button>
+
+          <button onClick={() => setViewMode('history')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'history' ? 'bg-green-50 shadow-sm border-green-300' : 'bg-transparent')}>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-medium text-green-700">Completed/Cancelled</span>
+            {completedOrders.length > 0 && <span className="ml-1 text-xs text-green-600 font-semibold">{completedOrders.length}</span>}
           </button>
         </div>
       </div>
@@ -2725,13 +2744,13 @@ const AdminBookingManagement: React.FC = () => {
         </div>
       )}
 
-      {completedOrders.length > 0 && (
-        <div className="mt-6 mb-6">
+      {(completedOrders.length > 0 || viewMode === 'history') && (
+        <div className={`mt-6 mb-6 ${viewMode !== 'both' && viewMode !== 'history' ? 'hidden' : ''}`}>
           <Card>
             <CardContent className="pt-6">
               <div className="mb-4">
-                <h3 className="text-lg font-semibold mb-2">Completed Orders</h3>
-                <p className="text-sm text-gray-500 mb-4">Latest completed orders with search and filtering</p>
+                <h3 className="text-lg font-semibold mb-2">Completed / Cancelled Orders</h3>
+                <p className="text-sm text-gray-500 mb-4">{completedOrders.length} orders — search and filter below</p>
                 
                 <div className="flex flex-col gap-4 md:flex-row mb-4">
                   <div className="flex-1">
