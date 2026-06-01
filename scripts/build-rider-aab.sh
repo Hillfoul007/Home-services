@@ -9,8 +9,8 @@ APP_FLAVOR="rider"
 DIST_DIR="dist-${APP_FLAVOR}"
 APP_ID="com.laundrify.rider.app"
 APP_NAME="Laundrify Rider"
-VERSION_CODE=75
-VERSION_NAME="2.75"
+VERSION_CODE=76
+VERSION_NAME="2.76"
 DEFAULT_APP_ID="com.laundrify.laundry.app"
 DEFAULT_APP_NAME="Laundrify"
 

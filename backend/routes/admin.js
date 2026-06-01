@@ -1134,9 +1134,15 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       });
     }
 
-    // Define order-flow buckets
-    const BUCKET_A = ["pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "rider_pickup_done", "pickup_completed"];
-    const BUCKET_B = ["delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered"];
+    // Define order-flow buckets (includes legacy DB statuses so old orders aren't excluded from queries)
+    const BUCKET_A = [
+      "pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "rider_pickup_done", "pickup_completed",
+      "new", "new_order", "accepted", "assigned", "pickup_scheduled", "pickup_in_progress", "picked_up",
+    ];
+    const BUCKET_B = [
+      "delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered",
+      "processing", "in_process", "ready_for_pickup", "out_for_delivery",
+    ];
     const BUCKET_C = ["completed", "cancelled"];
     const ALL_STATUSES = [...BUCKET_A, ...BUCKET_B, ...BUCKET_C];
 
