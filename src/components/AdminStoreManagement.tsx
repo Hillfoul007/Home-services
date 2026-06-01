@@ -84,7 +84,7 @@ export default function AdminStoreManagement() {
         if (form.password) body.password = form.password;
         const res = await apiClient.adminRequest<any>(`/store/admin/stores/${editingStore._id}`, {
           method: "PUT",
-          body: JSON.stringify(body),
+          body,
         });
         if (res.data?.success) {
           toast.success("Store updated");
@@ -96,7 +96,7 @@ export default function AdminStoreManagement() {
       } else {
         const res = await apiClient.adminRequest<any>("/store/admin/stores", {
           method: "POST",
-          body: JSON.stringify(form),
+          body: form,
         });
         if (res.data?.success) {
           toast.success(`Store created! ID: ${res.data.store.store_id} | Code: ${res.data.store.store_code}`);
@@ -117,7 +117,7 @@ export default function AdminStoreManagement() {
     try {
       const res = await apiClient.adminRequest<any>(`/store/admin/stores/${store._id}`, {
         method: "PUT",
-        body: JSON.stringify({ is_active: !store.is_active }),
+        body: { is_active: !store.is_active },
       });
       if (res.data?.success) {
         toast.success(`Store ${!store.is_active ? "activated" : "deactivated"}`);

@@ -972,9 +972,17 @@ const AdminBookingManagement: React.FC = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; offlineOrders?: Booking[] }>(`/admin/bookings?limit=100`);
+      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; bookings?: Booking[]; offlineOrders?: Booking[] }>(`/admin/bookings?limit=100`);
       if (res.data) {
-        const allBookings = [...(res.data.bucketA || []), ...(res.data.bucketB || [])];
+        const rawBucketA = res.data.bucketA;
+        const rawBucketB = res.data.bucketB;
+
+        // Fall back to flat bookings array when buckets are absent (mock/demo mode)
+        const hasBuckets = rawBucketA !== undefined || rawBucketB !== undefined;
+        const allBookings = hasBuckets
+          ? [...(rawBucketA || []), ...(rawBucketB || [])]
+          : (res.data.bookings || []);
+
         const processed = allBookings.map((b: any) => ({
           ...b,
           status: normalizeStatus(b.status),
@@ -990,8 +998,16 @@ const AdminBookingManagement: React.FC = () => {
         }));
         setOfflineOrders(offlineProcessed);
 
-        setBucketA(res.data.bucketA || []);
-        setBucketB(res.data.bucketB || []);
+        if (hasBuckets) {
+          setBucketA(rawBucketA || []);
+          setBucketB(rawBucketB || []);
+        } else {
+          // Mock/demo mode: derive buckets from the processed (normalized) bookings
+          const a = processed.filter(b => ["created", "vendor_assigned", "rider_pickup_done", "pickup_completed"].includes(b.status));
+          const b = processed.filter(b => ["in_progress", "ready_for_delivery", "delivered"].includes(b.status));
+          setBucketA(a);
+          setBucketB(b);
+        }
       }
       setLoading(false);
     } catch (e) {

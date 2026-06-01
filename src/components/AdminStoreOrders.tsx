@@ -119,7 +119,7 @@ export default function AdminStoreOrders() {
     try {
       const res = await apiClient.adminRequest<any>(`/store/admin/orders/${orderId}/status`, {
         method: "PUT",
-        body: JSON.stringify({ status }),
+        body: { status },
       });
       if (res.data?.success) {
         toast.success("Status updated");
