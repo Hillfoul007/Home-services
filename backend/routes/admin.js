@@ -559,17 +559,6 @@ router.post("/users", verifyAdminAccess, async (req, res) => {
   }
 });
 
-// Rate-limit guard: track how many status=completed updates happen per minute per IP
-const bulkCompleteTracker = new Map(); // ip → { count, windowStart }
-function checkBulkCompletionGuard(ip) {
-  const now = Date.now();
-  const entry = bulkCompleteTracker.get(ip) || { count: 0, windowStart: now };
-  if (now - entry.windowStart > 60000) { entry.count = 0; entry.windowStart = now; }
-  entry.count++;
-  bulkCompleteTracker.set(ip, entry);
-  return entry.count <= 15; // allow max 15 completions per minute per IP
-}
-
 // Update booking (admin override)
 router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
   try {
@@ -629,15 +618,6 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     const downstreamStatuses = ["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"];
     if (updateData.assignedVendor && (!updateData.status || !downstreamStatuses.includes(updateData.status))) {
       updateData.status = "vendor_assigned";
-    }
-
-    // Guard against accidental bulk-completion (max 15 completions per minute per IP)
-    if (updateData.status === "completed") {
-      const ip = req.ip || req.connection?.remoteAddress || "unknown";
-      if (!checkBulkCompletionGuard(ip)) {
-        console.warn(`🚨 Bulk completion rate limit hit from IP ${ip} — request blocked`);
-        return res.status(429).json({ error: "Too many completion updates. Slow down — max 15 per minute." });
-      }
     }
 
     // If item_prices are being updated, recalculate totals and normalize values
