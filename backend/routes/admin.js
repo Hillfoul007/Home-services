@@ -1157,8 +1157,11 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
         ? { $in: status.split(",").map((s) => s.trim()) }
         : status;
     } else {
-      // Default view: all statuses (limit handles volume)
-      query.status = { $in: ALL_STATUSES };
+      // Default view: only active statuses (BUCKET_A + BUCKET_B).
+      // Completed/cancelled orders are fetched separately by fetchCompletedOrders().
+      // Excluding them here prevents old completed orders from filling the limit=100
+      // and pushing active orders out of the result set.
+      query.status = { $in: [...BUCKET_A, ...BUCKET_B] };
     }
 
     // ── Customer filter ──────────────────────────────────────────────────────
