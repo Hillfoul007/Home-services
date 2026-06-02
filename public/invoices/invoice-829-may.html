@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laundrify Invoice #829 – Hotel Grand Manor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .invoice-wrapper {
+      width: 720px;
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(196,109,216,0.18), 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .header {
+      background: linear-gradient(135deg, #C46DD8 0%, #F36BAF 50%, #C46DD8 100%);
+      padding: 32px 36px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo-icon {
+      width: 64px;
+      height: 64px;
+      background: rgba(255,255,255,0.95);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .logo-icon svg { width: 42px; height: 42px; }
+
+    .brand-name {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+
+    .brand-tagline {
+      font-size: 12px;
+      color: rgba(255,255,255,0.85);
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .header-right { text-align: right; }
+
+    .invoice-label {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .invoice-number {
+      font-size: 36px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+    }
+
+    .contact-strip {
+      padding: 8px 36px;
+      display: flex;
+      gap: 28px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .meta-section {
+      padding: 24px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid #eee;
+      background: #fafafa;
+    }
+
+    .bill-to label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #999;
+      font-weight: 600;
+    }
+
+    .bill-to .client-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #2d2d2d;
+      margin-top: 4px;
+    }
+
+    .bill-to .client-type {
+      font-size: 13px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    .period-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #C46DD8, #F36BAF);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    .meta-details { text-align: right; }
+
+    .meta-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .meta-row .meta-label { color: #999; }
+    .meta-row .meta-value { font-weight: 600; color: #2d2d2d; min-width: 110px; text-align: right; }
+
+    .table-section { padding: 0 36px 24px; }
+
+    .rate-legend {
+      display: flex;
+      gap: 20px;
+      margin: 18px 0 14px;
+      font-size: 12px;
+      color: #777;
+    }
+
+    .rate-legend span {
+      background: #f3e8ff;
+      color: #9333ea;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+
+    thead tr {
+      background: linear-gradient(135deg, #C46DD8, #F36BAF);
+      color: #fff;
+    }
+
+    thead th {
+      padding: 11px 14px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    thead th:first-child { text-align: left; }
+
+    tbody tr { border-bottom: 1px solid #f0f0f0; }
+    tbody tr:hover { background: #fdf5ff; }
+    tbody tr:last-child { border-bottom: none; }
+
+    td {
+      padding: 10px 14px;
+      text-align: center;
+      color: #333;
+    }
+
+    td:first-child { text-align: left; font-weight: 600; color: #555; }
+
+    .zero-cell { color: #ccc; font-style: italic; }
+
+    .totals-row td {
+      background: #f3e8ff;
+      font-weight: 700;
+      color: #6b21a8;
+      border-top: 2px solid #d8b4fe;
+      padding: 12px 14px;
+    }
+
+    .amount-breakdown {
+      display: flex;
+      justify-content: flex-end;
+      padding: 20px 0 0;
+    }
+
+    .amount-table {
+      min-width: 280px;
+      font-size: 13.5px;
+    }
+
+    .amount-table tr td {
+      padding: 6px 10px;
+      color: #555;
+      text-align: right;
+    }
+
+    .amount-table tr td:first-child { text-align: left; color: #888; }
+
+    .amount-table .subtotal-row td { border-top: 1px solid #eee; }
+
+    .amount-table .grand-total-row td {
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, #C46DD8, #F36BAF);
+      padding: 10px 14px;
+    }
+
+    .amount-table .grand-total-row td:first-child { border-radius: 8px 0 0 8px; }
+    .amount-table .grand-total-row td:last-child { border-radius: 0 8px 8px 0; }
+
+    .footer {
+      background: #1a1a2e;
+      padding: 20px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+    }
+
+    .footer .tnc { font-size: 11px; color: rgba(255,255,255,0.45); }
+
+    .footer .auth-block { text-align: right; }
+
+    .footer .auth-block .auth-line {
+      width: 140px;
+      border-bottom: 1px solid rgba(255,255,255,0.3);
+      margin-bottom: 5px;
+      height: 28px;
+    }
+
+    .footer .auth-block span {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .watermark {
+      text-align: center;
+      padding: 10px;
+      font-size: 10px;
+      color: #ccc;
+      background: #f9f9f9;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .invoice-wrapper { box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="invoice-wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-icon">
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="80" height="80" rx="16" fill="url(#hg2)"/>
+          <defs>
+            <linearGradient id="hg2" x1="0" y1="0" x2="80" y2="80">
+              <stop offset="0%" stop-color="#C46DD8"/>
+              <stop offset="100%" stop-color="#F36BAF"/>
+            </linearGradient>
+          </defs>
+          <circle cx="40" cy="44" r="20" fill="none" stroke="white" stroke-width="3.5"/>
+          <circle cx="40" cy="44" r="12" fill="none" stroke="white" stroke-width="2"/>
+          <rect x="12" y="18" width="56" height="10" rx="4" fill="white" opacity="0.3"/>
+          <circle cx="22" cy="23" r="3" fill="white" opacity="0.9"/>
+          <circle cx="32" cy="23" r="3" fill="white" opacity="0.6"/>
+          <rect x="10" y="14" width="60" height="52" rx="8" fill="none" stroke="white" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">Laundrify</div>
+        <div class="brand-tagline">Laundry &amp; Dry Clean Services</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="invoice-label">Invoice</div>
+      <div class="invoice-number">#829</div>
+    </div>
+  </div>
+
+  <!-- Contact strip -->
+  <div class="contact-strip" style="background:linear-gradient(135deg,#b05ec5,#e05ca0);">
+    <span>📞 +91 70115 85587</span>
+    <span>✉ operationslaundrify@gmail.com</span>
+    <span>🌐 www.laundrify.online</span>
+  </div>
+
+  <!-- Meta section -->
+  <div class="meta-section">
+    <div class="bill-to">
+      <label>Billed To</label>
+      <div class="client-name">Hotel Grand Manor</div>
+      <div class="client-type">Hospitality – Commercial Account</div>
+      <div class="period-badge">1 May – 8 May</div>
+    </div>
+    <div class="meta-details">
+      <div class="meta-row">
+        <span class="meta-label">Invoice No.</span>
+        <span class="meta-value">829</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Issue Date</span>
+        <span class="meta-value">8 May 2026</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Service Period</span>
+        <span class="meta-value">1 – 8 May 2026</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Status</span>
+        <span class="meta-value" style="color:#16a34a;font-weight:700;">● Issued</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-section">
+    <div class="rate-legend">
+      Rates applied:
+      <span>Hotel Linen — ₹12/pc</span>
+      <span>Dry Clean (DC) — ₹30/pc</span>
+      <span>Guest Items — ₹15/pc</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Hotel (pcs)</th>
+          <th>DC (pcs)</th>
+          <th>Guest (pcs)</th>
+          <th>Hotel Amt</th>
+          <th>DC Amt</th>
+          <th>Guest Amt</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1 May</td>
+          <td>44</td>
+          <td class="zero-cell">—</td>
+          <td class="zero-cell">—</td>
+          <td>₹ 528</td>
+          <td class="zero-cell">—</td>
+          <td class="zero-cell">—</td>
+        </tr>
+        <tr>
+          <td>2 May</td>
+          <td>95</td>
+          <td>6</td>
+          <td>12</td>
+          <td>₹ 1,140</td>
+          <td>₹ 180</td>
+          <td>₹ 180</td>
+        </tr>
+        <tr>
+          <td>3 May</td>
+          <td>51</td>
+          <td>5</td>
+          <td>6</td>
+          <td>₹ 612</td>
+          <td>₹ 150</td>
+          <td>₹ 90</td>
+        </tr>
+        <tr>
+          <td>4 May</td>
+          <td>72</td>
+          <td>4</td>
+          <td>28</td>
+          <td>₹ 864</td>
+          <td>₹ 120</td>
+          <td>₹ 420</td>
+        </tr>
+        <tr>
+          <td>5 May</td>
+          <td>34</td>
+          <td class="zero-cell">—</td>
+          <td>47</td>
+          <td>₹ 408</td>
+          <td class="zero-cell">—</td>
+          <td>₹ 705</td>
+        </tr>
+        <tr>
+          <td>6 May</td>
+          <td>57</td>
+          <td>6</td>
+          <td>78</td>
+          <td>₹ 684</td>
+          <td>₹ 180</td>
+          <td>₹ 1,170</td>
+        </tr>
+        <tr>
+          <td>7 May</td>
+          <td>32</td>
+          <td class="zero-cell">—</td>
+          <td>66</td>
+          <td>₹ 384</td>
+          <td class="zero-cell">—</td>
+          <td>₹ 990</td>
+        </tr>
+        <tr>
+          <td>8 May</td>
+          <td>58</td>
+          <td>6</td>
+          <td>45</td>
+          <td>₹ 696</td>
+          <td>₹ 180</td>
+          <td>₹ 675</td>
+        </tr>
+        <tr class="totals-row">
+          <td>TOTALS</td>
+          <td>443 pcs</td>
+          <td>27 pcs</td>
+          <td>282 pcs</td>
+          <td>₹ 5,316</td>
+          <td>₹ 810</td>
+          <td>₹ 4,230</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="amount-breakdown">
+      <table class="amount-table">
+        <tbody>
+          <tr>
+            <td>Hotel Linen (443 × ₹12)</td>
+            <td>₹ 5,316</td>
+          </tr>
+          <tr>
+            <td>Dry Clean (27 × ₹30)</td>
+            <td>₹ 810</td>
+          </tr>
+          <tr>
+            <td>Guest Items (282 × ₹15)</td>
+            <td>₹ 4,230</td>
+          </tr>
+          <tr class="subtotal-row">
+            <td>Sub-Total</td>
+            <td>₹ 10,356</td>
+          </tr>
+          <tr>
+            <td>Advance Received</td>
+            <td>₹ 0</td>
+          </tr>
+          <tr class="grand-total-row">
+            <td>GRAND TOTAL</td>
+            <td>₹ 10,356</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div>
+      <div style="color:rgba(255,255,255,0.85);font-weight:600;margin-bottom:4px;">Thank you for your business!</div>
+      <div class="tnc">E. &amp; O.E. · Payment due upon receipt</div>
+    </div>
+    <div class="auth-block">
+      <div class="auth-line"></div>
+      <span>Authorised Signatory</span>
+    </div>
+  </div>
+
+  <div class="watermark">Laundrify · Laundry &amp; Dry Clean Services · +91 70115 85587</div>
+
+</div>
+</body>
+</html>

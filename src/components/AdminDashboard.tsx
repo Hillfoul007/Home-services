@@ -50,6 +50,7 @@ import AdminPushNotifications from "./AdminPushNotifications";
 import AdminSchoolManagement from "./AdminSchoolManagement";
 import AdminSchoolBooking from "./AdminSchoolBooking";
 import AdminHotelManagement from "./AdminHotelManagement";
+import AdminHotelInvoice from "./AdminHotelInvoice";
 import AdminStoreManagement from "./AdminStoreManagement";
 import AdminStoreOrders from "./AdminStoreOrders";
 import { apiClient } from "@/lib/apiClient";
@@ -58,7 +59,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels" | "stores" | "store-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels" | "hotel-invoices" | "stores" | "store-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -472,6 +473,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Hotels</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("hotel-invoices")}
+              variant={activeTab === "hotel-invoices" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0 bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200"
+            >
+              <span>🧾</span>
+              <span className="hidden sm:inline">Hotel Invoices</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("stores")}
               variant={activeTab === "stores" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -610,6 +619,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-indigo-900 text-sm"><strong>🏨 Hotel Management:</strong> Add hotels and create laundry entries using the item list from the physical slip. Input quantities for each article, optionally set prices to calculate amounts, generate a bill, mark payments as paid (with paid-till date), and export to Excel.</p>
             </div>
             <AdminHotelManagement />
+          </TabsContent>
+
+          <TabsContent value="hotel-invoices">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+              <p className="text-purple-900 text-sm"><strong>🧾 Hotel Invoices:</strong> Create digital Laundrify invoices for hotel clients. Enter hotel name, invoice number, service period, set custom per-piece rates (Hotel / DC / Guest — can differ per hotel), then add day-by-day piece counts. Preview a live summary and open or download the formatted invoice PDF-ready HTML.</p>
+            </div>
+            <AdminHotelInvoice />
           </TabsContent>
 
           <TabsContent value="stores">

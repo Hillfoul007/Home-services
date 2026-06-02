@@ -34,6 +34,13 @@ import {
   Clock,
   User,
   Image as ImageIcon,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Phone,
+  TrendingUp,
+  IndianRupee,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -134,6 +141,24 @@ interface Rider {
 type ItemInputs = { [item: string]: { qty: string; dcQty: string; price: string } };
 type SubTab = "hotels" | "new-entry" | "bills";
 
+// ── Calendar helpers ──────────────────────────────────────────────────────────
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function calendarDays(year: number, month: number): (number | null)[] {
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = Array(firstDay).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function toDateStr(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function todayStr() {
@@ -194,6 +219,14 @@ const AdminHotelManagement: React.FC = () => {
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduleRiderId, setScheduleRiderId] = useState("");
   const [statusDialog, setStatusDialog] = useState<{ order: HotelOrder; newStatus: string } | null>(null);
+
+  // Hotel detail / calendar view
+  const [hotelDetailId, setHotelDetailId] = useState<string | null>(null);
+  const [calMonth, setCalMonth] = useState(() => {
+    const n = new Date();
+    return { year: n.getFullYear(), month: n.getMonth() };
+  });
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   // Slip upload
   const pickupFileRef = useRef<HTMLInputElement>(null);
@@ -610,7 +643,7 @@ const AdminHotelManagement: React.FC = () => {
       </div>
 
       {/* ═══════════ HOTELS TAB ═══════════ */}
-      {subTab === "hotels" && (
+      {subTab === "hotels" && !hotelDetailId && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader>
@@ -649,49 +682,355 @@ const AdminHotelManagement: React.FC = () => {
             {hotels.length === 0 && (
               <Card><CardContent className="py-10 text-center text-gray-500">No hotels yet. Add one above.</CardContent></Card>
             )}
-            {hotels.map(h => (
-              <Card key={h._id}>
-                <CardContent className="py-3 flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-gray-900">{h.name}</div>
-                    {h.address && <div className="text-sm text-gray-500">{h.address}</div>}
-                    {h.contact && <div className="text-sm text-gray-500">Contact: {h.contact}</div>}
-                    {h.phone && <div className="text-sm text-gray-500">{h.phone}</div>}
-                    <button className="text-xs text-blue-600 mt-1 hover:underline text-left" onClick={() => { setFilterHotelId(h._id); setSubTab("bills"); }}>
-                      {orders.filter(o => o.hotel_id === h._id).length} entries &bull;{" "}
-                      {orders.filter(o => o.hotel_id === h._id && o.is_paid).length} paid
-                    </button>
-                  </div>
-                  <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-                    <Button size="sm" variant="outline" className="text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => {
-                      setFilterHotelId(h._id);
-                      setSubTab("bills");
-                    }}>
-                      <List className="h-3 w-3 mr-1" /> Entries
-                    </Button>
-                    <Button size="sm" variant="outline" className="text-green-700 border-green-200 hover:bg-green-50" onClick={() => {
-                      setSelectedHotelId(h._id);
-                      setEditingOrderId(null);
-                      setSubTab("new-entry");
-                    }}>
-                      <Plus className="h-3 w-3 mr-1" /> New Entry
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      setHotelForm({ name: h.name, address: h.address, contact: h.contact, phone: h.phone });
-                      setEditingHotelId(h._id);
-                    }}>
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
-                    <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => deleteHotel(h._id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {hotels.map(h => {
+              const hOrders = orders.filter(o => o.hotel_id === h._id);
+              const paidCount = hOrders.filter(o => o.is_paid).length;
+              const totalRev = hOrders.reduce((s, o) => s + (o.total || 0), 0);
+              return (
+                <Card
+                  key={h._id}
+                  className="cursor-pointer border-2 hover:border-purple-300 hover:shadow-md transition-all group"
+                  onClick={() => {
+                    setHotelDetailId(h._id);
+                    setSelectedDay(null);
+                    const n = new Date();
+                    setCalMonth({ year: n.getFullYear(), month: n.getMonth() });
+                  }}
+                >
+                  <CardContent className="py-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-gray-900 group-hover:text-purple-700 transition-colors flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                          {h.name}
+                        </div>
+                        {h.address && (
+                          <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />{h.address}
+                          </div>
+                        )}
+                        {h.phone && (
+                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                            <Phone className="h-3 w-3" />{h.phone}
+                          </div>
+                        )}
+                        <div className="flex gap-3 mt-2 text-xs">
+                          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">{hOrders.length} entries</span>
+                          <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">{paidCount} paid</span>
+                          {totalRev > 0 && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">₹{totalRev.toLocaleString("en-IN")}</span>}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <Button size="sm" variant="outline" className="text-green-700 border-green-200 hover:bg-green-50 h-7 text-xs" onClick={() => {
+                          setSelectedHotelId(h._id);
+                          setEditingOrderId(null);
+                          setSubTab("new-entry");
+                        }}>
+                          <Plus className="h-3 w-3 mr-1" /> New Entry
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                          setHotelForm({ name: h.name, address: h.address, contact: h.contact, phone: h.phone });
+                          setEditingHotelId(h._id);
+                        }}>
+                          <Edit2 className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 h-7 text-xs" onClick={() => deleteHotel(h._id)}>
+                          <Trash2 className="h-3 w-3 mr-1" /> Delete
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-purple-600 font-medium flex items-center gap-1 group-hover:text-purple-700">
+                      <Calendar className="h-3 w-3" /> Click to view calendar →
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* ═══════════ HOTEL DETAIL + CALENDAR VIEW ═══════════ */}
+      {subTab === "hotels" && hotelDetailId && (() => {
+        const hotel = hotels.find(h => h._id === hotelDetailId);
+        if (!hotel) return null;
+
+        const hOrders = orders.filter(o => o.hotel_id === hotelDetailId);
+        const paidCount = hOrders.filter(o => o.is_paid).length;
+        const unpaidCount = hOrders.length - paidCount;
+        const totalRev = hOrders.reduce((s, o) => s + (o.total || 0), 0);
+        const paidRev = hOrders.filter(o => o.is_paid).reduce((s, o) => s + (o.total || 0), 0);
+
+        // Build a set of dates that have entries for this hotel (YYYY-MM-DD)
+        const entryDateSet = new Set<string>();
+        const entryDateMap = new Map<string, HotelOrder[]>();
+        for (const o of hOrders) {
+          if (!o.date) continue;
+          // Normalise — order.date might be "YYYY-MM-DD" already
+          const key = o.date.substring(0, 10);
+          entryDateSet.add(key);
+          if (!entryDateMap.has(key)) entryDateMap.set(key, []);
+          entryDateMap.get(key)!.push(o);
+        }
+
+        const { year, month } = calMonth;
+        const cells = calendarDays(year, month);
+        const today = new Date();
+        const todayStr2 = toDateStr(today.getFullYear(), today.getMonth(), today.getDate());
+
+        const dayOrders = selectedDay ? (entryDateMap.get(selectedDay) ?? []) : [];
+
+        return (
+          <div className="space-y-4">
+            {/* Back button + header */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setHotelDetailId(null); setSelectedDay(null); }}
+                className="flex items-center gap-1"
+              >
+                <ArrowLeft className="h-4 w-4" /> All Hotels
+              </Button>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-purple-600" />
+                <span className="text-lg font-bold text-gray-900">{hotel.name}</span>
+                {hotel.address && <span className="text-sm text-gray-500 hidden sm:inline">— {hotel.address}</span>}
+              </div>
+              <div className="ml-auto flex gap-2">
+                <Button
+                  size="sm"
+                  className="bg-purple-600 hover:bg-purple-700"
+                  onClick={() => {
+                    setSelectedHotelId(hotel._id);
+                    setEditingOrderId(null);
+                    setSubTab("new-entry");
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> New Entry
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setFilterHotelId(hotel._id); setSubTab("bills"); }}
+                >
+                  <List className="h-4 w-4 mr-1" /> All Bills
+                </Button>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Total Entries", value: hOrders.length, icon: <List className="h-4 w-4" />, color: "blue" },
+                { label: "Paid", value: paidCount, icon: <CheckCircle className="h-4 w-4" />, color: "green" },
+                { label: "Unpaid", value: unpaidCount, icon: <Clock className="h-4 w-4" />, color: "orange" },
+                { label: "Revenue", value: `₹${totalRev.toLocaleString("en-IN")}`, icon: <IndianRupee className="h-4 w-4" />, color: "purple" },
+              ].map(s => (
+                <Card key={s.label} className={`border-${s.color}-200`}>
+                  <CardContent className="py-3 px-4">
+                    <div className={`flex items-center gap-2 text-${s.color}-600 mb-1`}>
+                      {s.icon}
+                      <span className="text-xs font-semibold uppercase tracking-wide">{s.label}</span>
+                    </div>
+                    <div className={`text-2xl font-black text-${s.color}-700`}>{s.value}</div>
+                    {s.label === "Revenue" && paidRev > 0 && paidRev < totalRev && (
+                      <div className="text-xs text-green-600 mt-0.5">₹{paidRev.toLocaleString("en-IN")} received</div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+              {/* ── Calendar ── */}
+              <Card className="lg:col-span-3">
+                <CardContent className="p-4">
+                  {/* Month nav */}
+                  <div className="flex items-center justify-between mb-4">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setCalMonth(p => {
+                        const d = new Date(p.year, p.month - 1);
+                        return { year: d.getFullYear(), month: d.getMonth() };
+                      })}
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    <div className="text-center">
+                      <div className="text-base font-bold text-gray-900">{MONTHS[month]} {year}</div>
+                      <div className="text-xs text-gray-400">
+                        {entryDateSet.size > 0
+                          ? `${Array.from(entryDateSet).filter(d => d.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length} entries this month`
+                          : "No entries this month"}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setCalMonth(p => {
+                        const d = new Date(p.year, p.month + 1);
+                        return { year: d.getFullYear(), month: d.getMonth() };
+                      })}
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </div>
+
+                  {/* Weekday headers */}
+                  <div className="grid grid-cols-7 mb-1">
+                    {WEEKDAYS.map(d => (
+                      <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+                    ))}
+                  </div>
+
+                  {/* Day cells */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {cells.map((day, i) => {
+                      if (!day) return <div key={`empty-${i}`} />;
+                      const dateStr = toDateStr(year, month, day);
+                      const hasEntry = entryDateSet.has(dateStr);
+                      const isToday = dateStr === todayStr2;
+                      const isSelected = dateStr === selectedDay;
+                      const dayEntries = entryDateMap.get(dateStr) ?? [];
+                      const allPaid = dayEntries.length > 0 && dayEntries.every(o => o.is_paid);
+                      const somePaid = dayEntries.some(o => o.is_paid) && !allPaid;
+
+                      return (
+                        <button
+                          key={dateStr}
+                          onClick={() => setSelectedDay(isSelected ? null : dateStr)}
+                          className={[
+                            "relative flex flex-col items-center justify-center rounded-xl py-1.5 text-sm font-semibold transition-all",
+                            hasEntry
+                              ? isSelected
+                                ? "bg-green-600 text-white shadow-lg scale-105"
+                                : "bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105 cursor-pointer"
+                              : isToday
+                              ? "bg-purple-100 text-purple-700 ring-2 ring-purple-400"
+                              : "text-gray-400 hover:bg-gray-50 cursor-default",
+                          ].join(" ")}
+                        >
+                          <span>{day}</span>
+                          {hasEntry && (
+                            <span className={[
+                              "flex gap-0.5 mt-0.5",
+                            ].join(" ")}>
+                              {dayEntries.slice(0, 3).map((_, di) => (
+                                <span
+                                  key={di}
+                                  className={[
+                                    "w-1 h-1 rounded-full",
+                                    isSelected
+                                      ? "bg-white"
+                                      : allPaid
+                                      ? "bg-green-500"
+                                      : somePaid
+                                      ? "bg-yellow-500"
+                                      : "bg-orange-400",
+                                  ].join(" ")}
+                                />
+                              ))}
+                              {dayEntries.length > 3 && (
+                                <span className={`text-[8px] leading-none ${isSelected ? "text-white" : "text-green-700"}`}>
+                                  +{dayEntries.length - 3}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                          {isToday && !hasEntry && (
+                            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-purple-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex gap-4 mt-4 pt-3 border-t border-gray-100 text-xs text-gray-500 flex-wrap">
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-200 border border-green-400 inline-block" /> Has entry</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Fully paid</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Unpaid</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-purple-100 ring-1 ring-purple-400 inline-block" /> Today</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Selected day panel ── */}
+              <div className="lg:col-span-2 space-y-3">
+                {!selectedDay && (
+                  <Card className="h-full">
+                    <CardContent className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
+                      <Calendar className="h-12 w-12 mb-3 text-gray-200" />
+                      <div className="font-medium">Select a date</div>
+                      <div className="text-xs mt-1">Green dates have laundry entries</div>
+                    </CardContent>
+                  </Card>
+                )}
+                {selectedDay && dayOrders.length === 0 && (
+                  <Card>
+                    <CardContent className="py-8 text-center text-gray-400 text-sm">
+                      No entries on {selectedDay}
+                    </CardContent>
+                  </Card>
+                )}
+                {selectedDay && dayOrders.length > 0 && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-gray-800 text-sm">
+                        {new Date(selectedDay + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                      </div>
+                      <Badge className="bg-green-100 text-green-700 text-xs">{dayOrders.length} {dayOrders.length === 1 ? "entry" : "entries"}</Badge>
+                    </div>
+                    {dayOrders.map(order => {
+                      const st = STATUS_LABELS[order.status] ?? { label: order.status, color: "bg-gray-100 text-gray-700" };
+                      return (
+                        <Card key={order._id} className={`border-l-4 ${order.is_paid ? "border-l-green-500" : "border-l-orange-400"}`}>
+                          <CardContent className="py-3 px-4 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-gray-900 text-sm">{order.invoice_no}</span>
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {order.items.length} items
+                              {order.total > 0 && <span className="font-bold text-gray-800 ml-2">₹{order.total.toFixed(0)}</span>}
+                            </div>
+                            {(order.guest_laundry_pcs > 0 || order.staff_laundry_pcs > 0) && (
+                              <div className="flex gap-2 text-xs">
+                                {order.guest_laundry_pcs > 0 && <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Guest: {order.guest_laundry_pcs} pcs</span>}
+                                {order.staff_laundry_pcs > 0 && <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Staff: {order.staff_laundry_pcs} pcs</span>}
+                              </div>
+                            )}
+                            {order.is_paid ? (
+                              <div className="text-xs text-green-700 font-semibold flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" /> Paid {order.paid_date ? `on ${order.paid_date}` : ""}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-orange-600 font-semibold">⏳ Payment pending</div>
+                            )}
+                            <div className="flex gap-1.5 pt-1">
+                              <Button size="sm" variant="outline" className="h-6 text-xs flex-1" onClick={() => setViewOrder(order)}>
+                                <Eye className="h-3 w-3 mr-1" /> View
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-6 text-xs flex-1 text-violet-700 border-violet-200" onClick={() => openEditOrder(order)}>
+                                <Edit2 className="h-3 w-3 mr-1" /> Edit
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => exportOrderToExcel(order)}>
+                                <FileDown className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ═══════════ NEW ENTRY TAB ═══════════ */}
       {subTab === "new-entry" && (
