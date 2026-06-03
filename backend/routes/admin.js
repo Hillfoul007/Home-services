@@ -1146,7 +1146,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     const BUCKET_C = ["completed", "cancelled"];
     const ALL_STATUSES = [...BUCKET_A, ...BUCKET_B, ...BUCKET_C];
 
-    let query = { is_offline_order: { $ne: true } };
+    let query = { is_offline_order: { $ne: true }, is_vendor_order: { $ne: true } };
 
     // ── Status filter ────────────────────────────────────────────────────────
     if (modified_since) {
@@ -1249,13 +1249,25 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       .skip(parseInt(offset))
       .select("+item_prices +charges_breakdown +is_offline_order +assignedVendor +assignedVendorDetails");
 
-    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}, C=${bucketC.length}. Offline orders: ${offlineBookings.length}`);
+    // Fetch vendor client orders separately
+    const vendorOrderQuery = { is_vendor_order: true };
+    const vendorOrderBookings = await Booking.find(vendorOrderQuery)
+      .populate("customer_id", "full_name phone email")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
+      .sort({ created_at: -1 })
+      .limit(200)
+      .select("+item_prices +charges_breakdown +is_vendor_order +vendor_client_name +assignedVendor +assignedVendorDetails");
+
+    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}, C=${bucketC.length}. Offline orders: ${offlineBookings.length}. Vendor orders: ${vendorOrderBookings.length}`);
 
     res.json({
       bucketA,
       bucketB,
       bucketC,
       offlineOrders: offlineBookings,
+      vendorOrders: vendorOrderBookings,
       bookings: status && status !== "all" ? bookings : undefined,
       pagination: {
         total,
@@ -1379,8 +1391,8 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
   try {
     console.log("📝 Admin creating booking for user:", req.body);
 
-    // Basic validation: require customer_id
-    if (!req.body.customer_id) {
+    // Basic validation: require customer_id unless this is a vendor client order
+    if (!req.body.customer_id && !req.body.is_vendor_order) {
       console.warn("❌ Admin booking creation failed: missing customer_id");
       return res.status(400).json({ error: "customer_id is required for admin-created bookings" });
     }

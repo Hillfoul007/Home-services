@@ -53,13 +53,14 @@ import AdminHotelManagement from "./AdminHotelManagement";
 import AdminHotelInvoice from "./AdminHotelInvoice";
 import AdminStoreManagement from "./AdminStoreManagement";
 import AdminStoreOrders from "./AdminStoreOrders";
+import AdminVendorOrders from "./AdminVendorOrders";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels" | "hotel-invoices" | "stores" | "store-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "vendor-orders" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels" | "hotel-invoices" | "stores" | "store-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -369,6 +370,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Book User</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("vendor-orders")}
+              variant={activeTab === "vendor-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0 bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 data-[state=active]:bg-amber-600 data-[state=active]:text-white"
+            >
+              <Building className="h-4 w-4" />
+              <span className="hidden sm:inline">Vendor Orders</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("locations")}
               variant={activeTab === "locations" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -548,6 +557,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
           <TabsContent value="user-booking">
             <AdminUserBooking />
+          </TabsContent>
+
+          <TabsContent value="vendor-orders">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-amber-900 text-sm"><strong>🏢 Vendor / Corporate Orders:</strong> Create laundry orders for bulk clients like hotels, apartments, and corporates — no mobile number needed. Each order is tagged with the client name. View and manage all vendor orders with full status control. These orders also appear in Booking Management tagged with the vendor name.</p>
+            </div>
+            <AdminVendorOrders />
           </TabsContent>
 
           <TabsContent value="locations">

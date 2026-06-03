@@ -98,6 +98,8 @@ interface Booking {
   mapsLink?: string;
   distance_to_vendor?: number;
   assignedVendor?: string;
+  is_vendor_order?: boolean;
+  vendor_client_name?: string;
   assignedVendorId?: string;
   vendorGroupLink?: string;
   pickupRider?: { _id: string; name: string; phone: string } | string | null;
@@ -724,11 +726,15 @@ const AdminBookingManagement: React.FC = () => {
   const [mutationState, setMutationState] = useState<Record<string, MutationFlags>>({});
 
   const [lastPollAt, setLastPollAt] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'|'offline'|'all_orders'>('both');
+  const [viewMode, setViewMode] = useState<'both'|'pickup'|'ready'|'offline'|'all_orders'|'vendor_orders'>('both');
   const [offlineOrders, setOfflineOrders] = useState<Booking[]>([]);
   const [filteredOfflineOrders, setFilteredOfflineOrders] = useState<Booking[]>([]);
   const [offlineSearchTerm, setOfflineSearchTerm] = useState("");
   const [offlineStatusFilter, setOfflineStatusFilter] = useState("all");
+  const [vendorOrders, setVendorOrders] = useState<Booking[]>([]);
+  const [filteredVendorOrders, setFilteredVendorOrders] = useState<Booking[]>([]);
+  const [vendorOrderSearchTerm, setVendorOrderSearchTerm] = useState("");
+  const [vendorOrderStatusFilter, setVendorOrderStatusFilter] = useState("all");
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
   const [riders, setRiders] = useState<Array<{ _id: string; name: string; phone: string; live_location_link?: string; location?: { lat: number; lng: number } }>>([]);
@@ -972,7 +978,7 @@ const AdminBookingManagement: React.FC = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; bookings?: Booking[]; offlineOrders?: Booking[] }>(`/admin/bookings?limit=100`);
+      const res = await apiClient.adminRequest<{ bucketA?: Booking[]; bucketB?: Booking[]; bookings?: Booking[]; offlineOrders?: Booking[]; vendorOrders?: Booking[] }>(`/admin/bookings?limit=100`);
       if (res.data) {
         const rawBucketA = res.data.bucketA;
         const rawBucketB = res.data.bucketB;
@@ -997,6 +1003,14 @@ const AdminBookingManagement: React.FC = () => {
           item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
         }));
         setOfflineOrders(offlineProcessed);
+
+        // Use vendor client orders directly from API response
+        const vendorProcessed = (res.data.vendorOrders || []).map((b: any) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          item_prices: Array.isArray(b.item_prices) ? b.item_prices : [],
+        }));
+        setVendorOrders(vendorProcessed);
 
         if (hasBuckets) {
           setBucketA(rawBucketA || []);
@@ -1139,6 +1153,10 @@ const AdminBookingManagement: React.FC = () => {
   useEffect(() => {
     filterOfflineOrders();
   }, [offlineSearchTerm, offlineStatusFilter, offlineOrders]);
+
+  useEffect(() => {
+    filterVendorOrders();
+  }, [vendorOrderSearchTerm, vendorOrderStatusFilter, vendorOrders]);
 
   // Geocode booking address and calculate vendor distances
   // Prioritize existing coordinates from Google Maps, then geocode the address
@@ -1356,6 +1374,33 @@ const AdminBookingManagement: React.FC = () => {
     setFilteredOfflineOrders(filtered);
   };
 
+  const filterVendorOrders = () => {
+    let filtered = [...vendorOrders];
+
+    if (vendorOrderSearchTerm) {
+      const q = vendorOrderSearchTerm.toLowerCase();
+      filtered = filtered.filter((booking) =>
+        booking.custom_order_id?.toLowerCase().includes(q) ||
+        booking.vendor_client_name?.toLowerCase().includes(q) ||
+        booking.name?.toLowerCase().includes(q) ||
+        booking.service?.toLowerCase().includes(q) ||
+        booking.assignedVendor?.toLowerCase().includes(q)
+      );
+    }
+
+    if (vendorOrderStatusFilter !== "all") {
+      filtered = filtered.filter((booking) => normalizeStatus(booking.status) === vendorOrderStatusFilter);
+    }
+
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at || 0);
+      const dateB = new Date(b.created_at || 0);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    setFilteredVendorOrders(filtered);
+  };
+
   const applyBookingUpdate = (bookingId: string, update: Partial<Booking>) => {
     const patchList = (prev: Booking[]): Booking[] => {
       const index = prev.findIndex((b) => b._id === bookingId);
@@ -1374,6 +1419,8 @@ const AdminBookingManagement: React.FC = () => {
     setFilteredCompletedOrders(patchList);
     setOfflineOrders(patchList);
     setFilteredOfflineOrders(patchList);
+    setVendorOrders(patchList);
+    setFilteredVendorOrders(patchList);
     setAllOrdersList(patchList);
   };
 
@@ -1604,10 +1651,10 @@ const AdminBookingManagement: React.FC = () => {
           <div className="flex items-center gap-3">
             <Button size="sm" variant="ghost" onClick={() => setViewMode('both')}>Back</Button>
             <h3 className="text-lg font-semibold">
-              {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : 'Ready for Delivery'}
+              {viewMode === 'pickup' ? 'Pickup / Vendor Flow' : viewMode === 'offline' ? 'Offline Orders' : viewMode === 'all_orders' ? 'All Orders Search' : viewMode === 'vendor_orders' ? 'Vendor / Corporate Orders' : 'Ready for Delivery'}
             </h3>
             <span className="text-sm text-gray-500">
-              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : filteredBookings.filter(b => ["in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
+              {viewMode === 'pickup' ? filteredBookings.filter(b => ["created","vendor_assigned","rider_pickup_done","pickup_completed"].includes(normalizeStatus(b.status))).length : viewMode === 'offline' ? filteredOfflineOrders.length : viewMode === 'all_orders' ? allOrdersList.length : viewMode === 'vendor_orders' ? filteredVendorOrders.length : filteredBookings.filter(b => ["in_progress","ready_for_delivery","delivered"].includes(normalizeStatus(b.status))).length} orders
             </span>
           </div>
           <div>
@@ -1680,6 +1727,12 @@ const AdminBookingManagement: React.FC = () => {
             <span className="ml-2 text-xs text-purple-500">{filteredOfflineOrders.length}</span>
           </button>
 
+          <button onClick={() => setViewMode('vendor_orders')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'vendor_orders' ? 'bg-amber-50 shadow-sm border-amber-400' : 'bg-transparent')}>
+            <Store className="h-4 w-4 text-amber-600" />
+            <span className="text-sm font-medium text-amber-700">Vendor Orders</span>
+            <span className="ml-2 text-xs text-amber-500">{filteredVendorOrders.length}</span>
+          </button>
+
           <button onClick={() => setViewMode('all_orders')} className={clsx('inline-flex items-center gap-2 rounded-md px-3 py-2 border', viewMode === 'all_orders' ? 'bg-amber-50 shadow-sm border-amber-300' : 'bg-transparent')}>
             <Search className="h-4 w-4 text-amber-600" />
             <span className="text-sm font-medium text-amber-700">All Orders</span>
@@ -1743,14 +1796,26 @@ const AdminBookingManagement: React.FC = () => {
                           <Package className="h-4 w-4 text-blue-600" />
                           <span className="font-medium">#{booking.custom_order_id}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm">{booking.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm">{booking.phone}</span>
-                        </div>
+                        {booking.is_vendor_order && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-300 text-amber-800 font-bold text-xs px-2 py-0.5 rounded-full">
+                              <Store className="h-3 w-3" />
+                              {booking.vendor_client_name || booking.name}
+                            </span>
+                          </div>
+                        )}
+                        {!booking.is_vendor_order && (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-gray-400" />
+                              <span className="text-sm">{booking.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4 text-gray-400" />
+                              <span className="text-sm">{booking.phone}</span>
+                            </div>
+                          </>
+                        )}
                         {booking.address && (
                           <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-red-500" />
@@ -1963,10 +2028,20 @@ const AdminBookingManagement: React.FC = () => {
                           <Package className="h-4 w-4 text-blue-600" />
                           <span className="font-medium">#{booking.custom_order_id}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm">{booking.name}</span>
-                        </div>
+                        {booking.is_vendor_order && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-300 text-amber-800 font-bold text-xs px-2 py-0.5 rounded-full">
+                              <Store className="h-3 w-3" />
+                              {booking.vendor_client_name || booking.name}
+                            </span>
+                          </div>
+                        )}
+                        {!booking.is_vendor_order && (
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">{booking.name}</span>
+                          </div>
+                        )}
                         {booking.address && (
                           <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-red-500" />
@@ -2255,6 +2330,165 @@ const AdminBookingManagement: React.FC = () => {
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   No offline orders found
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'vendor_orders' && (
+        <div className="grid grid-cols-1 gap-6">
+          <div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Store className="h-5 w-5 text-amber-600" />
+                  Vendor / Corporate Orders
+                </h3>
+                <p className="text-sm text-gray-500">Orders created for bulk clients — no mobile number required</p>
+              </div>
+              <div className="text-right bg-amber-50 p-3 rounded-lg border border-amber-200">
+                <div className="text-xs text-gray-600 font-medium">Total Value</div>
+                <div className="text-2xl font-bold text-amber-700">₹{calculateTotalPrice(filteredVendorOrders).toLocaleString('en-IN')}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 md:flex-row mt-3 mb-4">
+              <div className="flex-1">
+                <Label htmlFor="vendor-order-search">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+                  <Input
+                    id="vendor-order-search"
+                    placeholder="Search by order ID, vendor name, service..."
+                    value={vendorOrderSearchTerm}
+                    onChange={(e) => setVendorOrderSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="md:w-56">
+                <Label htmlFor="vendor-order-status-filter">Filter by Status</Label>
+                <Select value={vendorOrderStatusFilter} onValueChange={setVendorOrderStatusFilter}>
+                  <SelectTrigger id="vendor-order-status-filter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    {ORDER_FLOW_STEPS.map((step) => (
+                      <SelectItem key={step.value} value={step.value}>
+                        {step.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-4">
+              {filteredVendorOrders.length > 0 ? (
+                filteredVendorOrders.map(booking => (
+                  <Card key={booking._id} className="transition-shadow hover:shadow-md border-amber-100">
+                    <CardContent className="pt-6">
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                        <div className="space-y-2">
+                          {/* Big vendor name tag */}
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-300 text-amber-800 font-bold text-sm px-3 py-1 rounded-full">
+                              <Store className="h-3.5 w-3.5" />
+                              {booking.vendor_client_name || booking.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-amber-600" />
+                            <span className="font-medium text-sm">#{booking.custom_order_id}</span>
+                          </div>
+                          {booking.assignedVendor && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <Store className="h-4 w-4 text-blue-600" />
+                              <span className="text-sm font-medium text-blue-600">{booking.assignedVendor}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-gray-900">{booking.service}</div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Calendar className="h-4 w-4" />
+                            {formatScheduledDateTime(booking)}
+                          </div>
+                          {booking.item_prices && booking.item_prices.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {booking.item_prices.slice(0, 3).map((it, i) => (
+                                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                  {it.service_name || it.name} ×{it.quantity}
+                                </span>
+                              ))}
+                              {booking.item_prices.length > 3 && (
+                                <span className="text-xs text-gray-400">+{booking.item_prices.length - 3} more</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Badge className={clsx("inline-flex items-center gap-1", getStatusColor(booking.status))}>
+                            {getStatusIcon(booking.status)}
+                            <span>{getStatusLabel(booking.status)}</span>
+                          </Badge>
+                          <div className="flex items-center gap-2 text-sm">
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <span className="font-medium">₹{booking.final_amount ?? booking.total_price}</span>
+                          </div>
+                          <Select
+                            value={normalizeStatus(booking.status)}
+                            onValueChange={(val) => updateBookingStatus(booking._id, val)}
+                            disabled={!!mutationState[booking._id]?.status}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-40 mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ORDER_FLOW_STEPS.map((step) => (
+                                <SelectItem key={step.value} value={step.value} className="text-xs">
+                                  {step.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingBooking(booking);
+                              setShowEditDialog(true);
+                            }}
+                          >
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setViewingBooking(booking);
+                              setShowViewDialog(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No vendor orders found
                 </div>
               )}
             </div>

@@ -428,6 +428,17 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
 
+    // VENDOR CLIENT ORDER FIELDS
+    is_vendor_order: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    vendor_client_name: {
+      type: String,
+      default: "",
+    },
+
     // STORE PORTAL FIELDS
     is_store_order: {
       type: Boolean,
