@@ -28,14 +28,14 @@ import {
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { getSortedServices } from "@/data/laundryServices";
 
-interface ServiceItem {
-  id: string;
-  name: string;
-  category: string;
+interface CartItem {
+  service_name: string;
   quantity: number;
-  price: number;
-  unit: string;
+  unit_price: number;
+  total_price: number;
+  _key: string;
 }
 
 interface VendorOption {
@@ -67,26 +67,6 @@ interface VendorOrder {
   created_at: string;
 }
 
-const AVAILABLE_SERVICES: ServiceItem[] = [
-  { id: "1", name: "Regular Iron", category: "Ironing", quantity: 1, price: 20, unit: "PC" },
-  { id: "2", name: "Men's Suit", category: "Premium", quantity: 1, price: 150, unit: "SET" },
-  { id: "3", name: "Lehenga", category: "Premium", quantity: 1, price: 200, unit: "SET" },
-  { id: "4", name: "Heavy Dresses", category: "Premium", quantity: 1, price: 150, unit: "SET" },
-  { id: "5", name: "Shirt", category: "Regular", quantity: 1, price: 40, unit: "PC" },
-  { id: "6", name: "T-Shirt", category: "Regular", quantity: 1, price: 30, unit: "PC" },
-  { id: "7", name: "Pants", category: "Regular", quantity: 1, price: 50, unit: "PC" },
-  { id: "8", name: "Saree", category: "Premium", quantity: 1, price: 100, unit: "PC" },
-  { id: "9", name: "Bedsheet", category: "Household", quantity: 1, price: 60, unit: "PC" },
-  { id: "10", name: "Curtains", category: "Household", quantity: 1, price: 80, unit: "SET" },
-  { id: "11", name: "Jeans", category: "Regular", quantity: 1, price: 60, unit: "PC" },
-  { id: "12", name: "Jacket", category: "Premium", quantity: 1, price: 120, unit: "PC" },
-  { id: "13", name: "Blanket", category: "Household", quantity: 1, price: 120, unit: "PC" },
-  { id: "14", name: "Pillow Cover", category: "Household", quantity: 1, price: 30, unit: "PC" },
-  { id: "15", name: "Towel", category: "Household", quantity: 1, price: 25, unit: "PC" },
-  { id: "16", name: "Wash & Fold", category: "Wash", quantity: 1, price: 50, unit: "KG" },
-  { id: "17", name: "Wash & Iron", category: "Wash", quantity: 1, price: 80, unit: "KG" },
-  { id: "18", name: "Dry Clean", category: "Premium", quantity: 1, price: 200, unit: "PC" },
-];
 
 const ORDER_STATUSES = [
   { value: "created", label: "Order Created", color: "bg-gray-100 text-gray-700 border-gray-300" },
@@ -119,9 +99,7 @@ const AdminVendorOrders: React.FC = () => {
 
   // Create form state
   const [vendorClientName, setVendorClientName] = useState("");
-  const [selectedServices, setSelectedServices] = useState<ServiceItem[]>([]);
-  const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [selectedServiceQty, setSelectedServiceQty] = useState(1);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("10:00");
   const [deliveryDate, setDeliveryDate] = useState("");
@@ -142,25 +120,41 @@ const AdminVendorOrders: React.FC = () => {
   const [viewingOrder, setViewingOrder] = useState<VendorOrder | null>(null);
 
   const calculateTotal = () =>
-    selectedServices.reduce((sum, s) => sum + s.price * s.quantity, 0);
+    cartItems.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0);
 
-  const addService = () => {
-    if (!selectedServiceId) { toast.error("Select a service first"); return; }
-    const svc = AVAILABLE_SERVICES.find(s => s.id === selectedServiceId);
-    if (!svc) return;
-    const existing = selectedServices.find(s => s.id === svc.id);
-    if (existing) {
-      setSelectedServices(prev => prev.map(s => s.id === svc.id ? { ...s, quantity: s.quantity + selectedServiceQty } : s));
-    } else {
-      setSelectedServices(prev => [...prev, { ...svc, quantity: selectedServiceQty }]);
-    }
-    setSelectedServiceId("");
-    setSelectedServiceQty(1);
-    toast.success("Service added");
+  const addCartItem = () => {
+    setCartItems(prev => [
+      ...prev,
+      { service_name: "", quantity: 1, unit_price: 0, total_price: 0, _key: `item-${Date.now()}-${Math.random()}` },
+    ]);
   };
 
-  const removeService = (id: string) => {
-    setSelectedServices(prev => prev.filter(s => s.id !== id));
+  const removeCartItem = (key: string) => {
+    setCartItems(prev => prev.filter(it => it._key !== key));
+  };
+
+  const handleCartItemChange = (key: string, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
+    setCartItems(prev => prev.map(it => {
+      if (it._key !== key) return it;
+      const next = { ...it };
+      if (field === "service_name") {
+        next.service_name = rawValue;
+        const catalog = getSortedServices();
+        const matched = catalog.find((s: any) => s.name === rawValue);
+        if (matched) {
+          next.unit_price = matched.price;
+          if (!it.quantity || it.quantity === 0) next.quantity = 1;
+        }
+      } else if (field === "quantity") {
+        const v = parseFloat(rawValue);
+        next.quantity = Number.isFinite(v) && v >= 0 ? v : 1;
+      } else if (field === "unit_price") {
+        const v = parseFloat(rawValue);
+        next.unit_price = Number.isFinite(v) && v >= 0 ? v : 0;
+      }
+      next.total_price = +(next.quantity * next.unit_price).toFixed(2);
+      return next;
+    }));
   };
 
   const fetchLaundryVendors = async () => {
@@ -216,24 +210,25 @@ const AdminVendorOrders: React.FC = () => {
   const submitOrder = async () => {
     if (!vendorClientName.trim()) { toast.error("Enter vendor/client name"); return; }
     if (!scheduledDate) { toast.error("Select pickup date"); return; }
-    if (selectedServices.length === 0) { toast.error("Add at least one service"); return; }
+    const validItems = cartItems.filter(it => it.service_name.trim() && it.quantity > 0);
+    if (validItems.length === 0) { toast.error("Add at least one service item"); return; }
 
     setSubmitting(true);
     try {
-      const total = calculateTotal();
+      const total = validItems.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0);
       const payload: any = {
         is_vendor_order: true,
         vendor_client_name: vendorClientName.trim(),
         name: vendorClientName.trim(),
         phone: "",
-        service: selectedServices[0]?.name || "Laundry Service",
+        service: validItems[0]?.service_name || "Laundry Service",
         service_type: "vendor_client",
-        services: selectedServices.map(s => `${s.name} x${s.quantity} (₹${s.price}/${s.unit})`),
-        item_prices: selectedServices.map(s => ({
-          service_name: s.name,
-          quantity: s.quantity,
-          unit_price: s.price,
-          total_price: s.quantity * s.price,
+        services: validItems.map(it => `${it.service_name} x${it.quantity} (₹${it.unit_price})`),
+        item_prices: validItems.map(it => ({
+          service_name: it.service_name,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          total_price: it.total_price,
         })),
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
@@ -256,9 +251,8 @@ const AdminVendorOrders: React.FC = () => {
 
       if (res.data?.booking) {
         toast.success(`Vendor order created! ID: ${res.data.booking.custom_order_id}`);
-        // Reset form
         setVendorClientName("");
-        setSelectedServices([]);
+        setCartItems([]);
         setScheduledDate("");
         setScheduledTime("10:00");
         setDeliveryDate("");
@@ -266,7 +260,6 @@ const AdminVendorOrders: React.FC = () => {
         setNotes("");
         setAssignedLaundryVendor("");
         setAssignedLaundryVendorId("");
-        // Refresh orders and switch to list
         await fetchOrders();
         setActiveTab("orders");
       } else {
@@ -476,110 +469,133 @@ const AdminVendorOrders: React.FC = () => {
             </Card>
           </div>
 
-          {/* Right: Services */}
+          {/* Right: Services cart */}
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <Package className="h-4 w-4" />
-                  Add Services / Items
+                  Services / Items
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select service..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(
-                          AVAILABLE_SERVICES.reduce((acc, s) => {
-                            (acc[s.category] = acc[s.category] || []).push(s);
-                            return acc;
-                          }, {} as Record<string, ServiceItem[]>)
-                        ).map(([cat, svcs]) => (
-                          <React.Fragment key={cat}>
-                            <div className="px-2 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                              {cat}
-                            </div>
-                            {svcs.map(s => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.name} — ₹{s.price}/{s.unit}
-                              </SelectItem>
-                            ))}
-                          </React.Fragment>
+              <CardContent className="space-y-3 p-0 pb-0">
+                {cartItems.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-gray-50 sticky top-0">
+                          <th className="text-left py-3 px-3 font-semibold min-w-[200px]">Service Name</th>
+                          <th className="text-center py-3 px-3 font-semibold min-w-[80px]">Qty</th>
+                          <th className="text-right py-3 px-3 font-semibold min-w-[100px]">Unit Price</th>
+                          <th className="text-right py-3 px-3 font-semibold min-w-[90px]">Total</th>
+                          <th className="text-center py-3 px-3 font-semibold min-w-[60px]"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cartItems.map((item) => (
+                          <tr key={item._key} className="border-b hover:bg-gray-50">
+                            <td className="py-2 px-3">
+                              <Select
+                                value={item.service_name || ""}
+                                onValueChange={(val) =>
+                                  handleCartItemChange(item._key, "service_name", val === "__none__" ? "" : val)
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Select item">
+                                    {item.service_name ? (
+                                      <>{item.service_name} — ₹{item.unit_price}</>
+                                    ) : (
+                                      "Select item"
+                                    )}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">Select item</SelectItem>
+                                  {getSortedServices().map((svc: any) => (
+                                    <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                      {svc.name} — ₹{svc.price}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="py-2 px-3">
+                              <Input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={String(item.quantity ?? 1)}
+                                onChange={(e) => handleCartItemChange(item._key, "quantity", e.target.value)}
+                                className="h-8 text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={String(item.unit_price ?? 0)}
+                                onChange={(e) => handleCartItemChange(item._key, "unit_price", e.target.value)}
+                                className="h-8 text-right text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right font-medium">
+                              ₹{(Number(item.total_price) || 0).toFixed(2)}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeCartItem(item._key)}
+                                className="h-8 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                Remove
+                              </Button>
+                            </td>
+                          </tr>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="w-20">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={selectedServiceQty}
-                      onChange={e => setSelectedServiceQty(Math.max(1, parseInt(e.target.value) || 1))}
-                      placeholder="Qty"
-                    />
-                  </div>
-                  <Button onClick={addService} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {selectedServices.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 border-2 border-dashed rounded-lg">
-                    <Package className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">No services added yet</p>
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {selectedServices.map(s => (
-                      <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
-                        <div>
-                          <span className="font-medium text-sm">{s.name}</span>
-                          <span className="text-xs text-gray-500 ml-2">x{s.quantity} {s.unit}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-green-700">
-                            ₹{(s.price * s.quantity).toLocaleString("en-IN")}
-                          </span>
-                          <button
-                            onClick={() => removeService(s.id)}
-                            className="text-red-400 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="text-sm text-gray-500 px-4 py-6 border rounded border-dashed mx-4">
+                    No items added yet. Click "Add Item" to start adding services.
                   </div>
                 )}
 
-                {selectedServices.length > 0 && (
-                  <div className="border-t pt-3 flex items-center justify-between">
-                    <span className="font-medium text-gray-700">Total</span>
-                    <span className="text-xl font-bold text-green-700">
-                      ₹{calculateTotal().toLocaleString("en-IN")}
-                    </span>
+                <div className="flex items-center justify-between gap-4 px-4 py-3 bg-gray-50 border-t">
+                  <Button
+                    size="sm"
+                    type="button"
+                    onClick={addCartItem}
+                    variant="outline"
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add Item
+                  </Button>
+                  <div className="text-base font-semibold whitespace-nowrap">
+                    Subtotal:{" "}
+                    <span className="text-green-600">₹{calculateTotal().toFixed(2)}</span>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
 
             {/* Summary + Submit */}
-            {vendorClientName && selectedServices.length > 0 && (
+            {vendorClientName && cartItems.filter(it => it.service_name && it.quantity > 0).length > 0 && (
               <Card className="border-2 border-green-200 bg-green-50">
-                <CardContent className="pt-4 space-y-3">
+                <CardContent className="pt-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-green-700" />
                     <span className="font-bold text-green-900 text-lg">{vendorClientName}</span>
                   </div>
                   <div className="text-sm text-green-800 space-y-1">
-                    <div>📅 Pickup: {scheduledDate} {scheduledTime}</div>
+                    {scheduledDate && <div>📅 Pickup: {scheduledDate} {scheduledTime}</div>}
                     {deliveryDate && <div>🚚 Delivery: {deliveryDate} {deliveryTime}</div>}
                     {assignedLaundryVendor && <div>🏪 Laundry Vendor: {assignedLaundryVendor}</div>}
-                    <div>🧺 {selectedServices.length} service(s) — ₹{calculateTotal().toLocaleString("en-IN")}</div>
+                    <div>🧺 {cartItems.filter(it => it.service_name && it.quantity > 0).length} item(s) — ₹{calculateTotal().toFixed(2)}</div>
                   </div>
                 </CardContent>
               </Card>
@@ -587,7 +603,12 @@ const AdminVendorOrders: React.FC = () => {
 
             <Button
               onClick={submitOrder}
-              disabled={submitting || !vendorClientName.trim() || !scheduledDate || selectedServices.length === 0}
+              disabled={
+                submitting ||
+                !vendorClientName.trim() ||
+                !scheduledDate ||
+                cartItems.filter(it => it.service_name.trim() && it.quantity > 0).length === 0
+              }
               className="w-full bg-amber-600 hover:bg-amber-700 text-white h-12 text-base font-semibold"
             >
               {submitting ? (
