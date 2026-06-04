@@ -1,13 +1,38 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, FileText, ArrowLeft, ArrowRight, Eye, Download } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, FileText, ArrowLeft, ArrowRight, Eye, Download, RefreshCw, Building2 } from "lucide-react";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/apiClient";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+
+interface Hotel {
+  _id: string;
+  name: string;
+  address?: string;
+}
+
+interface HotelOrderItem {
+  name: string;
+  qty: number;
+  dc_qty: number;
+  price: number;
+  amount: number;
+}
+
+interface HotelOrder {
+  _id: string;
+  hotel_id: string;
+  date: string;
+  items: HotelOrderItem[];
+  guest_laundry_pcs: number;
+  invoice_no?: string;
+}
 
 interface InvoiceSetup {
   invoiceNo: string;
@@ -266,14 +291,129 @@ const AdminHotelInvoice: React.FC = () => {
     { id: 1, date: "", hotel: "", dc: "", guest: "" },
   ]);
 
+  // Hotel fetch state
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [selectedHotelId, setSelectedHotelId] = useState("");
+  const [fetchingEntries, setFetchingEntries] = useState(false);
+  const [loadedCount, setLoadedCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchHotels = async () => {
+      try {
+        const res = await apiClient.adminRequest<{ data: Hotel[] }>("/hotel-management/hotels");
+        if (res.data?.data) setHotels(res.data.data);
+      } catch {}
+    };
+    fetchHotels();
+  }, []);
+
+  const loadEntriesFromHotel = async () => {
+    if (!selectedHotelId) { toast.error("Select a hotel first"); return; }
+    if (!setup.periodStart.trim() || !setup.periodEnd.trim()) {
+      toast.error("Enter period start and end dates first"); return;
+    }
+
+    setFetchingEntries(true);
+    try {
+      const res = await apiClient.adminRequest<{ data: HotelOrder[] }>("/hotel-management/orders");
+      if (!res.data?.data) { toast.error("Could not load hotel orders"); return; }
+
+      const allOrders: HotelOrder[] = res.data.data;
+
+      // Filter by selected hotel
+      const hotelOrders = allOrders.filter(o => o.hotel_id === selectedHotelId);
+
+      // Parse period dates for filtering
+      const parseDate = (s: string): Date | null => {
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+      };
+      const periodStart = parseDate(setup.periodStart);
+      const periodEnd = parseDate(setup.periodEnd);
+
+      // Filter by date range if valid ISO dates were entered
+      let filtered = hotelOrders;
+      if (periodStart && periodEnd) {
+        filtered = hotelOrders.filter(o => {
+          const d = parseDate(o.date);
+          if (!d) return false;
+          return d >= periodStart && d <= periodEnd;
+        });
+      }
+
+      if (filtered.length === 0) {
+        toast.warning("No entries found for this hotel in the given period");
+        setLoadedCount(0);
+        return;
+      }
+
+      // Sort by date
+      filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Map HotelOrder → Entry
+      const mapped: Entry[] = filtered.map(order => {
+        const hotelPcs = (order.items || []).reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+        const dcPcs = (order.items || []).reduce((sum, it) => sum + (Number(it.dc_qty) || 0), 0);
+        const guestPcs = Number(order.guest_laundry_pcs) || 0;
+
+        // Format date as a display string (e.g. "1 Jun 2026")
+        let dateLabel = order.date;
+        try {
+          const d = new Date(order.date);
+          if (!isNaN(d.getTime())) {
+            dateLabel = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+          }
+        } catch {}
+
+        return {
+          id: Date.now() + Math.random(),
+          date: dateLabel,
+          hotel: hotelPcs || "",
+          dc: dcPcs || "",
+          guest: guestPcs || "",
+        };
+      });
+
+      setEntries(mapped);
+      setLoadedCount(mapped.length);
+      toast.success(`Loaded ${mapped.length} entries from hotel records`);
+    } catch {
+      toast.error("Failed to load hotel entries");
+    } finally {
+      setFetchingEntries(false);
+    }
+  };
+
   // ── Navigation guards ────────────────────────────────────────────────────────
+
+  const formatDateForInvoice = (dateStr: string): string => {
+    if (!dateStr) return dateStr;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  };
 
   const goToRates = () => {
     if (!setup.invoiceNo.trim()) return toast.error("Enter an invoice number");
     if (!setup.hotelName.trim()) return toast.error("Enter hotel name");
     if (!setup.periodStart.trim()) return toast.error("Enter period start date");
     if (!setup.periodEnd.trim()) return toast.error("Enter period end date");
+    // Format ISO dates to human-readable for the invoice display
+    setSetup(prev => ({
+      ...prev,
+      periodStart: formatDateForInvoice(prev.periodStart),
+      periodEnd: formatDateForInvoice(prev.periodEnd),
+    }));
     setStep("rates");
+  };
+
+  const handleHotelSelect = (hotelId: string) => {
+    setSelectedHotelId(hotelId);
+    const hotel = hotels.find(h => h._id === hotelId);
+    if (hotel) {
+      setSetup(prev => ({ ...prev, hotelName: hotel.name }));
+    }
+    setLoadedCount(null);
   };
 
   const goToEntries = () => {
@@ -395,6 +535,49 @@ const AdminHotelInvoice: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
+            {/* Hotel selector */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-purple-500" />
+                Select Hotel (auto-fills name &amp; loads entries)
+              </Label>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select value={selectedHotelId} onValueChange={handleHotelSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={hotels.length ? "Select a hotel…" : "Loading hotels…"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hotels.map(h => (
+                        <SelectItem key={h._id} value={h._id}>{h.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={loadEntriesFromHotel}
+                  disabled={fetchingEntries || !selectedHotelId}
+                  className="border-purple-300 text-purple-700 hover:bg-purple-50 whitespace-nowrap"
+                >
+                  {fetchingEntries ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-1.5" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1.5" />
+                  )}
+                  Load Entries
+                </Button>
+              </div>
+              {loadedCount !== null && (
+                <p className={`text-xs mt-1 ${loadedCount > 0 ? "text-green-600" : "text-orange-600"}`}>
+                  {loadedCount > 0
+                    ? `✓ ${loadedCount} entries loaded from hotel records — you can edit them in Step 3`
+                    : "No entries found for this hotel in the selected period"}
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Invoice Number *</Label>
@@ -427,17 +610,19 @@ const AdminHotelInvoice: React.FC = () => {
               <div className="space-y-1.5">
                 <Label>Period Start *</Label>
                 <Input
-                  placeholder="e.g. 1 May 2026"
+                  type="date"
+                  placeholder="e.g. 2026-05-01"
                   value={setup.periodStart}
-                  onChange={(e) => setSetup({ ...setup, periodStart: e.target.value })}
+                  onChange={(e) => { setSetup({ ...setup, periodStart: e.target.value }); setLoadedCount(null); }}
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>Period End *</Label>
                 <Input
-                  placeholder="e.g. 8 May 2026"
+                  type="date"
+                  placeholder="e.g. 2026-05-31"
                   value={setup.periodEnd}
-                  onChange={(e) => setSetup({ ...setup, periodEnd: e.target.value })}
+                  onChange={(e) => { setSetup({ ...setup, periodEnd: e.target.value }); setLoadedCount(null); }}
                 />
               </div>
             </div>
@@ -543,10 +728,15 @@ const AdminHotelInvoice: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 flex-wrap">
                 <span>📅</span>
                 Day-by-Day Entries
                 <Badge variant="secondary" className="text-xs">{setup.hotelName} · #{setup.invoiceNo}</Badge>
+                {loadedCount !== null && loadedCount > 0 && (
+                  <Badge className="text-xs bg-green-100 text-green-700 border border-green-300">
+                    ✓ {loadedCount} from hotel records
+                  </Badge>
+                )}
               </span>
               <div className="text-sm font-normal text-gray-500 flex gap-3">
                 <span className="text-purple-600">Hotel ₹{rates.hotel}</span>
