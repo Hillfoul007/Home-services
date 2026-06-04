@@ -102,9 +102,19 @@ function buildInvoiceHTML(
     })
     .join("\n");
 
-  const periodLabel = setup.periodStart === setup.periodEnd
-    ? setup.periodStart
-    : `${setup.periodStart} – ${setup.periodEnd}`;
+  const fmtDateDisplay = (s: string): string => {
+    if (!s) return s;
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  };
+
+  const periodStartDisplay = fmtDateDisplay(setup.periodStart) || setup.periodStart;
+  const periodEndDisplay = fmtDateDisplay(setup.periodEnd) || setup.periodEnd;
+
+  const periodLabel = periodStartDisplay === periodEndDisplay
+    ? periodStartDisplay
+    : `${periodStartDisplay} – ${periodEndDisplay}`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -309,9 +319,6 @@ const AdminHotelInvoice: React.FC = () => {
 
   const loadEntriesFromHotel = async () => {
     if (!selectedHotelId) { toast.error("Select a hotel first"); return; }
-    if (!setup.periodStart.trim() || !setup.periodEnd.trim()) {
-      toast.error("Enter period start and end dates first"); return;
-    }
 
     setFetchingEntries(true);
     try {
@@ -321,33 +328,32 @@ const AdminHotelInvoice: React.FC = () => {
       const allOrders: HotelOrder[] = res.data.data;
 
       // Filter by selected hotel
-      const hotelOrders = allOrders.filter(o => o.hotel_id === selectedHotelId);
+      let filtered = allOrders.filter(o => o.hotel_id === selectedHotelId);
 
-      // Parse period dates for filtering
+      // Apply date range filter only if both dates are provided
       const parseDate = (s: string): Date | null => {
+        if (!s) return null;
         const d = new Date(s);
         return isNaN(d.getTime()) ? null : d;
       };
-      const periodStart = parseDate(setup.periodStart);
-      const periodEnd = parseDate(setup.periodEnd);
-
-      // Filter by date range if valid ISO dates were entered
-      let filtered = hotelOrders;
-      if (periodStart && periodEnd) {
-        filtered = hotelOrders.filter(o => {
+      const pStart = parseDate(setup.periodStart);
+      const pEnd = parseDate(setup.periodEnd);
+      if (pStart && pEnd) {
+        // Extend pEnd to end of day for inclusive comparison
+        pEnd.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(o => {
           const d = parseDate(o.date);
-          if (!d) return false;
-          return d >= periodStart && d <= periodEnd;
+          return d ? d >= pStart && d <= pEnd : false;
         });
       }
 
       if (filtered.length === 0) {
-        toast.warning("No entries found for this hotel in the given period");
+        toast.warning("No entries found for this hotel" + (pStart ? " in the selected period" : ""));
         setLoadedCount(0);
         return;
       }
 
-      // Sort by date
+      // Sort by date ascending
       filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       // Map HotelOrder → Entry
@@ -356,7 +362,7 @@ const AdminHotelInvoice: React.FC = () => {
         const dcPcs = (order.items || []).reduce((sum, it) => sum + (Number(it.dc_qty) || 0), 0);
         const guestPcs = Number(order.guest_laundry_pcs) || 0;
 
-        // Format date as a display string (e.g. "1 Jun 2026")
+        // Format date label (e.g. "1 Jun 2026")
         let dateLabel = order.date;
         try {
           const d = new Date(order.date);
@@ -374,9 +380,20 @@ const AdminHotelInvoice: React.FC = () => {
         };
       });
 
+      // Auto-fill period start/end from the min/max entry dates if not already set
+      if (!setup.periodStart || !setup.periodEnd) {
+        const firstDate = filtered[0].date;
+        const lastDate = filtered[filtered.length - 1].date;
+        setSetup(prev => ({
+          ...prev,
+          periodStart: prev.periodStart || firstDate.split("T")[0],
+          periodEnd: prev.periodEnd || lastDate.split("T")[0],
+        }));
+      }
+
       setEntries(mapped);
       setLoadedCount(mapped.length);
-      toast.success(`Loaded ${mapped.length} entries from hotel records`);
+      toast.success(`Loaded ${mapped.length} ${mapped.length === 1 ? "entry" : "entries"} from hotel records`);
     } catch {
       toast.error("Failed to load hotel entries");
     } finally {
@@ -386,24 +403,11 @@ const AdminHotelInvoice: React.FC = () => {
 
   // ── Navigation guards ────────────────────────────────────────────────────────
 
-  const formatDateForInvoice = (dateStr: string): string => {
-    if (!dateStr) return dateStr;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-  };
-
   const goToRates = () => {
     if (!setup.invoiceNo.trim()) return toast.error("Enter an invoice number");
     if (!setup.hotelName.trim()) return toast.error("Enter hotel name");
     if (!setup.periodStart.trim()) return toast.error("Enter period start date");
     if (!setup.periodEnd.trim()) return toast.error("Enter period end date");
-    // Format ISO dates to human-readable for the invoice display
-    setSetup(prev => ({
-      ...prev,
-      periodStart: formatDateForInvoice(prev.periodStart),
-      periodEnd: formatDateForInvoice(prev.periodEnd),
-    }));
     setStep("rates");
   };
 
@@ -478,6 +482,8 @@ const AdminHotelInvoice: React.FC = () => {
     setSetup({ invoiceNo: "", hotelName: "", issueDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }), periodStart: "", periodEnd: "" });
     setRates({ hotel: 12, dc: 30, guest: 15 });
     setEntries([{ id: 1, date: "", hotel: "", dc: "", guest: "" }]);
+    setSelectedHotelId("");
+    setLoadedCount(null);
   };
 
   // ── Summary numbers ──────────────────────────────────────────────────────────
@@ -535,49 +541,75 @@ const AdminHotelInvoice: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Hotel selector */}
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1.5">
-                <Building2 className="h-4 w-4 text-purple-500" />
-                Select Hotel (auto-fills name &amp; loads entries)
+            {/* ── Hotel selector + load ────────────────────────────── */}
+            <div className="p-4 rounded-lg bg-purple-50 border border-purple-200 space-y-3">
+              <Label className="flex items-center gap-1.5 text-purple-800 font-semibold">
+                <Building2 className="h-4 w-4" />
+                Load from Hotel Entries
               </Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Select value={selectedHotelId} onValueChange={handleHotelSelect}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={hotels.length ? "Select a hotel…" : "Loading hotels…"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {hotels.map(h => (
-                        <SelectItem key={h._id} value={h._id}>{h.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-600">Hotel *</Label>
+                <Select value={selectedHotelId} onValueChange={handleHotelSelect}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder={hotels.length ? "Select a hotel…" : "Loading hotels…"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hotels.map(h => (
+                      <SelectItem key={h._id} value={h._id}>{h.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-600">From date (optional)</Label>
+                  <Input
+                    type="date"
+                    value={setup.periodStart}
+                    onChange={(e) => { setSetup(s => ({ ...s, periodStart: e.target.value })); setLoadedCount(null); }}
+                    className="bg-white"
+                  />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-600">To date (optional)</Label>
+                  <Input
+                    type="date"
+                    value={setup.periodEnd}
+                    onChange={(e) => { setSetup(s => ({ ...s, periodEnd: e.target.value })); setLoadedCount(null); }}
+                    className="bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
                 <Button
                   type="button"
-                  variant="outline"
                   onClick={loadEntriesFromHotel}
                   disabled={fetchingEntries || !selectedHotelId}
-                  className="border-purple-300 text-purple-700 hover:bg-purple-50 whitespace-nowrap"
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
                 >
-                  {fetchingEntries ? (
-                    <RefreshCw className="h-4 w-4 animate-spin mr-1.5" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-1.5" />
-                  )}
-                  Load Entries
+                  <RefreshCw className={`h-4 w-4 mr-1.5 ${fetchingEntries ? "animate-spin" : ""}`} />
+                  {fetchingEntries ? "Loading…" : "Load Entries"}
                 </Button>
+                <span className="text-xs text-purple-600">
+                  {!setup.periodStart && !setup.periodEnd
+                    ? "Loads all entries for this hotel"
+                    : "Loads entries in the selected date range"}
+                </span>
               </div>
+
               {loadedCount !== null && (
-                <p className={`text-xs mt-1 ${loadedCount > 0 ? "text-green-600" : "text-orange-600"}`}>
+                <div className={`text-sm font-medium px-3 py-2 rounded ${loadedCount > 0 ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-700"}`}>
                   {loadedCount > 0
-                    ? `✓ ${loadedCount} entries loaded from hotel records — you can edit them in Step 3`
-                    : "No entries found for this hotel in the selected period"}
-                </p>
+                    ? `✓ ${loadedCount} entries loaded — period dates auto-filled. Edit them in Step 3 if needed.`
+                    : "No entries found for this hotel in the selected period."}
+                </div>
               )}
             </div>
 
+            {/* ── Invoice details ──────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Invoice Number *</Label>
@@ -590,7 +622,7 @@ const AdminHotelInvoice: React.FC = () => {
               <div className="space-y-1.5">
                 <Label>Issue Date *</Label>
                 <Input
-                  placeholder="e.g. 8 May 2026"
+                  placeholder="e.g. 8 June 2026"
                   value={setup.issueDate}
                   onChange={(e) => setSetup({ ...setup, issueDate: e.target.value })}
                 />
@@ -604,6 +636,7 @@ const AdminHotelInvoice: React.FC = () => {
                 value={setup.hotelName}
                 onChange={(e) => setSetup({ ...setup, hotelName: e.target.value })}
               />
+              <p className="text-xs text-gray-400">Auto-filled when you select a hotel above</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -611,18 +644,16 @@ const AdminHotelInvoice: React.FC = () => {
                 <Label>Period Start *</Label>
                 <Input
                   type="date"
-                  placeholder="e.g. 2026-05-01"
                   value={setup.periodStart}
-                  onChange={(e) => { setSetup({ ...setup, periodStart: e.target.value }); setLoadedCount(null); }}
+                  onChange={(e) => setSetup({ ...setup, periodStart: e.target.value })}
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>Period End *</Label>
                 <Input
                   type="date"
-                  placeholder="e.g. 2026-05-31"
                   value={setup.periodEnd}
-                  onChange={(e) => { setSetup({ ...setup, periodEnd: e.target.value }); setLoadedCount(null); }}
+                  onChange={(e) => setSetup({ ...setup, periodEnd: e.target.value })}
                 />
               </div>
             </div>
