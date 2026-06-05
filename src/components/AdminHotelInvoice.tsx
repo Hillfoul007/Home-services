@@ -759,6 +759,35 @@ const AdminHotelInvoice: React.FC = () => {
   const guestTotal = sumField(entries, "guest");
   const grandTotal = hotelTotal * rates.hotel + dcTotal * rates.dc + guestTotal * rates.guest;
 
+  // Item-mode aggregated rows (for preview + summary when pricingMode === "item")
+  const itemAggRows = (() => {
+    if (pricingMode !== "item" || rawOrders.length === 0) return [];
+    const agg: Record<string, { qty: number; dcQty: number }> = {};
+    rawOrders.forEach(order => {
+      (order.items || []).forEach(it => {
+        if (!agg[it.name]) agg[it.name] = { qty: 0, dcQty: 0 };
+        agg[it.name].qty += Number(it.qty) || 0;
+        agg[it.name].dcQty += Number(it.dc_qty) || 0;
+      });
+      const g = Number(order.guest_laundry_pcs) || 0;
+      if (g > 0) {
+        if (!agg["GUEST LAUNDRY"]) agg["GUEST LAUNDRY"] = { qty: 0, dcQty: 0 };
+        agg["GUEST LAUNDRY"].qty += g;
+      }
+    });
+    return Object.entries(agg)
+      .filter(([, v]) => v.qty > 0 || v.dcQty > 0)
+      .map(([name, v]) => {
+        const r = itemRates[name] || { normal: 0, dc: 0 };
+        const normalAmt = v.qty * r.normal;
+        const dcAmt = v.dcQty * r.dc;
+        return { name, qty: v.qty, dcQty: v.dcQty, normalRate: r.normal, dcRate: r.dc, normalAmt, dcAmt, rowTotal: normalAmt + dcAmt };
+      })
+      .filter(r => r.qty > 0 || r.dcQty > 0);
+  })();
+  const itemGrandTotal = itemAggRows.reduce((s, r) => s + r.rowTotal, 0);
+  const previewGrandTotal = pricingMode === "item" ? itemGrandTotal : grandTotal;
+
   // ── Step indicators ──────────────────────────────────────────────────────────
 
   const steps: { key: Step; label: string }[] = [
@@ -1265,69 +1294,118 @@ const AdminHotelInvoice: React.FC = () => {
                   <div className="text-sm opacity-80">Invoice #{setup.invoiceNo}</div>
                   <div className="text-xl font-bold">{setup.hotelName}</div>
                   <div className="text-sm opacity-80 mt-0.5">{setup.periodStart} – {setup.periodEnd}</div>
+                  <div className="text-xs opacity-70 mt-1">
+                    Pricing: {pricingMode === "item" ? "By Item Name" : "By Piece Type"}
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm opacity-80">Grand Total</div>
-                  <div className="text-3xl font-black">₹{fmt(grandTotal)}</div>
+                  <div className="text-3xl font-black">₹{fmt(previewGrandTotal)}</div>
                 </div>
               </div>
 
-              <div className="p-4 bg-white">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-gray-400 uppercase tracking-wide border-b">
-                      <th className="text-left pb-2">Date</th>
-                      <th className="text-center pb-2">Hotel</th>
-                      <th className="text-center pb-2">DC</th>
-                      <th className="text-center pb-2">Guest</th>
-                      <th className="text-right pb-2">Day Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries
-                      .filter((e) => e.date.trim())
-                      .map((e) => {
-                        const h = Number(e.hotel) || 0;
-                        const d = Number(e.dc) || 0;
-                        const g = Number(e.guest) || 0;
-                        const dayTotal = h * rates.hotel + d * rates.dc + g * rates.guest;
-                        return (
-                          <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50">
-                            <td className="py-2 font-medium text-gray-700">{e.date}</td>
-                            <td className="text-center text-gray-600">{h || "—"}</td>
-                            <td className="text-center text-gray-600">{d || "—"}</td>
-                            <td className="text-center text-gray-600">{g || "—"}</td>
-                            <td className="text-right font-semibold text-gray-800">₹{fmt(dayTotal)}</td>
+              {/* ── Piece mode preview table ── */}
+              {pricingMode === "piece" && (
+                <>
+                  <div className="p-4 bg-white">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-gray-400 uppercase tracking-wide border-b">
+                          <th className="text-left pb-2">Date</th>
+                          <th className="text-center pb-2">Hotel</th>
+                          <th className="text-center pb-2">DC</th>
+                          <th className="text-center pb-2">Guest</th>
+                          <th className="text-right pb-2">Day Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {entries.filter((e) => e.date.trim()).map((e) => {
+                          const h = Number(e.hotel) || 0;
+                          const d = Number(e.dc) || 0;
+                          const g = Number(e.guest) || 0;
+                          const dayTotal = h * rates.hotel + d * rates.dc + g * rates.guest;
+                          return (
+                            <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50">
+                              <td className="py-2 font-medium text-gray-700">{e.date}</td>
+                              <td className="text-center text-gray-600">{h || "—"}</td>
+                              <td className="text-center text-gray-600">{d || "—"}</td>
+                              <td className="text-center text-gray-600">{g || "—"}</td>
+                              <td className="text-right font-semibold text-gray-800">₹{fmt(dayTotal)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-purple-50">
+                          <td className="py-2 font-bold text-purple-800">Totals</td>
+                          <td className="text-center font-bold text-purple-700">{hotelTotal}</td>
+                          <td className="text-center font-bold text-purple-700">{dcTotal}</td>
+                          <td className="text-center font-bold text-purple-700">{guestTotal}</td>
+                          <td className="text-right font-black text-purple-800">₹{fmt(grandTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <div className="px-4 pb-4 grid grid-cols-3 gap-3 text-xs text-gray-500">
+                    <div className="bg-purple-50 rounded p-2 text-center">
+                      <div className="font-bold text-purple-700">Hotel: {hotelTotal} pcs</div>
+                      <div>@ ₹{rates.hotel}/pc = ₹{fmt(hotelTotal * rates.hotel)}</div>
+                    </div>
+                    <div className="bg-pink-50 rounded p-2 text-center">
+                      <div className="font-bold text-pink-700">DC: {dcTotal} pcs</div>
+                      <div>@ ₹{rates.dc}/pc = ₹{fmt(dcTotal * rates.dc)}</div>
+                    </div>
+                    <div className="bg-indigo-50 rounded p-2 text-center">
+                      <div className="font-bold text-indigo-700">Guest: {guestTotal} pcs</div>
+                      <div>@ ₹{rates.guest}/pc = ₹{fmt(guestTotal * rates.guest)}</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ── Item mode preview table ── */}
+              {pricingMode === "item" && (
+                <div className="p-4 bg-white overflow-x-auto">
+                  {itemAggRows.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">No item data — load hotel entries and set item prices in Step 2</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-gray-400 uppercase tracking-wide border-b">
+                          <th className="text-left pb-2">Item</th>
+                          <th className="text-center pb-2">Qty</th>
+                          <th className="text-center pb-2">Rate</th>
+                          <th className="text-center pb-2">Amt</th>
+                          <th className="text-center pb-2">DC Qty</th>
+                          <th className="text-center pb-2">DC Rate</th>
+                          <th className="text-center pb-2">DC Amt</th>
+                          <th className="text-right pb-2">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itemAggRows.map((r) => (
+                          <tr key={r.name} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-1.5 font-medium text-gray-700 text-xs">{r.name}</td>
+                            <td className="text-center text-gray-600">{r.qty > 0 ? r.qty : "—"}</td>
+                            <td className="text-center text-gray-500 text-xs">{r.normalRate > 0 ? `₹${r.normalRate}` : "—"}</td>
+                            <td className="text-center text-gray-700">{r.normalAmt > 0 ? `₹${fmt(r.normalAmt)}` : "—"}</td>
+                            <td className="text-center text-gray-600">{r.dcQty > 0 ? r.dcQty : "—"}</td>
+                            <td className="text-center text-gray-500 text-xs">{r.dcRate > 0 ? `₹${r.dcRate}` : "—"}</td>
+                            <td className="text-center text-gray-700">{r.dcAmt > 0 ? `₹${fmt(r.dcAmt)}` : "—"}</td>
+                            <td className="text-right font-semibold text-purple-700">₹{fmt(r.rowTotal)}</td>
                           </tr>
-                        );
-                      })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-purple-50">
-                      <td className="py-2 font-bold text-purple-800">Totals</td>
-                      <td className="text-center font-bold text-purple-700">{hotelTotal}</td>
-                      <td className="text-center font-bold text-purple-700">{dcTotal}</td>
-                      <td className="text-center font-bold text-purple-700">{guestTotal}</td>
-                      <td className="text-right font-black text-purple-800">₹{fmt(grandTotal)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              <div className="px-4 pb-4 grid grid-cols-3 gap-3 text-xs text-gray-500">
-                <div className="bg-purple-50 rounded p-2 text-center">
-                  <div className="font-bold text-purple-700">Hotel: {hotelTotal} pcs</div>
-                  <div>@ ₹{rates.hotel}/pc = ₹{fmt(hotelTotal * rates.hotel)}</div>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-purple-50">
+                          <td className="py-2 font-bold text-purple-800 text-xs" colSpan={7}>Grand Total</td>
+                          <td className="text-right font-black text-purple-800">₹{fmt(itemGrandTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  )}
                 </div>
-                <div className="bg-pink-50 rounded p-2 text-center">
-                  <div className="font-bold text-pink-700">DC: {dcTotal} pcs</div>
-                  <div>@ ₹{rates.dc}/pc = ₹{fmt(dcTotal * rates.dc)}</div>
-                </div>
-                <div className="bg-indigo-50 rounded p-2 text-center">
-                  <div className="font-bold text-indigo-700">Guest: {guestTotal} pcs</div>
-                  <div>@ ₹{rates.guest}/pc = ₹{fmt(guestTotal * rates.guest)}</div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Actions */}
