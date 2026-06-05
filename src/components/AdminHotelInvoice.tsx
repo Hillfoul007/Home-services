@@ -528,9 +528,14 @@ const AdminHotelInvoice: React.FC = () => {
 
   // Hotel fetch state
   const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [hotelsLoading, setHotelsLoading] = useState(true);
   const [selectedHotelId, setSelectedHotelId] = useState("");
   const [fetchingEntries, setFetchingEntries] = useState(false);
   const [loadedCount, setLoadedCount] = useState<number | null>(null);
+
+  // All orders for selected hotel (pre-fetched on hotel select)
+  const [hotelOrdersForSelected, setHotelOrdersForSelected] = useState<HotelOrder[]>([]);
+  const [fetchingHotelOrders, setFetchingHotelOrders] = useState(false);
 
   // Pricing mode
   const [pricingMode, setPricingMode] = useState<PricingMode>("piece");
@@ -541,105 +546,106 @@ const AdminHotelInvoice: React.FC = () => {
 
   useEffect(() => {
     const fetchHotels = async () => {
+      setHotelsLoading(true);
       try {
         const res = await apiClient.adminRequest<{ data: Hotel[] }>("/hotel-management/hotels");
-        if (res.data?.data) setHotels(res.data.data);
-      } catch {}
+        const list = res.data?.data;
+        if (Array.isArray(list)) {
+          setHotels(list);
+        } else if (res.error) {
+          toast.error(`Could not load hotels: ${res.error}`);
+        }
+      } catch (e: any) {
+        toast.error(`Hotels fetch error: ${e?.message || "Unknown"}`);
+      } finally {
+        setHotelsLoading(false);
+      }
     };
     fetchHotels();
   }, []);
 
-  const loadEntriesFromHotel = async () => {
+  // Fetch all orders for a given hotel immediately on selection
+  const fetchOrdersForHotel = async (hotelId: string) => {
+    if (!hotelId) return;
+    setFetchingHotelOrders(true);
+    setHotelOrdersForSelected([]);
+    try {
+      const res = await apiClient.adminRequest<{ data: HotelOrder[] }>("/hotel-management/orders");
+      const all: HotelOrder[] = Array.isArray(res.data?.data) ? res.data!.data : [];
+      // Match hotel_id — stringify both sides to handle ObjectId vs string
+      const forHotel = all.filter(o => String(o.hotel_id) === String(hotelId));
+      setHotelOrdersForSelected(forHotel);
+    } catch (e: any) {
+      toast.error(`Could not load orders: ${e?.message || "Unknown"}`);
+    } finally {
+      setFetchingHotelOrders(false);
+    }
+  };
+
+  const loadEntriesFromHotel = () => {
     if (!selectedHotelId) { toast.error("Select a hotel first"); return; }
 
-    setFetchingEntries(true);
-    try {
-      // Fetch ALL orders then filter client-side — avoids any server-side ObjectId cast issues
-      const res = await apiClient.adminRequest<{ success: boolean; data: HotelOrder[] }>("/hotel-management/orders");
+    const source = hotelOrdersForSelected;
 
-      console.log("🏨 Hotel invoice load — raw response:", res);
+    if (source.length === 0) {
+      toast.warning("No entries found for this hotel. Make sure you have saved entries in Hotel Management → New Entry.");
+      setLoadedCount(0);
+      return;
+    }
 
-      if (res.error) {
-        toast.error(`API error: ${res.error}`);
-        return;
+    // Apply optional date range filter
+    let filtered = [...source];
+    if (setup.periodStart && setup.periodEnd) {
+      const pStart = new Date(setup.periodStart + "T00:00:00");
+      const pEnd = new Date(setup.periodEnd + "T23:59:59");
+      if (!isNaN(pStart.getTime()) && !isNaN(pEnd.getTime())) {
+        filtered = source.filter(o => {
+          const d = new Date(o.date + "T00:00:00");
+          return !isNaN(d.getTime()) && d >= pStart && d <= pEnd;
+        });
       }
+    }
 
-      const allOrders: HotelOrder[] = Array.isArray(res.data?.data) ? res.data!.data : [];
-      console.log(`🏨 Total orders in DB: ${allOrders.length}, looking for hotel_id: "${selectedHotelId}"`);
+    if (filtered.length === 0) {
+      toast.warning(`Found ${source.length} entries for this hotel but none in the selected period. Clear the date range to load all.`);
+      setLoadedCount(0);
+      return;
+    }
 
-      if (allOrders.length > 0) {
-        console.log("🏨 Sample hotel_ids:", allOrders.slice(0, 3).map(o => ({ hotel_id: o.hotel_id, type: typeof o.hotel_id })));
-      }
+    // Sort by date ascending
+    filtered.sort((a, b) => a.date.localeCompare(b.date));
 
-      // Filter by hotel — compare as strings (handles both plain string and ObjectId serialisation)
-      let filtered = allOrders.filter(o =>
-        String(o.hotel_id) === String(selectedHotelId)
-      );
-      console.log(`🏨 After hotel filter: ${filtered.length} orders`);
+    // Map HotelOrder → Entry
+    const mapped: Entry[] = filtered.map(order => {
+      const hotelPcs = (order.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
+      const dcPcs = (order.items || []).reduce((s, it) => s + (Number(it.dc_qty) || 0), 0);
+      const guestPcs = Number(order.guest_laundry_pcs) || 0;
 
-      // Optional client-side date range filter
-      if (setup.periodStart && setup.periodEnd) {
-        const pStart = new Date(setup.periodStart + "T00:00:00");
-        const pEnd = new Date(setup.periodEnd + "T23:59:59");
-        if (!isNaN(pStart.getTime()) && !isNaN(pEnd.getTime())) {
-          filtered = filtered.filter(o => {
-            const d = new Date(o.date + "T00:00:00");
-            return !isNaN(d.getTime()) && d >= pStart && d <= pEnd;
-          });
-          console.log(`🏨 After date filter (${setup.periodStart}→${setup.periodEnd}): ${filtered.length} orders`);
+      let dateLabel = order.date;
+      try {
+        const d = new Date(order.date + "T00:00:00");
+        if (!isNaN(d.getTime())) {
+          dateLabel = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
         }
-      }
+      } catch {}
 
-      if (filtered.length === 0) {
-        if (allOrders.length === 0) {
-          toast.warning("No hotel orders exist in the system yet. Create entries in Hotel Management first.");
-        } else {
-          const hotelOrders = allOrders.filter(o => String(o.hotel_id) === String(selectedHotelId));
-          if (hotelOrders.length === 0) {
-            toast.warning(`No entries found for this hotel (${allOrders.length} orders exist for other hotels). Create entries in Hotel Management first.`);
-          } else {
-            toast.warning(`Found ${hotelOrders.length} orders for this hotel but none in the selected period. Try clearing the date range.`);
-          }
-        }
-        setLoadedCount(0);
-        return;
-      }
+      return {
+        id: Date.now() + Math.random(),
+        date: dateLabel,
+        hotel: hotelPcs || "",
+        dc: dcPcs || "",
+        guest: guestPcs || "",
+      };
+    });
 
-      // Sort by date ascending
-      filtered.sort((a, b) => a.date.localeCompare(b.date));
-
-      // Map HotelOrder → Entry (hotel = sum qty, dc = sum dc_qty, guest = guest_laundry_pcs)
-      const mapped: Entry[] = filtered.map(order => {
-        const hotelPcs = (order.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
-        const dcPcs = (order.items || []).reduce((s, it) => s + (Number(it.dc_qty) || 0), 0);
-        const guestPcs = Number(order.guest_laundry_pcs) || 0;
-
-        // Format "YYYY-MM-DD" → "1 Jun 2026"
-        let dateLabel = order.date;
-        try {
-          const d = new Date(order.date + "T00:00:00");
-          if (!isNaN(d.getTime())) {
-            dateLabel = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-          }
-        } catch {}
-
-        return {
-          id: Date.now() + Math.random(),
-          date: dateLabel,
-          hotel: hotelPcs || "",
-          dc: dcPcs || "",
-          guest: guestPcs || "",
-        };
-      });
-
-      // Auto-fill period start/end from actual data dates when fields are blank
-      const firstRaw = filtered[0].date;
-      const lastRaw = filtered[filtered.length - 1].date;
-      setSetup(prev => ({
-        ...prev,
-        periodStart: prev.periodStart || firstRaw,
-        periodEnd: prev.periodEnd || lastRaw,
-      }));
+    // Auto-fill period start/end from actual data dates when fields are blank
+    const firstRaw = filtered[0].date;
+    const lastRaw = filtered[filtered.length - 1].date;
+    setSetup(prev => ({
+      ...prev,
+      periodStart: prev.periodStart || firstRaw,
+      periodEnd: prev.periodEnd || lastRaw,
+    }));
 
       // Pre-populate item rates from order price data
       const newItemRates: Record<string, ItemRate> = Object.fromEntries(
@@ -653,17 +659,11 @@ const AdminHotelInvoice: React.FC = () => {
           }
         });
       });
-      setItemRates(newItemRates);
-      setRawOrders(filtered);
-      setEntries(mapped);
-      setLoadedCount(mapped.length);
-      toast.success(`Loaded ${mapped.length} ${mapped.length === 1 ? "entry" : "entries"} from hotel records`);
-    } catch (err: any) {
-      console.error("loadEntriesFromHotel error:", err);
-      toast.error(`Error loading entries: ${err?.message || "Unknown error"}`);
-    } finally {
-      setFetchingEntries(false);
-    }
+    setItemRates(newItemRates);
+    setRawOrders(filtered);
+    setEntries(mapped);
+    setLoadedCount(mapped.length);
+    toast.success(`Loaded ${mapped.length} ${mapped.length === 1 ? "entry" : "entries"} from hotel records`);
   };
 
   // ── Navigation guards ────────────────────────────────────────────────────────
@@ -678,11 +678,14 @@ const AdminHotelInvoice: React.FC = () => {
 
   const handleHotelSelect = (hotelId: string) => {
     setSelectedHotelId(hotelId);
+    setLoadedCount(null);
+    setHotelOrdersForSelected([]);
     const hotel = hotels.find(h => h._id === hotelId);
     if (hotel) {
       setSetup(prev => ({ ...prev, hotelName: hotel.name }));
     }
-    setLoadedCount(null);
+    // Immediately pre-fetch orders for this hotel so we know how many exist
+    fetchOrdersForHotel(hotelId);
   };
 
   const goToEntries = () => {
@@ -761,6 +764,7 @@ const AdminHotelInvoice: React.FC = () => {
     setEntries([{ id: 1, date: "", hotel: "", dc: "", guest: "" }]);
     setSelectedHotelId("");
     setLoadedCount(null);
+    setHotelOrdersForSelected([]);
     setPricingMode("piece");
     setItemRates(Object.fromEntries(HOTEL_ITEMS.map(n => [n, { normal: 0, dc: 0 }])));
     setRawOrders([]);
@@ -861,7 +865,7 @@ const AdminHotelInvoice: React.FC = () => {
                 <Label className="text-xs text-gray-600">Hotel *</Label>
                 <Select value={selectedHotelId} onValueChange={handleHotelSelect}>
                   <SelectTrigger className="bg-white">
-                    <SelectValue placeholder={hotels.length ? "Select a hotel…" : "Loading hotels…"} />
+                    <SelectValue placeholder={hotelsLoading ? "Loading hotels…" : hotels.length ? "Select a hotel…" : "No hotels found — add one in Hotel Management"} />
                   </SelectTrigger>
                   <SelectContent>
                     {hotels.map(h => (
@@ -869,6 +873,17 @@ const AdminHotelInvoice: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedHotelId && (
+                  <div className="text-xs mt-1">
+                    {fetchingHotelOrders ? (
+                      <span className="text-purple-600">Checking entries…</span>
+                    ) : hotelOrdersForSelected.length === 0 ? (
+                      <span className="text-orange-600">⚠ No entries saved for this hotel yet. Go to Hotel Management → New Entry to add entries first.</span>
+                    ) : (
+                      <span className="text-green-700">✓ {hotelOrdersForSelected.length} entries found for this hotel — click Load Entries to import them</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -896,11 +911,11 @@ const AdminHotelInvoice: React.FC = () => {
                 <Button
                   type="button"
                   onClick={loadEntriesFromHotel}
-                  disabled={fetchingEntries || !selectedHotelId}
+                  disabled={fetchingHotelOrders || !selectedHotelId || hotelOrdersForSelected.length === 0}
                   className="bg-purple-600 hover:bg-purple-700 text-white"
                 >
-                  <RefreshCw className={`h-4 w-4 mr-1.5 ${fetchingEntries ? "animate-spin" : ""}`} />
-                  {fetchingEntries ? "Loading…" : "Load Entries"}
+                  <RefreshCw className={`h-4 w-4 mr-1.5 ${fetchingHotelOrders ? "animate-spin" : ""}`} />
+                  {fetchingHotelOrders ? "Checking…" : `Load Entries${hotelOrdersForSelected.length > 0 ? ` (${hotelOrdersForSelected.length})` : ""}`}
                 </Button>
                 <span className="text-xs text-purple-600">
                   {!setup.periodStart && !setup.periodEnd
