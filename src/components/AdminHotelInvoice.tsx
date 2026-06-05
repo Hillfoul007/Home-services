@@ -554,50 +554,56 @@ const AdminHotelInvoice: React.FC = () => {
 
     setFetchingEntries(true);
     try {
-      const res = await apiClient.adminRequest<{ data: HotelOrder[] }>("/hotel-management/orders");
-      if (!res.data?.data) { toast.error("Could not load hotel orders"); return; }
+      // Use server-side hotel_id filter — avoids ObjectId string comparison issues
+      const url = `/hotel-management/orders?hotel_id=${encodeURIComponent(selectedHotelId)}`;
+      const res = await apiClient.adminRequest<{ success: boolean; data: HotelOrder[] }>(url);
 
-      const allOrders: HotelOrder[] = res.data.data;
+      if (res.error) {
+        toast.error(`Failed to load orders: ${res.error}`);
+        return;
+      }
 
-      // Filter by selected hotel
-      let filtered = allOrders.filter(o => o.hotel_id === selectedHotelId);
+      if (!res.data?.data) {
+        toast.error("Unexpected response from server — no data field");
+        return;
+      }
 
-      // Apply date range filter only if both dates are provided
-      const parseDate = (s: string): Date | null => {
-        if (!s) return null;
-        const d = new Date(s);
-        return isNaN(d.getTime()) ? null : d;
-      };
-      const pStart = parseDate(setup.periodStart);
-      const pEnd = parseDate(setup.periodEnd);
-      if (pStart && pEnd) {
-        // Extend pEnd to end of day for inclusive comparison
-        pEnd.setHours(23, 59, 59, 999);
-        filtered = filtered.filter(o => {
-          const d = parseDate(o.date);
-          return d ? d >= pStart && d <= pEnd : false;
-        });
+      let filtered: HotelOrder[] = res.data.data;
+
+      // Optional client-side date range filter
+      if (setup.periodStart && setup.periodEnd) {
+        const pStart = new Date(setup.periodStart + "T00:00:00");
+        const pEnd = new Date(setup.periodEnd + "T23:59:59");
+        if (!isNaN(pStart.getTime()) && !isNaN(pEnd.getTime())) {
+          filtered = filtered.filter(o => {
+            const d = new Date(o.date + "T00:00:00");
+            return !isNaN(d.getTime()) && d >= pStart && d <= pEnd;
+          });
+        }
       }
 
       if (filtered.length === 0) {
-        toast.warning("No entries found for this hotel" + (pStart ? " in the selected period" : ""));
+        const msg = setup.periodStart && setup.periodEnd
+          ? "No entries found for this hotel in the selected period"
+          : "No entries found for this hotel";
+        toast.warning(msg);
         setLoadedCount(0);
         return;
       }
 
       // Sort by date ascending
-      filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      filtered.sort((a, b) => a.date.localeCompare(b.date));
 
-      // Map HotelOrder → Entry
+      // Map HotelOrder → Entry (hotel = sum qty, dc = sum dc_qty, guest = guest_laundry_pcs)
       const mapped: Entry[] = filtered.map(order => {
-        const hotelPcs = (order.items || []).reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
-        const dcPcs = (order.items || []).reduce((sum, it) => sum + (Number(it.dc_qty) || 0), 0);
+        const hotelPcs = (order.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
+        const dcPcs = (order.items || []).reduce((s, it) => s + (Number(it.dc_qty) || 0), 0);
         const guestPcs = Number(order.guest_laundry_pcs) || 0;
 
-        // Format date label (e.g. "1 Jun 2026")
+        // Format "YYYY-MM-DD" → "1 Jun 2026"
         let dateLabel = order.date;
         try {
-          const d = new Date(order.date);
+          const d = new Date(order.date + "T00:00:00");
           if (!isNaN(d.getTime())) {
             dateLabel = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
           }
@@ -612,20 +618,18 @@ const AdminHotelInvoice: React.FC = () => {
         };
       });
 
-      // Auto-fill period start/end from the min/max entry dates if not already set
-      if (!setup.periodStart || !setup.periodEnd) {
-        const firstDate = filtered[0].date;
-        const lastDate = filtered[filtered.length - 1].date;
-        setSetup(prev => ({
-          ...prev,
-          periodStart: prev.periodStart || firstDate.split("T")[0],
-          periodEnd: prev.periodEnd || lastDate.split("T")[0],
-        }));
-      }
+      // Auto-fill period start/end from actual data dates when fields are blank
+      const firstRaw = filtered[0].date;
+      const lastRaw = filtered[filtered.length - 1].date;
+      setSetup(prev => ({
+        ...prev,
+        periodStart: prev.periodStart || firstRaw,
+        periodEnd: prev.periodEnd || lastRaw,
+      }));
 
-      // Pre-populate itemRates from order prices (use first non-zero price found per item)
+      // Pre-populate item rates from order price data
       const newItemRates: Record<string, ItemRate> = Object.fromEntries(
-        HOTEL_ITEMS.map(n => [n, { normal: 0, dc: 0 }])
+        [...HOTEL_ITEMS, "GUEST LAUNDRY"].map(n => [n, { normal: 0, dc: 0 }])
       );
       filtered.forEach(order => {
         (order.items || []).forEach(it => {
@@ -637,12 +641,12 @@ const AdminHotelInvoice: React.FC = () => {
       });
       setItemRates(newItemRates);
       setRawOrders(filtered);
-
       setEntries(mapped);
       setLoadedCount(mapped.length);
       toast.success(`Loaded ${mapped.length} ${mapped.length === 1 ? "entry" : "entries"} from hotel records`);
-    } catch {
-      toast.error("Failed to load hotel entries");
+    } catch (err: any) {
+      console.error("loadEntriesFromHotel error:", err);
+      toast.error(`Error loading entries: ${err?.message || "Unknown error"}`);
     } finally {
       setFetchingEntries(false);
     }
