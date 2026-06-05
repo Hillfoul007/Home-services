@@ -554,21 +554,28 @@ const AdminHotelInvoice: React.FC = () => {
 
     setFetchingEntries(true);
     try {
-      // Use server-side hotel_id filter — avoids ObjectId string comparison issues
-      const url = `/hotel-management/orders?hotel_id=${encodeURIComponent(selectedHotelId)}`;
-      const res = await apiClient.adminRequest<{ success: boolean; data: HotelOrder[] }>(url);
+      // Fetch ALL orders then filter client-side — avoids any server-side ObjectId cast issues
+      const res = await apiClient.adminRequest<{ success: boolean; data: HotelOrder[] }>("/hotel-management/orders");
+
+      console.log("🏨 Hotel invoice load — raw response:", res);
 
       if (res.error) {
-        toast.error(`Failed to load orders: ${res.error}`);
+        toast.error(`API error: ${res.error}`);
         return;
       }
 
-      if (!res.data?.data) {
-        toast.error("Unexpected response from server — no data field");
-        return;
+      const allOrders: HotelOrder[] = Array.isArray(res.data?.data) ? res.data!.data : [];
+      console.log(`🏨 Total orders in DB: ${allOrders.length}, looking for hotel_id: "${selectedHotelId}"`);
+
+      if (allOrders.length > 0) {
+        console.log("🏨 Sample hotel_ids:", allOrders.slice(0, 3).map(o => ({ hotel_id: o.hotel_id, type: typeof o.hotel_id })));
       }
 
-      let filtered: HotelOrder[] = res.data.data;
+      // Filter by hotel — compare as strings (handles both plain string and ObjectId serialisation)
+      let filtered = allOrders.filter(o =>
+        String(o.hotel_id) === String(selectedHotelId)
+      );
+      console.log(`🏨 After hotel filter: ${filtered.length} orders`);
 
       // Optional client-side date range filter
       if (setup.periodStart && setup.periodEnd) {
@@ -579,14 +586,21 @@ const AdminHotelInvoice: React.FC = () => {
             const d = new Date(o.date + "T00:00:00");
             return !isNaN(d.getTime()) && d >= pStart && d <= pEnd;
           });
+          console.log(`🏨 After date filter (${setup.periodStart}→${setup.periodEnd}): ${filtered.length} orders`);
         }
       }
 
       if (filtered.length === 0) {
-        const msg = setup.periodStart && setup.periodEnd
-          ? "No entries found for this hotel in the selected period"
-          : "No entries found for this hotel";
-        toast.warning(msg);
+        if (allOrders.length === 0) {
+          toast.warning("No hotel orders exist in the system yet. Create entries in Hotel Management first.");
+        } else {
+          const hotelOrders = allOrders.filter(o => String(o.hotel_id) === String(selectedHotelId));
+          if (hotelOrders.length === 0) {
+            toast.warning(`No entries found for this hotel (${allOrders.length} orders exist for other hotels). Create entries in Hotel Management first.`);
+          } else {
+            toast.warning(`Found ${hotelOrders.length} orders for this hotel but none in the selected period. Try clearing the date range.`);
+          }
+        }
         setLoadedCount(0);
         return;
       }
