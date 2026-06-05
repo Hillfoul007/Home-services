@@ -57,8 +57,22 @@ interface Entry {
 }
 
 type Step = "setup" | "rates" | "entries" | "preview";
+type PricingMode = "piece" | "item";
+
+interface ItemRate {
+  normal: number;
+  dc: number;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+const HOTEL_ITEMS = [
+  "BEDSHEET DOUBLE","BEDSHEET SINGLE","TABLE TOP","BATH TOWEL","HAND TOWEL",
+  "BATH MAT","PILLOW COVERS (COLOUR)","PILLOW COVERS (WHITE)","DUVET COVER (SINGLE)",
+  "DUVET COVER (DOUBLE)","STAFF SHIRT","STAFF PANT","BLANKET","RUNNER",
+  "CUSHION COVER","DOOR MAT","NAPKIN","CHEF COAT","ROUND TABLE COVER",
+  "CURTAIN","CHAIR COVER",
+];
 
 const fmt = (n: number) =>
   n.toLocaleString("en-IN", { minimumFractionDigits: 0 });
@@ -282,6 +296,217 @@ function buildInvoiceHTML(
 </html>`;
 }
 
+// ── Per-item invoice HTML generator ──────────────────────────────────────────
+
+function buildItemInvoiceHTML(
+  setup: InvoiceSetup,
+  itemRates: Record<string, ItemRate>,
+  rawOrders: HotelOrder[]
+): string {
+  const fmtD = (s: string) => {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  };
+  const periodStartDisplay = fmtD(setup.periodStart) || setup.periodStart;
+  const periodEndDisplay = fmtD(setup.periodEnd) || setup.periodEnd;
+  const periodLabel = periodStartDisplay === periodEndDisplay
+    ? periodStartDisplay : `${periodStartDisplay} – ${periodEndDisplay}`;
+
+  // Aggregate totals per item across all orders
+  const agg: Record<string, { qty: number; dcQty: number }> = {};
+  rawOrders.forEach(order => {
+    (order.items || []).forEach(it => {
+      if (!agg[it.name]) agg[it.name] = { qty: 0, dcQty: 0 };
+      agg[it.name].qty += Number(it.qty) || 0;
+      agg[it.name].dcQty += Number(it.dc_qty) || 0;
+    });
+    const g = Number(order.guest_laundry_pcs) || 0;
+    if (g > 0) {
+      if (!agg["GUEST LAUNDRY"]) agg["GUEST LAUNDRY"] = { qty: 0, dcQty: 0 };
+      agg["GUEST LAUNDRY"].qty += g;
+    }
+  });
+
+  let grandTotal = 0;
+  const rowsData: Array<{ name: string; qty: number; dcQty: number; normalRate: number; dcRate: number; normalAmt: number; dcAmt: number; rowTotal: number }> = [];
+
+  Object.entries(agg)
+    .filter(([, v]) => v.qty > 0 || v.dcQty > 0)
+    .forEach(([name, v]) => {
+      const r = itemRates[name] || { normal: 0, dc: 0 };
+      const normalAmt = v.qty * r.normal;
+      const dcAmt = v.dcQty * r.dc;
+      const rowTotal = normalAmt + dcAmt;
+      grandTotal += rowTotal;
+      rowsData.push({ name, qty: v.qty, dcQty: v.dcQty, normalRate: r.normal, dcRate: r.dc, normalAmt, dcAmt, rowTotal });
+    });
+
+  const rows = rowsData.map(r => {
+    const normalCell = r.qty > 0 && r.normalRate > 0
+      ? `<td>${r.qty}</td><td>₹ ${r.normalRate}</td><td>₹ ${fmt(r.normalAmt)}</td>`
+      : `<td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td>`;
+    const dcCell = r.dcQty > 0 && r.dcRate > 0
+      ? `<td>${r.dcQty}</td><td>₹ ${r.dcRate}</td><td>₹ ${fmt(r.dcAmt)}</td>`
+      : `<td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td>`;
+    return `<tr>
+      <td style="text-align:left;font-weight:600;color:#444;">${r.name}</td>
+      ${normalCell}
+      ${dcCell}
+      <td style="font-weight:700;color:#7c3aed;">₹ ${fmt(r.rowTotal)}</td>
+    </tr>`;
+  }).join("\n");
+
+  const totalQty = rowsData.reduce((s, r) => s + r.qty, 0);
+  const totalDcQty = rowsData.reduce((s, r) => s + r.dcQty, 0);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Laundrify Invoice #${setup.invoiceNo} – ${setup.hotelName}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:40px 20px}
+    .wrap{width:860px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 40px rgba(196,109,216,.18),0 2px 8px rgba(0,0,0,.08)}
+    .hdr{background:linear-gradient(135deg,#C46DD8 0%,#F36BAF 50%,#C46DD8 100%);padding:32px 36px 28px;display:flex;align-items:center;justify-content:space-between;color:#fff}
+    .logo-area{display:flex;align-items:center;gap:16px}
+    .logo-box{width:64px;height:64px;background:rgba(255,255,255,.95);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+    .brand{font-size:28px;font-weight:800;letter-spacing:-.5px;color:#fff}
+    .tagline{font-size:12px;color:rgba(255,255,255,.85);margin-top:2px;letter-spacing:.5px;text-transform:uppercase}
+    .inv-label{font-size:13px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.8)}
+    .inv-num{font-size:36px;font-weight:800;line-height:1}
+    .contact{background:linear-gradient(135deg,#b05ec5,#e05ca0);padding:8px 36px;display:flex;gap:28px;font-size:12px;color:rgba(255,255,255,.9)}
+    .meta{padding:24px 36px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #eee;background:#fafafa}
+    .bill-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#999;font-weight:600}
+    .client{font-size:20px;font-weight:700;color:#2d2d2d;margin-top:4px}
+    .badge{display:inline-block;background:linear-gradient(135deg,#C46DD8,#F36BAF);color:#fff;font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;letter-spacing:.5px;margin-top:4px}
+    .meta-r{text-align:right}
+    .mrow{display:flex;justify-content:flex-end;gap:12px;margin-bottom:6px;font-size:13px}
+    .mlabel{color:#999}
+    .mval{font-weight:600;color:#2d2d2d;min-width:140px;text-align:right}
+    .tbl-wrap{padding:0 36px 24px}
+    table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:18px}
+    thead tr{background:linear-gradient(135deg,#C46DD8,#F36BAF);color:#fff}
+    thead th{padding:10px 10px;text-align:center;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.7px}
+    thead th:first-child{text-align:left;min-width:180px}
+    thead .grp{background:rgba(0,0,0,.15);font-size:10px;padding:4px 8px;text-align:center;letter-spacing:1px}
+    tbody tr{border-bottom:1px solid #f0f0f0}
+    tbody tr:hover{background:#fdf5ff}
+    td{padding:9px 10px;text-align:center;color:#333}
+    .totals-row td{background:#f3e8ff;font-weight:700;color:#6b21a8;border-top:2px solid #d8b4fe;padding:11px 10px}
+    .amt-wrap{display:flex;justify-content:flex-end;padding:20px 0 0}
+    .amt-tbl{min-width:280px;font-size:13.5px}
+    .amt-tbl td{padding:6px 10px;color:#555;text-align:right}
+    .amt-tbl td:first-child{text-align:left;color:#888}
+    .sub-row td{border-top:1px solid #eee}
+    .grand-row td{font-size:17px;font-weight:800;color:#fff;background:linear-gradient(135deg,#C46DD8,#F36BAF);padding:10px 14px}
+    .grand-row td:first-child{border-radius:8px 0 0 8px}
+    .grand-row td:last-child{border-radius:0 8px 8px 0}
+    .footer{background:#1a1a2e;padding:20px 36px;display:flex;justify-content:space-between;align-items:center;color:rgba(255,255,255,.7);font-size:12px}
+    .auth-line{width:140px;border-bottom:1px solid rgba(255,255,255,.3);margin-bottom:5px;height:28px}
+    .wm{text-align:center;padding:10px;font-size:10px;color:#ccc;background:#f9f9f9;letter-spacing:1px;text-transform:uppercase}
+    @media print{body{background:#fff;padding:0}.wrap{box-shadow:none;border-radius:0;width:100%}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div class="logo-area">
+      <div class="logo-box">
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="80" y2="80"><stop offset="0%" stop-color="#C46DD8"/><stop offset="100%" stop-color="#F36BAF"/></linearGradient></defs>
+          <rect width="80" height="80" rx="16" fill="url(#g1)"/>
+          <rect x="10" y="14" width="60" height="52" rx="8" fill="none" stroke="white" stroke-width="2.5"/>
+          <rect x="12" y="18" width="56" height="10" rx="4" fill="white" opacity="0.3"/>
+          <circle cx="40" cy="44" r="20" fill="none" stroke="white" stroke-width="3.5"/>
+          <circle cx="40" cy="44" r="12" fill="none" stroke="white" stroke-width="2"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand">Laundrify</div>
+        <div class="tagline">Laundry &amp; Dry Clean Services</div>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="inv-label">Invoice</div>
+      <div class="inv-num">#${setup.invoiceNo}</div>
+    </div>
+  </div>
+
+  <div class="contact">
+    <span>📞 +91 70115 85587</span>
+    <span>✉ operationslaundrify@gmail.com</span>
+    <span>🌐 www.laundrify.online</span>
+  </div>
+
+  <div class="meta">
+    <div>
+      <div class="bill-label">Billed To</div>
+      <div class="client">${setup.hotelName}</div>
+      <div class="badge">${periodLabel}</div>
+    </div>
+    <div class="meta-r">
+      <div class="mrow"><span class="mlabel">Invoice No.</span><span class="mval">${setup.invoiceNo}</span></div>
+      <div class="mrow"><span class="mlabel">Issue Date</span><span class="mval">${setup.issueDate}</span></div>
+      <div class="mrow"><span class="mlabel">Service Period</span><span class="mval">${periodLabel}</span></div>
+      <div class="mrow"><span class="mlabel">Pricing</span><span class="mval" style="color:#9333ea;">Per Item Name</span></div>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th rowspan="2" style="text-align:left;vertical-align:middle">Item Name</th>
+          <th colspan="3" class="grp">Normal Wash</th>
+          <th colspan="3" class="grp">Dry Clean (DC)</th>
+          <th rowspan="2" style="vertical-align:middle">Total</th>
+        </tr>
+        <tr>
+          <th>Qty</th><th>Rate</th><th>Amount</th>
+          <th>Qty</th><th>Rate</th><th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="totals-row">
+          <td style="text-align:left">TOTALS</td>
+          <td>${totalQty} pcs</td><td>—</td><td>—</td>
+          <td>${totalDcQty} pcs</td><td>—</td><td>—</td>
+          <td>₹ ${fmt(grandTotal)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="amt-wrap">
+      <table class="amt-tbl">
+        <tbody>
+          <tr class="sub-row"><td>Sub-Total</td><td>₹ ${fmt(grandTotal)}</td></tr>
+          <tr><td>Advance Received</td><td>₹ 0</td></tr>
+          <tr class="grand-row"><td>GRAND TOTAL</td><td>₹ ${fmt(grandTotal)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>
+      <div style="color:rgba(255,255,255,.85);font-weight:600;margin-bottom:4px;">Thank you for your business!</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.45);">E. &amp; O.E. · Payment due upon receipt</div>
+    </div>
+    <div style="text-align:right">
+      <div class="auth-line"></div>
+      <span style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px">Authorised Signatory</span>
+    </div>
+  </div>
+
+  <div class="wm">Laundrify · Laundry &amp; Dry Clean Services · +91 70115 85587</div>
+</div>
+</body>
+</html>`;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const AdminHotelInvoice: React.FC = () => {
@@ -306,6 +531,13 @@ const AdminHotelInvoice: React.FC = () => {
   const [selectedHotelId, setSelectedHotelId] = useState("");
   const [fetchingEntries, setFetchingEntries] = useState(false);
   const [loadedCount, setLoadedCount] = useState<number | null>(null);
+
+  // Pricing mode
+  const [pricingMode, setPricingMode] = useState<PricingMode>("piece");
+  const [itemRates, setItemRates] = useState<Record<string, ItemRate>>(() =>
+    Object.fromEntries(HOTEL_ITEMS.map(n => [n, { normal: 0, dc: 0 }]))
+  );
+  const [rawOrders, setRawOrders] = useState<HotelOrder[]>([]);
 
   useEffect(() => {
     const fetchHotels = async () => {
@@ -391,6 +623,21 @@ const AdminHotelInvoice: React.FC = () => {
         }));
       }
 
+      // Pre-populate itemRates from order prices (use first non-zero price found per item)
+      const newItemRates: Record<string, ItemRate> = Object.fromEntries(
+        HOTEL_ITEMS.map(n => [n, { normal: 0, dc: 0 }])
+      );
+      filtered.forEach(order => {
+        (order.items || []).forEach(it => {
+          if (!newItemRates[it.name]) newItemRates[it.name] = { normal: 0, dc: 0 };
+          if (newItemRates[it.name].normal === 0 && Number(it.price) > 0) {
+            newItemRates[it.name].normal = Number(it.price);
+          }
+        });
+      });
+      setItemRates(newItemRates);
+      setRawOrders(filtered);
+
       setEntries(mapped);
       setLoadedCount(mapped.length);
       toast.success(`Loaded ${mapped.length} ${mapped.length === 1 ? "entry" : "entries"} from hotel records`);
@@ -427,6 +674,13 @@ const AdminHotelInvoice: React.FC = () => {
   };
 
   const goToPreview = () => {
+    if (pricingMode === "item") {
+      if (rawOrders.length === 0) return toast.error("Load hotel entries first (go back to Step 1)");
+      const hasAnyPrice = Object.values(itemRates).some(r => r.normal > 0 || r.dc > 0);
+      if (!hasAnyPrice) return toast.error("Set at least one item price before previewing");
+      setStep("preview");
+      return;
+    }
     const valid = entries.filter(
       (e) => e.date.trim() && (Number(e.hotel) > 0 || Number(e.dc) > 0 || Number(e.guest) > 0)
     );
@@ -457,8 +711,13 @@ const AdminHotelInvoice: React.FC = () => {
 
   // ── Invoice actions ──────────────────────────────────────────────────────────
 
+  const getInvoiceHTML = () =>
+    pricingMode === "item"
+      ? buildItemInvoiceHTML(setup, itemRates, rawOrders)
+      : buildInvoiceHTML(setup, rates, entries.filter((e) => e.date.trim()));
+
   const openInvoice = () => {
-    const html = buildInvoiceHTML(setup, rates, entries.filter((e) => e.date.trim()));
+    const html = getInvoiceHTML();
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
@@ -466,7 +725,7 @@ const AdminHotelInvoice: React.FC = () => {
   };
 
   const downloadInvoice = () => {
-    const html = buildInvoiceHTML(setup, rates, entries.filter((e) => e.date.trim()));
+    const html = getInvoiceHTML();
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -484,6 +743,9 @@ const AdminHotelInvoice: React.FC = () => {
     setEntries([{ id: 1, date: "", hotel: "", dc: "", guest: "" }]);
     setSelectedHotelId("");
     setLoadedCount(null);
+    setPricingMode("piece");
+    setItemRates(Object.fromEntries(HOTEL_ITEMS.map(n => [n, { normal: 0, dc: 0 }])));
+    setRawOrders([]);
   };
 
   // ── Summary numbers ──────────────────────────────────────────────────────────
@@ -672,73 +934,163 @@ const AdminHotelInvoice: React.FC = () => {
       {step === "rates" && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               <span className="text-purple-600 text-lg">₹</span>
-              Price Per Piece
-              <Badge variant="secondary" className="ml-2 text-xs">{setup.hotelName}</Badge>
+              Set Prices
+              <Badge variant="secondary" className="text-xs">{setup.hotelName}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <p className="text-sm text-gray-500">
-              Set the rate per piece for this hotel. These can differ per client.
-            </p>
-
-            <div className="grid grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-purple-400 inline-block" />
-                  Hotel Linen (₹/pc)
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="12"
-                  value={rates.hotel}
-                  onChange={(e) => setRates({ ...rates, hotel: Number(e.target.value) })}
-                  className="text-lg font-semibold"
-                />
-                <p className="text-xs text-gray-400">Bedsheets, towels, etc.</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-pink-400 inline-block" />
-                  Dry Clean / DC (₹/pc)
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="30"
-                  value={rates.dc}
-                  onChange={(e) => setRates({ ...rates, dc: Number(e.target.value) })}
-                  className="text-lg font-semibold"
-                />
-                <p className="text-xs text-gray-400">Dry-clean items</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-indigo-400 inline-block" />
-                  Guest Items (₹/pc)
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="15"
-                  value={rates.guest}
-                  onChange={(e) => setRates({ ...rates, guest: Number(e.target.value) })}
-                  className="text-lg font-semibold"
-                />
-                <p className="text-xs text-gray-400">Guest laundry pieces</p>
-              </div>
+            {/* Mode toggle */}
+            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
+              <button
+                onClick={() => setPricingMode("piece")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${pricingMode === "piece" ? "bg-white shadow text-purple-700" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                By Piece Type
+              </button>
+              <button
+                onClick={() => setPricingMode("item")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${pricingMode === "item" ? "bg-white shadow text-purple-700" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                By Item Name
+              </button>
             </div>
 
-            {/* Live rate preview */}
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-800 flex gap-6 flex-wrap">
-              <span>Hotel: <strong>₹{rates.hotel}/pc</strong></span>
-              <span>DC: <strong>₹{rates.dc}/pc</strong></span>
-              <span>Guest: <strong>₹{rates.guest}/pc</strong></span>
-            </div>
+            {/* ── Piece mode ── */}
+            {pricingMode === "piece" && (
+              <>
+                <p className="text-sm text-gray-500">
+                  Flat rate per piece type — same price for all bedsheets, towels, etc.
+                </p>
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-purple-400 inline-block" />
+                      Hotel Linen (₹/pc)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="12"
+                      value={rates.hotel}
+                      onChange={(e) => setRates({ ...rates, hotel: Number(e.target.value) })}
+                      className="text-lg font-semibold"
+                    />
+                    <p className="text-xs text-gray-400">Bedsheets, towels, etc.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-pink-400 inline-block" />
+                      Dry Clean / DC (₹/pc)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="30"
+                      value={rates.dc}
+                      onChange={(e) => setRates({ ...rates, dc: Number(e.target.value) })}
+                      className="text-lg font-semibold"
+                    />
+                    <p className="text-xs text-gray-400">Dry-clean items</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-indigo-400 inline-block" />
+                      Guest Items (₹/pc)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="15"
+                      value={rates.guest}
+                      onChange={(e) => setRates({ ...rates, guest: Number(e.target.value) })}
+                      className="text-lg font-semibold"
+                    />
+                    <p className="text-xs text-gray-400">Guest laundry pieces</p>
+                  </div>
+                </div>
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-800 flex gap-6 flex-wrap">
+                  <span>Hotel: <strong>₹{rates.hotel}/pc</strong></span>
+                  <span>DC: <strong>₹{rates.dc}/pc</strong></span>
+                  <span>Guest: <strong>₹{rates.guest}/pc</strong></span>
+                </div>
+              </>
+            )}
+
+            {/* ── Item mode ── */}
+            {pricingMode === "item" && (
+              <>
+                <p className="text-sm text-gray-500">
+                  Set a specific price per item. Leave 0 to exclude an item from the bill.
+                  Prices were auto-filled from your hotel entries where available.
+                </p>
+
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-purple-50 border-b">
+                        <th className="text-left py-2.5 px-3 font-semibold text-gray-700 w-[55%]">Item Name</th>
+                        <th className="text-center py-2.5 px-3 font-semibold text-purple-700">Normal (₹/pc)</th>
+                        <th className="text-center py-2.5 px-3 font-semibold text-pink-600">DC (₹/pc)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...HOTEL_ITEMS, "GUEST LAUNDRY"].map((name) => {
+                        const r = itemRates[name] || { normal: 0, dc: 0 };
+                        const hasData = rawOrders.some(o =>
+                          name === "GUEST LAUNDRY"
+                            ? Number(o.guest_laundry_pcs) > 0
+                            : (o.items || []).some(it => it.name === name && (it.qty > 0 || it.dc_qty > 0))
+                        );
+                        return (
+                          <tr key={name} className={`border-b last:border-0 ${hasData ? "bg-green-50/40" : ""}`}>
+                            <td className="py-2 px-3 font-medium text-gray-700 flex items-center gap-2">
+                              {name}
+                              {hasData && (
+                                <span className="text-xs text-green-600 font-normal">• in entries</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.5"
+                                value={r.normal || ""}
+                                placeholder="0"
+                                onChange={(e) => setItemRates(prev => ({
+                                  ...prev,
+                                  [name]: { ...prev[name] || { normal: 0, dc: 0 }, normal: Number(e.target.value) || 0 }
+                                }))}
+                                className="h-7 text-center text-sm w-24 mx-auto block"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.5"
+                                value={r.dc || ""}
+                                placeholder="0"
+                                onChange={(e) => setItemRates(prev => ({
+                                  ...prev,
+                                  [name]: { ...prev[name] || { normal: 0, dc: 0 }, dc: Number(e.target.value) || 0 }
+                                }))}
+                                className="h-7 text-center text-sm w-24 mx-auto block"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
+                  Items highlighted in green have quantities in your loaded entries. Items with 0 price are excluded from the invoice total.
+                </div>
+              </>
+            )}
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep("setup")}>
@@ -746,7 +1098,7 @@ const AdminHotelInvoice: React.FC = () => {
                 Back
               </Button>
               <Button onClick={goToEntries} className="bg-purple-600 hover:bg-purple-700">
-                Next: Add Entries
+                Next: Review Entries
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </div>
@@ -835,9 +1187,9 @@ const AdminHotelInvoice: React.FC = () => {
             </Button>
 
             {/* Running total */}
-            {(hotelTotal > 0 || dcTotal > 0 || guestTotal > 0) && (
+            {pricingMode === "piece" && (hotelTotal > 0 || dcTotal > 0 || guestTotal > 0) && (
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 space-y-2">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Live Summary</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Live Summary — By Piece</div>
                 <div className="grid grid-cols-3 gap-3 text-sm">
                   <div className="text-center">
                     <div className="font-bold text-purple-700">{hotelTotal} pcs</div>
@@ -857,6 +1209,26 @@ const AdminHotelInvoice: React.FC = () => {
                 </div>
               </div>
             )}
+            {pricingMode === "item" && rawOrders.length > 0 && (() => {
+              const itemGrand = Object.entries(itemRates).reduce((sum, [name, r]) => {
+                const agg = rawOrders.reduce((s, o) => {
+                  if (name === "GUEST LAUNDRY") return s + (Number(o.guest_laundry_pcs) || 0);
+                  return s + (o.items || []).filter(it => it.name === name).reduce((a, it) => a + (it.qty || 0) * r.normal + (it.dc_qty || 0) * r.dc, 0);
+                }, 0);
+                return sum + agg;
+              }, 0);
+              return (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Live Summary — By Item Name</div>
+                  <div className="text-center font-bold text-lg text-purple-800">
+                    Grand Total: ₹{fmt(itemGrand)}
+                  </div>
+                  <div className="text-center text-xs text-gray-500 mt-1">
+                    Based on {rawOrders.length} loaded entries · {Object.values(itemRates).filter(r => r.normal > 0 || r.dc > 0).length} items priced
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep("rates")}>
