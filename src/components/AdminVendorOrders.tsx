@@ -118,6 +118,17 @@ const AdminVendorOrders: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingStatus, setUpdatingStatus] = useState<Record<string, boolean>>({});
   const [viewingOrder, setViewingOrder] = useState<VendorOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<VendorOrder | null>(null);
+  const [editVendorName, setEditVendorName] = useState("");
+  const [editScheduledDate, setEditScheduledDate] = useState("");
+  const [editScheduledTime, setEditScheduledTime] = useState("10:00");
+  const [editDeliveryDate, setEditDeliveryDate] = useState("");
+  const [editDeliveryTime, setEditDeliveryTime] = useState("18:00");
+  const [editNotes, setEditNotes] = useState("");
+  const [editAssignedVendor, setEditAssignedVendor] = useState("");
+  const [editAssignedVendorId, setEditAssignedVendorId] = useState("");
+  const [editCartItems, setEditCartItems] = useState<CartItem[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const calculateTotal = () =>
     cartItems.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0);
@@ -291,6 +302,117 @@ const AdminVendorOrders: React.FC = () => {
       toast.error("Error updating status");
     } finally {
       setUpdatingStatus(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const openEditOrder = (order: VendorOrder) => {
+    setEditingOrder(order);
+    setEditVendorName(order.vendor_client_name || order.name || "");
+    setEditScheduledDate(order.scheduled_date || "");
+    setEditScheduledTime(order.scheduled_time || "10:00");
+    setEditDeliveryDate(order.delivery_date || "");
+    setEditDeliveryTime(order.delivery_time || "18:00");
+    setEditNotes(order.special_instructions || "");
+    const vendor = laundryVendors.find(v => v.name === order.assignedVendor);
+    setEditAssignedVendor(order.assignedVendor || "");
+    setEditAssignedVendorId(vendor?.id || "");
+    const items = (order.item_prices || []).map((it, i) => ({
+      service_name: it.service_name || "",
+      quantity: it.quantity || 1,
+      unit_price: it.unit_price || 0,
+      total_price: it.total_price || 0,
+      _key: `edit-item-${i}-${Date.now()}`,
+    }));
+    setEditCartItems(items.length > 0 ? items : [{ service_name: "", quantity: 1, unit_price: 0, total_price: 0, _key: `edit-item-0-${Date.now()}` }]);
+  };
+
+  const addEditCartItem = () => {
+    setEditCartItems(prev => [
+      ...prev,
+      { service_name: "", quantity: 1, unit_price: 0, total_price: 0, _key: `edit-item-${Date.now()}-${Math.random()}` },
+    ]);
+  };
+
+  const removeEditCartItem = (key: string) => {
+    setEditCartItems(prev => prev.filter(it => it._key !== key));
+  };
+
+  const handleEditCartItemChange = (key: string, field: "service_name" | "quantity" | "unit_price", rawValue: string) => {
+    setEditCartItems(prev => prev.map(it => {
+      if (it._key !== key) return it;
+      const next = { ...it };
+      if (field === "service_name") {
+        next.service_name = rawValue;
+        const catalog = getSortedServices();
+        const matched = catalog.find((s: any) => s.name === rawValue);
+        if (matched) {
+          next.unit_price = matched.price;
+          if (!it.quantity || it.quantity === 0) next.quantity = 1;
+        }
+      } else if (field === "quantity") {
+        const v = parseFloat(rawValue);
+        next.quantity = Number.isFinite(v) && v >= 0 ? v : 1;
+      } else if (field === "unit_price") {
+        const v = parseFloat(rawValue);
+        next.unit_price = Number.isFinite(v) && v >= 0 ? v : 0;
+      }
+      next.total_price = +(next.quantity * next.unit_price).toFixed(2);
+      return next;
+    }));
+  };
+
+  const calculateEditTotal = () =>
+    editCartItems.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0);
+
+  const saveEdit = async () => {
+    if (!editingOrder) return;
+    if (!editVendorName.trim()) { toast.error("Enter vendor/client name"); return; }
+    if (!editScheduledDate) { toast.error("Select pickup date"); return; }
+    const validItems = editCartItems.filter(it => it.service_name.trim() && it.quantity > 0);
+    if (validItems.length === 0) { toast.error("Add at least one service item"); return; }
+
+    setSavingEdit(true);
+    try {
+      const total = validItems.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0);
+      const payload: any = {
+        vendor_client_name: editVendorName.trim(),
+        name: editVendorName.trim(),
+        service: validItems[0]?.service_name || "Laundry Service",
+        services: validItems.map(it => `${it.service_name} x${it.quantity} (₹${it.unit_price})`),
+        item_prices: validItems.map(it => ({
+          service_name: it.service_name,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          total_price: it.total_price,
+        })),
+        scheduled_date: editScheduledDate,
+        scheduled_time: editScheduledTime,
+        delivery_date: editDeliveryDate || editScheduledDate,
+        delivery_time: editDeliveryTime || editScheduledTime,
+        special_instructions: editNotes,
+        total_price: total,
+        final_amount: total,
+        assignedVendor: editAssignedVendor || "",
+        assignedVendorId: editAssignedVendorId || "",
+        status: editAssignedVendorId ? "vendor_assigned" : editingOrder.status,
+      };
+
+      const res = await apiClient.adminRequest<{ booking?: any }>(`/admin/bookings/${editingOrder._id}`, {
+        method: "PUT",
+        body: payload,
+      });
+
+      if (res.data) {
+        toast.success("Order updated successfully");
+        setEditingOrder(null);
+        await fetchOrders();
+      } else {
+        toast.error(res.error || "Failed to update order");
+      }
+    } catch {
+      toast.error("Error updating order");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -753,7 +875,16 @@ const AdminVendorOrders: React.FC = () => {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => openEditOrder(order)}
+                              title="Edit order"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => setViewingOrder(order)}
+                              title="View order"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -780,6 +911,197 @@ const AdminVendorOrders: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Edit Order Dialog */}
+      {editingOrder && (
+        <Dialog open={!!editingOrder} onOpenChange={() => setEditingOrder(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit3 className="h-5 w-5 text-amber-600" />
+                Edit Vendor Order #{editingOrder.custom_order_id}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              {/* Vendor name */}
+              <div>
+                <Label>Vendor / Client Name *</Label>
+                <Input
+                  placeholder="e.g. Hotel Sunshine, ABC Corp..."
+                  value={editVendorName}
+                  onChange={e => setEditVendorName(e.target.value)}
+                  className="mt-1 font-semibold"
+                />
+              </div>
+
+              {/* Schedule */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Pickup Date *</Label>
+                  <Input type="date" value={editScheduledDate} onChange={e => setEditScheduledDate(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Pickup Time</Label>
+                  <Input type="time" value={editScheduledTime} onChange={e => setEditScheduledTime(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Delivery Date</Label>
+                  <Input type="date" value={editDeliveryDate} onChange={e => setEditDeliveryDate(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Delivery Time</Label>
+                  <Input type="time" value={editDeliveryTime} onChange={e => setEditDeliveryTime(e.target.value)} className="mt-1" />
+                </div>
+              </div>
+
+              {/* Assigned vendor */}
+              <div>
+                <Label>Assign Laundry Vendor</Label>
+                <Select
+                  value={editAssignedVendorId || "none"}
+                  onValueChange={val => {
+                    if (val === "none") {
+                      setEditAssignedVendorId("");
+                      setEditAssignedVendor("");
+                    } else {
+                      const v = laundryVendors.find(lv => lv.id === val);
+                      setEditAssignedVendorId(val);
+                      setEditAssignedVendor(v?.name || "");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select laundry vendor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None / Unassigned</SelectItem>
+                    {laundryVendors.map(v => (
+                      <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Items table */}
+              <div>
+                <Label className="mb-2 block">Services / Items</Label>
+                <div className="border rounded overflow-hidden">
+                  {editCartItems.length > 0 && (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-gray-50">
+                          <th className="text-left py-2 px-3 font-semibold">Service</th>
+                          <th className="text-center py-2 px-3 font-semibold w-20">Qty</th>
+                          <th className="text-right py-2 px-3 font-semibold w-28">Unit ₹</th>
+                          <th className="text-right py-2 px-3 font-semibold w-24">Total</th>
+                          <th className="w-12"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {editCartItems.map(item => (
+                          <tr key={item._key} className="border-b hover:bg-gray-50">
+                            <td className="py-2 px-3">
+                              <Select
+                                value={item.service_name || ""}
+                                onValueChange={val => handleEditCartItemChange(item._key, "service_name", val === "__none__" ? "" : val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Select item">
+                                    {item.service_name ? <>{item.service_name} — ₹{item.unit_price}</> : "Select item"}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">Select item</SelectItem>
+                                  {getSortedServices().map((svc: any) => (
+                                    <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                      {svc.name} — ₹{svc.price}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="py-2 px-3">
+                              <Input
+                                type="number" step="0.1" min="0"
+                                value={String(item.quantity ?? 1)}
+                                onChange={e => handleEditCartItemChange(item._key, "quantity", e.target.value)}
+                                className="h-8 text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <Input
+                                type="number" step="0.01" min="0"
+                                value={String(item.unit_price ?? 0)}
+                                onChange={e => handleEditCartItemChange(item._key, "unit_price", e.target.value)}
+                                className="h-8 text-right text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right font-medium">
+                              ₹{(Number(item.total_price) || 0).toFixed(2)}
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <Button
+                                size="sm" variant="ghost"
+                                onClick={() => removeEditCartItem(item._key)}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t">
+                    <Button size="sm" variant="outline" onClick={addEditCartItem} className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
+                    </Button>
+                    <span className="text-sm font-semibold">
+                      Total: <span className="text-green-600">₹{calculateEditTotal().toFixed(2)}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <Label>Notes / Special Instructions</Label>
+                <Textarea
+                  placeholder="Any special instructions..."
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  rows={3}
+                  className="mt-1"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingOrder(null)}
+                  className="flex-1"
+                  disabled={savingEdit}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={saveEdit}
+                  disabled={savingEdit}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {savingEdit ? (
+                    <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                  ) : (
+                    <><CheckCircle className="mr-2 h-4 w-4" /> Save Changes</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* View Order Dialog */}

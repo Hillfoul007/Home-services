@@ -355,178 +355,222 @@ export default function StoreDashboard() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-3 py-4 sm:px-4 sm:py-6">
         {/* ── Create Order Tab ── */}
         {activeTab === "create" && (
-          <Card className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Create New Order</h2>
-            <form onSubmit={handleCreateOrder} className="space-y-6">
+          <div className="max-w-2xl mx-auto">
+            <form onSubmit={handleCreateOrder} className="space-y-4">
               {/* Customer Info */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold mb-4">Customer Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="p-4">
+                <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
+                  <User className="w-4 h-4 text-blue-600" /> Customer Info
+                </h3>
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name *</label>
-                    <Input placeholder="Enter customer name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <Input
+                      placeholder="Customer name"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="h-11 text-base"
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
                     <Input
                       type="tel"
+                      inputMode="numeric"
                       placeholder="10-digit phone"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                       maxLength={10}
+                      className="h-11 text-base"
                       required
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Address <span className="text-gray-400 text-xs">(optional)</span></label>
-                    <Input placeholder="Delivery address (optional)" value={address} onChange={(e) => setAddress(e.target.value)} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Address <span className="text-gray-400 text-xs">(optional)</span>
+                    </label>
+                    <Input
+                      placeholder="Delivery address"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="h-11 text-base"
+                    />
                   </div>
                 </div>
-              </div>
+              </Card>
 
-              {/* Services / Cart */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Cart</h3>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setServiceItems([...serviceItems, { service_name: "", quantity: 1, unit_price: 0, total_price: 0 }])}>
+              {/* Cart */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-base flex items-center gap-2">
+                    <Package className="w-4 h-4 text-blue-600" /> Cart
+                    <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                      {serviceItems.length} item{serviceItems.length !== 1 ? "s" : ""}
+                    </span>
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setServiceItems([...serviceItems, { service_name: "", quantity: 1, unit_price: 0, total_price: 0 }])}
+                    className="h-9 text-blue-600 border-blue-300 hover:bg-blue-50"
+                  >
                     <Plus className="w-4 h-4 mr-1" /> Add Item
                   </Button>
                 </div>
+
                 <div className="space-y-3">
                   {serviceItems.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-white p-3 rounded-lg border">
-                      <div className="col-span-5">
-                        <label className="block text-xs text-gray-500 mb-1">Service</label>
-                        <Select
-                          value={item.service_name || ""}
-                          onValueChange={(value) => {
-                            const realValue = value === "__none__" ? "" : value;
-                            handleServiceChange(idx, "service_name", realValue);
-                          }}
-                        >
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select service">
-                              {item.service_name ? (
-                                <>{item.service_name} — ₹{item.unit_price || 0}</>
-                              ) : (
-                                "Select service"
-                              )}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Select service</SelectItem>
-                            {getSortedServices().map((svc) => (
-                              <SelectItem key={svc.id || svc.name} value={svc.name}>
-                                {svc.name} — ₹{svc.price}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-xs text-gray-500 mb-1">Qty</label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={item.quantity}
-                          onChange={(e) => handleServiceChange(idx, "quantity", parseInt(e.target.value) || 1)}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-xs text-gray-500 mb-1">Rate ₹</label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={item.unit_price}
-                          onChange={(e) => handleServiceChange(idx, "unit_price", parseFloat(e.target.value) || 0)}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-xs text-gray-500 mb-1">Total</label>
-                        <div className="px-3 py-2 bg-gray-100 border rounded text-sm font-semibold">₹{item.total_price.toFixed(0)}</div>
-                      </div>
-                      <div className="col-span-1 flex items-end pb-0.5">
+                    <div key={idx} className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-2">
+                      {/* Service dropdown — full width */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <Select
+                            value={item.service_name || ""}
+                            onValueChange={(value) => {
+                              const realValue = value === "__none__" ? "" : value;
+                              handleServiceChange(idx, "service_name", realValue);
+                            }}
+                          >
+                            <SelectTrigger className="h-11 text-sm font-medium">
+                              <SelectValue placeholder="Select service">
+                                {item.service_name || "Select service"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Select service</SelectItem>
+                              {getSortedServices().map((svc) => (
+                                <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                  {svc.name} — ₹{svc.price}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           disabled={serviceItems.length === 1}
                           onClick={() => setServiceItems(serviceItems.filter((_, i) => i !== idx))}
-                          className="text-red-500 hover:text-red-700 px-2"
+                          className="h-11 w-11 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
+
+                      {/* Qty + Rate + Total — 3 col row */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Qty</label>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => handleServiceChange(idx, "quantity", parseInt(e.target.value) || 1)}
+                            className="h-10 text-center text-sm font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Rate ₹</label>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(e) => handleServiceChange(idx, "unit_price", parseFloat(e.target.value) || 0)}
+                            className="h-10 text-center text-sm font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Total</label>
+                          <div className="h-10 flex items-center justify-center bg-blue-50 border border-blue-200 rounded-md text-sm font-bold text-blue-700">
+                            ₹{item.total_price.toFixed(0)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
+
+                {/* Cart subtotal */}
+                <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Subtotal</span>
+                  <span className="font-bold text-gray-800">₹{subtotal.toFixed(0)}</span>
+                </div>
+              </Card>
 
               {/* Discount */}
-              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                <label className="block text-sm font-medium text-gray-700 mb-3">Discount</label>
+              <Card className="p-4 border-orange-200 bg-orange-50">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Discount (optional)</label>
                 <div className="flex gap-2 mb-3">
                   {(["amount", "percentage"] as const).map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => { setDiscountType(t); setDiscountValue(0); }}
-                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                         discountType === t ? "bg-orange-600 text-white" : "bg-white text-orange-600 border border-orange-300"
                       }`}
                     >
-                      {t === "amount" ? "Amount (₹)" : "Percentage (%)"}
+                      {t === "amount" ? "₹ Amount" : "% Percent"}
                     </button>
                   ))}
                 </div>
                 <div className="flex gap-2 items-center">
                   <Input
                     type="number"
+                    inputMode="decimal"
                     min={0}
                     max={discountType === "percentage" ? 100 : undefined}
                     value={discountValue}
                     onChange={(e) => setDiscountValue(Math.max(0, parseFloat(e.target.value) || 0))}
-                    placeholder={discountType === "percentage" ? "Enter %" : "Enter amount"}
-                    className="border-orange-300"
+                    placeholder={discountType === "percentage" ? "Enter %" : "Enter ₹ amount"}
+                    className="h-11 text-base border-orange-300"
                   />
-                  <div className="px-4 py-2 bg-white border border-orange-300 rounded text-sm font-semibold text-orange-600 whitespace-nowrap">
-                    −₹{discountAmount.toFixed(0)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="flex justify-end">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 min-w-[280px] space-y-2">
-                  <div className="flex justify-between text-gray-700">
-                    <span>Subtotal</span>
-                    <span className="font-semibold">₹{subtotal.toFixed(0)}</span>
-                  </div>
                   {discountAmount > 0 && (
-                    <div className="flex justify-between text-orange-600 text-sm">
-                      <span>Discount {discountType === "percentage" ? `(${discountValue}%)` : ""}</span>
-                      <span>−₹{discountAmount.toFixed(0)}</span>
+                    <div className="px-3 py-2 bg-white border border-orange-300 rounded-lg text-sm font-bold text-orange-600 whitespace-nowrap">
+                      −₹{discountAmount.toFixed(0)}
                     </div>
                   )}
-                  <div className="border-t border-blue-200 pt-2 flex justify-between">
-                    <span className="text-lg font-bold text-blue-700">Final Amount</span>
-                    <span className="text-xl font-bold text-blue-700">₹{finalAmount.toFixed(0)}</span>
+                </div>
+              </Card>
+
+              {/* Summary + Submit — sticky bottom on mobile */}
+              <Card className="p-4 bg-blue-50 border-blue-200">
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Subtotal</span>
+                    <span className="font-medium">₹{subtotal.toFixed(0)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-orange-600">
+                      <span>Discount {discountType === "percentage" ? `(${discountValue}%)` : ""}</span>
+                      <span className="font-medium">−₹{discountAmount.toFixed(0)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-blue-200 pt-2 flex justify-between items-center">
+                    <span className="text-base font-bold text-blue-800">Final Amount</span>
+                    <span className="text-2xl font-bold text-blue-700">₹{finalAmount.toFixed(0)}</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 px-8" disabled={creatingOrder}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {creatingOrder ? "Creating..." : "Create Order"}
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700 font-semibold"
+                  disabled={creatingOrder}
+                >
+                  <Save className="w-5 h-5 mr-2" />
+                  {creatingOrder ? "Creating Order..." : "Create Order"}
                 </Button>
-              </div>
+              </Card>
             </form>
-          </Card>
+          </div>
         )}
 
         {/* ── Orders Tab ── */}
@@ -553,35 +597,37 @@ export default function StoreDashboard() {
             </div>
 
             {/* Filters */}
-            <Card className="p-4">
-              <div className="flex flex-wrap gap-3">
-                <div className="flex-1 min-w-[200px] relative">
+            <Card className="p-3">
+              <div className="space-y-2">
+                <div className="relative">
                   <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                   <Input
                     placeholder="Search by ID, name or phone"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 h-10"
                   />
                 </div>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                >
-                  <option value="">All Status</option>
-                  {ALL_STATUSES.map((s) => (
-                    <option key={s} value={s} className="capitalize">{s}</option>
-                  ))}
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as "recent" | "oldest")}
-                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                >
-                  <option value="recent">Recent First</option>
-                  <option value="oldest">Oldest First</option>
-                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
+                  >
+                    <option value="">All Status</option>
+                    {ALL_STATUSES.map((s) => (
+                      <option key={s} value={s} className="capitalize">{s}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as "recent" | "oldest")}
+                    className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
+                  >
+                    <option value="recent">Recent First</option>
+                    <option value="oldest">Oldest First</option>
+                  </select>
+                </div>
               </div>
             </Card>
 
@@ -642,135 +688,159 @@ export default function StoreDashboard() {
 
       {/* Order Detail Modal */}
       {selectedOrder && editedOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
+        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50">
+          <Card className="w-full sm:max-w-lg sm:mx-4 max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+            <div className="p-4">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-bold font-mono text-blue-600">{selectedOrder.custom_order_id}</h2>
+                  <h2 className="text-lg font-bold font-mono text-blue-600">{selectedOrder.custom_order_id}</h2>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {selectedOrder.is_store_order ? "Store Order" : "Assigned Order"}
                   </p>
                 </div>
-                <button onClick={() => { setSelectedOrder(null); setIsEditMode(false); }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                <button
+                  onClick={() => { setSelectedOrder(null); setIsEditMode(false); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 text-xl leading-none"
+                >×</button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {/* Customer */}
-                <div className={`p-4 rounded-lg ${isEditMode ? "bg-blue-50" : "bg-gray-50"}`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold">Customer</h3>
+                <div className={`p-3 rounded-xl ${isEditMode ? "bg-blue-50 border border-blue-200" : "bg-gray-50"}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-sm">Customer</h3>
                     {!isEditMode && selectedOrder.is_store_order && (
-                      <Button variant="outline" size="sm" onClick={() => setIsEditMode(true)}>Edit</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setIsEditMode(true)}>Edit</Button>
                     )}
                   </div>
                   {isEditMode ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div>
                         <label className="text-xs text-gray-500">Name</label>
-                        <Input value={editedOrder.customer_name} onChange={(e) => setEditedOrder({ ...editedOrder, customer_name: e.target.value })} className="mt-1" />
+                        <Input value={editedOrder.customer_name} onChange={(e) => setEditedOrder({ ...editedOrder, customer_name: e.target.value })} className="mt-1 h-10" />
                       </div>
                       <div>
                         <label className="text-xs text-gray-500">Phone</label>
-                        <Input value={editedOrder.customer_phone} onChange={(e) => setEditedOrder({ ...editedOrder, customer_phone: e.target.value })} className="mt-1" />
+                        <Input value={editedOrder.customer_phone} onChange={(e) => setEditedOrder({ ...editedOrder, customer_phone: e.target.value })} className="mt-1 h-10" />
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2"><User className="w-4 h-4 text-gray-400" /><span>{editedOrder.customer_name}</span></div>
-                      <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /><span>{editedOrder.customer_phone}</span></div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-sm"><User className="w-4 h-4 text-gray-400" /><span>{editedOrder.customer_name}</span></div>
+                      <div className="flex items-center gap-2 text-sm"><Phone className="w-4 h-4 text-gray-400" /><span>{editedOrder.customer_phone}</span></div>
                     </div>
                   )}
                 </div>
 
                 {/* Items */}
-                <div className={`p-4 rounded-lg ${isEditMode ? "bg-blue-50" : "bg-gray-50"}`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold">Items</h3>
+                <div className={`p-3 rounded-xl ${isEditMode ? "bg-blue-50 border border-blue-200" : "bg-gray-50"}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-sm">Items</h3>
                     {isEditMode && (
-                      <Button variant="outline" size="sm" onClick={() => setEditedOrder({ ...editedOrder, item_prices: [...(editedOrder.item_prices || []), { service_name: "", quantity: 1, unit_price: 0, total_price: 0 }] })}>
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditedOrder({ ...editedOrder, item_prices: [...(editedOrder.item_prices || []), { service_name: "", quantity: 1, unit_price: 0, total_price: 0 }] })}>
                         <Plus className="w-3 h-3 mr-1" /> Add
                       </Button>
                     )}
                   </div>
-                  {editedOrder.item_prices?.length > 0 ? editedOrder.item_prices.map((item: ServiceItem, i: number) => (
-                    <div key={i} className="flex justify-between items-center py-2 border-b last:border-0">
-                      {isEditMode ? (
-                        <div className="grid grid-cols-12 gap-2 w-full">
-                          <div className="col-span-5">
-                            <Select
-                              value={item.service_name || ""}
-                              onValueChange={(value) => {
-                                const realValue = value === "__none__" ? "" : value;
-                                const items = [...editedOrder.item_prices];
-                                const matched = getSortedServices().find((s) => s.name === realValue);
-                                items[i] = {
-                                  ...items[i],
-                                  service_name: realValue,
-                                  ...(matched ? { unit_price: matched.price, total_price: items[i].quantity * matched.price } : {}),
-                                };
-                                setEditedOrder({ ...editedOrder, item_prices: items });
-                              }}
-                            >
-                              <SelectTrigger className="h-9 text-xs">
-                                <SelectValue placeholder="Select service">
-                                  {item.service_name || "Select service"}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">Select service</SelectItem>
-                                {getSortedServices().map((svc) => (
-                                  <SelectItem key={svc.id || svc.name} value={svc.name}>
-                                    {svc.name} — ₹{svc.price}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                  <div className="space-y-2">
+                    {editedOrder.item_prices?.length > 0 ? editedOrder.item_prices.map((item: ServiceItem, i: number) => (
+                      <div key={i}>
+                        {isEditMode ? (
+                          <div className="bg-white rounded-lg border p-2 space-y-2">
+                            {/* Service select + delete */}
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <Select
+                                  value={item.service_name || ""}
+                                  onValueChange={(value) => {
+                                    const realValue = value === "__none__" ? "" : value;
+                                    const items = [...editedOrder.item_prices];
+                                    const matched = getSortedServices().find((s) => s.name === realValue);
+                                    items[i] = {
+                                      ...items[i],
+                                      service_name: realValue,
+                                      ...(matched ? { unit_price: matched.price, total_price: items[i].quantity * matched.price } : {}),
+                                    };
+                                    setEditedOrder({ ...editedOrder, item_prices: items });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-10 text-sm">
+                                    <SelectValue placeholder="Select service">
+                                      {item.service_name || "Select service"}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">Select service</SelectItem>
+                                    {getSortedServices().map((svc) => (
+                                      <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                        {svc.name} — ₹{svc.price}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button variant="ghost" size="sm" className="h-10 w-10 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                onClick={() => setEditedOrder({ ...editedOrder, item_prices: editedOrder.item_prices.filter((_: any, j: number) => j !== i) })}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            {/* Qty + Rate + Total */}
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="text-xs text-gray-400">Qty</label>
+                                <Input type="number" inputMode="numeric" className="h-9 text-center text-sm mt-0.5" value={item.quantity}
+                                  onChange={(e) => {
+                                    const items = [...editedOrder.item_prices];
+                                    items[i] = { ...items[i], quantity: +e.target.value || 1, total_price: (+e.target.value || 1) * items[i].unit_price };
+                                    setEditedOrder({ ...editedOrder, item_prices: items });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-400">Rate ₹</label>
+                                <Input type="number" inputMode="decimal" className="h-9 text-center text-sm mt-0.5" value={item.unit_price}
+                                  onChange={(e) => {
+                                    const items = [...editedOrder.item_prices];
+                                    items[i] = { ...items[i], unit_price: +e.target.value || 0, total_price: items[i].quantity * (+e.target.value || 0) };
+                                    setEditedOrder({ ...editedOrder, item_prices: items });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-400">Total</label>
+                                <div className="h-9 mt-0.5 flex items-center justify-center bg-blue-50 border border-blue-200 rounded text-sm font-bold text-blue-700">
+                                  ₹{(item.total_price ?? item.unit_price * item.quantity).toFixed(0)}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <Input type="number" className="col-span-2 text-sm" value={item.quantity}
-                            onChange={(e) => {
-                              const items = [...editedOrder.item_prices];
-                              items[i] = { ...items[i], quantity: +e.target.value || 1, total_price: (+e.target.value || 1) * items[i].unit_price };
-                              setEditedOrder({ ...editedOrder, item_prices: items });
-                            }}
-                          />
-                          <Input type="number" className="col-span-3 text-sm" value={item.unit_price}
-                            onChange={(e) => {
-                              const items = [...editedOrder.item_prices];
-                              items[i] = { ...items[i], unit_price: +e.target.value || 0, total_price: items[i].quantity * (+e.target.value || 0) };
-                              setEditedOrder({ ...editedOrder, item_prices: items });
-                            }}
-                          />
-                          <Button variant="ghost" size="sm" className="col-span-2 text-red-500"
-                            onClick={() => setEditedOrder({ ...editedOrder, item_prices: editedOrder.item_prices.filter((_: any, j: number) => j !== i) })}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="text-sm">{item.service_name} × {item.quantity}</span>
-                          <span className="font-semibold text-sm">₹{item.total_price ?? item.unit_price * item.quantity}</span>
-                        </>
-                      )}
-                    </div>
-                  )) : (
-                    <p className="text-sm text-gray-500">No items listed</p>
-                  )}
+                        ) : (
+                          <div className="flex justify-between items-center py-1.5 border-b last:border-0">
+                            <span className="text-sm">{item.service_name} × {item.quantity}</span>
+                            <span className="font-semibold text-sm">₹{item.total_price ?? item.unit_price * item.quantity}</span>
+                          </div>
+                        )}
+                      </div>
+                    )) : (
+                      <p className="text-sm text-gray-500">No items listed</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Amount & Status */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl">
                     <p className="text-xs text-gray-500">Final Amount</p>
-                    <p className="text-2xl font-bold text-blue-700">₹{selectedOrder.final_amount || selectedOrder.total_price}</p>
+                    <p className="text-xl font-bold text-blue-700 mt-0.5">₹{selectedOrder.final_amount || selectedOrder.total_price}</p>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-2">Status</p>
+                  <div className="bg-gray-50 p-3 rounded-xl">
+                    <p className="text-xs text-gray-500 mb-1.5">Status</p>
                     <select
                       value={selectedOrder.status}
                       onChange={(e) => handleStatusUpdate(e.target.value)}
                       disabled={updatingStatus || isEditMode}
-                      className="w-full border rounded px-2 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                      className="w-full border rounded-lg px-2 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 bg-white"
                     >
                       {ALL_STATUSES.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
                     </select>
@@ -778,31 +848,25 @@ export default function StoreDashboard() {
                 </div>
 
                 {/* Dates */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Calendar className="w-4 h-4" />
-                    <span>{formatDate(selectedOrder.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Clock className="w-4 h-4" />
-                    <span>{formatTime(selectedOrder.created_at)}</span>
-                  </div>
+                <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /><span>{formatDate(selectedOrder.created_at)}</span></div>
+                  <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /><span>{formatTime(selectedOrder.created_at)}</span></div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-2 pt-1">
                   {isEditMode ? (
                     <>
-                      <Button variant="outline" className="flex-1" onClick={() => { setIsEditMode(false); setEditedOrder({ ...selectedOrder }); }}>Cancel</Button>
-                      <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleSaveOrder} disabled={savingOrder}>
+                      <Button variant="outline" className="flex-1 h-11" onClick={() => { setIsEditMode(false); setEditedOrder({ ...selectedOrder }); }}>Cancel</Button>
+                      <Button className="flex-1 h-11 bg-green-600 hover:bg-green-700 font-semibold" onClick={handleSaveOrder} disabled={savingOrder}>
                         {savingOrder ? "Saving..." : "Save Changes"}
                       </Button>
                     </>
                   ) : (
                     <>
-                      <Button variant="outline" className="flex-1" onClick={() => setSelectedOrder(null)}>Close</Button>
+                      <Button variant="outline" className="flex-1 h-11" onClick={() => setSelectedOrder(null)}>Close</Button>
                       {selectedOrder.is_store_order && (
-                        <Button variant="destructive" className="flex-1" onClick={handleDeleteOrder}>
+                        <Button variant="destructive" className="flex-1 h-11" onClick={handleDeleteOrder}>
                           <Trash2 className="w-4 h-4 mr-1" /> Delete
                         </Button>
                       )}
