@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   LogOut, Plus, Eye, Trash2, Phone, User, Clock, Calendar,
   Save, Store, Package, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
+import { getSortedServices } from "@/data/laundryServices";
 
 interface StoreInfo {
   _id: string;
@@ -94,7 +96,6 @@ export default function StoreDashboard() {
   const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
   const [discountValue, setDiscountValue] = useState(0);
   const [creatingOrder, setCreatingOrder] = useState(false);
-  const [websiteServices, setWebsiteServices] = useState<{ name: string; price: number; category: string }[]>([]);
 
   // Auth check
   useEffect(() => {
@@ -110,22 +111,6 @@ export default function StoreDashboard() {
       navigate("/store");
     }
   }, [navigate]);
-
-  // Fetch website services for autocomplete
-  useEffect(() => {
-    fetch(`${getApiUrl()}/services/dynamic`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.data)) {
-          const flat: { name: string; price: number; category: string }[] = [];
-          data.data.forEach((cat: any) => {
-            (cat.services || []).forEach((s: any) => flat.push({ name: s.name, price: s.price, category: cat.name }));
-          });
-          setWebsiteServices(flat);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const fetchOrders = async () => {
     const token = localStorage.getItem("store_token");
@@ -265,7 +250,7 @@ export default function StoreDashboard() {
     const items = [...serviceItems];
     const item = { ...items[index], [field]: value };
     if (field === "service_name") {
-      const match = websiteServices.find((s) => s.name.toLowerCase() === value.toLowerCase());
+      const match = getSortedServices().find((s) => s.name === value);
       if (match) {
         item.unit_price = match.price;
         item.total_price = item.quantity * match.price;
@@ -415,16 +400,31 @@ export default function StoreDashboard() {
                     <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-white p-3 rounded-lg border">
                       <div className="col-span-5">
                         <label className="block text-xs text-gray-500 mb-1">Service</label>
-                        <Input
-                          list={`svc-${idx}`}
-                          placeholder="e.g. Shirt Wash"
-                          value={item.service_name}
-                          onChange={(e) => handleServiceChange(idx, "service_name", e.target.value)}
-                          required
-                        />
-                        <datalist id={`svc-${idx}`}>
-                          {websiteServices.map((s) => <option key={s.name} value={s.name}>{s.category} — ₹{s.price}</option>)}
-                        </datalist>
+                        <Select
+                          value={item.service_name || ""}
+                          onValueChange={(value) => {
+                            const realValue = value === "__none__" ? "" : value;
+                            handleServiceChange(idx, "service_name", realValue);
+                          }}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select service">
+                              {item.service_name ? (
+                                <>{item.service_name} — ₹{item.unit_price || 0}</>
+                              ) : (
+                                "Select service"
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Select service</SelectItem>
+                            {getSortedServices().map((svc) => (
+                              <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                {svc.name} — ₹{svc.price}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs text-gray-500 mb-1">Qty</label>
@@ -697,15 +697,36 @@ export default function StoreDashboard() {
                     <div key={i} className="flex justify-between items-center py-2 border-b last:border-0">
                       {isEditMode ? (
                         <div className="grid grid-cols-12 gap-2 w-full">
-                          <Input
-                            className="col-span-5 text-sm"
-                            value={item.service_name}
-                            onChange={(e) => {
-                              const items = [...editedOrder.item_prices];
-                              items[i] = { ...items[i], service_name: e.target.value };
-                              setEditedOrder({ ...editedOrder, item_prices: items });
-                            }}
-                          />
+                          <div className="col-span-5">
+                            <Select
+                              value={item.service_name || ""}
+                              onValueChange={(value) => {
+                                const realValue = value === "__none__" ? "" : value;
+                                const items = [...editedOrder.item_prices];
+                                const matched = getSortedServices().find((s) => s.name === realValue);
+                                items[i] = {
+                                  ...items[i],
+                                  service_name: realValue,
+                                  ...(matched ? { unit_price: matched.price, total_price: items[i].quantity * matched.price } : {}),
+                                };
+                                setEditedOrder({ ...editedOrder, item_prices: items });
+                              }}
+                            >
+                              <SelectTrigger className="h-9 text-xs">
+                                <SelectValue placeholder="Select service">
+                                  {item.service_name || "Select service"}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">Select service</SelectItem>
+                                {getSortedServices().map((svc) => (
+                                  <SelectItem key={svc.id || svc.name} value={svc.name}>
+                                    {svc.name} — ₹{svc.price}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <Input type="number" className="col-span-2 text-sm" value={item.quantity}
                             onChange={(e) => {
                               const items = [...editedOrder.item_prices];

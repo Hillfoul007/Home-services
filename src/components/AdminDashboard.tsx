@@ -51,6 +51,7 @@ import AdminSchoolManagement from "./AdminSchoolManagement";
 import AdminSchoolBooking from "./AdminSchoolBooking";
 import AdminHotelManagement from "./AdminHotelManagement";
 import AdminHotelInvoice from "./AdminHotelInvoice";
+import AdminSchoolInvoice from "./AdminSchoolInvoice";
 import AdminStoreManagement from "./AdminStoreManagement";
 import AdminStoreOrders from "./AdminStoreOrders";
 import AdminVendorOrders from "./AdminVendorOrders";
@@ -60,7 +61,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "vendor-orders" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels" | "hotel-invoices" | "stores" | "store-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "vendor-orders" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "school-invoices" | "hotels" | "hotel-invoices" | "stores" | "store-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -474,6 +475,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">School Orders</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("school-invoices")}
+              variant={activeTab === "school-invoices" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0 bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200"
+            >
+              <span>🧾</span>
+              <span className="hidden sm:inline">School Invoices</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("hotels")}
               variant={activeTab === "hotels" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -628,6 +637,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-indigo-900 text-sm"><strong>📋 School Orders:</strong> Book laundry orders for school members. Select school → search member by name or ID → choose service (Wash & Iron / Wash & Fold) → set items count and custom price. Orders are saved in a separate collection and visible to the school manager portal.</p>
             </div>
             <AdminSchoolBooking />
+          </TabsContent>
+
+          <TabsContent value="school-invoices">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+              <p className="text-purple-900 text-sm"><strong>🧾 School Invoices:</strong> Create digital Laundrify invoices for school clients. Enter school name, invoice number, service period, then add date-wise piece counts with price per piece. Preview a live summary and open the formatted print-ready invoice.</p>
+            </div>
+            <AdminSchoolInvoice />
           </TabsContent>
 
           <TabsContent value="hotels">
