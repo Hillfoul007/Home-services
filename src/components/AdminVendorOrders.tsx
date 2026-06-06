@@ -390,7 +390,6 @@ const AdminVendorOrders: React.FC = () => {
                       type="date"
                       value={scheduledDate}
                       onChange={e => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]}
                     />
                   </div>
                   <div>
@@ -409,7 +408,6 @@ const AdminVendorOrders: React.FC = () => {
                       type="date"
                       value={deliveryDate}
                       onChange={e => setDeliveryDate(e.target.value)}
-                      min={scheduledDate || new Date().toISOString().split("T")[0]}
                     />
                   </div>
                   <div>
