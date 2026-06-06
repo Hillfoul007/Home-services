@@ -114,6 +114,49 @@ export const laundryServices: LaundryService[] = [
       "https://cdn.builder.io/api/v1/image/assets%2Fc97d5a75b4604b65bd2bd6fccd499b08%2Ff93ebf096d1e43529c8a1e3625dea9da?format=webp&width=800",
   },
 
+  // Bags
+  {
+    id: "bag-cleaning",
+    name: "Bag Cleaning",
+    description: "Professional cleaning for handbags, backpacks, tote bags, and purses.",
+    price: 150,
+    unit: "PC",
+    category: "bags",
+    estimatedTime: "24-48 hours",
+    image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
+    popular: true,
+  },
+  {
+    id: "bag-handbag-purse",
+    name: "Handbag / Purse",
+    description: "Professional cleaning for handbags and purses.",
+    price: 200,
+    unit: "PC",
+    category: "bags",
+    estimatedTime: "24-48 hours",
+    image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+  {
+    id: "bag-backpack-laptop",
+    name: "Backpack / Laptop Bag",
+    description: "Professional cleaning for backpacks and laptop bags.",
+    price: 250,
+    unit: "PC",
+    category: "bags",
+    estimatedTime: "24-48 hours",
+    image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+  {
+    id: "bag-travel-trolley",
+    name: "Travel Bag / Trolley",
+    description: "Deep cleaning for travel bags, duffel bags, and trolley bags.",
+    price: 500,
+    unit: "PC",
+    category: "bags",
+    estimatedTime: "48-72 hours",
+    image: "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+
   // Other Household
   {
     id: "household-blanket-single",
@@ -516,6 +559,7 @@ export const serviceCategories = [
   { id: "laundry", name: "Laundry", icon: "🫧" },
   { id: "woolen", name: "Woolen", icon: "🧶" },
   { id: "iron", name: "Iron", icon: "🔥" },
+  { id: "bags", name: "Bags", icon: "👜" },
   { id: "other-household", name: "Other Household", icon: "🛏️" },
   { id: "shoes", name: "Shoes", icon: "👟" },
   { id: "mens-dry-clean", name: "Men's Dry Clean", icon: "👔" },

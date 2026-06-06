@@ -287,6 +287,8 @@ router.post("/vendor-login", async (req, res) => {
       { expiresIn: "30d" }
     );
 
+    console.log(`✅ Vendor login successful - vendor_id: ${vendor.vendor_id}, _id: ${vendor._id}`);
+
     res.json({
       success: true,
       message: "Vendor login successful",
@@ -454,35 +456,56 @@ router.get("/my-orders", verifyOfflineStoreToken, async (req, res) => {
 
     // Get online assigned orders for vendors
     if (req.offlineStore.is_vendor && (!orderType || orderType === "online")) {
+      // Query for orders assigned by vendor_id, name, or MongoDB ID (for backward compatibility)
       let onlineQuery = {
-        assignedVendor: vendorId,
-        $or: [
-          { is_offline_order: false },
-          { is_offline_order: { $exists: false } }
+        $and: [
+          {
+            $or: [
+              { assignedVendor: vendorId },  // Assigned by vendor_id (new format)
+              { assignedVendor: req.offlineStore.name },  // Assigned by vendor name (old format)
+              { assignedVendor: req.offlineStore._id.toString() }  // Assigned by MongoDB ID
+            ]
+          },
+          {
+            $or: [
+              { is_offline_order: false },
+              { is_offline_order: { $exists: false } }
+            ]
+          }
         ]
       };
 
       if (filterStatus) {
-        onlineQuery.status = filterStatus;
+        onlineQuery.$and.push({ status: filterStatus });
       }
 
-      console.log("📦 Online query for vendor:", vendorId, onlineQuery);
+      console.log("📦 Online query for vendor:", vendorId, "Name:", req.offlineStore.name, "ID:", req.offlineStore._id.toString());
+
+      // Debug: Check what assignedVendor values exist in database for this vendor
+      const allOnlineOrders = await Booking.find({
+        $or: [
+          { is_offline_order: false },
+          { is_offline_order: { $exists: false } }
+        ]
+      }).select("assignedVendor custom_order_id").limit(10);
+
+      console.log("📊 Sample online orders in DB (assignedVendor values):", allOnlineOrders.map(o => ({ id: o.custom_order_id, vendor: o.assignedVendor })));
 
       if (sortBy === "oldest") {
         onlineOrders = await Booking.find(onlineQuery)
           .sort({ created_at: 1 })
           .select(
-            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order assignedVendor"
           );
       } else {
         onlineOrders = await Booking.find(onlineQuery)
           .sort({ created_at: -1 })
           .select(
-            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order"
+            "custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_offline_order assignedVendor"
           );
       }
 
-      console.log("📦 Found online orders:", onlineOrders.length);
+      console.log("📦 Found online orders:", onlineOrders.length, "for vendor:", vendorId);
     }
 
     // Combine and sort
@@ -623,6 +646,110 @@ router.get("/customer-lookup", async (req, res) => {
     }
   } catch (error) {
     console.error("Error looking up customer:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Update order (generic PUT endpoint)
+router.put("/order/:orderId", verifyOfflineStoreToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { customer_name, customer_phone, item_prices, total_price, final_amount, status, notes } = req.body;
+    const storeId = req.offlineStore._id;
+
+    const order = await Booking.findOne({
+      $or: [
+        { _id: orderId, offline_store_id: storeId },
+        { _id: orderId, customer_id: storeId, is_offline_order: true }
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: "Order not found",
+      });
+    }
+
+    const indianDate = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+
+    // Update fields
+    if (customer_name) order.customer_name = customer_name;
+    if (customer_phone) order.customer_phone = customer_phone;
+    if (status) order.status = status;
+    if (notes) order.notes = notes;
+
+    // Update items and pricing
+    if (item_prices && Array.isArray(item_prices)) {
+      order.item_prices = item_prices.map((item) => ({
+        service_name: item.service_name || item.name || "",
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price || item.price || 0,
+        total_price: item.total_price || (item.quantity || 1) * (item.unit_price || item.price || 0),
+      }));
+    }
+
+    // Calculate final amount
+    if (item_prices && Array.isArray(item_prices)) {
+      const calculatedTotal = item_prices.reduce((sum, item) => {
+        return sum + (item.total_price || (item.quantity || 1) * (item.unit_price || item.price || 0));
+      }, 0);
+      order.total_price = calculatedTotal;
+      order.final_amount = final_amount || calculatedTotal;
+    } else if (total_price !== undefined) {
+      order.total_price = total_price;
+      order.final_amount = final_amount || total_price;
+    }
+
+    order.updated_at = indianDate;
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: "Order updated successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("Error updating order:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Delete order
+router.delete("/order/:orderId", verifyOfflineStoreToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const storeId = req.offlineStore._id;
+
+    const order = await Booking.findOneAndDelete({
+      $or: [
+        { _id: orderId, offline_store_id: storeId },
+        { _id: orderId, customer_id: storeId, is_offline_order: true }
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: "Order not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Order deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting order:", error);
     res.status(500).json({
       success: false,
       error: error.message,

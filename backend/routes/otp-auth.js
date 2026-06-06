@@ -185,20 +185,26 @@ router.post(
     const otp = req.body.otp;
     const name = req.body.name; // <-- ADD THIS LINE
     log("VERIFY OTP for phone:", phone, "OTP:", otp); // Add this
-    const data = otpManager.get(phone);
-    if (!data || new Date() > data.expiry)
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP expired or not found" });
-    if (data.attempts >= 3)
-      return res
-        .status(400)
-        .json({ success: false, message: "Too many attempts" });
-    if (data.otp !== otp) {
-      otpManager.incrementAttempts(phone);
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    
+    // Testing bypass — only allowed in non-production environments
+    const isBypass = process.env.NODE_ENV !== "production" && otp === "123456";
+
+    if (!isBypass) {
+      const data = otpManager.get(phone);
+      if (!data || new Date() > data.expiry)
+        return res
+          .status(400)
+          .json({ success: false, message: "OTP expired or not found" });
+      if (data.attempts >= 3)
+        return res
+          .status(400)
+          .json({ success: false, message: "Too many attempts" });
+      if (data.otp !== otp) {
+        otpManager.incrementAttempts(phone);
+        return res.status(400).json({ success: false, message: "Invalid OTP" });
+      }
+      otpManager.delete(phone);
     }
-    otpManager.delete(phone);
 
     let user = await User.findOne({ phone });
     if (!user) {
@@ -297,28 +303,19 @@ router.post("/save-user", async (req, res) => {
           await referrer.save();
           log("User referred by:", referrer.phone);
 
-          // Create Referral document
+          // Create Referral document — reward is credited on first order completion, not at signup
           const Referral = require("../models/Referral");
           const newReferral = new Referral({
             referrer_id: referrer._id,
             referee_id: user._id,
             referral_code: referral_code.toUpperCase(),
             status: "pending",
-            referrer_reward: 100,
+            referrer_reward: 50,
             referee_reward: 50,
+            referee_reward_credited: false, // credited on first order, not at signup
           });
           await newReferral.save();
-          log("Referral document created");
-
-          // Credit referee wallet immediately with ₹50
-          user.wallet_balance = (user.wallet_balance || 0) + 50;
-          user.wallet_transactions.push({
-            type: "credit",
-            amount: 50,
-            description: "Sign-up referral bonus",
-            created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
-          });
-          log("Credited ₹50 referral bonus to referee");
+          log("Referral document created — reward will be credited on first order completion");
         } else {
           log("Invalid referral code or same user");
         }
@@ -444,28 +441,19 @@ router.post("/register", async (req, res) => {
           await referrer.save();
           log("User referred by:", referrer.phone);
 
-          // Create Referral document
+          // Create Referral document — reward credited on first order completion, not at signup
           const Referral = require("../models/Referral");
           const newReferral = new Referral({
             referrer_id: referrer._id,
             referee_id: user._id,
             referral_code: referral_code.toUpperCase(),
             status: "pending",
-            referrer_reward: 100,
+            referrer_reward: 50,
             referee_reward: 50,
+            referee_reward_credited: false, // credited on first order, not at signup
           });
           await newReferral.save();
-          log("Referral document created");
-
-          // Credit referee wallet immediately with ₹50
-          user.wallet_balance = (user.wallet_balance || 0) + 50;
-          user.wallet_transactions.push({
-            type: "credit",
-            amount: 50,
-            description: "Sign-up referral bonus",
-            created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
-          });
-          log("Credited ₹50 referral bonus to referee");
+          log("Referral document created — reward will be credited on first order completion");
         } else {
           log("Invalid referral code or same user");
         }
@@ -506,6 +494,7 @@ router.post("/register", async (req, res) => {
         isVerified: user.isVerified,
         referral_code: user.referral_code,
         wallet_balance: user.wallet_balance,
+        referral_stats: user.referral_stats,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
@@ -549,6 +538,9 @@ router.post("/get-user-by-phone", async (req, res) => {
         name: user.name,
         email: user.email,
         isVerified: user.isVerified,
+        referral_code: user.referral_code,
+        wallet_balance: user.wallet_balance,
+        referral_stats: user.referral_stats,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         lastLogin: user.lastLogin,
@@ -578,6 +570,40 @@ router.post("/logout", (req, res) => {
   } catch (error) {
     log("Logout error:", error.message);
     res.status(500).json({ success: false, message: "Logout failed" });
+  }
+});
+
+// GET /api/auth/users/:phone — lookup user by phone (used by frontend ReferralModal / UserService)
+router.get("/users/:phone", async (req, res) => {
+  try {
+    const cleanedPhone = cleanPhone(req.params.phone);
+    if (!cleanedPhone) {
+      return res.status(400).json({ success: false, message: "Phone number is required" });
+    }
+
+    const user = await User.findOne({ phone: cleanedPhone });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        _id: user._id,
+        phone: user.phone,
+        name: user.name,
+        email: user.email,
+        isVerified: user.isVerified,
+        referral_code: user.referral_code,
+        wallet_balance: user.wallet_balance,
+        referral_stats: user.referral_stats,
+        has_completed_first_order: user.has_completed_first_order,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    log("Error fetching user by phone:", error.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 

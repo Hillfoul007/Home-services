@@ -73,8 +73,8 @@ const ProfessionalDateTimePicker: React.FC<ProfessionalDateTimePickerProps> = ({
     const now = new Date();
     const currentTime = new Date();
 
-    // Generate slots from 8 AM to 9 PM (1-hour intervals)
-    for (let hour = 8; hour <= 21; hour++) {
+    // Generate slots from 9 AM to 8 PM (1-hour intervals)
+    for (let hour = 9; hour <= 20; hour++) {
       const timeString = `${hour.toString().padStart(2, "0")}:00`;
       const displayTime = format(
         new Date(`2000-01-01T${timeString}`),

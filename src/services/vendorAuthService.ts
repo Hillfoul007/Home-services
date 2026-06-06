@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
+import { getApiUrl } from '@/config/env';
 
 interface LoginResponse {
   success: boolean;
@@ -35,7 +36,11 @@ interface ImageUploadResponse {
 
 class VendorAuthService {
   private static instance: VendorAuthService;
-  private baseUrl = '/api/vendor';
+
+  private get baseUrl(): string {
+    const apiUrl = getApiUrl(); // e.g. "/api" or "https://home-services-5alb.onrender.com/api"
+    return `${apiUrl}/vendor`;
+  }
 
   public static getInstance(): VendorAuthService {
     if (!VendorAuthService.instance) {

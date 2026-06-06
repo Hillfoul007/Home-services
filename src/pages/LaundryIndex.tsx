@@ -11,6 +11,7 @@ import LaundrifySplashLoader from "@/components/LaundrifySplashLoader";
 import { DVHostingSmsService } from "../services/dvhostingSmsService";
 import PushNotificationService from "../services/pushNotificationService";
 import { LocationTrackingService } from "../services/locationTrackingService";
+import { MobilePushService } from "../services/MobilePushService";
 
 import { useNotifications } from "@/contexts/NotificationContext";
 import {
@@ -18,7 +19,6 @@ import {
   createErrorNotification,
 } from "@/utils/notificationUtils";
 import useWalletPolling from "@/hooks/useWalletPolling";
-import { getReferralCodeFromUrl, storeReferralCode, getStoredReferralCode, clearStoredReferralCode } from "@/utils/referralUtils";
 
 // Helper function for coordinate-based location detection (fallback)
 const getCoordinateBasedLocation = (
@@ -215,7 +215,6 @@ const LaundryIndex = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentLocation, setCurrentLocation] = useState<string>("");
-  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -227,7 +226,7 @@ const LaundryIndex = () => {
   useWalletPolling({
     userId: currentUser?._id || currentUser?.phone,
     enabled: isLoggedIn,
-    pollInterval: 30000, // Poll every 30 seconds
+    pollInterval: 120000, // Poll every 2 minutes (pauses when tab is hidden)
   });
 
   // Initialize PWA and check auth state
@@ -236,26 +235,15 @@ const LaundryIndex = () => {
     checkAuthState();
     getUserLocation();
 
-    // Check for referral code in URL
-    const urlReferralCode = getReferralCodeFromUrl();
+    // Check for referral code in URL (from Play Store download link)
+    const params = new URLSearchParams(window.location.search);
+    const urlReferralCode = params.get("ref");
     if (urlReferralCode) {
       console.log("🎁 Referral code found in URL:", urlReferralCode);
-      setReferralCode(urlReferralCode);
-      storeReferralCode(urlReferralCode);
-
-      // If user is not logged in, show auth modal
-      if (!isLoggedIn) {
-        setShowAuthModal(true);
-      }
-
-      // Clean up URL to remove referral parameter
+      // Store for use in registration
+      localStorage.setItem("pending_referral_code", urlReferralCode.toUpperCase());
+      // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
-    } else {
-      // Check if there's a stored referral code from earlier
-      const storedCode = getStoredReferralCode();
-      if (storedCode) {
-        setReferralCode(storedCode);
-      }
     }
 
     // Listen for auth events from other tabs or auth persistence
@@ -352,6 +340,12 @@ const LaundryIndex = () => {
 
             // Ensure auth service has the latest data
             authService.setCurrentUser(storedUser, token);
+
+            // Initialize mobile push notifications if on native platform
+            try {
+              MobilePushService.getInstance().initialize(storedUser._id || storedUser.id);
+            } catch(e) {}
+
             return; // Exit early - user is authenticated
           }
         } catch (parseError) {
@@ -371,6 +365,11 @@ const LaundryIndex = () => {
           name: user.name,
           isVerified: user.isVerified,
         });
+
+        // Initialize mobile push notifications if on native platform
+        try {
+          MobilePushService.getInstance().initialize(user._id || user.id);
+        } catch(e) {}
       } else {
         // Only log state, never automatically clear login
         console.log("ℹ️ No valid authentication data found");
@@ -545,11 +544,20 @@ const getDetailedLocationInfo = async (
           setCurrentLocation(`${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
 
           // Prepare location data for saving
-          let locationData = {
+          let locationData: {
+            latitude: number;
+            longitude: number;
+            fullAddress: string;
+            detectionMethod: 'gps';
+            city?: string;
+            state?: string;
+            country?: string;
+            pincode?: string;
+          } = {
             latitude,
             longitude,
             fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-            detectionMethod: 'gps' as const,
+            detectionMethod: 'gps',
           };
 
           // Try to get readable address with multiple fallbacks
@@ -631,6 +639,14 @@ const getDetailedLocationInfo = async (
 
     console.log("✅ User logged in successfully:", user.name || user.phone);
     console.log("📍 Redirecting to:", targetView);
+
+    // Initialize mobile push notifications — prefer the freshest user from auth service
+    // (it may have _id set by saveUserToBackend which runs in PhoneOtpAuthModal)
+    try {
+      const freshUser = authService.getCurrentUser() || user;
+      const userId = freshUser._id || freshUser.id || user._id || user.id;
+      MobilePushService.getInstance().initialize(userId);
+    } catch(e) {}
 
     // Save user location if we have stored location data
     try {
@@ -789,14 +805,17 @@ const getDetailedLocationInfo = async (
         additional_details: cartData.instructions || "",
         total_price: cartData.original_total || cartData.totalAmount,
         discount_amount: cartData.discount_amount || 0,
-        final_amount: cartData.totalAmount,
+        final_amount: cartData.final_amount ?? cartData.totalAmount,
         coupon_code: cartData.coupon_code || null,
         special_instructions: cartData.instructions || "",
+        cashback: cartData.wallet_applied || 0,
+        wallet_applied: cartData.wallet_applied || 0,
         charges_breakdown: cartData.charges_breakdown || {
           base_price: cartData.original_total || cartData.totalAmount,
           delivery_fee: 0,
           handling_fee: 0,
           discount: cartData.discount_amount || 0,
+          wallet_applied: cartData.wallet_applied || 0,
         },
         // Save item prices for accurate booking history display
         item_prices: itemPrices,
@@ -934,7 +953,7 @@ const getDetailedLocationInfo = async (
           const confirmationData = {
             bookingId: `local_${Date.now()}`,
             custom_order_id:
-              localResult.data?.custom_order_id ||
+              (localResult.booking as any)?.custom_order_id ||
               `CC${Date.now().toString().slice(-6)}`, // Add custom_order_id for local bookings
             services: detailedServices, // Use detailed services with quantities
             totalAmount: cartData.totalAmount,
@@ -998,6 +1017,8 @@ const getDetailedLocationInfo = async (
       }
 
       addNotification(createErrorNotification(errorTitle, errorMessage));
+      // Re-throw so callers (e.g. LaundryCart) know the booking failed and can preserve cart state
+      throw error;
     } finally {
       setIsProcessingGlobalCheckout(false);
     }
@@ -1043,28 +1064,22 @@ const getDetailedLocationInfo = async (
                 // Return to the view they were trying to access
                 setCurrentView(previousView);
               }}
-              referralCode={referralCode || undefined}
             />
           </div>
         </div>
       )}
 
-      {/* Referral Code Auth Modal - shown when referral code is detected */}
+      {/* Auth Modal */}
       {showAuthModal && !isLoggedIn && (
         <PhoneOtpAuthModal
           isOpen={true}
           onClose={() => {
             setShowAuthModal(false);
-            clearStoredReferralCode();
-            setReferralCode(null);
           }}
           onSuccess={(user) => {
-            clearStoredReferralCode();
-            setReferralCode(null);
             setShowAuthModal(false);
             handleLoginSuccess(user);
           }}
-          referralCode={referralCode || undefined}
         />
       )}
 

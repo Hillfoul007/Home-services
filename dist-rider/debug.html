@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laundrify Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error { color: #dc3545; }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+        .info { color: #17a2b8; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .dangerous {
+            background: #dc3545;
+        }
+        .dangerous:hover {
+            background: #c82333;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Laundrify Debug Tool</h1>
+    
+    <div class="debug-section">
+        <h2>URL Analysis</h2>
+        <div id="urlAnalysis"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Cache Status</h2>
+        <div id="cacheStatus"></div>
+        <button onclick="clearAllCache()" class="dangerous">Clear All Cache</button>
+        <button onclick="clearServiceWorkers()" class="dangerous">Clear Service Workers</button>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Service Worker Status</h2>
+        <div id="swStatus"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Storage Status</h2>
+        <div id="storageStatus"></div>
+        <button onclick="clearStorage()" class="dangerous">Clear Storage</button>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Actions</h2>
+        <button onclick="goToCleanURL()">Go to Clean URL</button>
+        <button onclick="forceReload()">Force Reload</button>
+        <button onclick="resetEverything()" class="dangerous">Reset Everything</button>
+    </div>
+
+    <script>
+        // URL Analysis
+        function analyzeURL() {
+            const currentURL = window.location.href;
+            const analysis = document.getElementById('urlAnalysis');
+            
+            let html = `<strong>Current URL:</strong><br><pre>${currentURL}</pre>`;
+            
+            // Check for corruption patterns
+            const corruptionPatterns = [
+                { pattern: /[a-f0-9]{32}-[a-f0-9]{20}\.fly\.dev[a-zA-Z0-9]+/, name: 'Fly.dev URL corruption' },
+                { pattern: /localhost:\d+[a-zA-Z0-9]+/, name: 'Localhost URL corruption' },
+                { pattern: /\.[a-zA-Z]{2,}[0-9a-zA-Z]+$/, name: 'Domain suffix corruption' }
+            ];
+            
+            let corrupted = false;
+            corruptionPatterns.forEach(({pattern, name}) => {
+                if (pattern.test(currentURL)) {
+                    html += `<div class="error">⚠️ ${name} detected!</div>`;
+                    corrupted = true;
+                }
+            });
+            
+            if (!corrupted) {
+                html += `<div class="success">✅ URL appears to be clean</div>`;
+            }
+            
+            analysis.innerHTML = html;
+        }
+        
+        // Cache Status
+        function checkCacheStatus() {
+            const status = document.getElementById('cacheStatus');
+            let html = '';
+            
+            // Check localStorage
+            const localStorageSize = JSON.stringify(localStorage).length;
+            html += `<div>LocalStorage: ${localStorageSize} characters</div>`;
+            
+            // Check sessionStorage
+            const sessionStorageSize = JSON.stringify(sessionStorage).length;
+            html += `<div>SessionStorage: ${sessionStorageSize} characters</div>`;
+            
+            // Check caches
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    html += `<div>Cache Storage: ${names.length} caches (${names.join(', ')})</div>`;
+                    status.innerHTML = html;
+                });
+            } else {
+                html += `<div class="warning">Cache API not supported</div>`;
+                status.innerHTML = html;
+            }
+        }
+        
+        // Service Worker Status
+        function checkSWStatus() {
+            const status = document.getElementById('swStatus');
+            
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    let html = `<div>Service Workers: ${registrations.length} registered</div>`;
+                    registrations.forEach((reg, i) => {
+                        html += `<div>SW ${i + 1}: ${reg.scope} (${reg.active ? 'active' : 'inactive'})</div>`;
+                    });
+                    status.innerHTML = html;
+                });
+            } else {
+                status.innerHTML = '<div class="warning">Service Workers not supported</div>';
+            }
+        }
+        
+        // Storage Status
+        function checkStorageStatus() {
+            const status = document.getElementById('storageStatus');
+            let html = '';
+            
+            // LocalStorage items
+            html += `<div><strong>LocalStorage (${localStorage.length} items):</strong></div>`;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                html += `<div style="margin-left: 20px;">${key}: ${value ? value.substring(0, 50) + '...' : 'null'}</div>`;
+            }
+            
+            // SessionStorage items
+            html += `<div><strong>SessionStorage (${sessionStorage.length} items):</strong></div>`;
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                const value = sessionStorage.getItem(key);
+                html += `<div style="margin-left: 20px;">${key}: ${value ? value.substring(0, 50) + '...' : 'null'}</div>`;
+            }
+            
+            status.innerHTML = html;
+        }
+        
+        // Actions
+        function clearAllCache() {
+            if (confirm('Clear all cache? This will clear everything.')) {
+                if ('caches' in window) {
+                    caches.keys().then(names => {
+                        names.forEach(name => caches.delete(name));
+                        alert('Cache cleared!');
+                        checkCacheStatus();
+                    });
+                }
+            }
+        }
+        
+        function clearServiceWorkers() {
+            if (confirm('Unregister all service workers?')) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(reg => reg.unregister());
+                        alert('Service workers cleared!');
+                        checkSWStatus();
+                    });
+                }
+            }
+        }
+        
+        function clearStorage() {
+            if (confirm('Clear all storage? This will clear localStorage and sessionStorage.')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                alert('Storage cleared!');
+                checkStorageStatus();
+            }
+        }
+        
+        function goToCleanURL() {
+            const currentURL = window.location.href;
+            let cleanURL = currentURL;
+            
+            // Remove corruption patterns
+            cleanURL = cleanURL.replace(/[a-zA-Z0-9]+$/, '');
+            
+            if (cleanURL !== currentURL) {
+                if (confirm(`Redirect to clean URL?\n\nFrom: ${currentURL}\nTo: ${cleanURL}`)) {
+                    window.location.href = cleanURL;
+                }
+            } else {
+                alert('URL already appears to be clean');
+            }
+        }
+        
+        function forceReload() {
+            window.location.reload(true);
+        }
+        
+        function resetEverything() {
+            if (confirm('Reset everything? This will clear all cache, storage, and service workers, then reload.')) {
+                // Clear storage
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Clear cache
+                if ('caches' in window) {
+                    caches.keys().then(names => names.forEach(name => caches.delete(name)));
+                }
+                
+                // Clear service workers
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(reg => reg.unregister());
+                    });
+                }
+                
+                // Reload after a delay
+                setTimeout(() => {
+                    window.location.reload(true);
+                }, 1000);
+            }
+        }
+        
+        // Initialize
+        window.addEventListener('load', () => {
+            analyzeURL();
+            checkCacheStatus();
+            checkSWStatus();
+            checkStorageStatus();
+        });
+        
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            checkCacheStatus();
+            checkSWStatus();
+            checkStorageStatus();
+        }, 5000);
+    </script>
+</body>
+</html>

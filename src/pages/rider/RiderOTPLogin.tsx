@@ -123,6 +123,14 @@ export default function RiderOTPLogin({ onSwitchToRegister }: RiderOTPLoginProps
         localStorage.setItem('riderAuth', JSON.stringify(responseData.rider));
         localStorage.setItem('riderToken', responseData.token);
 
+        // Initialize mobile push notifications for rider
+        try {
+          const { MobilePushService } = await import('@/services/MobilePushService');
+          MobilePushService.getInstance().initialize(undefined, { riderId: responseData.rider._id || responseData.rider.id });
+        } catch (e) {
+          console.warn('Push notification init failed:', e);
+        }
+
         toast.success('Login successful!');
         navigate('/rider/dashboard');
       } else {

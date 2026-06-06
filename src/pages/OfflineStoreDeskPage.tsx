@@ -62,6 +62,10 @@ export default function OfflineStoreDeskPage() {
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [userWallet, setUserWallet] = useState<number>(0);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedOrder, setEditedOrder] = useState<any>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [showInactiveOrders, setShowInactiveOrders] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -164,7 +168,127 @@ export default function OfflineStoreDeskPage() {
 
   const handleViewOrder = (order: Order) => {
     setSelectedOrder(order);
+    setEditedOrder({ ...order });
+    setIsEditMode(false);
     setShowOrderDetail(true);
+  };
+
+  const handleEditMode = () => {
+    setEditedOrder({ ...selectedOrder });
+    setIsEditMode(true);
+  };
+
+  const calculateTotalAmount = (items: any[]) => {
+    return items.reduce((sum, item) => {
+      const itemTotal = item.total_price || (item.unit_price * (item.quantity || 1)) || 0;
+      return sum + itemTotal;
+    }, 0);
+  };
+
+  const handleAddItem = () => {
+    if (!editedOrder.item_prices) {
+      editedOrder.item_prices = [];
+    }
+    editedOrder.item_prices = [
+      ...editedOrder.item_prices,
+      { service_name: "", quantity: 1, unit_price: 0, total_price: 0 }
+    ];
+    setEditedOrder({ ...editedOrder });
+  };
+
+  const handleRemoveItem = (index: number) => {
+    editedOrder.item_prices = editedOrder.item_prices.filter((_: any, i: number) => i !== index);
+    setEditedOrder({ ...editedOrder });
+  };
+
+  const handleItemChange = (index: number, field: string, value: any) => {
+    const items = [...editedOrder.item_prices];
+    items[index][field] = value;
+
+    // Auto-calculate total price for this item
+    if (field === "quantity" || field === "unit_price") {
+      items[index].total_price = (items[index].unit_price || 0) * (items[index].quantity || 1);
+    }
+
+    editedOrder.item_prices = items;
+    setEditedOrder({ ...editedOrder });
+  };
+
+  const handleSaveOrder = async () => {
+    if (!selectedOrder || !editedOrder) return;
+
+    const token = localStorage.getItem("offline_store_token");
+    if (!token) return;
+
+    setSavingOrder(true);
+    try {
+      // Calculate total
+      const total = calculateTotalAmount(editedOrder.item_prices || []);
+
+      const response = await fetch(`/api/offline-store/order/${selectedOrder._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          customer_name: editedOrder.customer_name,
+          customer_phone: editedOrder.customer_phone,
+          item_prices: editedOrder.item_prices || [],
+          total_price: total,
+          final_amount: total,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Order updated successfully");
+        setSelectedOrder(data.order);
+        setEditedOrder(data.order);
+        setIsEditMode(false);
+        fetchOrders();
+      } else {
+        toast.error(data.error || "Failed to update order");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error updating order");
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!selectedOrder) return;
+
+    if (!window.confirm("Are you sure you want to delete this order? This action cannot be undone.")) {
+      return;
+    }
+
+    const token = localStorage.getItem("offline_store_token");
+    if (!token) return;
+
+    try {
+      const response = await fetch(`/api/offline-store/order/${selectedOrder._id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Order deleted successfully");
+        setShowOrderDetail(false);
+        setSelectedOrder(null);
+        fetchOrders();
+      } else {
+        toast.error(data.error || "Failed to delete order");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error deleting order");
+    }
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
@@ -229,21 +353,38 @@ export default function OfflineStoreDeskPage() {
     return colors[status] || "bg-gray-100 text-gray-800";
   };
 
-  const handleDeleteOrder = async (orderId: string) => {
-    if (!window.confirm("Are you sure you want to delete this order?")) {
-      return;
-    }
+  const getOrderPriority = (order: Order) => {
+    // Lower number = higher priority
+    const statusPriority: Record<string, number> = {
+      created: 1,      // Just created
+      pending: 2,      // Waiting action
+      confirmed: 3,    // Confirmed but not done
+      completed: 4,    // Completed
+      cancelled: 5,    // Cancelled
+      delivered: 5,    // Delivered
+    };
+    return statusPriority[order.status] || 999;
+  };
 
-    const token = localStorage.getItem("offline_store_token");
-    if (!token) return;
+  const sortByPriority = (orders: Order[]) => {
+    return [...orders].sort((a, b) => {
+      const priorityDiff = getOrderPriority(a) - getOrderPriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+      // If same priority, sort by recent first
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  };
 
-    try {
-      // This would need a delete endpoint on the backend
-      toast.success("Order deleted");
-      fetchOrders();
-    } catch (error) {
-      toast.error("Failed to delete order");
-    }
+  const isActiveOrder = (order: Order) => {
+    return !["completed", "cancelled", "delivered"].includes(order.status);
+  };
+
+  const getActiveOrders = (orders: Order[]) => {
+    return sortByPriority(orders.filter(isActiveOrder));
+  };
+
+  const getInactiveOrders = (orders: Order[]) => {
+    return sortByPriority(orders.filter((o) => !isActiveOrder(o)));
   };
 
   const exportToCSV = () => {
@@ -417,7 +558,7 @@ export default function OfflineStoreDeskPage() {
             </Card>
 
 
-            {/* Orders Buckets */}
+            {/* Orders Display */}
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <p className="text-gray-600">Loading orders...</p>
@@ -435,55 +576,116 @@ export default function OfflineStoreDeskPage() {
               </Card>
             ) : (
               <div className="space-y-6">
-                {/* Offline Orders Bucket */}
-                {filteredOfflineOrders.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-purple-700 flex items-center gap-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                        Offline Orders ({filteredOfflineOrders.length})
-                      </span>
-                    </h3>
-                    <OrderListView
-                      orders={filteredOfflineOrders}
-                      onViewOrder={handleViewOrder}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                      getStatusColor={getStatusColor}
-                    />
-                  </div>
-                )}
+                {/* Active Orders Section */}
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                      🔴 Active Orders
+                    </span>
+                  </h3>
 
-                {/* Online Orders Bucket */}
-                {filteredOnlineOrders.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-blue-700 flex items-center gap-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                        Online Orders ({filteredOnlineOrders.length})
+                  {/* Offline Active Orders */}
+                  {getActiveOrders(filteredOfflineOrders).length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600 font-medium px-2">Offline ({getActiveOrders(filteredOfflineOrders).length})</p>
+                      <OrderListView
+                        orders={getActiveOrders(filteredOfflineOrders)}
+                        onViewOrder={handleViewOrder}
+                        formatDate={formatDate}
+                        formatTime={formatTime}
+                        getStatusColor={getStatusColor}
+                      />
+                    </div>
+                  )}
+
+                  {/* Online Active Orders */}
+                  {getActiveOrders(filteredOnlineOrders).length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600 font-medium px-2">Online ({getActiveOrders(filteredOnlineOrders).length})</p>
+                      <OrderListView
+                        orders={getActiveOrders(filteredOnlineOrders)}
+                        onViewOrder={handleViewOrder}
+                        formatDate={formatDate}
+                        formatTime={formatTime}
+                        getStatusColor={getStatusColor}
+                      />
+                    </div>
+                  )}
+
+                  {getActiveOrders(filteredOfflineOrders).length === 0 && getActiveOrders(filteredOnlineOrders).length === 0 && (
+                    <Card className="p-6 text-center bg-green-50 border-green-200">
+                      <p className="text-green-700 font-medium">✓ No active orders - all caught up!</p>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Inactive Orders Section (Collapsed) */}
+                {(getInactiveOrders(filteredOfflineOrders).length > 0 || getInactiveOrders(filteredOnlineOrders).length > 0) && (
+                  <div className="border-t pt-6">
+                    <button
+                      onClick={() => setShowInactiveOrders(!showInactiveOrders)}
+                      className="flex items-center justify-between w-full px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                    >
+                      <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-200 text-gray-800">
+                          📦 Inactive Orders ({getInactiveOrders(filteredOfflineOrders).length + getInactiveOrders(filteredOnlineOrders).length})
+                        </span>
+                      </h3>
+                      <span className={`text-gray-600 transform transition-transform ${showInactiveOrders ? "rotate-180" : ""}`}>
+                        ▼
                       </span>
-                    </h3>
-                    <OrderListView
-                      orders={filteredOnlineOrders}
-                      onViewOrder={handleViewOrder}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                      getStatusColor={getStatusColor}
-                    />
+                    </button>
+
+                    {showInactiveOrders && (
+                      <div className="mt-4 space-y-4">
+                        {/* Offline Inactive Orders */}
+                        {getInactiveOrders(filteredOfflineOrders).length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-600 font-medium px-2">Offline ({getInactiveOrders(filteredOfflineOrders).length})</p>
+                            <OrderListView
+                              orders={getInactiveOrders(filteredOfflineOrders)}
+                              onViewOrder={handleViewOrder}
+                              formatDate={formatDate}
+                              formatTime={formatTime}
+                              getStatusColor={getStatusColor}
+                            />
+                          </div>
+                        )}
+
+                        {/* Online Inactive Orders */}
+                        {getInactiveOrders(filteredOnlineOrders).length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-600 font-medium px-2">Online ({getInactiveOrders(filteredOnlineOrders).length})</p>
+                            <OrderListView
+                              orders={getInactiveOrders(filteredOnlineOrders)}
+                              onViewOrder={handleViewOrder}
+                              formatDate={formatDate}
+                              formatTime={formatTime}
+                              getStatusColor={getStatusColor}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
             {/* Order Detail Modal */}
-            {showOrderDetail && selectedOrder && (
+            {showOrderDetail && selectedOrder && editedOrder && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                       <h2 className="text-2xl font-bold">
                         Order #{selectedOrder.custom_order_id}
                       </h2>
                       <button
-                        onClick={() => setShowOrderDetail(false)}
+                        onClick={() => {
+                          setShowOrderDetail(false);
+                          setIsEditMode(false);
+                        }}
                         className="text-gray-500 hover:text-gray-700"
                       >
                         ✕
@@ -492,43 +694,127 @@ export default function OfflineStoreDeskPage() {
 
                     <div className="space-y-4">
                       {/* Customer Info */}
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <h3 className="font-semibold mb-3">Customer Details</h3>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-gray-600" />
-                            <span>{selectedOrder.customer_name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-4 h-4 text-gray-600" />
-                            <span>{selectedOrder.customer_phone}</span>
-                          </div>
+                      <div className={`p-4 rounded-lg ${isEditMode ? "bg-blue-50" : "bg-gray-50"}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold">Customer Details</h3>
+                          {!isEditMode && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleEditMode}
+                            >
+                              Edit
+                            </Button>
+                          )}
                         </div>
+                        {isEditMode ? (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-sm text-gray-600">Customer Name</label>
+                              <Input
+                                value={editedOrder.customer_name}
+                                onChange={(e) => setEditedOrder({ ...editedOrder, customer_name: e.target.value })}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">Customer Phone</label>
+                              <Input
+                                value={editedOrder.customer_phone}
+                                onChange={(e) => setEditedOrder({ ...editedOrder, customer_phone: e.target.value })}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-600" />
+                              <span>{editedOrder.customer_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Phone className="w-4 h-4 text-gray-600" />
+                              <span>{editedOrder.customer_phone}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Services */}
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <h3 className="font-semibold mb-3">Services</h3>
-                        <div className="space-y-2">
-                          {selectedOrder.item_prices && selectedOrder.item_prices.length > 0 ? (
-                            selectedOrder.item_prices.map((service: any, idx: number) => (
-                              <div key={idx} className="flex justify-between">
-                                <span>
-                                  {service.service_name} x {service.quantity || 1}
-                                </span>
-                                <span className="font-semibold">
-                                  ₹{service.total_price || (service.unit_price * (service.quantity || 1)) || 0}
-                                </span>
+                      {/* Services/Items */}
+                      <div className={`p-4 rounded-lg ${isEditMode ? "bg-blue-50" : "bg-gray-50"}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold">Services</h3>
+                          {isEditMode && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleAddItem}
+                            >
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add Item
+                            </Button>
+                          )}
+                        </div>
+                        <div className="space-y-3">
+                          {editedOrder.item_prices && editedOrder.item_prices.length > 0 ? (
+                            editedOrder.item_prices.map((service: any, idx: number) => (
+                              <div key={idx} className={`p-3 rounded-lg ${isEditMode ? "bg-white border border-gray-200" : "bg-white"}`}>
+                                {isEditMode ? (
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-12 gap-2">
+                                      <Input
+                                        placeholder="Service name"
+                                        value={service.service_name}
+                                        onChange={(e) => handleItemChange(idx, "service_name", e.target.value)}
+                                        className="col-span-5"
+                                      />
+                                      <Input
+                                        type="number"
+                                        placeholder="Qty"
+                                        value={service.quantity || 1}
+                                        onChange={(e) => handleItemChange(idx, "quantity", parseInt(e.target.value) || 1)}
+                                        className="col-span-2"
+                                      />
+                                      <Input
+                                        type="number"
+                                        placeholder="Price"
+                                        value={service.unit_price || 0}
+                                        onChange={(e) => handleItemChange(idx, "unit_price", parseFloat(e.target.value) || 0)}
+                                        className="col-span-3"
+                                      />
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveItem(idx)}
+                                        className="col-span-2 text-red-600 hover:text-red-700"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="text-right text-sm font-semibold">
+                                      Total: ₹{service.total_price || 0}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex justify-between">
+                                    <span>
+                                      {service.service_name} x {service.quantity || 1}
+                                    </span>
+                                    <span className="font-semibold">
+                                      ₹{service.total_price || (service.unit_price * (service.quantity || 1)) || 0}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             ))
-                          ) : selectedOrder.services && selectedOrder.services.length > 0 ? (
-                            selectedOrder.services.map((service: any, idx: number) => (
+                          ) : editedOrder.services && editedOrder.services.length > 0 ? (
+                            editedOrder.services.map((service: any, idx: number) => (
                               <div key={idx} className="flex justify-between">
                                 <span>{service}</span>
                               </div>
                             ))
                           ) : (
-                            <p className="text-gray-600">No services listed</p>
+                            <p className="text-gray-600">{isEditMode ? "No items. Click 'Add Item' to add." : "No services listed"}</p>
                           )}
                         </div>
                       </div>
@@ -538,15 +824,15 @@ export default function OfflineStoreDeskPage() {
                         <div className="bg-blue-50 p-4 rounded-lg">
                           <p className="text-sm text-gray-600">Total Amount</p>
                           <p className="text-2xl font-bold text-blue-600">
-                            ₹{selectedOrder.final_amount || selectedOrder.total_price}
+                            ₹{calculateTotalAmount(editedOrder.item_prices || [])}
                           </p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-lg">
-                          <p className="text-sm text-gray-600 mb-2">Update Status</p>
+                          <p className="text-sm text-gray-600 mb-2">Order Status</p>
                           <select
                             value={selectedOrder.status}
                             onChange={(e) => handleStatusUpdate(e.target.value)}
-                            disabled={updatingStatus}
+                            disabled={updatingStatus || isEditMode}
                             className="w-full px-3 py-2 border rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                           >
                             <option value="created">Created</option>
@@ -579,13 +865,45 @@ export default function OfflineStoreDeskPage() {
 
                       {/* Actions */}
                       <div className="flex gap-2 pt-4">
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setShowOrderDetail(false)}
-                        >
-                          Close
-                        </Button>
+                        {isEditMode ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() => {
+                                setIsEditMode(false);
+                                setEditedOrder({ ...selectedOrder });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              className="flex-1 bg-green-600 hover:bg-green-700"
+                              onClick={handleSaveOrder}
+                              disabled={savingOrder}
+                            >
+                              {savingOrder ? "Saving..." : "Save Changes"}
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() => setShowOrderDetail(false)}
+                            >
+                              Close
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              className="flex-1"
+                              onClick={handleDeleteOrder}
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

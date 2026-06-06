@@ -42,6 +42,11 @@ const config = {
         "https://*.railway.app",
         "https://*.onrender.com",
 
+        // Capacitor native apps (Android uses https://localhost, iOS uses capacitor://localhost)
+        "https://localhost",
+        "capacitor://localhost",
+        "http://localhost",
+
         // Local development
         "http://localhost:10000",
         "http://localhost:10001",

@@ -38,45 +38,77 @@ export class VendorService {
   }
 
   /**
-   * Calculate distance between two coordinates using Haversine formula
+   * Straight-line distance (Haversine) — used only as fallback when OSRM fails.
    */
-  private calculateDistance(
+  private haversineDistance(
     lat1: number,
     lng1: number,
     lat2: number,
     lng2: number
   ): number {
-    const R = 6371; // Radius of the Earth in kilometers
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLng = this.toRadians(lng2 - lng1);
-    
-    const a = 
+    const R = 6371;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
       Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distance in kilometers
-    
-    return Math.round(distance * 100) / 100; // Round to 2 decimal places
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 100) / 100;
   }
 
   /**
-   * Convert degrees to radians
+   * Fetch road distances from one origin to many destinations using OSRM.
+   * Uses the public OSRM server (no API key needed).
+   * Profile: "driving" — accurate for motorcycles / delivery bikes.
+   * OSRM coordinate order: longitude,latitude (opposite of Google Maps).
+   *
+   * Returns arrays parallel to `destinations`:
+   *   distances[i] = road distance in km
+   *   durations[i] = travel time in minutes
+   * Null entries mean OSRM couldn't route to that destination.
    */
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
+  private async getRoadDistancesFromOSRM(
+    origin: { lat: number; lng: number },
+    destinations: { lat: number; lng: number }[]
+  ): Promise<{ distances: (number | null)[]; durations: (number | null)[] }> {
+    // Build semicolon-separated coordinate string: lng,lat for each point.
+    // Index 0 = origin, indices 1..N = destinations.
+    const all = [origin, ...destinations];
+    const coordString = all.map(p => `${p.lng},${p.lat}`).join(';');
+
+    const url =
+      `https://router.project-osrm.org/table/v1/driving/${coordString}` +
+      `?sources=0&annotations=distance,duration`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!res.ok) throw new Error(`OSRM ${res.status}`);
+    const data = await res.json();
+    if (data.code !== 'Ok') throw new Error(`OSRM code: ${data.code}`);
+
+    // data.distances[0] = row for our single source.
+    // Slice off index 0 (distance from origin to itself = 0).
+    const distances = (data.distances[0] as (number | null)[]).slice(1).map(
+      d => d !== null ? Math.round(d / 10) / 100 : null // metres → km, 2 dp
+    );
+    const durations = (data.durations[0] as (number | null)[]).slice(1).map(
+      d => d !== null ? Math.round(d / 60) : null // seconds → minutes
+    );
+
+    return { distances, durations };
   }
 
   /**
-   * Estimate delivery time based on distance
+   * Estimate delivery time from road distance when OSRM duration is unavailable.
+   * ~25 km/h average city speed on a bike.
    */
-  private estimateDeliveryTime(distance: number): number {
-    // Base time for processing (30 minutes) + travel time
-    // Assuming average speed of 20 km/h in city traffic
-    const baseProcessingTime = 30;
-    const travelTime = (distance / 20) * 60; // Convert to minutes
-    return Math.round(baseProcessingTime + (travelTime * 2)); // Round trip
+  private estimateDeliveryTime(distanceKm: number): number {
+    return Math.round((distanceKm / 25) * 60);
   }
 
   /**
@@ -94,29 +126,47 @@ export class VendorService {
   }
 
   /**
-   * Get vendors with distance calculation from pickup location
+   * Get vendors with ROAD distance from pickup location (via OSRM).
+   * Falls back to Haversine straight-line if OSRM is unreachable.
    */
-  getVendorsWithDistance(pickupCoordinates: { lat: number; lng: number }): VendorWithDistance[] {
+  async getVendorsWithDistance(pickupCoordinates: { lat: number; lng: number }): Promise<VendorWithDistance[]> {
     const activeVendors = this.getActiveVendors();
+    if (activeVendors.length === 0) return [];
 
-    return activeVendors
-      .map(vendor => {
-        const distance = this.calculateDistance(
-          pickupCoordinates.lat,
-          pickupCoordinates.lng,
-          vendor.coordinates.lat,
-          vendor.coordinates.lng
-        );
+    try {
+      const { distances, durations } = await this.getRoadDistancesFromOSRM(
+        pickupCoordinates,
+        activeVendors.map(v => v.coordinates)
+      );
 
-        const estimatedTime = this.estimateDeliveryTime(distance);
-
-        return {
+      return activeVendors
+        .map((vendor, i) => ({
           ...vendor,
-          distance,
-          estimatedTime
-        };
-      })
-      .sort((a, b) => a.distance - b.distance); // Sort by nearest first
+          distance: distances[i] ?? this.haversineDistance(
+            pickupCoordinates.lat, pickupCoordinates.lng,
+            vendor.coordinates.lat, vendor.coordinates.lng
+          ),
+          estimatedTime: durations[i] ?? this.estimateDeliveryTime(
+            distances[i] ?? this.haversineDistance(
+              pickupCoordinates.lat, pickupCoordinates.lng,
+              vendor.coordinates.lat, vendor.coordinates.lng
+            )
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance);
+
+    } catch (err) {
+      console.warn('⚠️ OSRM road distance failed, falling back to straight-line:', err);
+      return activeVendors
+        .map(vendor => {
+          const distance = this.haversineDistance(
+            pickupCoordinates.lat, pickupCoordinates.lng,
+            vendor.coordinates.lat, vendor.coordinates.lng
+          );
+          return { ...vendor, distance, estimatedTime: this.estimateDeliveryTime(distance) };
+        })
+        .sort((a, b) => a.distance - b.distance);
+    }
   }
 
   /**
@@ -150,14 +200,24 @@ export class VendorService {
         console.warn('⚠️ Geocoding failed, using fallback method:', geocodeError);
       }
 
-      // Fallback: Use simplified address parsing for common Gurugram areas
+      // Fallback: Use simplified address parsing for common Gurugram areas.
+      // IMPORTANT: check specific sectors/landmarks FIRST, then try sector-number
+      // extraction, and only fall back to the generic city centre last.
+      // Previously 'gurugram'/'gurgaon' were in the same loop as specific sectors,
+      // so "Sector 104, Gurugram" matched 'gurugram' and returned the city centre
+      // before the sector-number extraction could run — producing wrong distances.
       const addressLower = address.toLowerCase();
 
-      // Common Gurugram sector coordinates (approximate)
-      const sectorCoordinates: Record<string, { lat: number; lng: number }> = {
+      // Step 1 — named sectors / landmarks (no city-level keywords here)
+      const namedAreaCoordinates: Record<string, { lat: number; lng: number }> = {
         'sector 69': { lat: 28.3984, lng: 77.0648 },
         'sector 70': { lat: 28.3920, lng: 77.0580 },
         'sector 71': { lat: 28.3890, lng: 77.0520 },
+        'sector 104': { lat: 28.4020, lng: 76.9756 },
+        'sector 105': { lat: 28.4050, lng: 76.9710 },
+        'sector 106': { lat: 28.4080, lng: 76.9680 },
+        'sector 109': { lat: 28.4100, lng: 76.9640 },
+        'sector 110': { lat: 28.4120, lng: 76.9600 },
         'sector 14': { lat: 28.4595, lng: 77.0266 },
         'sector 25': { lat: 28.4949, lng: 77.0828 },
         'sector 54': { lat: 28.4211, lng: 77.0869 },
@@ -167,49 +227,63 @@ export class VendorService {
         'sector 56': { lat: 28.4150, lng: 77.0750 },
         'sector 43': { lat: 28.4450, lng: 77.0480 },
         'sector 32': { lat: 28.4750, lng: 77.0650 },
+        'sector 39': { lat: 28.4480, lng: 77.0720 },
+        'sector 31': { lat: 28.4680, lng: 77.0680 },
+        'sector 28': { lat: 28.4750, lng: 77.0590 },
         'cyber city': { lat: 28.4949, lng: 77.0828 },
         'mg road': { lat: 28.4595, lng: 77.0266 },
         'golf course road': { lat: 28.4211, lng: 77.0869 },
         'sohna road': { lat: 28.4089, lng: 77.0520 },
         'dwarka expressway': { lat: 28.4089, lng: 76.9560 },
-        'gurgaon': { lat: 28.4595, lng: 77.0266 },
-        'gurugram': { lat: 28.4595, lng: 77.0266 },
         'dlf': { lat: 28.4211, lng: 77.0869 },
-        'phase': { lat: 28.4700, lng: 77.0800 }
       };
 
-      // Find matching sector/area
-      for (const [area, coords] of Object.entries(sectorCoordinates)) {
+      for (const [area, coords] of Object.entries(namedAreaCoordinates)) {
         if (addressLower.includes(area)) {
           console.log(`📍 Found fallback coordinates for ${area}:`, coords);
           return coords;
         }
       }
 
-      // Try to extract sector number if not found in the predefined list
+      // Step 2 — extract any sector number not in the named list above
       const sectorMatch = addressLower.match(/sector[\s\-]*([0-9]+)/);
       if (sectorMatch) {
         const sectorNum = parseInt(sectorMatch[1]);
-        console.log(`📍 Extracting fallback coordinates for Sector ${sectorNum}`);
+        console.log(`📍 Estimating coordinates for Sector ${sectorNum}`);
 
-        // Generate approximate coordinates based on sector number
-        // Gurugram sectors are roughly arranged in a grid pattern
-        const baseLat = 28.4595;
-        const baseLng = 77.0266;
-        const latOffset = (sectorNum % 10) * 0.008; // Approximate 800m per sector
-        const lngOffset = Math.floor(sectorNum / 10) * 0.008;
+        // Sectors 80–115 are along Dwarka Expressway (SW of old city)
+        if (sectorNum >= 80 && sectorNum <= 115) {
+          const offset = sectorNum - 80;
+          return {
+            lat: 28.4400 - offset * 0.003,
+            lng: 77.0100 - offset * 0.004,
+          };
+        }
 
-        const estimatedCoords = {
-          lat: baseLat + latOffset,
-          lng: baseLng + lngOffset
+        // Sectors 57–79 are along Southern Peripheral Road / Golf Course Ext.
+        if (sectorNum >= 57 && sectorNum <= 79) {
+          const offset = sectorNum - 57;
+          return {
+            lat: 28.4050 + offset * 0.004,
+            lng: 77.0500 + offset * 0.003,
+          };
+        }
+
+        // Remaining sectors: rough grid around old Gurugram
+        return {
+          lat: 28.4595 + (sectorNum % 10) * 0.006,
+          lng: 77.0266 + Math.floor(sectorNum / 10) * 0.006,
         };
-
-        console.log(`📍 Estimated coordinates for Sector ${sectorNum}:`, estimatedCoords);
-        return estimatedCoords;
       }
 
-      // Default coordinates for Gurugram city center
-      console.log('📍 Using default Gurugram coordinates for address:', address);
+      // Step 3 — city-level fallback (last resort)
+      if (addressLower.includes('gurgaon') || addressLower.includes('gurugram')) {
+        console.log('📍 Using Gurugram city-centre fallback for address:', address);
+        return { lat: 28.4595, lng: 77.0266 };
+      }
+
+      // Absolute default
+      console.log('📍 Using absolute default coordinates for address:', address);
       return { lat: 28.4595, lng: 77.0266 };
 
     } catch (error) {
@@ -272,8 +346,8 @@ export class VendorService {
 
     console.log('✅ Using coordinates for vendor distance calculation:', coordinates);
 
-    // Get vendors with distance
-    const vendorsWithDistance = this.getVendorsWithDistance(coordinates);
+    // Get vendors with road distance (OSRM, falls back to Haversine)
+    const vendorsWithDistance = await this.getVendorsWithDistance(coordinates);
 
     console.log('📊 Calculated vendor distances:', vendorsWithDistance.map(v => ({ name: v.name, distance: v.distance })));
 

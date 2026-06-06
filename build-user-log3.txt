@@ -1,0 +1,366 @@
+﻿bash : wsl: Failed to 
+translate 'D:\Winutils\bin'
+At line:1 char:1
++ bash 
+scripts/build-user-aab.sh 
+2>&1 | tee 
+build-user-log2.txt
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (wsl  
+  : Failed to ...:\Winut   
+ ils\bin':String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+wsl: Failed to translate 'D
+:\New_folder\spark-3.5.5\sp
+ark-3.5.5\spark-3.5.5\bin'
+≡ƒô▒ Building User App Bundle (AAB)...
+
+≡ƒôª Step 1/4: Building web assets...
+
+> laundrify@0.0.0 build
+> npm run build:minimal
+
+
+> laundrify@0.0.0 build:minimal
+> cross-env NODE_OPTIONS=--max-old-space-size=800 node --expose-gc scripts/minimal-build.cjs
+
+Starting minimal build process for 512MB environment...
+Skipping PWA build script to conserve memory...
+Starting minimal Vite build...
+Running: npx vite build --config vite.render.config.ts --mode production
+(node:43712) [DEP0190] 
+DeprecationWarning: 
+Passing args to a child 
+process with shell option 
+true can lead to security 
+vulnerabilities, as the 
+arguments are not escaped, 
+only concatenated.
+(Use `node 
+--trace-deprecation ...` 
+to show where the warning 
+was created)
+polyfillModulePreload is 
+deprecated. Use 
+modulePreload.polyfill 
+instead.
+[33mbuild.terserOptions 
+is specified but 
+build.minify is not set to 
+use Terser. Note Vite now 
+defaults to use esbuild 
+for minification. If you 
+still prefer Terser, set 
+build.minify to 
+"terser".[39m
+[36mvite v5.4.20 [32mbuilding for production...[36m[39m
+Unknown input options: 
+maxChunks. Allowed 
+options: cache, context, 
+experimentalCacheExpiry, ex
+perimentalLogSideEffects, 
+external, fs, input, jsx, 
+logLevel, makeAbsoluteExter
+nalsRelative, 
+maxParallelFileOps, 
+moduleContext, onLog, 
+onwarn, perf, plugins, 
+preserveEntrySignatures, 
+preserveSymlinks, 
+shimMissingExports, 
+strictDeprecations, 
+treeshake, watch
+transforming...
+[32mΓ£ô[39m 2161 modules transformed.
+rendering chunks...
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/data/laundrySer
+vices.ts is dynamically 
+imported by C:/Users/Katari
+a/Home-services/src/service
+s/bookingService.ts, C:/Use
+rs/Kataria/Home-services/sr
+c/services/dynamicServicesS
+ervice.ts but also 
+statically imported by C:/U
+sers/Kataria/Home-services/
+src/components/AdminBooking
+Management.tsx, C:/Users/Ka
+taria/Home-services/src/com
+ponents/CustomerVerificatio
+nPopup.tsx, C:/Users/Katari
+a/Home-services/src/compone
+nts/EditBookingModal.tsx, C
+:/Users/Kataria/Home-servic
+es/src/components/LaundryCa
+rt.tsx, C:/Users/Kataria/Ho
+me-services/src/components/
+ResponsiveLaundryHome.tsx, 
+C:/Users/Kataria/Home-servi
+ces/src/components/ServiceE
+ditor.tsx, C:/Users/Kataria
+/Home-services/src/pages/de
+sk/DeskDashboard.tsx, C:/Us
+ers/Kataria/Home-services/s
+rc/pages/rider/RiderOrders.
+tsx, C:/Users/Kataria/Home-
+services/src/utils/serviceP
+ricing.ts, dynamic import 
+will not move module into 
+another chunk.
+[39m
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/services/dvhost
+ingSmsService.ts is 
+dynamically imported by C:/
+Users/Kataria/Home-services
+/src/services/bookingServic
+e.ts but also statically 
+imported by C:/Users/Katari
+a/Home-services/src/compone
+nts/PhoneOtpAuthModal.tsx, 
+C:/Users/Kataria/Home-servi
+ces/src/components/Referral
+Modal.tsx, C:/Users/Kataria
+/Home-services/src/componen
+ts/ResponsiveLaundryHome.ts
+x, C:/Users/Kataria/Home-se
+rvices/src/hooks/useCustome
+rNotifications.ts, C:/Users
+/Kataria/Home-services/src/
+hooks/useCustomerVerificati
+on.ts, C:/Users/Kataria/Hom
+e-services/src/pages/Laundr
+yIndex.tsx, C:/Users/Katari
+a/Home-services/src/pages/O
+fflineStoreAuth.tsx, C:/Use
+rs/Kataria/Home-services/sr
+c/services/bookingService.t
+s, C:/Users/Kataria/Home-se
+rvices/src/services/custome
+rNotificationService.ts, C:
+/Users/Kataria/Home-service
+s/src/services/customerVeri
+ficationService.ts, C:/User
+s/Kataria/Home-services/src
+/utils/authPersistence.ts, 
+dynamic import will not 
+move module into another 
+chunk.
+[39m
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/utils/iosAuthFi
+x.ts is dynamically 
+imported by C:/Users/Katari
+a/Home-services/src/compone
+nts/ProfileSettingsModal.ts
+x, C:/Users/Kataria/Home-se
+rvices/src/components/Respo
+nsiveLaundryHome.tsx, C:/Us
+ers/Kataria/Home-services/s
+rc/pages/LaundryIndex.tsx, 
+C:/Users/Kataria/Home-servi
+ces/src/services/dvhostingS
+msService.ts but also 
+statically imported by C:/U
+sers/Kataria/Home-services/
+src/components/PhoneOtpAuth
+Modal.tsx, C:/Users/Kataria
+/Home-services/src/utils/au
+thPersistence.ts, dynamic 
+import will not move 
+module into another chunk.
+[39m
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/services/locati
+onDetectionService.ts is 
+dynamically imported by C:/
+Users/Kataria/Home-services
+/src/components/FormValidat
+ion.tsx but also 
+statically imported by C:/U
+sers/Kataria/Home-services/
+src/components/QuickPickupM
+odal.tsx, C:/Users/Kataria/
+Home-services/src/component
+s/ResponsiveLaundryHome.tsx
+, C:/Users/Kataria/Home-ser
+vices/src/components/Zomato
+AddAddressPage.tsx, 
+dynamic import will not 
+move module into another 
+chunk.
+[39m
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/services/bookin
+gService.ts is dynamically 
+imported by C:/Users/Katari
+a/Home-services/src/pages/L
+aundryIndex.tsx but also 
+statically imported by C:/U
+sers/Kataria/Home-services/
+src/components/EnhancedBook
+ingHistory.tsx, C:/Users/Ka
+taria/Home-services/src/com
+ponents/QuickPickupModal.ts
+x, C:/Users/Kataria/Home-se
+rvices/src/components/Respo
+nsiveLaundryHome.tsx, C:/Us
+ers/Kataria/Home-services/s
+rc/utils/bookingTestUtils.t
+s, dynamic import will not 
+move module into another 
+chunk.
+[39m
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/integrations/mo
+ngodb/bookingHelpers.ts is 
+dynamically imported by C:/
+Users/Kataria/Home-services
+/src/components/EnhancedBoo
+kingHistory.tsx, C:/Users/K
+ataria/Home-services/src/pa
+ges/LaundryIndex.tsx but 
+also statically imported 
+by C:/Users/Kataria/Home-se
+rvices/src/components/Booki
+ngConfirmed.tsx, dynamic 
+import will not move 
+module into another chunk.
+[39m
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/services/Mobile
+PushService.ts is 
+dynamically imported by C:/
+Users/Kataria/Home-services
+/src/App.tsx but also 
+statically imported by C:/U
+sers/Kataria/Home-services/
+src/pages/LaundryIndex.tsx,
+ dynamic import will not 
+move module into another 
+chunk.
+[39m
+[1m[33m[plugin:vite:repor
+ter][39m[22m 
+[33m[plugin 
+vite:reporter] 
+(!) C:/Users/Kataria/Home-s
+ervices/src/lib/riderApi.ts
+ is dynamically imported 
+by C:/Users/Kataria/Home-se
+rvices/src/components/rider
+/RiderLayout.tsx, C:/Users/
+Kataria/Home-services/src/c
+omponents/rider/RiderNotifi
+cations.tsx but also 
+statically imported by C:/U
+sers/Kataria/Home-services/
+src/components/rider/RiderN
+otifications.tsx, C:/Users/
+Kataria/Home-services/src/p
+ages/rider/RiderDashboard.t
+sx, C:/Users/Kataria/Home-s
+ervices/src/pages/rider/Rid
+erHistory.tsx, C:/Users/Kat
+aria/Home-services/src/page
+s/rider/RiderOTPLogin.tsx, 
+C:/Users/Kataria/Home-servi
+ces/src/pages/rider/RiderOr
+ders.tsx, dynamic import 
+will not move module into 
+another chunk.
+[39m
+[2mdist/[22m[32mindex.html                                    [39m[1m[2m    5.13 kB[22m[1m[22m
+[2mdist/[22m[35mcss/style-B-TxP0PQ.css                        [39m[1m[2m  219.56 kB[22m[1m[22m
+[2mdist/[22m[36mjs/web-DIRv7hs1.js                            [39m[1m[2m    0.84 kB[22m[1m[22m
+[2mdist/[22m[36mjs/riderDemoService-6hvxLVud.js               [39m[1m[2m    2.79 kB[22m[1m[22m
+[2mdist/[22m[36mjs/autocompleteSuggestionService-CBCdVEWH.js  [39m[1m[2m    3.62 kB[22m[1m[22m
+[2mdist/[22m[36mjs/extras-C7ZiEdaw.js                         [39m[1m[2m   60.95 kB[22m[1m[22m
+[2mdist/[22m[36mjs/ui-CeMHnqKj.js                             [39m[1m[2m  109.07 kB[22m[1m[22m
+[33m
+(!) Some chunks are larger 
+than 1000 kB after 
+minification. Consider:
+- Using dynamic import() 
+to code-split the 
+application
+- Use build.rollupOptions.o
+utput.manualChunks to 
+improve chunking: https://r
+ollupjs.org/configuration-o
+ptions/#output-manualchunks
+- Adjust chunk size limit 
+for this warning via build.
+chunkSizeWarningLimit.[39m
+[2mdist/[22m[36mjs/vendors-C-490FGr.js                        [39m[1m[2m  159.77 kB[22m[1m[22m
+[2mdist/[22m[36mjs/index-b9yiOemT.js                          [39m[1m[33m1,060.68 kB[39m[22m
+[32mΓ£ô built in 25.27s[39m
+Skipping build optimization to conserve memory...
+Minimal build completed successfully!
+
+> laundrify@0.0.0 postbuild
+> node scripts/deploy-fix.cjs
+
+≡ƒÜÇ Running deployment fixes...
+Γ£à Updated _headers file with proper MIME types
+Γ£à Updated _redirects file with correct backend URL
+Γ£à Created netlify.toml configuration file
+≡ƒÄë Deployment fixes completed!
+
+Next steps:
+1. Clear browser cache (Ctrl+Shift+R)
+2. Clear Netlify cache if deploying to Netlify
+3. Redeploy the application
+≡ƒôª Step 2/4: User app uses default route (/) ΓÇö no redirect needed.
+≡ƒôª Step 3/4: Syncing with Capacitor (User config)...
+ΓêÜ Copying web assets from dist to android\app\src\main\assets\public in 102.16ms
+ΓêÜ Creating capacitor.config.json in android\app\src\main\assets in 2.48ms
+ΓêÜ copy android in 329.64ms
+ΓêÜ Updating Android plugins in 113.89ms
+[info] Found 3 Capacitor plugins for android:
+       @capacitor/app@8.0.1
+       @capacitor/device@8.0.1
+       @capacitor/push-notifications@8.0.2
+ΓêÜ update android in 460.94ms
+[info] Sync finished in 1.144s
+≡ƒôª Step 4/4: Building signed AAB...
+The system cannot find the 
+path specified.
+≡ƒöä Restoring original configs...
+sed: can't read 
+android/app/build.gradle: 
+No such file or directory

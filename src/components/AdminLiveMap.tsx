@@ -85,7 +85,7 @@ export default function AdminLiveMap({ fullScreen = false, onToggleFullScreen }:
       setIsLoading(true);
       const response = await fetch(getAdminApiUrl('/riders/active'), {
         headers: {
-          'admin-token': 'admin-access-granted'
+          'admin-token': import.meta.env.VITE_ADMIN_SECRET || ''
         }
       });
 

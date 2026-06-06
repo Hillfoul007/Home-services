@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getApiUrl } from "@/config/env";
 
 interface Banner {
   _id: string;
@@ -29,7 +30,7 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
   useEffect(() => {
     const fetchBanners = async () => {
       try {
-        const response = await fetch("/api/banners/active");
+        const response = await fetch(`${getApiUrl()}/banners/active`);
         if (response.ok) {
           const data = await response.json();
           if (data.banners && data.banners.length > 0) {
@@ -68,7 +69,7 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ onBannerClick }) => {
   // Track banner click
   const trackBannerClick = async (bannerId: string) => {
     try {
-      await fetch(`/api/banners/${bannerId}/click`, {
+      await fetch(`${getApiUrl()}/banners/${bannerId}/click`, {
         method: "POST",
       });
     } catch (error) {

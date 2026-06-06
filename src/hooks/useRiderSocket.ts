@@ -1,0 +1,155 @@
+/**
+ * useRiderSocket
+ *
+ * Connects the desk dashboard to the Socket.io /desk namespace and
+ * maintains a live map of rider states.
+ *
+ * Returns:
+ *   riderMap   – Map<riderId, RiderSocketState>
+ *   connected  – whether the socket is authenticated
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { getApiUrl } from '@/config/env';
+
+export interface RiderSocketState {
+  rider_id: string;
+  name: string;
+  phone: string;
+  lat: number;
+  lng: number;
+  status: 'idle' | 'assigned' | 'delivering' | string;
+  order_id: string | null;
+  timestamp: string;
+  speed_ms?: number;   // metres/second from native GPS
+  connected?: boolean;
+}
+
+export function useRiderSocket(token?: string | null) {
+  const socketRef = useRef<Socket | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [riderMap, setRiderMap] = useState<Map<string, RiderSocketState>>(new Map());
+
+  const upsertRider = useCallback((data: Partial<RiderSocketState> & { rider_id: string }) => {
+    setRiderMap((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(data.rider_id) || {} as RiderSocketState;
+      next.set(data.rider_id, { ...existing, ...data });
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const apiUrl = getApiUrl();
+    const baseUrl = apiUrl.startsWith('http')
+      ? apiUrl.replace(/\/api$/, '')   // prod: strip trailing /api
+      : window.location.origin;        // dev: same origin as page
+
+    const socket = io(`${baseUrl}/desk`, {
+      // WebSocket first — on server restart the WS gets a clean close event so
+      // socket.io reconnects with a fresh handshake (no stale sid). Polling-first
+      // causes 400 loops because the client keeps polling with an invalidated sid.
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1500,
+      reconnectionDelayMax: 15000,
+      reconnectionAttempts: Infinity,
+      timeout: 30000,   // Render cold start can take up to 30 s
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('🟢 Desk socket connected');
+      // Send auth
+      socket.emit('desk:connect', { token: token || undefined });
+    });
+
+    socket.on('desk:connected', () => {
+      console.log('✅ Desk socket authenticated');
+      setConnected(true);
+      // Request fresh snapshot
+      socket.emit('desk:snapshot');
+    });
+
+    // Full snapshot (on connect or manual refresh)
+    socket.on('riders:snapshot', (riders: RiderSocketState[]) => {
+      setRiderMap((prev) => {
+        const next = new Map(prev);
+        riders.forEach((r) => next.set(r.rider_id, r));
+        return next;
+      });
+    });
+
+    // Incremental location update
+    socket.on('rider:location_update', (data: RiderSocketState) => {
+      upsertRider(data);
+    });
+
+    // Status-only change (no location) — also carries connected flag on rider reconnect
+    socket.on('rider:status_update', (data: { rider_id: string; status: string; order_id: string | null; connected?: boolean }) => {
+      setRiderMap((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(data.rider_id);
+        if (existing) {
+          next.set(data.rider_id, {
+            ...existing,
+            status:   data.status,
+            order_id: data.order_id,
+            // Propagate connected flag so rider goes back online immediately on reconnect
+            ...(data.connected !== undefined && { connected: data.connected }),
+          });
+        }
+        return next;
+      });
+    });
+
+    // Rider went offline
+    socket.on('rider:disconnected', ({ rider_id }: { rider_id: string }) => {
+      setRiderMap((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(rider_id);
+        if (existing) next.set(rider_id, { ...existing, connected: false });
+        return next;
+      });
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('🔴 Desk socket disconnected:', reason);
+      setConnected(false);
+    });
+
+    socket.on('connect_error', (err: Error & { description?: number | string }) => {
+      console.warn('Desk socket connect error:', err.message);
+      // 400 = stale session ID after server restart (polling fallback).
+      // Close the underlying engine transport so the next reconnect attempt
+      // starts a completely fresh handshake rather than looping with the old sid.
+      const is400 =
+        err.description === 400 ||
+        String(err.description).includes('400') ||
+        (err.message || '').includes('400');
+      if (is400) {
+        console.warn('Stale socket session — resetting engine for fresh handshake');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (socket.io as any).engine?.close();
+      }
+    });
+
+    socket.on('error', (err: unknown) => {
+      console.warn('Desk socket error:', err);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+      setConnected(false);
+    };
+  }, [token, upsertRider]);
+
+  const requestSnapshot = useCallback(() => {
+    socketRef.current?.emit('desk:snapshot');
+  }, []);
+
+  return { riderMap, connected, requestSnapshot };
+}

@@ -1,5 +1,6 @@
 const express = require("express");
 const User = require("../models/User");
+const Booking = require("../models/Booking");
 const router = express.Router();
 
 // Mock coupon data for now
@@ -70,28 +71,51 @@ router.post("/validate", async (req, res) => {
       });
     }
 
-    // Enhanced validation for first-order and one-time use restrictions
-
-    // Check if user has already used this specific coupon
+    // Check if user has already used this coupon (DB check)
     if (coupon.isOneTimeUse) {
-      // In a real app, this would check database. For now, simulate the check
-      // The frontend handles this via localStorage, but backend should also validate
-      console.log(`🔍 Checking one-time use for coupon ${couponCode} and user ${userId}`);
+      const mongoose = require("mongoose");
+      let customerObjectId = null;
+      try {
+        customerObjectId = new mongoose.Types.ObjectId(userId);
+      } catch (_) {}
+
+      const priorUse = await Booking.findOne({
+        $or: [
+          { customer_id: userId },
+          ...(customerObjectId ? [{ customer_id: customerObjectId }] : []),
+        ],
+        coupon_code: coupon.code,
+        status: { $nin: ["cancelled"] },
+      });
+
+      if (priorUse) {
+        return res.status(400).json({
+          success: false,
+          message: `Coupon ${coupon.code} has already been used`,
+        });
+      }
     }
 
-    // Check first-order restrictions for specific coupons
-    if (coupon.isFirstOrder || coupon.code === "FIRST30" || coupon.code === "FIRST10") {
-      // In a real app, this would check user's booking history in database
-      // For now, we'll rely on frontend validation and add logging
-      console.log(`🔍 First-order coupon ${couponCode} validation for user ${userId}`);
+    // Check first-order restriction — user must have no prior completed bookings
+    if (coupon.isFirstOrder) {
+      const mongoose = require("mongoose");
+      let customerObjectId = null;
+      try {
+        customerObjectId = new mongoose.Types.ObjectId(userId);
+      } catch (_) {}
 
-      // Additional validation message for first-order coupons
-      if (coupon.code === "FIRST30" || coupon.code === "FIRST10") {
-        return res.json({
-          success: true,
-          coupon: coupon,
-          message: "Valid first-order coupon - ensure this is user's first order",
-          isFirstOrderCoupon: true
+      const priorBookings = await Booking.countDocuments({
+        $or: [
+          { customer_id: userId },
+          ...(customerObjectId ? [{ customer_id: customerObjectId }] : []),
+        ],
+        status: { $in: ["completed", "delivered", "confirmed", "in_progress", "pending"] },
+      });
+
+      if (priorBookings > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `${coupon.code} is only valid on your first order`,
         });
       }
     }
@@ -99,7 +123,8 @@ router.post("/validate", async (req, res) => {
     res.json({
       success: true,
       coupon: coupon,
-      message: "Coupon is valid"
+      message: "Coupon is valid",
+      ...(coupon.isFirstOrder ? { isFirstOrderCoupon: true } : {}),
     });
   } catch (error) {
     console.error("❌ Error validating coupon:", error);
@@ -122,8 +147,9 @@ router.post("/mark-used", async (req, res) => {
       });
     }
 
-    // In production, save to database
-    console.log(`✅ Coupon ${couponCode} marked as used for user ${userId}, booking ${bookingId}`);
+    // coupon_code is already stored on the Booking document at creation time,
+    // so mark-used is a no-op here — the DB check in /validate reads from Booking.coupon_code
+    console.log(`✅ Coupon ${couponCode} usage confirmed for user ${userId}, booking ${bookingId}`);
 
     res.json({
       success: true,

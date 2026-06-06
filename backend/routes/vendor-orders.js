@@ -3,147 +3,477 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Booking = require("../models/Booking");
 const PGOrder = require("../models/PGOrder");
+const Rider = require("../models/Rider");
 const Vendor = require("../models/Vendor");
+const User = require("../models/User");
 const mongoose = require("mongoose");
 const multer = require("multer");
 
 const JWT_SECRET = process.env.JWT_SECRET || "vendor-secret-key-change-in-production";
 const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+const uploadVideo = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB for videos
 
-// Middleware to verify vendor token
+// ─── Auth middleware ──────────────────────────────────────────────────────────
+
 const verifyVendorToken = (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace("Bearer ", "");
-
-    if (!token) {
-      return res.status(401).json({ error: "No token provided" });
-    }
-
+    if (!token) return res.status(401).json({ error: "No token provided" });
     const decoded = jwt.verify(token, JWT_SECRET);
     req.vendor_id = decoded.vendor_id;
     req.vendor_id_str = decoded.vendor_id_str;
     req.vendor_name = decoded.name;
     next();
   } catch (error) {
-    console.error("❌ Token verification error:", error);
     res.status(401).json({ error: "Invalid or expired token" });
   }
 };
 
-// Get vendor's assigned orders (both regular bookings and PG orders)
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function indianNow() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+}
+
+// Determine which dashboard section an order belongs to
+function getSectionForOrder(order) {
+  const s = order.status;
+  const rs = order.riderStatus;
+
+  if (s === "cancelled") return "cancelled";
+  if (s === "completed") return "completed";
+
+  // Delivered = order delivered to customer (in_transit counts as delivered phase)
+  if (s === "delivered") return "delivered";
+  if (s === "in_transit") return "delivered";
+  if (s === "delivery_assigned" && ["in_transit", "picked_up"].includes(rs)) return "delivered";
+
+  // Ready for delivery = ready but delivery rider not yet dispatched
+  if (["ready_for_delivery", "delivery_assigned"].includes(s)) return "ready_for_delivery";
+
+  // Processing = at laundry
+  if (s === "in_progress") return "processing";
+
+  // Picked up = rider picked up from customer, heading to laundry
+  if (["pickup_assigned", "pickup_completed", "rider_pickup_done"].includes(s)) return "picked_up";
+
+  // Created = new order, needs pickup rider assigned
+  return "created";
+}
+
+// Check if an order is breaching SLA (past expected delivery time)
+function isBreach(order) {
+  if (!order.delivery_date) return false;
+  const deadline = new Date(order.delivery_date + "T23:59:59");
+  return new Date() > deadline && !["delivered", "completed", "cancelled"].includes(order.status);
+}
+
+// Time elapsed in human-readable format
+function timeElapsed(date) {
+  if (!date) return null;
+  const diffMs = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+  return `${Math.floor(hrs / 24)}d`;
+}
+
+// ─── GET assigned orders (all) ────────────────────────────────────────────────
+
 router.get("/assigned-orders", verifyVendorToken, async (req, res) => {
   try {
-    const { status } = req.query; // Optional filter by status
-
-    console.log(`📋 Fetching orders for vendor: ${req.vendor_id_str} (${req.vendor_name})`);
-
-    // Query 1: Get regular Booking orders (assigned by vendor name - string)
+    const { status } = req.query;
     let bookingQuery = { assignedVendor: req.vendor_name };
-    if (status) {
-      bookingQuery.status = status;
-    }
+    if (status) bookingQuery.status = status;
 
     const bookingOrders = await Booking.find(bookingQuery)
+      .populate("assignedRider", "name phone live_location_link location lastLocationUpdate isActive")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .sort({ created_at: -1 })
       .select("-special_instructions");
 
-    console.log(`✅ Found ${bookingOrders.length} regular booking orders for vendor`);
-
-    // Query 2: Get PG orders (assigned by vendor ObjectId)
     let pgQuery = {};
-
-    // Try matching PG orders with this vendor's ObjectId
     if (mongoose.Types.ObjectId.isValid(req.vendor_id)) {
       pgQuery = {
         $or: [
           { assignedVendor: new mongoose.Types.ObjectId(req.vendor_id) },
-          { assignedVendor: req.vendor_id }, // Also try as string for compatibility
+          { assignedVendor: req.vendor_id },
         ],
       };
     } else {
       pgQuery = { assignedVendor: req.vendor_id };
     }
+    if (status) pgQuery.status = status;
 
-    if (status) {
-      pgQuery.status = status;
-    }
+    const pgOrders = await PGOrder.find(pgQuery).sort({ created_at: -1 });
 
-    const pgOrders = await PGOrder.find(pgQuery)
-      .sort({ created_at: -1 });
+    const markedPGOrders = pgOrders.map(o => ({ ...(o.toObject ? o.toObject() : o), isPGOrder: true }));
+    const markedBookingOrders = bookingOrders.map(o => ({ ...(o.toObject ? o.toObject() : o), isPGOrder: false }));
 
-    console.log(`✅ Found ${pgOrders.length} PG orders for vendor`);
-
-    // Mark PG orders with isPGOrder flag and convert to plain objects
-    const markedPGOrders = pgOrders.map(pgOrder => {
-      const pgOrderObj = pgOrder.toObject ? pgOrder.toObject() : pgOrder;
-      return {
-        ...pgOrderObj,
-        isPGOrder: true,
-      };
-    });
-
-    // Mark regular booking orders explicitly as NOT PG orders
-    const markedBookingOrders = bookingOrders.map(booking => {
-      const bookingObj = booking.toObject ? booking.toObject() : booking;
-      return {
-        ...bookingObj,
-        isPGOrder: false,
-      };
-    });
-
-    // Combine both order types
     const orders = [...markedBookingOrders, ...markedPGOrders].sort((a, b) => {
-      const dateA = new Date(a.created_at || a.createdAt || 0).getTime();
-      const dateB = new Date(b.created_at || b.createdAt || 0).getTime();
-      return dateB - dateA; // Most recent first
+      return new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime();
     });
 
-    console.log(`✅ Total ${orders.length} orders (${bookingOrders.length} booking + ${pgOrders.length} PG)`);
-
-    res.json({
-      success: true,
-      orders,
-      total: orders.length,
-      bookingOrders: bookingOrders.length,
-      pgOrders: pgOrders.length,
-    });
+    res.json({ success: true, orders, total: orders.length, bookingOrders: bookingOrders.length, pgOrders: pgOrders.length });
   } catch (error) {
     console.error("❌ Error fetching vendor orders:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Get vendor uploaded image (public access for admin/vendor viewing)
+// ─── GET dashboard sections ───────────────────────────────────────────────────
+
+router.get("/dashboard", verifyVendorToken, async (req, res) => {
+  try {
+    // Date-period filter: today | 7d | 30d (default: all / no filter)
+    const period = req.query.period; // 'today' | '7d' | '30d'
+    let dateFilter = {};
+    if (period === 'today') {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      dateFilter = { created_at: { $gte: start } };
+    } else if (period === '7d') {
+      dateFilter = { created_at: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } };
+    } else if (period === '30d') {
+      dateFilter = { created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } };
+    }
+
+    // Build query: when period is set, filter ALL orders (including active ones) by date.
+    // When no period ("all"), fetch active orders + last 90 days (to include recent completed/cancelled).
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const ACTIVE_STATUSES = ['created', 'vendor_assigned', 'pickup_assigned', 'pickup_completed', 'in_progress', 'ready_for_delivery', 'delivery_assigned', 'in_transit', 'delivered'];
+    const findQuery = period
+      ? { assignedVendor: req.vendor_name, ...dateFilter }
+      : {
+          assignedVendor: req.vendor_name,
+          $or: [
+            { status: { $in: ACTIVE_STATUSES } },
+            { created_at: { $gte: ninetyDaysAgo } },
+          ],
+        };
+
+    const allOrders = await Booking.find(findQuery)
+      .populate("assignedRider", "name phone live_location_link location lastLocationUpdate isActive")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
+      .sort({ created_at: -1 })
+      .select("-special_instructions")
+      .lean();
+
+    const sections = {
+      created: [],
+      picked_up: [],
+      processing: [],
+      ready_for_delivery: [],
+      delivered: [],
+      completed: [],
+      cancelled: [],
+    };
+
+    for (const order of allOrders) {
+      order._breach = isBreach(order);
+      order._timeElapsed = timeElapsed(order.readyAt || order.created_at);
+      const section = getSectionForOrder(order);
+      if (sections[section]) sections[section].push(order);
+    }
+
+    const counts = {
+      created: sections.created.length,
+      picked_up: sections.picked_up.length,
+      processing: sections.processing.length,
+      ready_for_delivery: sections.ready_for_delivery.length,
+      delivered: sections.delivered.length,
+      completed: sections.completed.length,
+      cancelled: sections.cancelled.length,
+      total: allOrders.length,
+      breach: sections.created.filter(o => o._breach).length +
+              sections.picked_up.filter(o => o._breach).length +
+              sections.processing.filter(o => o._breach).length,
+    };
+
+    res.json({ success: true, sections, counts });
+  } catch (error) {
+    console.error("❌ Error fetching dashboard sections:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET performance metrics ──────────────────────────────────────────────────
+
+router.get("/metrics", verifyVendorToken, async (req, res) => {
+  try {
+    const { period = "7d" } = req.query;
+    const days = period === "30d" ? 30 : period === "today" ? 1 : 7;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const orders = await Booking.find({
+      assignedVendor: req.vendor_name,
+      created_at: { $gte: since },
+    }).select("status riderStatus deliveredAt delivery_date readyAt assignedRider created_at").lean();
+
+    const total = orders.length;
+    const delivered = orders.filter(o => ["delivered", "completed"].includes(o.status));
+    const cancelled = orders.filter(o => o.status === "cancelled").length;
+
+    // On-time: delivered before or on delivery_date
+    let onTime = 0;
+    let totalDeliveryMs = 0;
+    let deliveredCount = 0;
+
+    for (const o of delivered) {
+      if (o.deliveredAt && o.delivery_date) {
+        const deadline = new Date(o.delivery_date + "T23:59:59");
+        if (o.deliveredAt <= deadline) onTime++;
+      }
+      if (o.deliveredAt && o.created_at) {
+        totalDeliveryMs += new Date(o.deliveredAt).getTime() - new Date(o.created_at).getTime();
+        deliveredCount++;
+      }
+    }
+
+    const onTimePct = delivered.length > 0 ? Math.round((onTime / delivered.length) * 100) : 0;
+    const avgDeliveryHrs = deliveredCount > 0 ? Math.round(totalDeliveryMs / deliveredCount / 3600000 * 10) / 10 : 0;
+    const breachOrders = orders.filter(o => isBreach(o)).length;
+
+    // Unique riders
+    const riderSet = new Set(orders.map(o => o.assignedRider?.toString()).filter(Boolean));
+
+    res.json({
+      success: true,
+      period,
+      metrics: {
+        total_orders: total,
+        delivered: delivered.length,
+        cancelled,
+        on_time_pct: onTimePct,
+        late_orders: delivered.length - onTime,
+        breach_orders: breachOrders,
+        avg_delivery_hrs: avgDeliveryHrs,
+        active_riders: riderSet.size,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error fetching metrics:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET vendor's riders (for assignment dropdown) ────────────────────────────
+
+router.get("/available-riders", verifyVendorToken, async (req, res) => {
+  try {
+    let vendor;
+    if (mongoose.Types.ObjectId.isValid(req.vendor_id)) {
+      vendor = await Vendor.findById(req.vendor_id);
+    }
+
+    const riders = await Rider.find({
+      $or: [
+        { created_by_vendor: mongoose.Types.ObjectId.isValid(req.vendor_id) ? new mongoose.Types.ObjectId(req.vendor_id) : null },
+        { created_by_vendor: req.vendor_id },
+      ],
+      status: "approved",
+    }).select("name phone isActive live_location_link location lastLocationUpdate");
+
+    res.json({ success: true, riders });
+  } catch (error) {
+    console.error("❌ Error fetching available riders:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── PUT assign rider to order ────────────────────────────────────────────────
+
+router.put("/orders/:orderId/assign-rider", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { riderId, assignmentType } = req.body;
+
+    if (!riderId) return res.status(400).json({ error: "riderId is required" });
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    if (["delivered", "completed", "cancelled"].includes(order.status)) {
+      return res.status(400).json({ error: "Cannot assign rider to a closed order" });
+    }
+
+    const rider = await Rider.findById(riderId).select("name phone");
+    if (!rider) return res.status(404).json({ error: "Rider not found" });
+
+    const now = indianNow();
+    order.assignedRider = riderId;
+    order.assignedRiderPhone = rider.phone;
+    // Auto-accept: skip the separate "accept" step so rider goes straight to work
+    order.riderStatus = "accepted";
+    order.assignedAt = now;
+    order.acceptedAt = now;
+
+    // Use explicit assignmentType from body if provided, otherwise determine from order status
+    if (assignmentType === "pickup" || (!assignmentType && ["vendor_assigned", "created"].includes(order.status))) {
+      // Pickup assignment: rider picks up from customer and delivers to laundry
+      order.status = "pickup_assigned";
+    } else if (assignmentType === "delivery" || (!assignmentType && ["ready_for_delivery", "in_progress"].includes(order.status))) {
+      // Delivery assignment: rider picks up from laundry and delivers to customer
+      order.status = "delivery_assigned";
+    }
+
+    order.status_history.push({
+      status: order.status,
+      changed_at: now,
+      changed_by: "vendor",
+      vendor_id: req.vendor_id,
+    });
+
+    await order.save();
+
+    // Add order to rider's assigned list
+    await Rider.findByIdAndUpdate(riderId, { $addToSet: { assignedOrders: order._id } });
+
+    const finalType = order.status === "pickup_assigned" ? "pickup" : "delivery";
+    console.log(`✅ Rider ${rider.name} assigned for ${finalType} to order ${orderId}`);
+
+    // Send push notification to rider about assignment
+    try {
+      const riderNotificationService = require("../services/riderNotificationService");
+      await riderNotificationService.createOrderAssignmentNotification(riderId, order, finalType);
+    } catch (notifErr) {
+      console.warn("⚠️ Failed to send rider assignment notification:", notifErr.message);
+    }
+
+    // Send push notification to desk/vendor about assignment
+    try {
+      const deskNotificationService = require("../services/deskNotificationService");
+      const vendor = await Vendor.findOne({ vendor_id: req.vendor_id });
+      if (vendor) {
+        await deskNotificationService.sendPushNotification(vendor._id, {
+          title: `Rider assigned for ${finalType}`,
+          message: `${rider.name} has been assigned for ${finalType} of order ${order.custom_order_id || orderId}.`,
+          data: { orderId: String(order._id), type: "rider_assigned" },
+        });
+      }
+    } catch (notifErr) {
+      console.warn("⚠️ Failed to send desk assignment notification:", notifErr.message);
+    }
+
+    res.json({ success: true, message: `Rider ${rider.name} assigned for ${finalType}`, assignmentType: finalType, order });
+  } catch (error) {
+    console.error("❌ Error assigning rider:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── PUT mark order ready for delivery ───────────────────────────────────────
+
+router.put("/orders/:orderId/mark-ready", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    if (!["in_progress", "pickup_completed", "vendor_assigned", "pickup_assigned"].includes(order.status)) {
+      return res.status(400).json({ error: `Cannot mark ready from status: ${order.status}` });
+    }
+
+    const now = indianNow();
+    order.status = "ready_for_delivery";
+    order.readyAt = now;
+    order.updated_at = now;
+
+    order.status_history.push({
+      status: "ready_for_delivery",
+      changed_at: now,
+      changed_by: "vendor",
+      vendor_id: req.vendor_id,
+    });
+
+    await order.save();
+
+    // Send notification to customer: "Your order is ready for delivery"
+    try {
+      const notificationService = require("../services/notificationService");
+      const customerId = order.customer_id;
+      if (customerId) {
+        const Notification = require("../models/Notification");
+        await Notification.create({
+          user_id: customerId,
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Please set your preferred delivery date and time so we can deliver it to you.`,
+          type: "order_ready",
+          priority: "high",
+          action_required: true,
+          action_type: "set_delivery_date",
+          related_order: order._id,
+          data: {
+            orderId: order._id,
+            custom_order_id: order.custom_order_id,
+            status: "ready_for_delivery",
+          },
+        });
+
+        // Send push notification via FCM
+        await notificationService.sendPushNotification(customerId, {
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Set your delivery date and time now.`,
+        });
+
+        // Also send SMS notification to customer
+        try {
+          const otpService = require("../services/otpService");
+          const customerPhone = order.phone || (await User.findById(customerId, "phone"))?.phone;
+          if (customerPhone) {
+            await otpService.sendSMS(
+              customerPhone,
+              `Your laundry order ${order.custom_order_id || orderId} is ready for delivery! Please open the app to set your preferred delivery date and time.`,
+              'order_ready'
+            );
+            console.log(`📱 SMS sent to customer ${customerPhone} for ready order`);
+          }
+        } catch (smsError) {
+          console.warn("⚠️ Failed to send ready-for-delivery SMS:", smsError.message);
+        }
+
+        console.log(`📢 Notification sent to customer ${customerId} for ready order ${orderId}`);
+      }
+    } catch (notifError) {
+      console.warn("⚠️ Failed to send ready-for-delivery notification:", notifError.message);
+      // Don't fail the main operation
+    }
+
+    console.log(`✅ Order ${orderId} marked ready for delivery`);
+    res.json({ success: true, message: "Order marked ready for delivery", order });
+  } catch (error) {
+    console.error("❌ Error marking order ready:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET public items image ───────────────────────────────────────────────────
+
 router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
   try {
     const { orderId, fileId } = req.params;
-
-    console.log(`🖼️ Retrieving items image (public): ${fileId} for order ${orderId}`);
+    if (fileId.startsWith("http")) return res.redirect(fileId);
 
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
 
-    // Verify order exists (basic security check)
     const order = await Booking.findById(orderId);
-    if (!order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
+    if (!order) return res.status(404).json({ error: "Order not found" });
 
-    // Verify image file_id exists in the order
     const imageExists = order.items_images?.some(img => img.file_id.toString() === fileId);
-    if (!imageExists) {
-      return res.status(404).json({ error: "Image not found for this order" });
-    }
+    if (!imageExists) return res.status(404).json({ error: "Image not found for this order" });
 
     const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
-
-    downloadStream.on("error", (error) => {
-      console.error("❌ GridFS download error:", error);
-      return res.status(404).json({ error: "Image not found" });
-    });
-
+    downloadStream.on("error", () => res.status(404).json({ error: "Image not found" }));
     res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("ETag", `"${fileId}"`);
+    if (req.headers['if-none-match'] === `"${fileId}"`) { res.status(304).end(); return; }
     downloadStream.pipe(res);
   } catch (error) {
     console.error("❌ Error retrieving items image:", error);
@@ -151,164 +481,185 @@ router.get("/public/orders/:orderId/items-image/:fileId", async (req, res) => {
   }
 });
 
-// Get single order details
+// ─── GET public payment slip ──────────────────────────────────────────────────
+// Accessible without auth so admin/rider can view slips
+
+router.get("/public/orders/:orderId/payment-slip/:fileId", async (req, res) => {
+  try {
+    const { orderId, fileId } = req.params;
+    if (fileId.startsWith("http")) return res.redirect(fileId);
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+
+    const order = await Booking.findById(orderId).select("vendor_payment_slips rider_payment_slips rider_pickup_slips");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    const allSlips = [
+      ...(order.vendor_payment_slips || []),
+      ...(order.rider_payment_slips || []),
+      ...(order.rider_pickup_slips || []),
+    ];
+    const slipExists = allSlips.some(s => s.file_id.toString() === fileId);
+    if (!slipExists) return res.status(404).json({ error: "Slip not found for this order" });
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+    downloadStream.on("error", () => res.status(404).json({ error: "File not found" }));
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("ETag", `"${fileId}"`);
+    if (req.headers['if-none-match'] === `"${fileId}"`) { res.status(304).end(); return; }
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("❌ Error retrieving payment slip:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST upload items video ──────────────────────────────────────────────────
+
+router.post("/orders/:orderId/upload-items-video", verifyVendorToken, uploadVideo.single("items_video"), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!req.file) return res.status(400).json({ error: "No video file provided" });
+
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || "video/mp4", "laundrify/items-videos");
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    order.items_video = { file_id: url, filename: url, uploaded_at: new Date() };
+    await order.save();
+    res.json({ success: true, message: "Video uploaded successfully", file_id: url, url });
+  } catch (error) {
+    console.error("❌ Error uploading items video:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET public items video ───────────────────────────────────────────────────
+
+router.get("/public/orders/:orderId/items-video/:fileId", async (req, res) => {
+  try {
+    const { orderId, fileId } = req.params;
+    if (fileId.startsWith("http")) return res.redirect(fileId);
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+
+    const order = await Booking.findById(orderId).select("items_video");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!order.items_video || order.items_video.file_id.toString() !== fileId) {
+      return res.status(404).json({ error: "Video not found for this order" });
+    }
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+    downloadStream.on("error", () => res.status(404).json({ error: "Video not found" }));
+    res.setHeader("Content-Type", "video/mp4");
+    res.setHeader("Accept-Ranges", "bytes");
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("❌ Error retrieving items video:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET single order details ─────────────────────────────────────────────────
+
 router.get("/orders/:orderId", verifyVendorToken, async (req, res) => {
   try {
     const { orderId } = req.params;
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name })
+      .populate("assignedRider", "name phone live_location_link location lastLocationUpdate");
 
-    console.log(`📦 Fetching order details: ${orderId}`);
-
-    const order = await Booking.findOne({
-      _id: orderId,
-      assignedVendor: req.vendor_name,
-    });
-
-    if (!order) {
-      return res.status(404).json({ error: "Order not found or not assigned to you" });
-    }
-
-    res.json({
-      success: true,
-      order,
-    });
+    if (!order) return res.status(404).json({ error: "Order not found or not assigned to you" });
+    res.json({ success: true, order });
   } catch (error) {
     console.error("❌ Error fetching order details:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Upload items list image for an order
+// ─── POST upload items list image ─────────────────────────────────────────────
+
 router.post("/orders/:orderId/upload-items-image", verifyVendorToken, upload.single("items_image"), async (req, res) => {
   try {
     const { orderId } = req.params;
+    if (!req.file) return res.status(400).json({ error: "No image file provided" });
 
-    if (!req.file) {
-      return res.status(400).json({ error: "No image file provided" });
-    }
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || "image/jpeg", "laundrify/item-photos");
 
-    console.log(`📸 Uploading items image for order: ${orderId}`);
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
 
-    // Initialize GridFS
-    const conn = mongoose.connection;
-    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
-
-    // Create upload stream
-    const filename = `order_${orderId}_items_${Date.now()}.jpg`;
-    const uploadStream = bucket.openUploadStream(filename, {
-      metadata: {
-        orderId,
-        vendorId: req.vendor_id,
-        uploadedAt: new Date(),
-      },
-    });
-
-    uploadStream.on("error", (error) => {
-      console.error("❌ GridFS upload error:", error);
-      return res.status(500).json({ error: "Failed to upload image" });
-    });
-
-    uploadStream.on("finish", async () => {
-      try {
-        const fileId = uploadStream.id;
-        console.log(`✅ Image uploaded successfully: ${fileId}`);
-
-        // Store file reference in order
-        const order = await Booking.findOne({
-          _id: orderId,
-          assignedVendor: req.vendor_name,
-        });
-
-        if (!order) {
-          return res.status(404).json({ error: "Order not found" });
-        }
-
-        // Initialize items_images array if it doesn't exist
-        if (!order.items_images) {
-          order.items_images = [];
-        }
-
-        order.items_images.push({
-          file_id: fileId,
-          filename: filename,
-          uploaded_at: new Date(),
-        });
-
-        await order.save();
-
-        res.json({
-          success: true,
-          message: "Image uploaded successfully",
-          file_id: fileId,
-          filename: filename,
-        });
-      } catch (error) {
-        console.error("❌ Error saving order after upload:", error);
-        res.status(500).json({ error: "Failed to save order after upload" });
-      }
-    });
-
-    // Pipe the file buffer to GridFS
-    uploadStream.write(req.file.buffer);
-    uploadStream.end();
+    if (!order.items_images) order.items_images = [];
+    order.items_images.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, message: "Image uploaded successfully", file_id: url, url });
   } catch (error) {
     console.error("❌ Error uploading items image:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Get uploaded items image
+// ─── GET items image ──────────────────────────────────────────────────────────
+
 router.get("/orders/:orderId/items-image/:fileId", verifyVendorToken, async (req, res) => {
   try {
     const { fileId } = req.params;
-
-    console.log(`🖼️ Retrieving items image: ${fileId}`);
-
     const conn = mongoose.connection;
     const bucket = new mongoose.mongo.GridFSBucket(conn.db);
-
     const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
-
-    downloadStream.on("error", (error) => {
-      console.error("❌ GridFS download error:", error);
-      return res.status(404).json({ error: "Image not found" });
-    });
-
+    downloadStream.on("error", () => res.status(404).json({ error: "Image not found" }));
     res.setHeader("Content-Type", "image/jpeg");
     downloadStream.pipe(res);
   } catch (error) {
-    console.error("❌ Error retrieving items image:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Update order status
+// ─── POST upload payment screenshot ──────────────────────────────────────────
+
+router.post("/orders/:orderId/upload-payment-ss", verifyVendorToken, upload.single("payment_ss"), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!req.file) return res.status(400).json({ error: "No image file provided" });
+
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || "image/jpeg", "laundrify/payment-screenshots");
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!order.vendor_payment_slips) order.vendor_payment_slips = [];
+    order.vendor_payment_slips.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, message: "Payment SS uploaded", file_id: url, url });
+  } catch (error) {
+    console.error("❌ Error uploading payment SS:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── PUT update order status ──────────────────────────────────────────────────
+
 router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
 
-    if (!status) {
-      return res.status(400).json({ error: "Status is required" });
-    }
+    if (!status) return res.status(400).json({ error: "Status is required" });
 
-    console.log(`📝 Vendor updating order status: ${orderId} -> ${status}`);
-
-    // Validate status transitions
     const validTransitions = {
       vendor_assigned: ["pickup_completed"],
+      pickup_assigned: ["pickup_completed"],
       pickup_completed: ["in_progress"],
       in_progress: ["ready_for_delivery"],
-      ready_for_delivery: ["delivered"],
+      ready_for_delivery: ["delivery_assigned", "delivered"],
+      delivery_assigned: ["delivered"],
+      delivered: ["completed"],
     };
 
-    const order = await Booking.findOne({
-      _id: orderId,
-      assignedVendor: req.vendor_name,
-    });
-
-    if (!order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
 
     const currentStatus = order.status || "vendor_assigned";
     const allowedTransitions = validTransitions[currentStatus] || [];
@@ -319,52 +670,477 @@ router.put("/orders/:orderId/status", verifyVendorToken, async (req, res) => {
       });
     }
 
-    // Special requirement: Must have items image before marking pickup_completed
     if (status === "pickup_completed" && !order.items_images?.length) {
-      return res.status(400).json({
-        error: "Must upload items list image before marking pickup complete",
-      });
+      return res.status(400).json({ error: "Must upload items list image before marking pickup complete" });
     }
 
-    // Update order
-    order.status = status;
-    order.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const now = indianNow();
+    order.updated_at = now;
+    if (!order.status_history) order.status_history = [];
 
-    // Add status tracking
-    if (!order.status_history) {
-      order.status_history = [];
-    }
+    order.status_history.push({ status, changed_at: now, changed_by: "vendor", vendor_id: req.vendor_id });
 
-    order.status_history.push({
-      status,
-      changed_at: order.updated_at,
-      changed_by: "vendor",
-      vendor_id: req.vendor_id,
-    });
-
-    // Auto-transition to in_progress after pickup_completed
+    // Auto-transition pickup_completed → in_progress
     if (status === "pickup_completed") {
       order.status = "in_progress";
-      order.status_history.push({
-        status: "in_progress",
-        changed_at: order.updated_at,
-        changed_by: "system",
-        vendor_id: req.vendor_id,
-      });
+      order.status_history.push({ status: "in_progress", changed_at: now, changed_by: "system", vendor_id: req.vendor_id });
+    } else {
+      order.status = status;
+    }
+
+    // Record readyAt timestamp
+    if (order.status === "ready_for_delivery") {
+      order.readyAt = now;
     }
 
     await order.save();
 
-    console.log(`✅ Order status updated: ${orderId} -> ${status}`);
+    // ── Push notification to customer about status change ──
+    (async () => {
+      try {
+        const customerId = order.customer_id;
+        if (!customerId) return;
 
-    res.json({
-      success: true,
-      message: "Status updated successfully",
-      order,
-    });
+        const statusMessages = {
+          pickup_completed: { title: "Laundry Picked Up!", body: `Your clothes for order ${order.custom_order_id || order._id} have been picked up. Processing starts soon.` },
+          in_progress:      { title: "Laundry in Progress", body: `Your order ${order.custom_order_id || order._id} is currently being cleaned.` },
+          ready_for_delivery: { title: "Ready for Delivery!", body: `Your order ${order.custom_order_id || order._id} is clean and ready. We'll deliver it soon.` },
+          delivered:        { title: "Order Delivered!", body: `Your laundry order ${order.custom_order_id || order._id} has been delivered. Thank you!` },
+          completed:        { title: "Order Completed", body: `Order ${order.custom_order_id || order._id} is complete. We hope you're happy with the service!` },
+        };
+        const msg = statusMessages[order.status];
+        if (!msg) return;
+
+        const notificationService = require("../services/notificationService");
+        await notificationService.sendPushNotification(customerId, { title: msg.title, message: msg.body });
+
+        const Notification = require("../models/Notification");
+        await Notification.create({
+          user_id: customerId,
+          title: msg.title,
+          message: msg.body,
+          type: "order_status",
+          priority: "high",
+          related_order: order._id,
+          data: { orderId: order._id, custom_order_id: order.custom_order_id, status: order.status },
+        });
+      } catch (err) {
+        console.warn("⚠️ Failed to send status-change push to customer:", err.message);
+      }
+    })();
+
+    res.json({ success: true, message: "Status updated successfully", order });
   } catch (error) {
     console.error("❌ Error updating order status:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET customer wallet balance for an order ─────────────────────────────────
+
+router.get("/orders/:orderId/customer-wallet", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name })
+      .select("phone customer_id customer_phone name customer_name");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    const User = require("../models/User");
+    const phone = order.phone || order.customer_phone;
+    let user = null;
+
+    if (order.customer_id && mongoose.Types.ObjectId.isValid(order.customer_id)) {
+      user = await User.findById(order.customer_id).select("wallet_balance name phone");
+    }
+    if (!user && phone) {
+      user = await User.findOne({ phone }).select("wallet_balance name phone");
+    }
+
+    res.json({
+      success: true,
+      wallet_balance: user?.wallet_balance || 0,
+      customer_name: user?.name || order.name || order.customer_name || "",
+    });
+  } catch (error) {
+    console.error("❌ Error fetching customer wallet:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── PUT save cart + move order to Processing ─────────────────────────────────
+
+router.put("/orders/:orderId/save-cart", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { item_prices, wallet_applied, discount_amount } = req.body;
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    if (!["pickup_assigned", "pickup_completed", "created", "vendor_assigned", "in_progress"].includes(order.status)) {
+      return res.status(400).json({ error: `Cannot edit cart from status: ${order.status}` });
+    }
+
+    const now = indianNow();
+
+    // Update items
+    if (item_prices && Array.isArray(item_prices)) {
+      order.item_prices = item_prices.map((item) => ({
+        service_name: item.service_name || "",
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price || 0,
+        total_price: item.total_price || (item.quantity || 1) * (item.unit_price || 0),
+      }));
+      order.total_price = order.item_prices.reduce((s, i) => s + i.total_price, 0);
+    }
+
+    if (discount_amount !== undefined) order.discount_amount = discount_amount || 0;
+
+    const walletAmt = wallet_applied || 0;
+    if (walletAmt > 0) {
+      // Deduct wallet from customer
+      const User = require("../models/User");
+      const phone = order.phone || order.customer_phone;
+      let user = null;
+      if (order.customer_id && mongoose.Types.ObjectId.isValid(order.customer_id)) {
+        user = await User.findById(order.customer_id);
+      }
+      if (!user && phone) {
+        user = await User.findOne({ phone });
+      }
+      if (user) {
+        const deductAmt = Math.min(walletAmt, user.wallet_balance || 0);
+        if (deductAmt > 0) {
+          user.wallet_balance = (user.wallet_balance || 0) - deductAmt;
+          user.wallet_transactions = user.wallet_transactions || [];
+          user.wallet_transactions.push({
+            type: "debit",
+            amount: deductAmt,
+            description: `Applied to order ${order.custom_order_id || order._id}`,
+            booking_id: order._id,
+            created_at: now,
+          });
+          await user.save();
+          order.cashback = deductAmt;
+          order.wallet_applied = deductAmt;
+        }
+      }
+    }
+
+    order.final_amount = Math.max(0, (order.total_price || 0) - (order.discount_amount || 0) - (order.wallet_applied || 0));
+    order.updated_at = now;
+
+    // Move to in_progress (Processing)
+    order.status = "in_progress";
+    order.status_history.push({ status: "in_progress", changed_at: now, changed_by: "vendor", vendor_id: req.vendor_id });
+
+    await order.save();
+    res.json({ success: true, message: "Cart saved and order moved to Processing", order });
+  } catch (error) {
+    console.error("❌ Error saving cart:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET daily summary: today's pickedup and delivered orders ─────────────────
+// Returns orders that had a status_history event of pickup_completed or delivered today
+router.get("/daily-summary", verifyVendorToken, async (req, res) => {
+  try {
+    // Support ?date=YYYY-MM-DD for past dates; defaults to today
+    let startOfDay;
+    if (req.query.date) {
+      // Parse the date string in IST
+      startOfDay = new Date(`${req.query.date}T00:00:00+05:30`);
+    } else {
+      const now = new Date();
+      startOfDay = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      startOfDay.setHours(0, 0, 0, 0);
+    }
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    // Query all vendor orders; we'll filter by status_history on app side to keep it simple
+    const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
+      .select("_id custom_order_id name phone address status riderStatus isPGOrder pg_name no_of_items final_amount total_price assignedRider pickupRider deliveryRider scheduled_date delivery_date created_at updated_at readyAt status_history coordinates")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
+      .lean();
+
+    const todayPickedUp = [];
+    const todayDelivered = [];
+    const createdToday = [];
+
+    for (const order of allOrders) {
+      const history = order.status_history || [];
+
+      // Pickup_assigned is the event recorded in status_history when rider is assigned for pickup.
+      // Also accept pickup_completed/rider_pickup_done/in_progress for older orders.
+      const pickedToday = history.some(h => {
+        const s = h.status;
+        if (!(s === "pickup_assigned" || s === "pickup_completed" || s === "rider_pickup_done" || s === "in_progress")) return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
+      });
+
+      // Check if delivered event happened on the selected date
+      const deliveredToday = history.some(h => {
+        const s = h.status;
+        if (!(s === "delivered" || s === "completed")) return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
+      });
+
+      // Check if order was created on the selected date
+      const orderCreatedAt = order.created_at && new Date(order.created_at);
+      const isCreatedToday = orderCreatedAt && orderCreatedAt >= startOfDay && orderCreatedAt < endOfDay;
+
+      const obj = {
+        _id: order._id,
+        custom_order_id: order.custom_order_id,
+        name: order.name,
+        phone: order.phone,
+        address: order.address,
+        status: order.status,
+        isPGOrder: order.isPGOrder,
+        pg_name: order.pg_name,
+        no_of_items: order.no_of_items,
+        final_amount: order.final_amount,
+        total_price: order.total_price,
+        assignedRider: order.assignedRider,
+        pickupRider: order.pickupRider,
+        deliveryRider: order.deliveryRider,
+        scheduled_date: order.scheduled_date,
+        delivery_date: order.delivery_date,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+        readyAt: order.readyAt,
+        _breach: isBreach(order),
+      };
+
+      if (pickedToday) todayPickedUp.push(obj);
+      if (deliveredToday) todayDelivered.push(obj);
+      if (isCreatedToday) createdToday.push(obj);
+    }
+
+    // Sort created orders by created_at descending
+    createdToday.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    res.json({
+      success: true,
+      date: startOfDay.toISOString(),
+      queried_date: req.query.date || startOfDay.toISOString().slice(0, 10),
+      pickedUp: todayPickedUp,
+      delivered: todayDelivered,
+      created: createdToday,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching daily summary:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── GET rider daily breakdown: per-rider pickups and delivery assignments ─────
+// GET /api/vendor/orders/rider-daily?date=YYYY-MM-DD
+router.get("/rider-daily", verifyVendorToken, async (req, res) => {
+  try {
+    let startOfDay;
+    if (req.query.date) {
+      startOfDay = new Date(`${req.query.date}T00:00:00+05:30`);
+    } else {
+      const now = new Date();
+      startOfDay = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      startOfDay.setHours(0, 0, 0, 0);
+    }
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const allOrders = await Booking.find({ assignedVendor: req.vendor_name })
+      .select("_id custom_order_id name phone address status isPGOrder pg_name no_of_items final_amount total_price assignedRider pickupRider deliveryRider scheduled_date delivery_date status_history")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
+      .lean();
+
+    const riderMap = new Map();
+
+    const getOrCreateEntry = (rider) => {
+      if (!rider || typeof rider !== "object" || !rider._id) return null;
+      const riderId = String(rider._id);
+      if (!riderMap.has(riderId)) {
+        riderMap.set(riderId, { riderId, riderName: rider.name, riderPhone: rider.phone, pickups: [], deliveries: [] });
+      }
+      return riderMap.get(riderId);
+    };
+
+    for (const order of allOrders) {
+      const history = order.status_history || [];
+
+      const pickupAssignedToday = history.some(h => {
+        if (h.status !== "pickup_assigned") return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
+      });
+
+      const deliveryAssignedToday = history.some(h => {
+        if (h.status !== "delivery_assigned") return false;
+        const t = h.changed_at && new Date(h.changed_at);
+        return t && t >= startOfDay && t < endOfDay;
+      });
+
+      if (!pickupAssignedToday && !deliveryAssignedToday) continue;
+
+      const obj = {
+        _id: order._id,
+        custom_order_id: order.custom_order_id,
+        name: order.name,
+        phone: order.phone,
+        status: order.status,
+        isPGOrder: order.isPGOrder,
+        pg_name: order.pg_name,
+        no_of_items: order.no_of_items,
+        final_amount: order.final_amount,
+        total_price: order.total_price,
+        scheduled_date: order.scheduled_date,
+        delivery_date: order.delivery_date,
+        address: order.address,
+      };
+
+      if (pickupAssignedToday) {
+        // Use pickupRider if explicitly set, else fall back to assignedRider
+        const entry = getOrCreateEntry(order.pickupRider || order.assignedRider);
+        if (entry) entry.pickups.push(obj);
+      }
+
+      if (deliveryAssignedToday) {
+        // Use deliveryRider if explicitly set, else fall back to assignedRider
+        const entry = getOrCreateEntry(order.deliveryRider || order.assignedRider);
+        if (entry) entry.deliveries.push(obj);
+      }
+    }
+
+    const riders = Array.from(riderMap.values()).sort(
+      (a, b) => (b.pickups.length + b.deliveries.length) - (a.pickups.length + a.deliveries.length)
+    );
+
+    res.json({ success: true, queried_date: req.query.date || startOfDay.toISOString().slice(0, 10), riders });
+  } catch (error) {
+    console.error("❌ Error fetching rider daily:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── PUT /:orderId/ready — mark single order ready for delivery ──────────────
+
+router.put("/:orderId/ready", verifyVendorToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({ _id: orderId, assignedVendor: req.vendor_name });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    if (!["in_progress", "pickup_completed", "vendor_assigned", "pickup_assigned"].includes(order.status)) {
+      return res.status(400).json({ error: `Cannot mark ready from status: ${order.status}` });
+    }
+
+    const now = indianNow();
+    order.status     = "ready_for_delivery";
+    order.readyAt    = now;
+    order.updated_at = now;
+    order.status_history.push({ status: "ready_for_delivery", changed_at: now, changed_by: "vendor", vendor_id: req.vendor_id });
+
+    await order.save();
+
+    // Customer push + DB notification + SMS (fire-and-forget)
+    (async () => {
+      try {
+        const customerId = order.customer_id;
+        if (!customerId) return;
+
+        const notificationService = require("../services/notificationService");
+        const Notification = require("../models/Notification");
+
+        await Notification.create({
+          user_id: customerId,
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Please set your preferred delivery date and time so we can deliver it to you.`,
+          type: "order_ready",
+          priority: "high",
+          action_required: true,
+          action_type: "set_delivery_date",
+          related_order: order._id,
+          data: { orderId: order._id, custom_order_id: order.custom_order_id, status: "ready_for_delivery" },
+        });
+
+        await notificationService.sendPushNotification(customerId, {
+          title: "Your order is ready for delivery!",
+          message: `Order ${order.custom_order_id || orderId} is ready. Set your delivery date and time now.`,
+        });
+
+        try {
+          const otpService = require("../services/otpService");
+          const customerPhone = order.phone || (await User.findById(customerId, "phone"))?.phone;
+          if (customerPhone) {
+            await otpService.sendSMS(
+              customerPhone,
+              `Your laundry order ${order.custom_order_id || orderId} is ready for delivery! Please open the app to set your preferred delivery date and time.`,
+              "order_ready"
+            );
+          }
+        } catch (smsErr) {
+          console.warn("⚠️ Ready SMS failed:", smsErr.message);
+        }
+      } catch (err) {
+        console.warn("⚠️ Ready notification failed:", err.message);
+      }
+    })();
+
+    console.log(`✅ Order ${orderId} → ready_for_delivery`);
+    res.json({ success: true, message: "Order marked ready for delivery", order });
+  } catch (error) {
+    console.error("❌ Error marking order ready:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Optimization endpoints ───────────────────────────────────────────────────
+
+const optimizationEngine = require("../services/optimizationEngine");
+
+/**
+ * GET /vendor/optimization/suggestions
+ * Returns smart assignment suggestions, route combining, idle alerts, and 7-day KPIs.
+ * Uses live socket snapshot if available.
+ */
+router.get("/optimization/suggestions", verifyVendorToken, async (req, res) => {
+  try {
+    // Pull live rider state from socket server (in-memory)
+    let socketSnapshot = [];
+    try {
+      const { getActiveRidersSnapshot } = require("../socketServer");
+      socketSnapshot = await getActiveRidersSnapshot();
+    } catch {
+      // socketServer may not be initialised in test mode
+    }
+
+    const result = await optimizationEngine.getOptimizationSuggestions(socketSnapshot);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error("❌ Optimization suggestions error:", err);
+    res.status(500).json({ success: false, error: "Failed to generate suggestions" });
+  }
+});
+
+/**
+ * GET /vendor/optimization/kpis?days=7
+ * Returns per-rider KPIs for the last N days.
+ */
+router.get("/optimization/kpis", verifyVendorToken, async (req, res) => {
+  try {
+    const days = Math.max(1, Math.min(90, parseInt(req.query.days) || 7));
+    const kpis = await optimizationEngine.getRiderKPIs(days);
+    res.json({ success: true, kpis, days });
+  } catch (err) {
+    console.error("❌ KPI fetch error:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch KPIs" });
   }
 });
 

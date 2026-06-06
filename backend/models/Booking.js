@@ -16,7 +16,7 @@ const bookingSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: [true, "Customer phone number is required"],
+      required: [function() { return !this.is_vendor_order; }, "Customer phone number is required"],
       trim: true,
       index: true,
     },
@@ -25,7 +25,7 @@ const bookingSchema = new mongoose.Schema(
     customer_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Customer ID is required"],
+      required: [function() { return !this.is_vendor_order; }, "Customer ID is required"],
     },
     rider_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -33,6 +33,16 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
     assignedRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Rider",
+      default: null,
+    },
+    pickupRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Rider",
+      default: null,
+    },
+    deliveryRider: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Rider",
       default: null,
@@ -52,7 +62,7 @@ const bookingSchema = new mongoose.Schema(
     },
     riderStatus: {
       type: String,
-      enum: ["unassigned", "assigned", "accepted", "picked_up", "delivered", "completed"],
+      enum: ["unassigned", "assigned", "accepted", "in_transit", "picked_up", "delivered", "completed", "rejected_by_rider"],
       default: "unassigned",
     },
     assignedAt: {
@@ -67,11 +77,50 @@ const bookingSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    pickup_pieces: {
+      type: Number,
+      default: null,
+    },
     deliveredAt: {
       type: Date,
       default: null,
     },
     completedAt: {
+      type: Date,
+      default: null,
+    },
+    readyAt: {
+      type: Date,
+      default: null,
+    },
+    // COD (Cash on Delivery) tracking
+    cod_collected: {
+      type: Boolean,
+      default: false,
+    },
+    cod_amount: {
+      type: Number,
+      default: 0,
+    },
+    cod_collected_at: {
+      type: Date,
+      default: null,
+    },
+    // SLA / breach tracking
+    sla_breach: {
+      type: Boolean,
+      default: false,
+    },
+    sla_deadline: {
+      type: Date,
+      default: null,
+    },
+    // Rejection reason (when rider rejects)
+    rejection_reason: {
+      type: String,
+      default: null,
+    },
+    rejectedAt: {
       type: Date,
       default: null,
     },
@@ -195,14 +244,17 @@ const bookingSchema = new mongoose.Schema(
       enum: [
         "created",
         "vendor_assigned",
+        "assigned",
         "pending",
         "confirmed",
         "pickup_assigned",
         "pickup_completed",
+        "rider_pickup_done",
+        "in_progress",
         "ready_for_delivery",
         "delivery_assigned",
+        "in_transit",
         "delivered",
-        "in_progress",
         "delivered_to_vendor",
         "completed",
         "cancelled",
@@ -281,10 +333,57 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    is_reservice: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    pickup_pieces: {
+      type: Number,
+      default: null,
+    },
     items_images: {
       type: [
         {
-          file_id: mongoose.Schema.Types.ObjectId,
+          file_id: mongoose.Schema.Types.Mixed,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    items_video: {
+      type: {
+        file_id: mongoose.Schema.Types.Mixed,
+        filename: String,
+        uploaded_at: Date,
+      },
+      default: null,
+    },
+    vendor_payment_slips: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.Mixed,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    rider_pickup_slips: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.Mixed,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    rider_payment_slips: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.Mixed,
           filename: String,
           uploaded_at: Date,
         },
@@ -326,6 +425,42 @@ const bookingSchema = new mongoose.Schema(
     offline_store_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null,
+    },
+
+    // VENDOR CLIENT ORDER FIELDS
+    is_vendor_order: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    vendor_client_name: {
+      type: String,
+      default: "",
+    },
+
+    // STORE PORTAL FIELDS
+    is_store_order: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    store_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      default: null,
+    },
+    store_code: {
+      type: String,
+      default: null,
+    },
+    assigned_store_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      default: null,
+    },
+    assigned_store_name: {
+      type: String,
       default: null,
     },
     customer_name: {
@@ -609,6 +744,11 @@ bookingSchema.index({ payment_status: 1 });
 bookingSchema.index({ scheduled_date: 1 });
 bookingSchema.index({ created_at: -1 });
 bookingSchema.index({ "coordinates.lat": 1, "coordinates.lng": 1 });
+// Compound indexes for fast vendor dashboard and rider orders queries
+bookingSchema.index({ assignedVendor: 1, created_at: -1 });
+bookingSchema.index({ assignedVendor: 1, status: 1 });
+bookingSchema.index({ assignedRider: 1, riderStatus: 1, assignedAt: -1 });
+bookingSchema.index({ assignedRider: 1, scheduled_date: 1 });
 
 // Static method to find bookings within radius
 bookingSchema.statics.findNearby = function (lat, lng, radiusKm = 5) {

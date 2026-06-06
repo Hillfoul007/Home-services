@@ -167,28 +167,8 @@ const RiderRegistrationForm: React.FC<RiderRegistrationFormProps> = ({
         await RidersService.createRider(formData);
 
       if (submitError) {
-        // Check if it's a table missing error
-        if (
-          submitError.message?.includes('relation "riders" does not exist') ||
-          submitError.message?.includes("does not exist")
-        ) {
-          setError(
-            "Database setup required. Please follow the setup guide in RIDERS_TABLE_SETUP.md to create the riders table first.",
-          );
-          return;
-        }
-
-        // Check if it's an authentication error
-        if (
-          submitError.message?.includes("not authenticated") ||
-          submitError.message?.includes("JWT")
-        ) {
-          setError("Please log in first before registering as a rider.");
-          return;
-        }
-
         throw new Error(
-          submitError.message || "Failed to create rider profile",
+          submitError.userMessage || submitError.message || "Failed to create rider profile",
         );
       }
 

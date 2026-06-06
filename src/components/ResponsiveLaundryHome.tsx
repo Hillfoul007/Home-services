@@ -13,6 +13,7 @@ import {
   Mic,
   User,
   Package,
+  Wallet,
   Plus,
   Minus,
   Menu,
@@ -62,10 +63,7 @@ import { BookingService } from "@/services/bookingService";
 import { DVHostingSmsService } from "@/services/dvhostingSmsService";
 import { useCustomerVerification } from "@/hooks/useCustomerVerification";
 import { useCustomerNotifications } from "@/hooks/useCustomerNotifications";
-import debugCustomerVerification from "@/utils/debugCustomerVerification";
-import { initializeMobileVerificationFallback, cleanupMobileVerificationFallback } from "@/utils/mobileVerificationFallback";
 import clearTestVerifications from "@/utils/clearTestVerifications";
-import debugMobileVerificationBanner from "@/utils/debugMobileVerification";
 import { debugVerificationSystem } from "@/utils/debugVerification";
 import { LocationDetectionService } from "@/services/locationDetectionService";
 import { saveCartData, getCartData } from "@/utils/formPersistence";
@@ -77,6 +75,10 @@ import "@/styles/mobile-gesture-support.css";
 import "@/styles/premium-app-ui.css";
 import { preloadCriticalImages } from "@/utils/imagePreloader";
 import BannerCarousel from "./BannerCarousel";
+import UserPackages from "./UserPackages";
+import ReferralModal from "./ReferralModal";
+import WalletBadge from "./WalletBadge";
+import WalletModal from "./WalletModal";
 
 interface ResponsiveLaundryHomeProps {
   currentUser?: any;
@@ -108,6 +110,9 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
   const [showQuickPickupAfterLogin, setShowQuickPickupAfterLogin] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [loadingActiveOrder, setLoadingActiveOrder] = useState(false);
+  const [showUserPackages, setShowUserPackages] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const dvhostingSmsService = DVHostingSmsService.getInstance();
   const locationDetectionService = LocationDetectionService.getInstance();
 
@@ -425,41 +430,21 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
       // Only check when user is authenticated
       checkOnStartup();
 
-      // Mobile-specific debug and verification check (simplified to prevent excessive API calls)
+      // Mobile-specific debug and verification check
       if (window.innerWidth < 768) {
-        console.log('📱 Mobile device detected - running verification debug');
-
-        // Initialize mobile fallback system
-        initializeMobileVerificationFallback();
-
-        // Simplified verification check without creating test data
-        setTimeout(() => {
-          debugCustomerVerification();
-          debugMobileVerificationBanner();
-
-          // Only check for existing verifications
-          setTimeout(async () => {
-            console.log('📱 Mobile: Checking for existing pending verifications...');
-            const hasPending = await checkPendingVerifications();
-            if (hasPending) {
-              console.log('📱 Mobile: Found pending verifications, showing popup...');
-              showVerificationPopup();
-            }
-            // Removed test verification creation to prevent API spam
-          }, 2000); // Increased delay to prevent rush
-        }, 1000);
+        // Only check for existing verifications
+        setTimeout(async () => {
+          console.log('📱 Mobile: Checking for existing pending verifications...');
+          const hasPending = await checkPendingVerifications();
+          if (hasPending) {
+            console.log('📱 Mobile: Found pending verifications, showing popup...');
+            showVerificationPopup();
+          }
+        }, 1000); 
       }
     }
   }, [currentUser?.phone]); // Only depend on user phone to avoid excessive re-runs
 
-  // Cleanup mobile verification fallback on unmount
-  useEffect(() => {
-    return () => {
-      if (window.innerWidth < 768) {
-        cleanupMobileVerificationFallback();
-      }
-    };
-  }, []);
 
   // Load active orders from user bookings
   useEffect(() => {
@@ -496,6 +481,11 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
     };
 
     loadActiveOrders();
+    // Poll every 45 seconds to catch status changes (e.g. ready_for_delivery)
+    const pollId = setInterval(() => {
+      if (document.visibilityState === 'visible') loadActiveOrders();
+    }, 45000);
+    return () => clearInterval(pollId);
   }, [currentUser?.id, currentUser?._id, currentUser?.phone]);
 
   // Request notification permission for verification alerts
@@ -860,9 +850,16 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 </Button>
               )}
               {currentUser && (
+                <WalletBadge
+                  onClick={() => setShowWalletModal(true)}
+                  showRefresh={false}
+                />
+              )}
+              {currentUser && (
                 <NotificationBell
                   userId={currentUser._id || currentUser.phone}
                   className="premium-icon-button"
+                  onSetDeliveryDate={() => handleViewBookings()}
                 />
               )}
               {currentUser ? (
@@ -870,6 +867,8 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   currentUser={currentUser}
                   onLogout={handleLogout}
                   onViewBookings={handleViewBookings}
+                  onViewPackages={() => setShowUserPackages(true)}
+                  onViewReferral={() => setShowReferralModal(true)}
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
@@ -918,6 +917,45 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   <ShoppingBag className="mr-3 h-4 w-4" />
                   Browse Services
                 </Button>
+                {currentUser && (
+                  <Button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setTimeout(() => setShowWalletModal(true), 300);
+                    }}
+                    variant="ghost"
+                    className="w-full justify-start text-gray-700"
+                  >
+                    <Wallet className="mr-3 h-4 w-4 text-green-600" />
+                    My Wallet
+                  </Button>
+                )}
+                {currentUser && (
+                  <Button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setTimeout(() => setShowUserPackages(true), 300);
+                    }}
+                    variant="ghost"
+                    className="w-full justify-start text-gray-700"
+                  >
+                    <Package className="mr-3 h-4 w-4" />
+                    My Packages
+                  </Button>
+                )}
+                {currentUser && (
+                  <Button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setTimeout(() => setShowReferralModal(true), 300);
+                    }}
+                    variant="ghost"
+                    className="w-full justify-start text-gray-700"
+                  >
+                    <Gift className="mr-3 h-4 w-4 text-pink-500" />
+                    Refer & Earn
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -988,6 +1026,22 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
               ))}
           </div>
         </div>
+
+        {/* Ready for Delivery Alert Banner - shown prominently when order is ready */}
+        {activeOrder && !loadingActiveOrder && (activeOrder.status === 'ready_for_delivery' || activeOrder.status === 'ready-for-delivery') && (
+          <div className="bg-blue-600 px-4 py-3 flex items-center justify-between gap-3 animate-pulse">
+            <div className="min-w-0">
+              <p className="text-white font-bold text-sm">🎉 Your laundry is ready!</p>
+              <p className="text-blue-100 text-xs mt-0.5">Order #{activeOrder.custom_order_id || 'Order'} — Set delivery date & time</p>
+            </div>
+            <button
+              onClick={handleViewBookings}
+              className="shrink-0 bg-white text-blue-600 text-xs font-bold px-3 py-1.5 rounded-lg active:bg-blue-50"
+            >
+              Set Date
+            </button>
+          </div>
+        )}
 
         {/* Active Order Status Bar - Mobile */}
         {activeOrder && !loadingActiveOrder && (
@@ -1221,22 +1275,27 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           </button>
         </div>
 
-        {/* Customer Verification Popup */}
         <CustomerVerificationPopup
           isOpen={isVerificationPopupOpen}
           onClose={hideVerificationPopup}
           verification={currentVerification}
           onVerificationComplete={handleVerificationComplete}
         />
+
+        {showUserPackages && currentUser && (
+          <div className="fixed inset-0 z-50 bg-white">
+            <UserPackages currentUser={currentUser} onClose={() => setShowUserPackages(false)} />
+          </div>
+        )}
       </div>
     );
   }
 
   // Desktop Interface
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Desktop Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
+      <header className="glass-panel !rounded-none !border-x-0 !border-t-0 sticky top-0 z-50 mb-2">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1331,10 +1390,16 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
               </div>
 
               {currentUser && (
-                <Button variant="ghost" size="sm" onClick={handleViewBookings}>
-                  <Package className="h-4 w-4 mr-2" />
-                  Bookings
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowUserPackages(true)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
+                    <Package className="h-4 w-4 mr-2" />
+                    Packages
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleViewBookings}>
+                    <ShoppingBag className="h-4 w-4 mr-2" />
+                    Bookings
+                  </Button>
+                </div>
               )}
 
               {currentUser && (
@@ -1342,6 +1407,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   <div className="relative">
                     <NotificationBell
                       userId={currentUser._id || currentUser.phone}
+                      onSetDeliveryDate={() => handleViewBookings()}
                     />
                   </div>
 
@@ -1353,6 +1419,8 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                   currentUser={currentUser}
                   onLogout={handleLogout}
                   onViewBookings={handleViewBookings}
+                  onViewPackages={() => setShowUserPackages(true)}
+                  onViewReferral={() => setShowReferralModal(true)}
                   onUpdateProfile={handleUpdateProfile}
                 />
               ) : (
@@ -1378,9 +1446,22 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
       {/* Desktop Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
 
+        {/* Ready for Delivery Alert - Desktop */}
+        {activeOrder && !loadingActiveOrder && (activeOrder.status === 'ready_for_delivery' || activeOrder.status === 'ready-for-delivery') && (
+          <div className="mb-4 p-4 bg-blue-600 rounded-xl flex items-center justify-between gap-4">
+            <div>
+              <p className="text-white font-bold text-base">🎉 Your laundry is ready for delivery!</p>
+              <p className="text-blue-100 text-sm mt-0.5">Order #{activeOrder.custom_order_id || 'Order'} — Please set your preferred delivery date and time</p>
+            </div>
+            <Button onClick={handleViewBookings} className="shrink-0 bg-white text-blue-600 hover:bg-blue-50 font-bold">
+              Set Delivery Date &amp; Time
+            </Button>
+          </div>
+        )}
+
         {/* Active Order Status Bar - Zomato Style */}
         {activeOrder && !loadingActiveOrder && (
-          <div className="mb-8 p-6 bg-white rounded-2xl shadow-md border border-blue-100">
+          <div className="mb-8 p-6 glass-panel border-blue-100">
             <div className="mb-4">
               <h3 className="text-lg font-bold text-gray-900 mb-2">Your Active Order</h3>
               <p className="text-sm text-gray-600">
@@ -1529,7 +1610,7 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
                 return (
                   <Card
                     key={service.id}
-                    className="border-0 shadow-lg rounded-2xl overflow-hidden hover:shadow-xl transition-shadow"
+                    className="card-compact overflow-hidden border-0"
                   >
                     <CardContent className="p-6">
                       <div className="aspect-square bg-gradient-to-br from-laundrify-mint/20 to-laundrify-mint/40 rounded-xl mb-4 flex items-center justify-center">
@@ -1645,6 +1726,14 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
           onSuccess={handleAuthSuccess}
         />
 
+        {showUserPackages && currentUser && (
+          <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm transition-all duration-300">
+             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <UserPackages currentUser={currentUser} onClose={() => setShowUserPackages(false)} />
+             </div>
+          </div>
+        )}
+
         {/* Removed local booking history modal - using main navigation */}
 
         {/* Debug Panel */}
@@ -1694,6 +1783,20 @@ const ResponsiveLaundryHome: React.FC<ResponsiveLaundryHomeProps> = ({
             <MessageCircle className="h-5 w-5" />
           </Button>
         </div>
+
+        {/* Wallet Modal */}
+        <WalletModal
+          isOpen={showWalletModal}
+          onClose={() => setShowWalletModal(false)}
+          currentUser={currentUser}
+        />
+
+        {/* Referral Modal */}
+        <ReferralModal
+          isOpen={showReferralModal}
+          onClose={() => setShowReferralModal(false)}
+          currentUser={currentUser}
+        />
 
         {/* Customer Verification Popup */}
         <CustomerVerificationPopup

@@ -1,17 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, Save, Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
-
-interface WebsiteService {
-  id: string;
-  name: string;
-  price: number;
-  unit: string;
-  category: string;
-}
+import { getSortedServices } from "@/data/laundryServices";
 
 interface Service {
   service_name: string;
@@ -39,45 +33,12 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
     { service_name: "", quantity: 1, unit_price: 0, total_price: 0 },
   ]);
   const [loading, setLoading] = useState(false);
-  const [websiteServices, setWebsiteServices] = useState<WebsiteService[]>([]);
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [usedWalletAmount, setUsedWalletAmount] = useState(0);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
   const [discountValue, setDiscountValue] = useState(0);
-
-  // Fetch website services on mount
-  useEffect(() => {
-    const fetchWebsiteServices = async () => {
-      try {
-        const response = await fetch("/api/services/dynamic");
-        const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          // Flatten categories and services
-          const flattened: WebsiteService[] = [];
-          data.data.forEach((category: any) => {
-            if (category.services && Array.isArray(category.services)) {
-              category.services.forEach((s: any) => {
-                flattened.push({
-                  id: s.id,
-                  name: s.name,
-                  price: s.price,
-                  unit: s.unit,
-                  category: category.name,
-                });
-              });
-            }
-          });
-          setWebsiteServices(flattened);
-        }
-      } catch (error) {
-        console.error("Error fetching services:", error);
-      }
-    };
-
-    fetchWebsiteServices();
-  }, []);
 
   // Lookup customer by phone to get wallet balance
   const lookupCustomer = async (phone: string) => {
@@ -119,13 +80,10 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
 
     if (field === "service_name") {
       service.service_name = value;
-      // If the name matches one of our website services, auto-populate the price
-      const matchedService = websiteServices.find(
-        (ws) => ws.name.toLowerCase() === value.toLowerCase()
-      );
-      if (matchedService) {
-        service.unit_price = matchedService.price;
-        service.total_price = service.quantity * matchedService.price;
+      const matched = getSortedServices().find((s) => s.name === value);
+      if (matched) {
+        service.unit_price = matched.price;
+        service.total_price = service.quantity * matched.price;
       }
     } else if (field === "quantity" || field === "unit_price") {
       const quantity = field === "quantity" ? value : service.quantity;
@@ -323,23 +281,31 @@ export default function OrderInputForm({ onOrderCreated }: OrderInputFormProps) 
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     Service Name
                   </label>
-                  <Input
-                    list={`service-options-${index}`}
-                    type="text"
-                    placeholder="e.g., Shirt Wash"
-                    value={service.service_name}
-                    onChange={(e) =>
-                      handleServiceChange(index, "service_name", e.target.value)
-                    }
-                    required
-                  />
-                  <datalist id={`service-options-${index}`}>
-                    {websiteServices.map((ws) => (
-                      <option key={ws.id} value={ws.name}>
-                        {ws.category} - ₹{ws.price} {ws.unit}
-                      </option>
-                    ))}
-                  </datalist>
+                  <Select
+                    value={service.service_name || ""}
+                    onValueChange={(value) => {
+                      const realValue = value === "__none__" ? "" : value;
+                      handleServiceChange(index, "service_name", realValue);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select service">
+                        {service.service_name ? (
+                          <>{service.service_name} — ₹{service.unit_price || 0}</>
+                        ) : (
+                          "Select service"
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Select service</SelectItem>
+                      {getSortedServices().map((svc) => (
+                        <SelectItem key={svc.id || svc.name} value={svc.name}>
+                          {svc.name} — ₹{svc.price}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">

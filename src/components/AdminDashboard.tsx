@@ -27,6 +27,8 @@ import {
   Truck,
   Image,
   MapPin as MapIcon,
+  Bell,
+  Trash2,
 } from "lucide-react";
 import { AdminAuth, ADMIN_CONFIG } from "@/config/adminConfig";
 import AdminBookingManagement from "./AdminBookingManagement";
@@ -42,13 +44,23 @@ import AdminBannerManagement from "./AdminBannerManagement";
 import AdminMapAnalytics from "./AdminMapAnalytics";
 import AdminRiderManagement from "./AdminRiderManagement";
 import AdminDailyOrdersView from "./AdminDailyOrdersView";
+import AdminPackages from "../pages/AdminPackages";
+import AdminAssignedPackages from "./AdminAssignedPackages";
+import AdminPushNotifications from "./AdminPushNotifications";
+import AdminSchoolManagement from "./AdminSchoolManagement";
+import AdminSchoolBooking from "./AdminSchoolBooking";
+import AdminHotelManagement from "./AdminHotelManagement";
+import AdminHotelInvoice from "./AdminHotelInvoice";
+import AdminStoreManagement from "./AdminStoreManagement";
+import AdminStoreOrders from "./AdminStoreOrders";
+import AdminVendorOrders from "./AdminVendorOrders";
 import { apiClient } from "@/lib/apiClient";
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabValue = "overview" | "bookings" | "user-booking" | "locations" | "vendors" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders";
+type TabValue = "overview" | "bookings" | "user-booking" | "vendor-orders" | "locations" | "vendors" | "packages" | "assigned-packages" | "users" | "pgs" | "pg-orders" | "analytics" | "map-analytics" | "wallet" | "order-allocation" | "banners" | "riders" | "daily-orders" | "push-notifications" | "schools" | "school-orders" | "hotels" | "hotel-invoices" | "stores" | "store-orders";
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
@@ -64,6 +76,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     totalRevenue: "₹0",
     loading: true,
   });
+
+  const [cleanupState, setCleanupState] = useState<{ running: boolean; result: string | null }>({ running: false, result: null });
+
+  const runMediaCleanup = async () => {
+    setCleanupState({ running: true, result: null });
+    try {
+      const res = await apiClient.adminRequest<any>("/admin/cleanup-media", { method: "POST" });
+      const body = res.data;
+      const storage = body?.storage;
+      const storageNote = storage ? ` | ☁️ Cloudinary: ${storage.used_mb} MB / ${storage.limit_gb} GB (${storage.pct}%)` : "";
+      setCleanupState({ running: false, result: (body?.message || "Done") + storageNote });
+    } catch {
+      setCleanupState({ running: false, result: "Cleanup failed — check server logs" });
+    }
+  };
 
   // Fetch real statistics from API
   const fetchStats = async () => {
@@ -214,7 +241,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span>Book for User</span>
             </Button>
             
-            <Button 
+            <Button
               onClick={() => setActiveTab("locations")}
               className="h-20 flex flex-col items-center justify-center space-y-2"
               variant="outline"
@@ -222,7 +249,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <MapPin className="h-6 w-6" />
               <span>Service Locations</span>
             </Button>
+
+            <Button
+              onClick={runMediaCleanup}
+              disabled={cleanupState.running}
+              className="h-20 flex flex-col items-center justify-center space-y-2 border-red-200 text-red-700 hover:bg-red-50"
+              variant="outline"
+            >
+              <Trash2 className="h-6 w-6" />
+              <span>{cleanupState.running ? "Cleaning…" : "Free DB Space"}</span>
+            </Button>
           </div>
+          {cleanupState.result && (
+            <p className={`mt-3 text-sm px-1 ${cleanupState.result.includes("failed") ? "text-red-600" : "text-green-700"}`}>
+              🧹 {cleanupState.result}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -328,6 +370,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Book User</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("vendor-orders")}
+              variant={activeTab === "vendor-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0 bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 data-[state=active]:bg-amber-600 data-[state=active]:text-white"
+            >
+              <Building className="h-4 w-4" />
+              <span className="hidden sm:inline">Vendor Orders</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("locations")}
               variant={activeTab === "locations" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -376,6 +426,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">Users</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("packages")}
+              variant={activeTab === "packages" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Packages</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("assigned-packages")}
+              variant={activeTab === "assigned-packages" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">User Packages</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("pgs")}
               variant={activeTab === "pgs" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -392,6 +458,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <span className="hidden sm:inline">PG Orders</span>
             </Button>
             <Button
+              onClick={() => setActiveTab("schools")}
+              variant={activeTab === "schools" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🏫</span>
+              <span className="hidden sm:inline">Schools</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("school-orders")}
+              variant={activeTab === "school-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>📋</span>
+              <span className="hidden sm:inline">School Orders</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("hotels")}
+              variant={activeTab === "hotels" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🏨</span>
+              <span className="hidden sm:inline">Hotels</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("hotel-invoices")}
+              variant={activeTab === "hotel-invoices" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0 bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200"
+            >
+              <span>🧾</span>
+              <span className="hidden sm:inline">Hotel Invoices</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("stores")}
+              variant={activeTab === "stores" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🏪</span>
+              <span className="hidden sm:inline">Stores</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("store-orders")}
+              variant={activeTab === "store-orders" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0"
+            >
+              <span>🛒</span>
+              <span className="hidden sm:inline">Store Orders</span>
+            </Button>
+            <Button
               onClick={() => setActiveTab("wallet")}
               variant={activeTab === "wallet" ? "default" : "outline"}
               className="flex items-center gap-2 flex-shrink-0"
@@ -406,6 +520,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             >
               <Image className="h-4 w-4" />
               <span className="hidden sm:inline">Banners</span>
+            </Button>
+            <Button
+              onClick={() => setActiveTab("push-notifications")}
+              variant={activeTab === "push-notifications" ? "default" : "outline"}
+              className="flex items-center gap-2 flex-shrink-0 bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-200"
+            >
+              <Bell className="h-4 w-4" />
+              <span className="hidden sm:inline">Push Alerts</span>
             </Button>
             <Button
               onClick={() => setActiveTab("map-analytics")}
@@ -437,6 +559,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminUserBooking />
           </TabsContent>
 
+          <TabsContent value="vendor-orders">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-amber-900 text-sm"><strong>🏢 Vendor / Corporate Orders:</strong> Create laundry orders for bulk clients like hotels, apartments, and corporates — no mobile number needed. Each order is tagged with the client name. View and manage all vendor orders with full status control. These orders also appear in Booking Management tagged with the vendor name.</p>
+            </div>
+            <AdminVendorOrders />
+          </TabsContent>
+
           <TabsContent value="locations">
             <AdminServiceLocations />
           </TabsContent>
@@ -462,6 +591,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminUsersManagement />
           </TabsContent>
 
+          <TabsContent value="packages">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+              <p className="text-orange-900 text-sm"><strong>✓ Packages:</strong> Create and manage subscription packages. Assign packages to users to add wallet balance with a strict validity period.</p>
+            </div>
+            <AdminPackages />
+          </TabsContent>
+
+          <TabsContent value="assigned-packages">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+              <p className="text-indigo-900 text-sm"><strong>✓ User Packages:</strong> View all assigned subscription packages. Check active balances and validity dates for users.</p>
+            </div>
+            <AdminAssignedPackages />
+          </TabsContent>
+
           <TabsContent value="pgs">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <p className="text-blue-900 text-sm"><strong>✓ PG Management:</strong> Create and manage paying guest (PG) locations. Assign vendors to PGs to handle all orders from that location. Set pricing and minimum items per order.</p>
@@ -473,6 +616,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <AdminPGOrdersManagement />
           </TabsContent>
 
+          <TabsContent value="schools">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>🏫 School Management:</strong> Create and manage schools with their students/members. Each school has a dedicated manager login, custom pricing for Wash & Iron and Wash & Fold, and separate order tracking with IDs like <code>SCH01-0426-0001</code>.</p>
+            </div>
+            <AdminSchoolManagement />
+          </TabsContent>
+
+          <TabsContent value="school-orders">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+              <p className="text-indigo-900 text-sm"><strong>📋 School Orders:</strong> Book laundry orders for school members. Select school → search member by name or ID → choose service (Wash & Iron / Wash & Fold) → set items count and custom price. Orders are saved in a separate collection and visible to the school manager portal.</p>
+            </div>
+            <AdminSchoolBooking />
+          </TabsContent>
+
+          <TabsContent value="hotels">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+              <p className="text-indigo-900 text-sm"><strong>🏨 Hotel Management:</strong> Add hotels and create laundry entries using the item list from the physical slip. Input quantities for each article, optionally set prices to calculate amounts, generate a bill, mark payments as paid (with paid-till date), and export to Excel.</p>
+            </div>
+            <AdminHotelManagement />
+          </TabsContent>
+
+          <TabsContent value="hotel-invoices">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+              <p className="text-purple-900 text-sm"><strong>🧾 Hotel Invoices:</strong> Create digital Laundrify invoices for hotel clients. Enter hotel name, invoice number, service period, set custom per-piece rates (Hotel / DC / Guest — can differ per hotel), then add day-by-day piece counts. Preview a live summary and open or download the formatted invoice PDF-ready HTML.</p>
+            </div>
+            <AdminHotelInvoice />
+          </TabsContent>
+
+          <TabsContent value="stores">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 text-sm"><strong>🏪 Store Management:</strong> Create and manage store accounts. Each store gets a unique Store ID for login and a 5-letter code used in order IDs. Order ID format: <code className="bg-blue-100 px-1 rounded">STORE{"{CODE}"}JanA0001</code> — letter increments A→B after 9999 orders.</p>
+            </div>
+            <AdminStoreManagement />
+          </TabsContent>
+
+          <TabsContent value="store-orders">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-900 text-sm"><strong>🛒 Store Orders:</strong> View all orders created by stores (with STORE… IDs) and all orders assigned to stores by admin. All order statuses (created → pending → confirmed → processing → ready → completed → delivered) work identically to normal orders.</p>
+            </div>
+            <AdminStoreOrders />
+          </TabsContent>
+
           <TabsContent value="wallet">
             <AdminWalletManagement />
           </TabsContent>
@@ -482,6 +667,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-blue-900 text-sm"><strong>✓ Banner Management:</strong> Create and manage website banners. Set custom display durations, redirect URLs, and track clicks and impressions. Banners rotate automatically on the homepage.</p>
             </div>
             <AdminBannerManagement />
+          </TabsContent>
+
+          <TabsContent value="push-notifications">
+            <AdminPushNotifications />
           </TabsContent>
 
           <TabsContent value="map-analytics">

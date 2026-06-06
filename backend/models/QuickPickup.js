@@ -117,6 +117,7 @@ quickPickupSchema.index({ status: 1 });
 quickPickupSchema.index({ pickup_date: 1, pickup_time: 1 });
 quickPickupSchema.index({ rider_id: 1 });
 quickPickupSchema.index({ createdAt: -1 });
+quickPickupSchema.index({ rider_id: 1, status: 1, createdAt: -1 });
 
 // Virtual for formatted pickup datetime
 quickPickupSchema.virtual('pickup_datetime').get(function() {

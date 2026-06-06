@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Kataria/Home-services/backend -name *payment* -o -name *razorpay* -o -name *notification*)",
+      "Bash(ls -lh /c/Users/Kataria/Home-services/*.aab)",
+      "Bash(grep -r \"console.log.*password\\\\|console.log.*secret\\\\|console.log.*key\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(find /c/Users/Kataria/Home-services -name *.json -type f -exec grep -l \"password\\\\|secret\\\\|key\" {})",
+      "Bash(2)",
+      "Bash(grep -rn \"eval\\\\|Function\\\\\\(\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.js$\")",
+      "Bash(unzip -l \"c:\\\\Users\\\\Kataria\\\\Home-services\\\\android\\\\app\\\\build\\\\outputs\\\\bundle\\\\release\\\\app-release.aab\")",
+      "Bash(find /c/Users/Kataria/Home-services/src -name *Cart* -o -name *cart* -o -name *Checkout*)",
+      "Bash(npm run:*)",
+      "Bash(bash scripts/build-rider-aab.sh)",
+      "mcp__code-review-graph__semantic_search_nodes_tool",
+      "Read(//c/Users/Kataria/Home-services/**)",
+      "Bash(grep -E \"\\\\.sh$|Makefile|build.*\\\\.js\")",
+      "Bash(powershell.exe -Command \"./gradlew.bat clean\")",
+      "mcp__code-review-graph__build_or_update_graph_tool",
+      "mcp__code-review-graph__get_architecture_overview_tool",
+      "Bash(grep -n \"push/subscribe\\\\|FCM\\\\|firebase\\\\|google-services\\\\|notification.*token\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(grep -n \"push/subscribe\\\\|adminRequest.*push\\\\|/push\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in deps.items\\(\\) if 'capacitor' in k.lower\\(\\) or 'geolocation' in k.lower\\(\\)]\")",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep -n \"pickup_completed\\\\|after.*pickup\\\\|auto.*assign\\\\|auto.*delivery\" /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(grep -v \"^#\\\\|//.*delivery_assigned\")",
+      "Bash(git add:*)",
+      "Bash(tasklist)",
+      "Bash([ ! -f /c/Users/Kataria/Home-services/android/app/build/outputs/bundle/release/app-release.aab ])",
+      "Bash(tasklist /fi \"imagename eq java.exe\")",
+      "Read(//c/java/jdk-20/**)",
+      "Read(//c/Users/Kataria/AppData/Local/Temp/jdk21//**)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Microsoft/jdk-21.0.10.7-hotspot\")",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node -e \"require\\('react-is'\\)\")",
+      "Bash(node -e \"require\\('react-is'\\); console.log\\('ok', require\\('react-is/package.json'\\).version\\)\")",
+      "Bash(ls c:/Users/Kataria/Home-services/*.config.*)",
+      "Bash(ls c:/Users/Kataria/Home-services/scripts/build-*aab*.sh)",
+      "Read(//c/Users/Kataria/.claude/projects/c--Users-Kataria-Home-services/memory/**)",
+      "Bash(grep -n \"completed\\\\|status.*complete\\\\|mark.*complete\\\\|complete.*button\" c:/Users/Kataria/Home-services/src/pages/desk/*.tsx)",
+      "Bash(cat /c/Users/Kataria/Home-services/backend/routes/*.js)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
+}

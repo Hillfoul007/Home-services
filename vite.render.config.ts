@@ -15,6 +15,8 @@ export default defineConfig({
     ssr: false,
     // Use rollup for better tree-shaking
     rollupOptions: {
+      // Native-only Capacitor plugins — not resolvable in a web build
+      external: ['@capacitor-community/background-geolocation'],
       // Absolute minimum parallel operations to prevent memory spikes
       maxParallelFileOps: 1,
       // Limit concurrent chunk processing
@@ -99,6 +101,6 @@ export default defineConfig({
       'date-fns',
     ],
     // Exclude heavy dependencies that don't need pre-bundling
-    exclude: ['vite-plugin-pwa', 'googleapis', 'mongodb', '@radix-ui/*'],
+    exclude: ['vite-plugin-pwa', 'googleapis', 'mongodb', '@radix-ui/*', '@capacitor-community/background-geolocation'],
   },
 });

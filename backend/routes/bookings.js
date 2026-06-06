@@ -7,9 +7,9 @@ const Address = require("../models/Address");
 
 const router = express.Router();
 
-// Helper function to calculate distance between two points
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Radius of the Earth in km
+// Straight-line fallback (Haversine)
+const haversineDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -18,9 +18,26 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
-  return d;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+// Road distance via OSRM (driving profile = motorcycle-accurate).
+// Falls back to Haversine if OSRM is unreachable.
+const calculateDistance = async (lat1, lon1, lat2, lon2) => {
+  try {
+    // OSRM uses lng,lat order
+    const url = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=false`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`OSRM ${res.status}`);
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.length) throw new Error("No route");
+    return data.routes[0].distance / 1000; // metres → km
+  } catch {
+    return haversineDistance(lat1, lon1, lat2, lon2);
+  }
 };
 
 // Create a new booking
@@ -64,6 +81,8 @@ router.post("/", async (req, res) => {
       special_instructions,
       charges_breakdown,
       item_prices: requestItemPrices,
+      cashback: requestCashback,
+      wallet_applied: requestWalletApplied,
     } = req.body;
 
     // Validation
@@ -563,6 +582,7 @@ router.post("/", async (req, res) => {
       discount_amount: finalDiscount,
       final_amount: finalAmount,
       coupon_code: coupon_code || null,
+      cashback: Number(requestCashback || requestWalletApplied || 0),
       special_instructions,
       charges_breakdown,
       item_prices, // Store individual service prices
@@ -600,6 +620,35 @@ router.post("/", async (req, res) => {
       booking._id,
     );
     console.log("🆔 Generated custom order ID:", booking.custom_order_id);
+
+    // Deduct wallet balance if wallet was applied
+    const walletAppliedAmount = Number(requestCashback || requestWalletApplied || 0);
+    if (walletAppliedAmount > 0 && customer) {
+      try {
+        console.log(`💰 Deducting ₹${walletAppliedAmount} from wallet for customer ${customer._id}`);
+        const currentBalance = customer.wallet_balance || 0;
+        const newBalance = Math.max(0, currentBalance - walletAppliedAmount);
+        customer.wallet_balance = newBalance;
+
+        // Add wallet transaction record
+        if (!customer.wallet_transactions) {
+          customer.wallet_transactions = [];
+        }
+        customer.wallet_transactions.push({
+          type: "debit",
+          amount: walletAppliedAmount,
+          description: `Applied to booking ${booking.custom_order_id || booking._id}`,
+          booking_id: booking._id,
+          date: indianDate,
+        });
+
+        await customer.save();
+        console.log(`✅ Wallet deducted: ₹${currentBalance} → ₹${newBalance}`);
+      } catch (walletError) {
+        console.error("❌ Failed to deduct wallet balance:", walletError);
+        // Don't fail the booking if wallet deduction fails
+      }
+    }
 
     // Check if this customer is using a referral discount
     try {
@@ -1098,25 +1147,20 @@ router.get("/pending", async (req, res) => {
       .populate("customer_id", "full_name phone email")
       .sort({ created_at: -1 });
 
-    // Filter bookings within 10km range
-    const nearbyBookings = bookings.filter((booking) => {
-      if (
-        !booking.coordinates ||
-        !booking.coordinates.lat ||
-        !booking.coordinates.lng
-      ) {
-        return false; // Skip bookings without coordinates
-      }
+    // Filter bookings within 10km road distance
+    const bookingsWithCoords = bookings.filter(
+      (b) => b.coordinates?.lat && b.coordinates?.lng
+    );
 
-      const distance = calculateDistance(
-        lat,
-        lng,
-        booking.coordinates.lat,
-        booking.coordinates.lng,
-      );
+    const distanceResults = await Promise.all(
+      bookingsWithCoords.map((booking) =>
+        calculateDistance(lat, lng, booking.coordinates.lat, booking.coordinates.lng)
+      )
+    );
 
-      return distance <= 10; // 10km range
-    });
+    const nearbyBookings = bookingsWithCoords.filter(
+      (_, i) => distanceResults[i] <= 10
+    );
 
     res.json({ bookings: nearbyBookings });
   } catch (error) {
@@ -1405,6 +1449,64 @@ router.get("/:bookingId", async (req, res) => {
   }
 });
 
+// Delivery date update route — lenient auth: verifies phone matches booking
+router.patch("/:bookingId/delivery-date", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { delivery_date, delivery_time, user_phone } = req.body;
+    const userIdHeader = req.headers["user-id"] || req.body.user_id || "";
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    // Normalize phone for comparison (strip leading +91 / country codes)
+    const normalizePhone = (p) => p ? String(p).replace(/\D/g, '').slice(-10) : '';
+    const bookingPhone = normalizePhone(booking.phone);
+    const requestPhone = normalizePhone(user_phone || userIdHeader);
+
+    // Allow if phone matches, or if the customer_id matches the header
+    const phoneMatch = bookingPhone && requestPhone && bookingPhone === requestPhone;
+    const idMatch = booking.customer_id && booking.customer_id.toString() === userIdHeader;
+
+    // Also try extracting phone from "user_XXXXXXXXXX" format
+    const extractedPhone = userIdHeader.startsWith("user_") ? normalizePhone(userIdHeader.replace("user_", "")) : null;
+    const extractedMatch = extractedPhone && bookingPhone && bookingPhone === extractedPhone;
+
+    if (!phoneMatch && !idMatch && !extractedMatch) {
+      // Last resort: look up user by id and match phone
+      let resolved = false;
+      if (mongoose.Types.ObjectId.isValid(userIdHeader)) {
+        try {
+          const user = await User.findById(userIdHeader);
+          if (user && normalizePhone(user.phone) === bookingPhone) resolved = true;
+        } catch { /* ignore */ }
+      }
+      if (!resolved) {
+        console.log("❌ Delivery date update denied for bookingId:", bookingId, "phone:", requestPhone, "booking phone:", bookingPhone);
+        return res.status(403).json({ error: "Not authorized to update this booking" });
+      }
+    }
+
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const indianDate = new Date(indianTime);
+
+    const updateFields = { updated_at: indianDate, updatedAt: indianDate };
+    if (delivery_date) { updateFields.delivery_date = delivery_date; updateFields.deliveryDate = delivery_date; }
+    if (delivery_time) { updateFields.delivery_time = delivery_time; updateFields.deliveryTime = delivery_time; }
+
+    await Booking.findByIdAndUpdate(bookingId, { $set: updateFields });
+    console.log(`✅ Delivery date updated for ${bookingId}: ${delivery_date} ${delivery_time}`);
+    res.json({ success: true, message: "Delivery date updated" });
+  } catch (error) {
+    console.error("❌ Delivery date update error:", error);
+    res.status(500).json({ error: "Failed to update delivery date" });
+  }
+});
+
 // General booking update route (for item quantities and other fields)
 router.put("/:bookingId", async (req, res) => {
   try {
@@ -1437,17 +1539,30 @@ router.put("/:bookingId", async (req, res) => {
         bookingCustomerId: booking.customer_id,
       });
 
-      // Direct ObjectId match
-      if (booking.customer_id.toString() === userId) {
+      // Direct ObjectId match - customer
+      if (booking.customer_id && booking.customer_id.toString() === userId) {
         canUpdate = true;
         console.log("✅ Direct ObjectId match - customer can update");
       }
 
-      // Phone number matching
+      // Direct ObjectId match - rider/provider assigned to booking
+      if (!canUpdate && booking.rider_id && booking.rider_id.toString() === userId) {
+        canUpdate = true;
+        console.log("✅ Direct ObjectId match - rider can update");
+      }
+
+      // Phone number matching and cross-user lookup
       if (!canUpdate) {
         try {
           const bookingCustomer = await User.findById(booking.customer_id);
-          if (bookingCustomer && bookingCustomer.phone) {
+
+          // Also try to find the requesting user by their ID
+          let requestingUser = null;
+          if (mongoose.Types.ObjectId.isValid(userId)) {
+            requestingUser = await User.findById(userId);
+          }
+
+          if (bookingCustomer) {
             let requestingUserPhone = null;
 
             // Extract phone from various formats
@@ -1458,15 +1573,47 @@ router.put("/:bookingId", async (req, res) => {
               if (extractedPhone.match(/^\d{10,}$/)) {
                 requestingUserPhone = extractedPhone;
               }
+            } else if (requestingUser && requestingUser.phone) {
+              requestingUserPhone = requestingUser.phone;
             }
 
-            if (requestingUserPhone && bookingCustomer.phone === requestingUserPhone) {
+            // Match by phone number
+            if (requestingUserPhone && bookingCustomer.phone && bookingCustomer.phone === requestingUserPhone) {
               canUpdate = true;
               console.log("✅ Phone number match - customer can update");
+            }
+
+            // Match if requesting user's phone matches booking customer's phone
+            if (!canUpdate && requestingUser && requestingUser.phone && bookingCustomer.phone) {
+              if (requestingUser.phone === bookingCustomer.phone) {
+                canUpdate = true;
+                console.log("✅ Cross-user phone match - same customer can update");
+              }
             }
           }
         } catch (userError) {
           console.warn("Failed to lookup user for authorization:", userError);
+        }
+      }
+
+      // Also check if booking has a phone field that matches the requesting user
+      if (!canUpdate && booking.phone) {
+        try {
+          let requestingUser = null;
+          if (mongoose.Types.ObjectId.isValid(userId)) {
+            requestingUser = await User.findById(userId);
+          }
+          if (requestingUser && requestingUser.phone === booking.phone) {
+            canUpdate = true;
+            console.log("✅ Booking phone matches requesting user - can update");
+          }
+          // Direct phone match
+          if (userId && userId.match(/^\d{10,}$/) && userId === booking.phone) {
+            canUpdate = true;
+            console.log("✅ Direct phone match with booking phone - can update");
+          }
+        } catch (e) {
+          console.warn("Phone check failed:", e);
         }
       }
     }
@@ -1575,10 +1722,16 @@ router.put("/:bookingId/cancel", async (req, res) => {
         bookingCustomerId: booking.customer_id,
       });
 
-      // Direct ObjectId match
+      // Direct ObjectId match - customer
       if (booking.customer_id.toString() === userId) {
         canCancel = true;
-        console.log("✅ Direct ObjectId match");
+        console.log("✅ Direct ObjectId match - customer");
+      }
+
+      // Direct ObjectId match - rider/provider assigned to booking
+      if (!canCancel && booking.rider_id && booking.rider_id.toString() === userId) {
+        canCancel = true;
+        console.log("✅ Direct ObjectId match - rider can cancel");
       }
 
       // Handle user_ prefix format

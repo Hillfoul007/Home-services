@@ -1,5 +1,7 @@
 const RiderNotification = require("../models/RiderNotification");
 const otpService = require("./otpService");
+const DeviceToken = require("../models/DeviceToken");
+const admin = require("firebase-admin");
 
 class RiderNotificationService {
   // Create order assignment notification
@@ -17,9 +19,9 @@ class RiderNotificationService {
       
       // Send SMS notification to rider
       await this.sendSMSNotification(riderId, notification);
-      
-      // Here you could integrate with push notification services
-      // await this.sendPushNotification(riderId, notification);
+
+      // Send push notification to rider
+      await this.sendPushNotification(riderId, notification);
       
       return notification;
     } catch (error) {
@@ -215,19 +217,73 @@ class RiderNotificationService {
     }
   }
 
-  // Send push notification (placeholder for future implementation)
+  // Send push notification via Firebase Cloud Messaging
   async sendPushNotification(riderId, notification) {
-    // TODO: Integrate with push notification service (FCM, APNS, etc.)
-    console.log(`📱 Would send push notification to rider ${riderId}:`, {
-      title: notification.title,
-      message: notification.message,
-      data: notification.data
-    });
+    if (!admin.apps.length) {
+      console.warn("⚠️ Firebase not initialized — skipping push notification for rider");
+      return { success: false, reason: "firebase_not_initialized" };
+    }
 
-    // Update notification delivery status
-    await RiderNotification.findByIdAndUpdate(notification._id, {
-      'delivery_status.push': true
-    });
+    try {
+      // Look up FCM tokens registered for this rider (riderId field in DeviceToken)
+      const deviceTokenDocs = await DeviceToken.find({ riderId }, "token").lean();
+      const uniqueTokens = [...new Set(deviceTokenDocs.map((dt) => dt.token))].filter(Boolean);
+
+      if (uniqueTokens.length === 0) {
+        console.log(`📱 No FCM tokens for rider ${riderId} — skipping push`);
+        return { success: true, skipped: true };
+      }
+
+      const message = {
+        notification: { title: notification.title, body: notification.message },
+        data: notification.data ? Object.fromEntries(
+          Object.entries(notification.data).map(([k, v]) => [k, String(v)])
+        ) : {},
+        android: {
+          priority: "high",
+          notification: { channelId: "laundrify_notifications" },
+        },
+        apns: { payload: { aps: { sound: "default" } } },
+        tokens: uniqueTokens,
+      };
+
+      const response = await admin.messaging().sendEachForMulticast(message);
+      console.log(`🔥 Push sent to rider ${riderId}: ${response.successCount} ok, ${response.failureCount} failed`);
+
+      await RiderNotification.findByIdAndUpdate(notification._id, {
+        "delivery_status.push": response.successCount > 0,
+      });
+
+      // Clean up stale/invalid tokens so future sends don't fail silently
+      if (response.failureCount > 0) {
+        const staleTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const code = resp.error?.code || "";
+            console.warn(`⚠️ FCM rider token failed [${code}]: ${uniqueTokens[idx]?.slice(0, 20)}...`);
+            if (
+              code === "messaging/invalid-registration-token" ||
+              code === "messaging/registration-token-not-registered" ||
+              code === "messaging/invalid-argument" ||
+              code === "messaging/unregistered"
+            ) {
+              staleTokens.push(uniqueTokens[idx]);
+            }
+          }
+        });
+        if (staleTokens.length > 0) {
+          console.log(`🧹 Removing ${staleTokens.length} stale FCM token(s) for rider ${riderId}`);
+          await DeviceToken.deleteMany({ token: { $in: staleTokens } }).catch((err) =>
+            console.warn("⚠️ Failed to clean up stale rider tokens:", err.message)
+          );
+        }
+      }
+
+      return { success: true, successCount: response.successCount, failureCount: response.failureCount };
+    } catch (error) {
+      console.error("❌ FCM push notification error for rider:", error.message);
+      return { success: false, error: error.message };
+    }
   }
 
   // Clean up old notifications

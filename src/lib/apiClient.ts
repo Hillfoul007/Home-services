@@ -684,9 +684,9 @@ class EnhancedApiClient {
     endpoint: string,
     options: RequestOptions = {},
   ): Promise<ApiResponse<T>> {
-    // Add admin token to headers if available
+    // Add admin token to headers — reads from env var set in .env (VITE_ADMIN_SECRET)
     const adminHeaders = {
-      "admin-token": "admin", // Simple admin token for now
+      "admin-token": import.meta.env.VITE_ADMIN_SECRET || "",
       ...((options.headers as Record<string, string>) || {}),
     };
 

@@ -23,9 +23,12 @@ const OrderStatusBar: React.FC<OrderStatusBarProps> = ({
     { value: "delivered", label: "Delivery Complete" },
   ];
 
+  // Normalize: 'completed' maps to the same final step as 'delivered'
+  const normalizedStatus = riderStatus === 'completed' ? 'delivered' : riderStatus;
+
   // Find current step index
   const currentStepIndex = riderStatusSteps.findIndex(
-    (step) => step.value === riderStatus
+    (step) => step.value === normalizedStatus
   );
 
   // Determine which steps are completed, current, and upcoming

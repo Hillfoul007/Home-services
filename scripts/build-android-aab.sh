@@ -2,7 +2,11 @@
 
 # Build signed Android App Bundle (AAB) for Google Play
 # Usage: npm run build:aab
-# or: chmod +x scripts/build-android-aab.sh && ./scripts/build-android-aab.sh
+# This builds the default User app. For specific apps use:
+#   npm run build:aab:user   - User (Customer) app
+#   npm run build:aab:rider  - Rider app
+#   npm run build:aab:desk   - Desk app
+#   npm run build:aab:all    - All three apps
 
 set -e
 
@@ -23,79 +27,41 @@ if [ ! -f "$KEYSTORE_FILE" ]; then
     echo "❌ Keystore file not found: $KEYSTORE_FILE"
     echo ""
     echo "Generate it with: npm run generate:keystore"
-    echo "Or: bash scripts/generate-keystore.sh"
     exit 1
 fi
 
 # Step 3: Build web assets
 echo "📦 Step 1/3: Building web assets..."
-npm run build
+cmd.exe /c "npm run build"
 
 # Step 4: Sync web assets to Android
 echo "📦 Step 2/3: Syncing web assets to Android..."
-npx cap sync android
+cmd.exe /c "npx cap sync android"
 
 # Step 5: Build AAB
 echo "📦 Step 3/3: Building signed AAB..."
-echo ""
-echo "Switching to android directory..."
-cd android
-
-# Check if gradle wrapper exists
-if [ ! -f "gradlew" ]; then
-    echo "❌ Gradle wrapper not found. Please run 'npx cap add android' first."
-    exit 1
-fi
-
-# Make gradle executable
-chmod +x gradlew
-
-# Check if keystore passwords are set
-if [ -z "$MYAPP_RELEASE_STORE_PASSWORD" ] && [ -z "$MYAPP_RELEASE_KEY_PASSWORD" ]; then
-    echo "⚠️  Signing passwords not set as environment variables."
-    echo ""
-    echo "For automated builds, set:"
-    echo "  export MYAPP_RELEASE_STORE_PASSWORD=your_keystore_password"
-    echo "  export MYAPP_RELEASE_KEY_PASSWORD=your_key_password"
-    echo ""
-    echo "🚀 Running Gradle bundleRelease..."
-    echo "You will be prompted for passwords interactively."
+chmod +x android/gradlew 2>/dev/null || true
+if [ -f "android/gradlew.bat" ]; then
+  (cd android && powershell.exe -Command "./gradlew.bat clean bundleRelease")
 else
-    echo "✅ Using environment variable passwords"
+  (cd android && ./gradlew clean bundleRelease)
 fi
 
-# Run gradle build
-./gradlew bundleRelease
-
-if [ $? -eq 0 ]; then
+# Copy output
+mkdir -p "$OUTPUT_DIR"
+AAB_FILE="android/app/build/outputs/bundle/release/app-release.aab"
+if [ -f "$AAB_FILE" ]; then
+    cp "$AAB_FILE" "${OUTPUT_DIR}/laundrify-user-release.aab"
     echo ""
     echo "✅ Build successful!"
+    echo "   📱 Output: ${OUTPUT_DIR}/laundrify-user-release.aab"
+    echo "   📋 App ID: com.laundrify.laundry.app"
     echo ""
-    
-    # Find the generated AAB
-    AAB_FILE=$(find . -name "*.aab" -type f -exec ls -t {} + | head -1)
-    
-    if [ -n "$AAB_FILE" ]; then
-        echo "📱 App Bundle location:"
-        echo "   $AAB_FILE"
-        echo ""
-        echo "📋 Next steps:"
-        echo "   1. Go to Google Play Console: https://play.google.com/console"
-        echo "   2. Create a new app (or select existing)"
-        echo "   3. Go to 'Testing' → 'Internal Testing'"
-        echo "   4. Click 'Upload new build' and select the .aab file"
-        echo "   5. Test on internal testing track before releasing"
-        echo ""
-        echo "🔐 Signing details:"
-        echo "   - Keystore: $(pwd)/../$KEYSTORE_FILE"
-        echo "   - Package ID: com.laundrify.app"
-        echo "   - Version: Check android/app/build.gradle for versionCode/versionName"
-    else
-        echo "⚠️  Could not find generated .aab file"
-    fi
+    echo "📋 Next steps:"
+    echo "   1. Go to Google Play Console"
+    echo "   2. Upload the .aab file"
+    echo "   3. Test on internal testing track"
 else
-    echo "❌ Build failed. Please check the error messages above."
+    echo "⚠️  AAB file not found at: $AAB_FILE"
     exit 1
 fi
-
-cd ..

@@ -2053,11 +2053,11 @@ const ZomatoAddAddressPage: React.FC<ZomatoAddAddressPageProps> = ({
       </div>
 
       {/* Save Button - Fixed at bottom */}
-      <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
+      <div className="flex-shrink-0 p-4 pb-6 border-t border-gray-200 bg-white" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <Button
           onClick={handleSave}
           disabled={!isFormValid()}
-          className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-green-600 hover:bg-green-700 text-white py-4 text-base font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Save address
         </Button>

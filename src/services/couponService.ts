@@ -1,3 +1,5 @@
+import { getApiUrl } from '../config/env';
+
 interface CouponData {
   code: string;
   discount: number;
@@ -175,7 +177,7 @@ export class CouponService {
    */
   private async checkApiHealth(): Promise<boolean> {
     try {
-      const response = await fetch('/api/coupons/health', {
+      const response = await fetch(`${getApiUrl()}/coupons/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000), // 5 second timeout
       });
@@ -243,7 +245,7 @@ export class CouponService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      const response = await fetch('/api/coupons/validate', {
+      const response = await fetch(`${getApiUrl()}/coupons/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

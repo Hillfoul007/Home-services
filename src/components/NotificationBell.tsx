@@ -3,13 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bell, BellRing } from 'lucide-react';
 import UserNotifications from './UserNotifications';
+import { getApiUrl } from '@/config/env';
 
 interface NotificationBellProps {
   userId?: string;
   className?: string;
+  onSetDeliveryDate?: (orderId: string) => void;
 }
 
-const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className = '' }) => {
+const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className = '', onSetDeliveryDate }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -17,13 +19,12 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
   useEffect(() => {
     if (userId) {
       fetchUnreadCount();
-      // Poll for new notifications every 5 minutes (reduced from 30 seconds to prevent infinite refreshing)
-      // Also only poll when page is visible
+      // Poll every 30 seconds so ready-for-delivery alerts reach user quickly
       const interval = setInterval(() => {
         if (document.visibilityState === 'visible') {
           fetchUnreadCount();
         }
-      }, 300000); // 5 minutes
+      }, 30000); // 30 seconds
       return () => clearInterval(interval);
     }
   }, [userId]);
@@ -31,13 +32,12 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
   const fetchUnreadCount = async () => {
     if (!userId || isLoading) return;
 
-    // Add rate limiting to prevent excessive API calls
+    // Rate limit: at most once every 20 seconds to avoid hammering the API
     const lastFetch = localStorage.getItem(`lastNotificationFetch_${userId}`);
     const now = Date.now();
-    const twoMinutesAgo = now - 2 * 60 * 1000;
+    const twentySecondsAgo = now - 20 * 1000;
 
-    if (lastFetch && parseInt(lastFetch) > twoMinutesAgo) {
-      console.log('⏭️ Skipping notification count fetch - rate limited');
+    if (lastFetch && parseInt(lastFetch) > twentySecondsAgo) {
       return;
     }
 
@@ -50,7 +50,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-      const response = await fetch('/api/notifications/count', {
+      const response = await fetch(`${getApiUrl()}/notifications/count`, {
         headers: {
           'user-id': userId,
           'Content-Type': 'application/json',
@@ -137,6 +137,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, className =
         userId={userId}
         isOpen={isOpen}
         onClose={handleClose}
+        onSetDeliveryDate={onSetDeliveryDate}
       />
     </>
   );

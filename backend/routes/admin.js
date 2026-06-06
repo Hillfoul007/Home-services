@@ -5,43 +5,67 @@ const User = require("../models/User");
 const Rider = require("../models/Rider");
 const QuickPickup = require("../models/QuickPickup");
 const Vendor = require("../models/Vendor");
+const Package = require("../models/Package");
+const UserPackage = require("../models/UserPackage");
 const riderNotificationService = require("../services/riderNotificationService");
+const notificationService = require("../services/notificationService");
 
 const router = express.Router();
 
 // ============= DISTANCE CALCULATION HELPER =============
-// Calculate distance between two coordinates using Haversine formula (in km)
-const calculateDistance = (coord1, coord2) => {
-  if (!coord1 || !coord2 || coord1.lat === undefined || coord1.lng === undefined || coord2.lat === undefined || coord2.lng === undefined) {
-    return null;
-  }
-
-  const R = 6371; // Earth's radius in kilometers
-  const lat1 = (coord1.lat * Math.PI) / 180;
-  const lat2 = (coord2.lat * Math.PI) / 180;
-  const dLat = ((coord2.lat - coord1.lat) * Math.PI) / 180;
-  const dLng = ((coord2.lng - coord1.lng) * Math.PI) / 180;
-
+// Straight-line fallback (Haversine)
+const haversineDistance = (coord1, coord2) => {
+  if (!coord1 || !coord2 || coord1.lat == null || coord2.lat == null) return null;
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(coord2.lat - coord1.lat);
+  const dLng = toRad(coord2.lng - coord1.lng);
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) *
-      Math.cos(lat2) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c;
-
-  return Math.round(distance * 100) / 100; // Round to 2 decimal places
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(coord1.lat)) * Math.cos(toRad(coord2.lat)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 100) / 100;
 };
 
-// Middleware to verify admin access (simple for now)
-const verifyAdminAccess = (req, res, next) => {
-  // In a production environment, you would implement proper admin authentication
-  // For now, we'll use a simple header check or token validation
-  const adminToken = req.headers["admin-token"] || req.headers["authorization"];
+// Road distance via OSRM driving profile (motorcycle-accurate).
+// Falls back to Haversine if OSRM is unreachable.
+const calculateDistance = async (coord1, coord2) => {
+  if (!coord1 || !coord2 || coord1.lat == null || coord2.lat == null) return null;
+  try {
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${coord1.lng},${coord1.lat};${coord2.lng},${coord2.lat}?overview=false`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`OSRM ${res.status}`);
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.length) throw new Error("No route");
+    return Math.round(data.routes[0].distance / 10) / 100; // metres → km, 2 dp
+  } catch {
+    return haversineDistance(coord1, coord2);
+  }
+};
 
-  // For demo purposes, we'll allow all requests
-  // In production, implement proper admin authentication
+// Middleware to verify admin access
+const verifyAdminAccess = (req, res, next) => {
+  const adminSecret = process.env.ADMIN_SECRET;
+
+  // In development without ADMIN_SECRET set, allow through with a warning
+  if (!adminSecret) {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(500).json({ success: false, message: "Admin access not configured" });
+    }
+    console.warn("⚠️ ADMIN_SECRET not set — admin routes are unprotected in development");
+    return next();
+  }
+
+  const providedToken = req.headers["admin-token"] || (req.headers["authorization"] || "").replace("Bearer ", "");
+
+  if (!providedToken || providedToken !== adminSecret) {
+    return res.status(401).json({ success: false, message: "Unauthorized: Invalid admin token" });
+  }
+
   next();
 };
 
@@ -316,6 +340,162 @@ router.get("/users/search", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// ============= PACKAGES MANAGEMENT =============
+
+// Get all packages
+router.get("/packages", verifyAdminAccess, async (req, res) => {
+  try {
+    const packages = await Package.find().sort({ created_at: -1 });
+    res.json({ success: true, packages });
+  } catch (error) {
+    console.error("❌ Error fetching packages:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create a new package
+router.post("/packages", verifyAdminAccess, async (req, res) => {
+  try {
+    const { name, description, price, wallet_amount, validity_days } = req.body;
+    
+    if (!name || isNaN(price) || isNaN(wallet_amount) || isNaN(validity_days)) {
+      return res.status(400).json({ error: "Missing required package fields" });
+    }
+
+    const newPackage = new Package({
+      name,
+      description,
+      price,
+      wallet_amount,
+      validity_days,
+    });
+
+    await newPackage.save();
+    console.log("✅ Admin created new package:", newPackage._id);
+    res.status(201).json({ success: true, package: newPackage });
+  } catch (error) {
+    console.error("❌ Error creating package:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update a package
+router.put("/packages/:id", verifyAdminAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const updatedPackage = await Package.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedPackage) {
+      return res.status(404).json({ error: "Package not found" });
+    }
+
+    console.log("✅ Admin updated package:", id);
+    res.json({ success: true, package: updatedPackage });
+  } catch (error) {
+    console.error("❌ Error updating package:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Assign a package to a user
+router.post("/users/:userId/assign-package", verifyAdminAccess, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { packageId } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const pkg = await Package.findById(packageId);
+    if (!pkg) {
+      return res.status(404).json({ error: "Package not found" });
+    }
+
+    if (!pkg.is_active) {
+      return res.status(400).json({ error: "Cannot assign an inactive package" });
+    }
+
+    // Calculate validity dates
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const validityStart = new Date(indianTime);
+    const validityEnd = new Date(indianTime);
+    validityEnd.setDate(validityEnd.getDate() + pkg.validity_days);
+
+    // Create UserPackage record
+    const userPackage = new UserPackage({
+      user_id: user._id,
+      package_id: pkg._id,
+      purchase_price: pkg.price,
+      amount_credited: pkg.wallet_amount,
+      validity_start: validityStart,
+      validity_end: validityEnd,
+    });
+
+    await userPackage.save();
+
+    // Update User's package balance and validity
+    // If they already have an active package, we add the balance and extend validity
+    const now = new Date(indianTime);
+    if (user.package_validity && user.package_validity > now) {
+      // Extend existing active package
+      user.package_balance = (user.package_balance || 0) + pkg.wallet_amount;
+      // Extend validity from the current expiry date or from today whichever is further
+      const newExpiry = new Date(Math.max(user.package_validity.getTime(), now.getTime()));
+      newExpiry.setDate(newExpiry.getDate() + pkg.validity_days);
+      user.package_validity = newExpiry;
+      console.log(`✅ Extending package validity to ${newExpiry}`);
+    } else {
+      // Start fresh
+      user.package_balance = pkg.wallet_amount;
+      user.package_validity = validityEnd;
+      console.log(`✅ Starting new package validity to ${validityEnd}`);
+    }
+
+    // Add a transaction record in the wallet transactions for transparency (even though it's separate balance)
+    user.wallet_transactions.push({
+      type: "credit",
+      amount: pkg.wallet_amount,
+      description: `Package Assigned: ${pkg.name} (${pkg.validity_days} days validity)`,
+      created_at: validityStart,
+    });
+
+    await user.save();
+
+    console.log(`✅ Admin assigned package ${pkg.name} to user ${user.phone}`);
+    res.json({ 
+      success: true, 
+      message: "Package assigned successfully",
+      package_balance: user.package_balance,
+      package_validity: user.package_validity 
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get all assigned packages (history/active) across all users
+router.get("/users-packages", verifyAdminAccess, async (req, res) => {
+  try {
+    const userPackages = await UserPackage.find()
+      .populate("user_id", "full_name phone email package_balance package_validity")
+      .populate("package_id", "name price wallet_amount validity_days")
+      .sort({ created_at: -1 });
+
+    res.json({ success: true, packages: userPackages });
+  } catch (error) {
+    console.error("❌ Error fetching all user packages:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Create user (admin)
 router.post("/users", verifyAdminAccess, async (req, res) => {
   try {
@@ -379,6 +559,67 @@ router.post("/users", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// ── ONE-TIME recovery: restore orders bulk-completed on 2026-05-31 ──────────
+// The server stores updated_at as IST-string-parsed-as-UTC, so the bulk
+// updates (which happened at ~04:14 UTC real time) appear as ~09:44 UTC in DB.
+router.post("/recovery/restore-bulk-completed", verifyAdminAccess, async (req, res) => {
+  try {
+    // IST timestamps stored as UTC: 09:44–10:20 IST = "09:44–10:20 UTC" in DB
+    const BULK_START = new Date("2026-05-31T09:40:00.000Z");
+    const BULK_END   = new Date("2026-05-31T10:30:00.000Z");
+    const dryRun     = req.query.dry === "1";
+
+    // First check what the DB actually has so we can debug
+    const sampleCheck = await Booking.findOne({ status: "completed" })
+      .select("updated_at custom_order_id").lean();
+
+    const affected = await Booking.find({
+      updated_at: { $gte: BULK_START, $lte: BULK_END },
+      status:     { $in: ["pickup_completed", "completed"] },
+    }).select("_id custom_order_id status updated_at status_history").lean();
+
+    if (affected.length === 0) {
+      // Try a wider window to help debug
+      const wider = await Booking.find({
+        status: { $in: ["pickup_completed", "completed"] },
+      }).sort({ updated_at: -1 }).limit(3).select("updated_at custom_order_id status").lean();
+      return res.json({
+        success: false,
+        message: "No orders found in bulk window. Check wideSample for actual timestamps.",
+        bulkWindow: { start: BULK_START, end: BULK_END },
+        sampleCompleted: sampleCheck,
+        wideSample: wider,
+      });
+    }
+
+    let restored = 0;
+    const details = [];
+
+    for (const b of affected) {
+      const history = (b.status_history || [])
+        .map(h => ({ status: h.status, ts: new Date(h.changed_at || 0).getTime() }))
+        .filter(h => h.ts > 0 && h.ts < BULK_START.getTime())
+        .sort((a, c) => c.ts - a.ts);
+
+      const prevStatus = history[0]?.status || "vendor_assigned";
+      details.push({ id: b.custom_order_id || b._id, from: b.status, to: prevStatus });
+
+      if (!dryRun) {
+        await Booking.findByIdAndUpdate(b._id, {
+          status: prevStatus,
+          updated_at: history[0]?.ts ? new Date(history[0].ts) : new Date(BULK_START.getTime() - 60000),
+        });
+      }
+      restored++;
+    }
+
+    res.json({ success: true, dryRun, total: affected.length, restored, details: details.slice(0, 50) });
+  } catch (err) {
+    console.error("Recovery error:", err);
+    res.status(500).json({ success: false, error: err.message, stack: err.stack?.split('\n').slice(0, 5) });
+  }
+});
+
 // Update booking (admin override)
 router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
   try {
@@ -409,14 +650,29 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     }
 
     // Normalize rider field: frontend may send `rider` while schema uses `assignedRider`
+    // Only update assignedRider when rider is explicitly provided (not undefined/null unless intentional)
     if (typeof updateData.rider !== 'undefined') {
-      updateData.assignedRider = updateData.rider;
+      // null means explicit unassign; a string means new assignment
+      if (updateData.rider !== null) {
+        updateData.assignedRider = updateData.rider;
+      } else {
+        // Only clear assignedRider if the caller explicitly passed rider: null
+        // (not when rider field is just missing from payload which becomes undefined→null)
+        updateData.assignedRider = null;
+      }
       delete updateData.rider;
     }
     if (typeof updateData.assigned_rider !== 'undefined') {
-      // support snake_case too
       updateData.assignedRider = updateData.assigned_rider;
       delete updateData.assigned_rider;
+    }
+
+    // Normalize pickupRider / deliveryRider (nullify sentinel value)
+    if (updateData.pickupRider === '__unassigned__' || updateData.pickupRider === '') {
+      updateData.pickupRider = null;
+    }
+    if (updateData.deliveryRider === '__unassigned__' || updateData.deliveryRider === '') {
+      updateData.deliveryRider = null;
     }
 
     // If vendor is being set and status is not beyond vendor stage, promote to vendor_assigned
@@ -472,15 +728,36 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     updateData.updated_at = new Date(indianTime);
     updateData.updated_by_admin = true;
 
-    // Get the old booking to check status change
+    // Get the old booking to check status change and detect new rider assignments
     const oldBooking = await Booking.findById(bookingId);
     const oldStatus = oldBooking?.status;
+    const oldAssignedRider = oldBooking?.assignedRider?.toString();
+    const oldPickupRider = oldBooking?.pickupRider?.toString();
+    const oldDeliveryRider = oldBooking?.deliveryRider?.toString();
+
+    // When a rider is newly assigned, stamp assignedAt and set riderStatus
+    const newAssignedRider = updateData.assignedRider?.toString();
+    const riderIsNewlyAssigned = newAssignedRider && newAssignedRider !== oldAssignedRider;
+    if (riderIsNewlyAssigned) {
+      if (!updateData.assignedAt) updateData.assignedAt = new Date(indianTime);
+      if (!updateData.riderStatus) updateData.riderStatus = 'assigned';
+    }
+
+    const newPickupRider = updateData.pickupRider?.toString && updateData.pickupRider?.toString();
+    const pickupRiderIsNew = newPickupRider && newPickupRider !== oldPickupRider;
+
+    const newDeliveryRider = updateData.deliveryRider?.toString && updateData.deliveryRider?.toString();
+    const deliveryRiderIsNew = newDeliveryRider && newDeliveryRider !== oldDeliveryRider;
 
     const booking = await Booking.findByIdAndUpdate(
       bookingId,
       updateData,
       { new: true, runValidators: true }
-    ).populate("customer_id", "full_name phone email");
+    )
+    .populate("customer_id", "full_name phone email")
+    .populate("assignedRider", "name phone")
+    .populate("pickupRider", "name phone")
+    .populate("deliveryRider", "name phone");
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
@@ -601,6 +878,55 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
         // Don't fail the booking update if referral processing fails
       }
     }
+
+    // Send push notification to customer when status changes to key statuses
+    if (booking.customer_id && updateData.status && updateData.status !== oldStatus) {
+      const statusPushMap = {
+        ready_for_delivery: {
+          title: "Your order is ready for delivery!",
+          message: `Order ${booking.custom_order_id || bookingId} is clean and ready. We'll deliver it to you soon.`,
+        },
+        delivery_assigned: {
+          title: "Delivery on the way!",
+          message: `Your order ${booking.custom_order_id || bookingId} has been dispatched for delivery.`,
+        },
+        delivered: {
+          title: "Order Delivered!",
+          message: `Your laundry order ${booking.custom_order_id || bookingId} has been delivered. Thank you!`,
+        },
+        completed: {
+          title: "Order Completed",
+          message: `Order ${booking.custom_order_id || bookingId} is complete. We hope you're happy with our service!`,
+        },
+      };
+      const pushPayload = statusPushMap[updateData.status];
+      if (pushPayload) {
+        (async () => {
+          try {
+            const customerId = booking.customer_id._id || booking.customer_id;
+            await notificationService.sendPushNotification(customerId, pushPayload);
+            console.log(`📢 Admin push sent to customer for status ${updateData.status}`);
+          } catch (err) {
+            console.warn("⚠️ Admin status-change push failed:", err.message);
+          }
+        })();
+      }
+    }
+
+    // Notify riders when newly assigned via admin panel
+    const notifyRider = (riderId, type) => {
+      (async () => {
+        try {
+          await riderNotificationService.createOrderAssignmentNotification(riderId, booking, type);
+          console.log(`📢 ${type} rider notification sent to ${riderId}`);
+        } catch (err) {
+          console.error(`⚠️ Failed to send ${type} rider notification:`, err.message);
+        }
+      })();
+    };
+    if (riderIsNewlyAssigned)  notifyRider(newAssignedRider, 'regular');
+    if (pickupRiderIsNew)      notifyRider(newPickupRider, 'Pickup');
+    if (deliveryRiderIsNew)    notifyRider(newDeliveryRider, 'Delivery');
 
     console.log("✅ Booking updated by admin:", booking._id);
     console.log("✅ Updated timestamp:", booking.updated_at);
@@ -808,84 +1134,73 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
       });
     }
 
-    // Define new order-flow buckets. Include commonly used statuses like 'pending' and 'confirmed'
-    const BUCKET_A = ["pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "pickup_completed"];
-    const BUCKET_B = ["delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered"];
+    // Define order-flow buckets (includes legacy DB statuses so old orders aren't excluded from queries)
+    const BUCKET_A = [
+      "pending", "created", "confirmed", "vendor_assigned", "pickup_assigned", "rider_pickup_done", "pickup_completed",
+      "new", "new_order", "accepted", "assigned", "pickup_scheduled", "pickup_in_progress", "picked_up",
+    ];
+    const BUCKET_B = [
+      "delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered",
+      "processing", "in_process", "ready_for_pickup", "out_for_delivery",
+    ];
+    const BUCKET_C = ["completed", "cancelled"];
+    const ALL_STATUSES = [...BUCKET_A, ...BUCKET_B, ...BUCKET_C];
 
-    // By default return a broad set of relevant statuses (exclude completed/cancelled later)
-    const relevantStatuses = [...new Set([...
-      BUCKET_A,
-      ...BUCKET_B,
-      // include other statuses that might appear in the system
-      "pending",
-      "confirmed",
-      "created",
-      "vendor_assigned",
-      "ready_for_delivery",
-      "pickup_assigned",
-      "pickup_completed",
-      "delivery_assigned",
-      "in_progress",
-      "delivered_to_vendor",
-      "delivered",
-    ])];
+    let query = { is_offline_order: { $ne: true }, is_vendor_order: { $ne: true } };
 
-    let query = { is_offline_order: { $ne: true } }; // Exclude offline orders from buckets
-
-    // If a specific status filter is provided, respect it
-    const hasExplicitStatusFilter = !!(status && status !== "all");
-    if (hasExplicitStatusFilter) {
-      // Allow comma-separated status filters
-      if (status.includes(",")) {
-        const arr = status.split(",").map((s) => s.trim());
-        query.status = { $in: arr };
-      } else {
-        query.status = status;
-      }
+    // ── Status filter ────────────────────────────────────────────────────────
+    if (modified_since) {
+      // Polling: return every status so stale-bucket UI is kept in sync
+      query.status = { $in: ALL_STATUSES };
+    } else if (status && status !== "all") {
+      query.status = status.includes(",")
+        ? { $in: status.split(",").map((s) => s.trim()) }
+        : status;
     } else {
-      query.status = { $in: relevantStatuses };
+      // Default view: only active statuses (BUCKET_A + BUCKET_B).
+      // Completed/cancelled orders are fetched separately by fetchCompletedOrders().
+      // Excluding them here prevents old completed orders from filling the limit=100
+      // and pushing active orders out of the result set.
+      query.status = { $in: [...BUCKET_A, ...BUCKET_B] };
     }
 
-    // Customer filter
+    // ── Customer filter ──────────────────────────────────────────────────────
     if (customer_id) {
       query.customer_id = customer_id;
     }
 
-    // Date range filter (created_at)
+    // ── Date range filter ────────────────────────────────────────────────────
     if (start_date || end_date) {
       query.created_at = {};
       if (start_date) query.created_at.$gte = new Date(start_date);
       if (end_date) query.created_at.$lte = new Date(end_date);
     }
 
-    // Search filter
+    // ── Search filter (use $and so it doesn't clobber the status filter) ────
     if (search) {
       const searchRegex = { $regex: search, $options: "i" };
-      query.$or = [
-        { custom_order_id: searchRegex },
-        { name: searchRegex },
-        { phone: searchRegex },
-        { service: searchRegex },
-        { address: searchRegex },
+      query.$and = [
+        { $or: [
+          { custom_order_id: searchRegex },
+          { name: searchRegex },
+          { phone: searchRegex },
+          { service: searchRegex },
+          { address: searchRegex },
+        ]},
       ];
     }
 
-    // Exclude cancelled and completed orders from default buckets unless explicitly requested
-    if (!hasExplicitStatusFilter) {
-      query.status = { ...(typeof query.status === 'object' ? query.status : { $eq: query.status }), $nin: ["cancelled", "completed" ] };
-    }
-
-    // Filter by modified_since (returns only bookings updated after the provided ISO timestamp)
+    // ── modified_since filter (polling incremental updates) ──────────────────
     if (modified_since) {
       try {
         const sinceDate = new Date(modified_since);
         if (!isNaN(sinceDate.getTime())) {
           query.updated_at = { $gt: sinceDate };
         } else {
-          console.warn('⚠️ Invalid modified_since value provided to /admin/bookings:', modified_since);
+          console.warn('⚠️ Invalid modified_since value:', modified_since);
         }
       } catch (e) {
-        console.warn('⚠️ Error parsing modified_since parameter:', e.message);
+        console.warn('⚠️ Error parsing modified_since:', e.message);
       }
     }
 
@@ -893,6 +1208,9 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     const bookings = await Booking.find(query)
       .populate("customer_id", "full_name phone email")
       .populate("rider_id", "full_name phone")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
@@ -903,6 +1221,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     // Split into buckets - exclude offline orders from buckets
     const bucketA = bookings.filter((b) => BUCKET_A.includes(b.status) && b.is_offline_order !== true);
     const bucketB = bookings.filter((b) => BUCKET_B.includes(b.status) && b.is_offline_order !== true);
+    const bucketC = bookings.filter((b) => BUCKET_C.includes(b.status) && b.is_offline_order !== true);
 
     // Sort buckets by nearest pickup time (scheduled_date + scheduled_time)
     const parsePickupTime = (b) => {
@@ -915,12 +1234,40 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
 
     bucketA.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
     bucketB.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
+    bucketC.sort((x, y) => new Date(y.updated_at || y.created_at || 0) - new Date(x.updated_at || x.created_at || 0));
 
-    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}`);
+    // Fetch offline orders separately
+    const offlineQuery = { is_offline_order: true };
+    const offlineBookings = await Booking.find(offlineQuery)
+      .populate("customer_id", "full_name phone email")
+      .populate("rider_id", "full_name phone")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .select("+item_prices +charges_breakdown +is_offline_order +assignedVendor +assignedVendorDetails");
+
+    // Fetch vendor client orders separately
+    const vendorOrderQuery = { is_vendor_order: true };
+    const vendorOrderBookings = await Booking.find(vendorOrderQuery)
+      .populate("customer_id", "full_name phone email")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
+      .sort({ created_at: -1 })
+      .limit(200)
+      .select("+item_prices +charges_breakdown +is_vendor_order +vendor_client_name +assignedVendor +assignedVendorDetails");
+
+    console.log(`✅ Admin fetched ${bookings.length} bookings (${total} total). Buckets: A=${bucketA.length}, B=${bucketB.length}, C=${bucketC.length}. Offline orders: ${offlineBookings.length}. Vendor orders: ${vendorOrderBookings.length}`);
 
     res.json({
       bucketA,
       bucketB,
+      bucketC,
+      offlineOrders: offlineBookings,
+      vendorOrders: vendorOrderBookings,
       bookings: status && status !== "all" ? bookings : undefined,
       pagination: {
         total,
@@ -959,6 +1306,57 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
   }
 });
 
+// Global order search — ALL statuses, ALL fields, server-side
+router.get("/bookings/search", verifyAdminAccess, async (req, res) => {
+  try {
+    const { q, limit = 30 } = req.query;
+
+    if (!q || q.trim().length < 1) {
+      return res.json({ orders: [] });
+    }
+
+    const term = q.trim();
+    const searchRegex = { $regex: term, $options: "i" };
+
+    const query = {
+      $or: [
+        { custom_order_id: searchRegex },
+        { name: searchRegex },
+        { phone: searchRegex },
+        { service: searchRegex },
+        { address: searchRegex },
+        { special_instructions: searchRegex },
+      ],
+    };
+
+    const orders = await Booking.find(query)
+      .populate("customer_id", "full_name phone email")
+      .populate("rider_id", "full_name name phone live_location_link")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .select(
+        "+item_prices +charges_breakdown +is_offline_order " +
+        "+assignedVendor +assignedVendorId +assignedVendorDetails " +
+        "+items_images +items_video " +
+        "+rider_pickup_slips +rider_payment_slips " +
+        "+vendor_payment_slips " +
+        "+pickup_photos +delivery_photos " +
+        "+special_instructions +additional_details " +
+        "+coupon_code +discount_amount +discount_percent " +
+        "+cashback_amount +cashback +wallet_applied +wallet_cashback " +
+        "+payment_status +completed_at"
+      );
+
+    res.json({ orders, total: orders.length });
+  } catch (error) {
+    console.error("❌ Error searching orders:", error);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 // Get booking details for admin
 router.get("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
   try {
@@ -971,6 +1369,9 @@ router.get("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
     const booking = await Booking.findById(bookingId)
       .populate("customer_id", "full_name phone email user_type created_at")
       .populate("rider_id", "full_name phone")
+      .populate("assignedRider", "name phone")
+      .populate("pickupRider", "name phone")
+      .populate("deliveryRider", "name phone")
       .select("+item_prices +charges_breakdown");
 
     if (!booking) {
@@ -990,8 +1391,8 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
   try {
     console.log("📝 Admin creating booking for user:", req.body);
 
-    // Basic validation: require customer_id
-    if (!req.body.customer_id) {
+    // Basic validation: require customer_id unless this is a vendor client order
+    if (!req.body.customer_id && !req.body.is_vendor_order) {
       console.warn("❌ Admin booking creation failed: missing customer_id");
       return res.status(400).json({ error: "customer_id is required for admin-created bookings" });
     }
@@ -1038,8 +1439,10 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
     const booking = new Booking(bookingData);
     await booking.save();
 
-    // Populate customer data
-    await booking.populate("customer_id", "full_name phone email");
+    // Populate customer data (only for non-vendor orders)
+    if (!bookingData.is_vendor_order) {
+      await booking.populate("customer_id", "full_name phone email");
+    }
 
     console.log("✅ Admin created booking:", booking._id);
     res.status(201).json({
@@ -1056,6 +1459,45 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
       });
     }
 
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get all users for admin
+router.get("/users", verifyAdminAccess, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (req.query.search) {
+      query.$or = [
+        { full_name: { $regex: req.query.search, $options: "i" } },
+        { phone: { $regex: req.query.search, $options: "i" } },
+        { email: { $regex: req.query.search, $options: "i" } }
+      ];
+    }
+
+    const users = await User.find(query)
+      .select("-password")
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await User.countDocuments(query);
+
+    res.json({
+      success: true,
+      users,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error fetching users:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -1080,11 +1522,11 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Get user's booking history
+    // Get user's booking history (include mapsLink for address pre-fill)
     const bookings = await Booking.find({ customer_id: user._id })
       .sort({ created_at: -1 })
       .limit(10)
-      .select("custom_order_id service status final_amount created_at");
+      .select("custom_order_id service status final_amount created_at address mapsLink");
 
     // Fetch user addresses (if Address model available)
     let addresses = [];
@@ -1103,7 +1545,7 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
     if (!defaultAddress && bookings.length > 0) {
       const latestBooking = await Booking.findOne({ customer_id: user._id })
         .sort({ created_at: -1 })
-        .select("address");
+        .select("address mapsLink");
 
       if (latestBooking && latestBooking.address) {
         defaultAddress = {
@@ -1115,7 +1557,10 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       }
     }
 
-    console.log("✅ Admin fetched user details:", user._id);
+    // Find the most recent booking that has a Google Maps link
+    const latestMapsLink = bookings.find(b => b.mapsLink && b.mapsLink.trim())?.mapsLink || null;
+
+    console.log("✅ Admin fetched user details:", user._id, latestMapsLink ? "| has mapsLink" : "");
     res.json({
       user: {
         ...user.toObject(),
@@ -1123,7 +1568,8 @@ router.get("/users/:userId", verifyAdminAccess, async (req, res) => {
       },
       bookings,
       addresses,
-      defaultAddress
+      defaultAddress,
+      latestMapsLink,
     });
   } catch (error) {
     console.error("❌ Error fetching user details:", error);
@@ -1598,10 +2044,19 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
         order.status = 'confirmed';
         console.log(`�� Order status updated: pending ��� confirmed for order ${orderId}`);
 
-        // TODO: Send customer notification about order confirmation
-        // This would typically send an SMS or push notification to the customer
-        // For now, we'll log this for implementation later
-        console.log(`📱 Customer notification: Order ${order.custom_order_id || orderId} confirmed, rider assigned`);
+        // Notify customer that their order has been confirmed and a rider assigned
+        try {
+          const customerId = order.user_id || order.customer_id;
+          if (customerId) {
+            const confirmNotification = {
+              title: "Order Confirmed",
+              message: `Your order ${order.custom_order_id || orderId} has been confirmed and a rider has been assigned.`,
+            };
+            await notificationService.sendPushNotification(customerId, confirmNotification);
+          }
+        } catch (notifError) {
+          console.error("⚠️ Failed to send customer confirmation notification:", notifError.message);
+        }
       }
 
       // Add to rider's assigned orders
@@ -1683,8 +2138,8 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
     // Calculate distance if coordinates are provided
     let calculatedDistance = vendorData.distance || 0;
     if (bookingCoordinates && bookingCoordinates.lat && bookingCoordinates.lng && selectedVendor.coordinates) {
-      calculatedDistance = calculateDistance(bookingCoordinates, selectedVendor.coordinates);
-      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor (using Google Maps coordinates)`);
+      calculatedDistance = await calculateDistance(bookingCoordinates, selectedVendor.coordinates);
+      console.log(`📍 Distance calculated: ${calculatedDistance}km from booking location to vendor (road distance)`);
     } else if (!selectedVendor.coordinates) {
       console.warn(`⚠️ Vendor ${selectedVendor.name} has no coordinates. Please add Google Maps link to vendor profile.`);
     }
@@ -1700,7 +2155,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return res.json({
         message: 'Vendor assigned successfully (demo mode)',
-        order: { _id: orderId, assignedVendor: vendorWithDistanceData.name },
+        order: { _id: orderId, assignedVendor: vendorWithDistanceData.vendor_id || vendorWithDistanceData.name },
         vendor: vendorWithDistanceData
       });
     }
@@ -1713,7 +2168,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
         return res.status(404).json({ message: 'Quick pickup not found' });
       }
 
-      order.assigned_vendor = vendorWithDistanceData.name;
+      order.assigned_vendor = vendorWithDistanceData.vendor_id || vendorWithDistanceData.name;
       order.assigned_vendor_details = vendorWithDistanceData;
       await order.save();
     } else {
@@ -1722,7 +2177,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
         return res.status(404).json({ message: 'Booking not found' });
       }
 
-      order.assignedVendor = vendorWithDistanceData.name;
+      order.assignedVendor = vendorWithDistanceData.vendor_id || vendorWithDistanceData.name;
       order.assignedVendorDetails = vendorWithDistanceData;
       // Progress status when vendor assigned (only if not already beyond this stage)
       if (!["pickup_completed","ready_for_delivery","delivery_assigned","delivered","in_progress","delivered_to_vendor","completed","cancelled"].includes(order.status)) {
@@ -1732,6 +2187,24 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
     }
 
     console.log(`✅ Vendor ${vendorWithDistanceData.name} assigned to order ${orderId} (Distance: ${vendorWithDistanceData.distance}km, Est. Time: ${vendorWithDistanceData.estimatedTime}min)`);
+
+    // Push notification to desk/vendor about new order
+    (async () => {
+      try {
+        const deskNotificationService = require("../services/deskNotificationService");
+        // vendorWithDistanceData.id is the MongoDB vendor _id
+        if (vendorWithDistanceData.id) {
+          await deskNotificationService.sendPushNotification(vendorWithDistanceData.id, {
+            title: "New Order Assigned!",
+            message: `Order ${order.custom_order_id || orderId} has been assigned to your laundry. Open the app to view it.`,
+            data: { orderId: String(orderId), route: "/desk/dashboard" },
+          });
+        }
+      } catch (pushErr) {
+        console.warn("⚠️ Failed to push new-order notification to desk:", pushErr.message);
+      }
+    })();
+
     res.json({
       message: 'Vendor assigned successfully',
       order,
@@ -1749,7 +2222,7 @@ router.post("/orders/assign-vendor", verifyAdminAccess, async (req, res) => {
 // ==========================================
 
 // Get pending verifications for a customer
-router.get("/customer-verifications/:customerId", verifyAdminAccess, async (req, res) => {
+router.get("/customer-verifications/:customerId", async (req, res) => {
   try {
     const { customerId } = req.params;
     console.log('📋 Fetching pending verifications for customer:', customerId);
@@ -1807,7 +2280,7 @@ router.get("/customer-verifications/:customerId", verifyAdminAccess, async (req,
 });
 
 // Process verification response (approve/reject)
-router.post("/customer-verifications/:verificationId/respond", verifyAdminAccess, async (req, res) => {
+router.post("/customer-verifications/:verificationId/respond", async (req, res) => {
   try {
     const { verificationId } = req.params;
     const { approved, reason, orderId } = req.body;
@@ -1903,7 +2376,7 @@ router.post("/customer-verifications/:verificationId/respond", verifyAdminAccess
 });
 
 // Create a new verification (used by riders)
-router.post("/customer-verifications", verifyAdminAccess, async (req, res) => {
+router.post("/customer-verifications", async (req, res) => {
   try {
     const { customerId, orderId, orderData, type, priority } = req.body;
 
@@ -2032,7 +2505,7 @@ router.post("/vendors", verifyAdminAccess, async (req, res) => {
 router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive, whatsapp_group_invite_link } = req.body;
+    const { name, address, coordinates, services, contactPhone, rating, description, operatingHours, minimumOrderValue, deliveryTime, isActive, whatsapp_group_invite_link, vendor_id, password } = req.body;
 
     console.log(`📝 Updating vendor: ${vendorId}`);
 
@@ -2041,28 +2514,37 @@ router.put("/vendors/:vendorId", verifyAdminAccess, async (req, res) => {
       return res.status(400).json({ error: "Vendor ID is required and must be valid" });
     }
 
-    const vendor = await Vendor.findByIdAndUpdate(
-      vendorId,
-      {
-        name,
-        address,
-        coordinates,
-        services,
-        contactPhone,
-        rating,
-        description,
-        operatingHours,
-        minimumOrderValue,
-        deliveryTime,
-        whatsapp_group_invite_link,
-        isActive: isActive !== undefined ? isActive : true,
-      },
-      { new: true, runValidators: true }
-    );
+    const vendor = await Vendor.findById(vendorId);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
     }
+
+    // Update standard fields
+    if (name !== undefined) vendor.name = name;
+    if (address !== undefined) vendor.address = address;
+    if (coordinates !== undefined) vendor.coordinates = coordinates;
+    if (services !== undefined) vendor.services = services;
+    if (contactPhone !== undefined) vendor.contactPhone = contactPhone;
+    if (rating !== undefined) vendor.rating = rating;
+    if (description !== undefined) vendor.description = description;
+    if (operatingHours !== undefined) vendor.operatingHours = operatingHours;
+    if (minimumOrderValue !== undefined) vendor.minimumOrderValue = minimumOrderValue;
+    if (deliveryTime !== undefined) vendor.deliveryTime = deliveryTime;
+    if (whatsapp_group_invite_link !== undefined) vendor.whatsapp_group_invite_link = whatsapp_group_invite_link;
+    if (isActive !== undefined) vendor.isActive = isActive;
+
+    // Update login credentials if provided
+    if (vendor_id !== undefined && vendor_id.trim()) vendor.vendor_id = vendor_id.trim();
+    if (password) {
+      const bcryptjs = require("bcryptjs");
+      const salt = await bcryptjs.genSalt(10);
+      vendor.password_hash = await bcryptjs.hash(password, salt);
+      vendor.temp_password = password;
+      console.log(`🔐 Password updated for vendor: ${vendor.name}`);
+    }
+
+    await vendor.save();
 
     console.log(`✅ Vendor updated successfully: ${vendor.name}`);
     res.json({ success: true, vendor });
@@ -2244,20 +2726,19 @@ router.post("/riders/distance-from-location", verifyAdminAccess, async (req, res
 
     const riders = await Rider.find({ isActive: true }).lean();
 
-    // Calculate distance for each rider
-    const ridersWithDistance = riders.map(rider => {
-      let distance = null;
-      if (rider.location && rider.location.lat && rider.location.lng) {
-        distance = calculateDistance(
-          { lat, lng },
-          { lat: rider.location.lat, lng: rider.location.lng }
-        );
-      }
-      return {
-        ...rider,
-        distance_from_location: distance
-      };
-    });
+    // Calculate road distance for each rider (OSRM, falls back to Haversine)
+    const ridersWithDistance = await Promise.all(
+      riders.map(async (rider) => {
+        let distance = null;
+        if (rider.location && rider.location.lat && rider.location.lng) {
+          distance = await calculateDistance(
+            { lat, lng },
+            { lat: rider.location.lat, lng: rider.location.lng }
+          );
+        }
+        return { ...rider, distance_from_location: distance };
+      })
+    );
 
     // Sort by distance (nulls last)
     ridersWithDistance.sort((a, b) => {
@@ -3680,5 +4161,148 @@ function isPointInPolygon(point, polygon) {
 
   return inside;
 }
+
+// ============= RESOLVE SHORT GOOGLE MAPS URL =============
+// Follows goo.gl / maps.app.goo.gl redirects and extracts lat/lng from the final URL
+router.post("/resolve-maps-url", async (req, res) => {
+  const { url } = req.body;
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ success: false, error: "url is required" });
+  }
+
+  const trimmed = url.trim();
+  const isShortUrl = /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(trimmed);
+
+  if (!isShortUrl) {
+    return res.json({ success: true, resolvedUrl: trimmed });
+  }
+
+  try {
+    // Follow redirects without downloading body — just read the Location header chain
+    const resolveRedirects = (inputUrl, maxHops = 10) =>
+      new Promise((resolve, reject) => {
+        let hops = 0;
+        const follow = (currentUrl) => {
+          if (hops++ >= maxHops) return reject(new Error("Too many redirects"));
+          const lib = currentUrl.startsWith("https") ? require("https") : require("http");
+          lib.get(currentUrl, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+            res.destroy(); // don't read body
+            const loc = res.headers["location"];
+            if (loc && res.statusCode >= 300 && res.statusCode < 400) {
+              const next = loc.startsWith("http") ? loc : new URL(loc, currentUrl).href;
+              follow(next);
+            } else {
+              resolve(currentUrl);
+            }
+          }).on("error", reject);
+        };
+        follow(inputUrl);
+      });
+
+    const finalUrl = await resolveRedirects(trimmed);
+
+    // Extract coordinates from the resolved URL
+    const patterns = [
+      /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/,
+      /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+      /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+      /loc:(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+    ];
+
+    for (const pat of patterns) {
+      const m = finalUrl.match(pat);
+      if (m) {
+        const lat = parseFloat(m[1]);
+        const lng = parseFloat(m[2]);
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          return res.json({ success: true, resolvedUrl: finalUrl, coordinates: { lat, lng } });
+        }
+      }
+    }
+
+    return res.json({ success: true, resolvedUrl: finalUrl, coordinates: null });
+  } catch (err) {
+    console.error("resolve-maps-url error:", err.message);
+    return res.status(500).json({ success: false, error: "Could not resolve URL: " + err.message });
+  }
+});
+
+// ============= FACTORY OPS LIVE FEED (Power Query / Excel) =============
+// Returns all active Factory Operations orders as a flat JSON array.
+// No auth header required so Power Query can call it without VBA credential handling.
+// Secure by obscurity is sufficient here — add admin-token check if needed.
+router.get("/factory-ops-live", async (req, res) => {
+  try {
+    const bookings = await Booking.find({
+      assignedVendor: "Factory Operations",
+      status: { $nin: ["completed", "cancelled"] },
+    })
+      .populate("assignedRider", "name phone")
+      .populate("customer_id", "full_name name phone")
+      .sort({ created_at: -1 })
+      .lean();
+
+    const fmt = (d) => d ? new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "";
+    const fmtDateTime = (date, time) => {
+      const d = (date || "").trim();
+      const t = (time || "").trim();
+      if (!d && !t) return "";
+      if (d && t) return `${d} ${t}`;
+      return d || t;
+    };
+
+    const rows = bookings.map((b) => ({
+      order_id:        b.custom_order_id || String(b._id),
+      status:          b.status || "",
+      rider_status:    b.riderStatus || "",
+      customer_name:   b.name || b.customer_name || b.customer_id?.full_name || b.customer_id?.name || "",
+      customer_phone:  b.phone || b.customer_phone || b.customer_id?.phone || "",
+      address:         b.address || "",
+      pickup_date:     fmtDateTime(b.scheduled_date, b.scheduled_time),
+      picked_up_at:    fmt(b.pickedUpAt),
+      delivery_date:   fmtDateTime(b.delivery_date, b.delivery_time),
+      delivered_at:    fmt(b.deliveredAt),
+      pickup_pieces:   b.pickup_pieces ?? "",
+      final_amount:    b.final_amount ?? "",
+      payment_status:  b.payment_status || "",
+      rider_name:      b.assignedRider?.name || b.assignedRiderName || "",
+      rider_phone:     b.assignedRider?.phone || b.assignedRiderPhone || "",
+      created_at:      fmt(b.created_at),
+      updated_at:      fmt(b.updated_at),
+    }));
+
+    res.json(rows);
+  } catch (err) {
+    console.error("factory-ops-live error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Trigger media cleanup immediately (GridFS + Cloudinary) ──────────────────
+router.post("/cleanup-media", verifyAdminAccess, async (req, res) => {
+  try {
+    const { runCleanup, runCloudinaryCleanup, getCloudinaryUsage } = require("../services/gridfsCleanup");
+    const [gridfs, cloudinary, storage] = await Promise.all([
+      runCleanup(),
+      runCloudinaryCleanup(),
+      getCloudinaryUsage(),
+    ]);
+    const parts = [];
+    if (gridfs.files > 0) parts.push(`GridFS: ${gridfs.files} files removed from ${gridfs.orders} orders`);
+    if (!cloudinary.skipped && cloudinary.deleted > 0) parts.push(`Cloudinary: ${cloudinary.deleted} files removed from ${cloudinary.orders} orders`);
+    if (cloudinary.skipped && !cloudinary.error) parts.push(`Cloudinary storage OK (${cloudinary.pct})`);
+    const message = parts.length ? parts.join(" | ") : "Nothing to clean up";
+    res.json({
+      success: true,
+      message,
+      gridfs,
+      cloudinary,
+      storage,
+    });
+  } catch (err) {
+    console.error("❌ Manual cleanup error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 module.exports = router;

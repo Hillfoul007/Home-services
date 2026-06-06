@@ -25,15 +25,27 @@ import {
   X,
   AlertTriangle,
   Bell,
-  Lock
+  Lock,
+  Camera,
+  QrCode
 } from 'lucide-react';
 import { toast } from 'sonner';
 import RiderLayout from '@/components/rider/RiderLayout';
 import CustomerVerificationService from '@/services/customerVerificationService';
 import globalVerificationManager from '@/utils/globalVerificationManager';
 import { getRiderApiUrl } from '@/lib/riderApi';
+import { getApiUrl } from '@/config/env';
 import analyticsService from '@/services/analyticsService';
 import { quickPickupService } from '@/services/quickPickupService';
+
+/** Convert a potentially relative /uploads/... path to a full backend URL */
+function toAbsolutePhotoUrl(path: string): string {
+  if (!path) return path;
+  if (path.startsWith('http')) return path;
+  // Strip /api suffix from API URL to get the backend origin
+  const apiBase = getApiUrl().replace(/\/api$/, '');
+  return `${apiBase}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 export default function RiderOrders() {
   const { orderId } = useParams();
@@ -69,6 +81,26 @@ export default function RiderOrders() {
   const [deliveryPhotos, setDeliveryPhotos] = useState<string[]>([]);
   const pickupInputRef = useRef<HTMLInputElement | null>(null);
   const deliveryInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Pickup task state
+  const [slipPhoto, setSlipPhoto] = useState<string | null>(null);
+  const [slipUploading, setSlipUploading] = useState(false);
+  const [itemPhotos, setItemPhotos] = useState<string[]>([]);
+  const [itemPhotoUploading, setItemPhotoUploading] = useState(false);
+  const [itemCount, setItemCount] = useState<number>(1);
+  const [completingPickup, setCompletingPickup] = useState(false);
+  const slipInputRef = useRef<HTMLInputElement | null>(null);
+  const itemPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const [showPaymentQR, setShowPaymentQR] = useState(false);
+
+  // Delivery task state
+  const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>('online');
+  const [cashCollected, setCashCollected] = useState(false);
+  const [cashCollecting, setCashCollecting] = useState(false);
+  const [paymentPhoto, setPaymentPhoto] = useState<string | null>(null);
+  const [paymentPhotoUploading, setPaymentPhotoUploading] = useState(false);
+  const [completingDelivery, setCompletingDelivery] = useState(false);
+  const paymentPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   // OTP/verification related state (declare at top-level to follow React hooks rules)
   const [customerOtp, setCustomerOtp] = useState('');
@@ -718,6 +750,11 @@ export default function RiderOrders() {
         if (isDev) {
           toast.success('Order data loaded from API');
         }
+      } else if (response.status === 401 || response.status === 400) {
+        localStorage.removeItem('riderToken');
+        localStorage.removeItem('riderAuth');
+        navigate('/rider/login');
+        return;
       } else {
         console.warn(`⚠️ API responded with ${response.status}, using mock data`);
         useMockData(`API error: ${response.status}`);
@@ -883,6 +920,209 @@ export default function RiderOrders() {
     if (file) await handleUploadPhotoFile(type, file);
     // Clear value to allow reuploading same file if needed
     if (e.target) e.target.value = '';
+  };
+
+  // Upload pickup slip
+  const uploadSlip = async (file: File) => {
+    if (!orderId) return;
+    setSlipUploading(true);
+    try {
+      const token = localStorage.getItem('riderToken');
+      const fd = new FormData();
+      fd.append('slip', file, file.name);
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/upload-slip`), {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.url || data.success)) {
+        const url = data.url || data.slip_url || URL.createObjectURL(file);
+        setSlipPhoto(url);
+        toast.success('Slip uploaded');
+      } else {
+        // Still show locally even if upload failed
+        setSlipPhoto(URL.createObjectURL(file));
+        toast.success('Slip captured (will sync when connected)');
+      }
+    } catch {
+      setSlipPhoto(URL.createObjectURL(file));
+      toast.success('Slip saved locally');
+    } finally {
+      setSlipUploading(false);
+    }
+  };
+
+  // Upload item photo (multiple allowed)
+  const uploadItemPhoto = async (file: File) => {
+    if (!orderId) return;
+    setItemPhotoUploading(true);
+    try {
+      const localUrl = URL.createObjectURL(file);
+      setItemPhotos(prev => [...prev, localUrl]);
+
+      const token = localStorage.getItem('riderToken');
+      const fd = new FormData();
+      fd.append('photo', file, file.name);
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/upload-photo?type=pickup`), {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        setItemPhotos(prev => {
+          const updated = [...prev];
+          const idx = updated.lastIndexOf(localUrl);
+          if (idx !== -1) updated[idx] = data.url;
+          return updated;
+        });
+        setOrder((prev: any) => ({ ...prev, pickup_photos: [...(prev.pickup_photos || []), data.url] }));
+      }
+    } catch {
+      toast.error('Photo upload failed');
+    } finally {
+      setItemPhotoUploading(false);
+    }
+  };
+
+  // Complete pickup - mark order as picked up
+  const completePickup = async () => {
+    if (!orderId) return;
+    if (!slipPhoto && itemPhotos.length === 0) {
+      toast.error('Upload at least a slip photo or item photo before completing pickup');
+      return;
+    }
+    setCompletingPickup(true);
+    try {
+      const token = localStorage.getItem('riderToken');
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/complete-pickup`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ pickup_pieces: itemCount, timestamp: new Date().toISOString() }),
+      });
+      if (res.ok) {
+        toast.success('Pickup completed! Order marked as picked up.');
+        fetchOrderDetails(orderId!);
+      } else {
+        // Fallback: update via generic update endpoint
+        const res2 = await fetch(getRiderApiUrl(`/orders/${orderId}/update`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ status: 'pickup_completed', pickup_pieces: itemCount, updatedBy: 'rider' }),
+        });
+        if (res2.ok) {
+          toast.success('Pickup completed!');
+          fetchOrderDetails(orderId!);
+        } else {
+          toast.success('Pickup recorded locally');
+          setOrder((prev: any) => ({ ...prev, status: 'pickup_completed', riderStatus: 'picked_up' }));
+        }
+      }
+    } catch {
+      toast.success('Pickup recorded (offline mode)');
+      setOrder((prev: any) => ({ ...prev, status: 'pickup_completed', riderStatus: 'picked_up' }));
+    } finally {
+      setCompletingPickup(false);
+    }
+  };
+
+  // Upload payment screenshot
+  const uploadPaymentPhoto = async (file: File) => {
+    if (!orderId) return;
+    setPaymentPhotoUploading(true);
+    try {
+      const localUrl = URL.createObjectURL(file);
+      setPaymentPhoto(localUrl);
+      const token = localStorage.getItem('riderToken');
+      const fd = new FormData();
+      fd.append('photo', file, file.name);
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/upload-photo?type=payment`), {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        setPaymentPhoto(data.url);
+      }
+    } catch {
+      // keep local URL
+    } finally {
+      setPaymentPhotoUploading(false);
+    }
+  };
+
+  // Mark cash collected from customer
+  const markCashCollected = async () => {
+    if (!orderId) return;
+    setCashCollecting(true);
+    try {
+      const token = localStorage.getItem('riderToken');
+      const amount = order?.final_amount ?? order?.total_price ?? 0;
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/cod-collected`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ amount }),
+      });
+      if (res.ok) {
+        setCashCollected(true);
+        toast.success(`Cash ₹${amount} marked as collected`);
+      } else {
+        // Mark locally so rider can still proceed
+        setCashCollected(true);
+        toast.success('Cash marked as collected (will sync)');
+      }
+    } catch {
+      setCashCollected(true);
+      toast.success('Cash marked as collected (offline)');
+    } finally {
+      setCashCollecting(false);
+    }
+  };
+
+  // Complete delivery - mark order as delivered
+  const completeDelivery = async () => {
+    if (!orderId) return;
+    if (paymentMethod === 'online' && !paymentPhoto) {
+      toast.error('Upload payment screenshot before completing delivery');
+      return;
+    }
+    if (paymentMethod === 'cash' && !cashCollected) {
+      toast.error('Mark cash as collected before completing delivery');
+      return;
+    }
+    setCompletingDelivery(true);
+    try {
+      const token = localStorage.getItem('riderToken');
+      const res = await fetch(getRiderApiUrl(`/orders/${orderId}/complete-delivery`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ payment_photo: paymentPhoto, payment_method: paymentMethod, timestamp: new Date().toISOString() }),
+      });
+      if (res.ok) {
+        toast.success('Delivery completed! Order marked as delivered.');
+        fetchOrderDetails(orderId!);
+      } else {
+        const res2 = await fetch(getRiderApiUrl(`/orders/${orderId}/update`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ status: 'delivered', payment_photo: paymentPhoto, updatedBy: 'rider' }),
+        });
+        if (res2.ok) {
+          toast.success('Delivery completed!');
+          fetchOrderDetails(orderId!);
+        } else {
+          toast.success('Delivery recorded locally');
+          setOrder((prev: any) => ({ ...prev, status: 'delivered', riderStatus: 'delivered' }));
+        }
+      }
+    } catch {
+      toast.success('Delivery recorded locally');
+      setOrder((prev: any) => ({ ...prev, status: 'delivered', riderStatus: 'delivered' }));
+    } finally {
+      setCompletingDelivery(false);
+    }
   };
 
   const saveOrderChanges = async () => {
@@ -1492,67 +1732,315 @@ export default function RiderOrders() {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-blue-800">Order Type</Label>
-                <Badge variant={isQuickPickup ? "secondary" : "default"} className="text-sm">
-                  {isQuickPickup ? "Quick Pickup" : "Regular Order"}
-                </Badge>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant={isQuickPickup ? "secondary" : "default"} className="text-sm">
+                    {isQuickPickup ? "Quick Pickup" : "Regular Order"}
+                  </Badge>
+                  {(order as any).is_reservice && (
+                    <Badge className="bg-orange-100 text-orange-800 text-sm">🔁 Reservice</Badge>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Photos (Pickup / Delivery) */}
-  <Card>
+        {/* ── Complete Pickup Task ── */}
+  {['pickup_assigned', 'created', 'vendor_assigned', 'assigned', 'pending', 'new', 'new_order', 'pickup_scheduled'].includes(order.status || '') && (
+  <Card className="border-orange-200 bg-orange-50">
     <CardHeader>
-      <CardTitle className="flex items-center space-x-2">
-        <Package className="h-5 w-5" />
-        <span>Pickup / Delivery Photos</span>
+      <CardTitle className="flex items-center space-x-2 text-orange-900">
+        <Camera className="h-5 w-5 text-orange-600" />
+        <span>Complete Pickup Task</span>
       </CardTitle>
-      <CardDescription>
-        Upload proof photos during pickup or delivery. Photos will be attached to the order record.
+      <CardDescription className="text-orange-700">
+        Upload slip + item photos, enter item count, then submit to complete pickup.
       </CardDescription>
     </CardHeader>
-    <CardContent>
-      <div className="flex flex-col gap-3">
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium">Pickup Photos</div>
-            <div className="flex items-center gap-2">
-              <input ref={pickupInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileInputChange(e, 'pickup')} />
-              <Button size="sm" onClick={triggerPickupInput}>Upload Pickup Photo</Button>
-            </div>
-          </div>
+    <CardContent className="space-y-4">
 
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {(order?.pickup_photos || pickupPhotos || []).map((p: string, i: number) => (
-              <img key={p + i} src={p} alt={`pickup-${i}`} className="h-20 w-20 object-cover rounded-md border" />
-            ))}
-            {((order?.pickup_photos || pickupPhotos || []).length === 0) && (
-              <div className="text-xs text-gray-500">No pickup photos uploaded</div>
-            )}
-          </div>
+      {/* Step 1: Item Photos */}
+      <div>
+        <Label className="text-sm font-semibold text-orange-800 mb-2 block">1. Item Photos (click as many as needed)</Label>
+        <input ref={itemPhotoInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadItemPhoto(f); e.target.value = ''; }} />
+        <div className="flex flex-wrap gap-2 mb-2">
+          {itemPhotos.map((p, i) => (
+            <div key={i} className="relative">
+              <img src={p} alt={`item-${i}`} className="h-20 w-20 object-cover rounded-lg border-2 border-orange-300" />
+              <button onClick={() => setItemPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]">✕</button>
+            </div>
+          ))}
+          <button onClick={() => itemPhotoInputRef.current?.click()}
+            disabled={itemPhotoUploading}
+            className="h-20 w-20 rounded-lg border-2 border-dashed border-orange-400 bg-white flex flex-col items-center justify-center gap-1 text-orange-600 active:bg-orange-50">
+            <Camera className="h-5 w-5" />
+            <span className="text-[10px] font-medium">{itemPhotoUploading ? '...' : '+ Photo'}</span>
+          </button>
         </div>
+        <p className="text-xs text-orange-600">{itemPhotos.length} photo{itemPhotos.length !== 1 ? 's' : ''} added</p>
+      </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium">Delivery Photos</div>
-            <div className="flex items-center gap-2">
-              <input ref={deliveryInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileInputChange(e, 'delivery')} />
-              <Button size="sm" onClick={triggerDeliveryInput}>Upload Delivery Photo</Button>
-            </div>
+      {/* Step 2: Slip Photo */}
+      <div>
+        <Label className="text-sm font-semibold text-orange-800 mb-2 block">2. Pickup Slip Photo</Label>
+        <input ref={slipInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadSlip(f); e.target.value = ''; }} />
+        {slipPhoto ? (
+          <div className="relative inline-block">
+            <img src={slipPhoto} alt="slip" className="h-28 w-28 object-cover rounded-xl border-2 border-orange-400" />
+            <button onClick={() => { setSlipPhoto(null); slipInputRef.current?.click(); }}
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
           </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm"
+              className="border-orange-400 text-orange-700 bg-white"
+              onClick={() => slipInputRef.current?.click()}
+              disabled={slipUploading}>
+              <Camera className="h-4 w-4 mr-1" />
+              {slipUploading ? 'Uploading...' : 'Click Slip Photo'}
+            </Button>
+            <Button variant="outline" size="sm"
+              className="border-orange-400 text-orange-700 bg-white"
+              onClick={() => { if (slipInputRef.current) { slipInputRef.current.removeAttribute('capture'); slipInputRef.current.click(); setTimeout(() => slipInputRef.current?.setAttribute('capture', 'environment'), 500); } }}
+              disabled={slipUploading}>
+              Upload from Gallery
+            </Button>
+          </div>
+        )}
+      </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {(order?.delivery_photos || deliveryPhotos || []).map((p: string, i: number) => (
-              <img key={p + i} src={p} alt={`delivery-${i}`} className="h-20 w-20 object-cover rounded-md border" />
-            ))}
-            {((order?.delivery_photos || deliveryPhotos || []).length === 0) && (
-              <div className="text-xs text-gray-500">No delivery photos uploaded</div>
-            )}
-          </div>
+      {/* Step 3: Item Count */}
+      <div>
+        <Label className="text-sm font-semibold text-orange-800 mb-2 block">3. Enter Item Count</Label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setItemCount(prev => Math.max(1, prev - 1))}
+            className="w-10 h-10 rounded-full bg-orange-200 text-orange-800 font-bold text-xl flex items-center justify-center active:bg-orange-300 select-none">
+            −
+          </button>
+          <input
+            type="number"
+            min={1}
+            value={itemCount}
+            onChange={(e) => setItemCount(Math.max(1, parseInt(e.target.value) || 1))}
+            className="w-20 text-center text-2xl font-bold border-2 border-orange-300 rounded-xl py-2 focus:outline-none focus:border-orange-500"
+          />
+          <button
+            onClick={() => setItemCount(prev => prev + 1)}
+            className="w-10 h-10 rounded-full bg-orange-200 text-orange-800 font-bold text-xl flex items-center justify-center active:bg-orange-300 select-none">
+            +
+          </button>
+          <span className="text-sm text-orange-700 font-medium">items</span>
         </div>
       </div>
+
+      {/* Step 4: Mark Pickup Done */}
+      <Button
+        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl text-base disabled:opacity-50"
+        onClick={completePickup}
+        disabled={completingPickup || (!slipPhoto && itemPhotos.length === 0)}
+      >
+        {completingPickup ? 'Completing...' : '✅ Submit Pickup'}
+      </Button>
+      {!slipPhoto && itemPhotos.length === 0 && (
+        <p className="text-xs text-orange-500 text-center">Upload slip photo or item photo to enable submit</p>
+      )}
     </CardContent>
   </Card>
+  )}
+
+  {/* ── Complete Delivery Task ── */}
+  {['delivery_assigned', 'in_transit', 'ready_for_delivery'].includes(order.status || '') && (
+  <Card className="border-green-300 bg-green-50">
+    <CardHeader>
+      <CardTitle className="flex items-center space-x-2 text-green-900">
+        <QrCode className="h-5 w-5 text-green-700" />
+        <span>Complete Delivery</span>
+      </CardTitle>
+      <CardDescription className="text-green-700">
+        Show QR to customer, collect payment, upload screenshot, then mark delivery done.
+      </CardDescription>
+    </CardHeader>
+    <CardContent className="flex flex-col gap-5">
+
+      {/* Payment Method Toggle */}
+      <div>
+        <Label className="text-sm font-semibold text-green-800 mb-2 block">Payment Method</Label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setPaymentMethod('online'); setCashCollected(false); }}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${paymentMethod === 'online' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-700 border-green-300 hover:bg-green-50'}`}
+          >
+            📱 Online / UPI
+          </button>
+          <button
+            onClick={() => { setPaymentMethod('cash'); setPaymentPhoto(null); }}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors ${paymentMethod === 'cash' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'}`}
+          >
+            💵 Cash
+          </button>
+        </div>
+      </div>
+
+      {paymentMethod === 'cash' ? (
+        /* ── Cash Payment Flow ── */
+        <div className="flex flex-col gap-4">
+          <div className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 text-center">
+            <p className="text-sm text-amber-700">Collect cash from customer</p>
+            <p className="text-2xl font-bold text-amber-800 mt-1">
+              ₹{(order.final_amount ?? order.total_price ?? 0).toLocaleString()}
+            </p>
+          </div>
+          {cashCollected ? (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+              <span className="text-green-800 font-semibold text-sm">Cash collected ✓</span>
+            </div>
+          ) : (
+            <Button
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl text-base"
+              onClick={markCashCollected}
+              disabled={cashCollecting}
+            >
+              {cashCollecting ? 'Marking...' : '💵 Mark Cash Collected'}
+            </Button>
+          )}
+          <Button
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base disabled:opacity-50"
+            onClick={completeDelivery}
+            disabled={completingDelivery || !cashCollected}
+          >
+            {completingDelivery ? 'Completing...' : '✅ Submit Delivery'}
+          </Button>
+          {!cashCollected && (
+            <p className="text-xs text-amber-600 text-center">Mark cash as collected to enable submit</p>
+          )}
+        </div>
+      ) : (
+        /* ── Online / UPI Payment Flow ── */
+        <>
+
+      {/* Step 1: QR Code */}
+      <div>
+        <Label className="text-sm font-semibold text-green-800 mb-3 block">1. Show QR to Customer for Payment</Label>
+        <div className="flex flex-col items-center gap-3">
+          <div className="bg-white rounded-2xl p-4 shadow-md border-2 border-green-200">
+            <img
+              src="/images/laundrify-upi-qr.png"
+              alt="Laundrify UPI QR Code"
+              className="w-56 h-56 object-contain mx-auto"
+            />
+            <p className="text-center text-sm font-bold text-gray-800 mt-3">7011585587@ptyes</p>
+            <p className="text-center text-xs text-gray-500 mt-1">Scan with any UPI app · Paytm · PhonePe · BHIM</p>
+          </div>
+          {/* Price breakdown */}
+          {(() => {
+            const subtotal = (order.item_prices?.length ?? 0) > 0
+              ? order.item_prices!.reduce((s: number, i: any) => s + (i.total_price || 0), 0)
+              : (order.total_price || 0);
+            const discount = order.discount_amount || 0;
+            const cashback = order.cashback || 0;
+            const wallet = order.wallet_applied || 0;
+            const final = order.final_amount ?? order.total_price ?? 0;
+            const hasDeductions = discount > 0 || cashback > 0 || wallet > 0;
+            if (!hasDeductions) return null;
+            return (
+              <div className="w-full bg-white rounded-xl border border-green-100 px-4 py-3 text-sm divide-y divide-gray-100">
+                <div className="flex justify-between py-1.5 text-gray-600">
+                  <span>Subtotal</span><span>₹{subtotal.toLocaleString()}</span>
+                </div>
+                {discount > 0 && (
+                  <div className="flex justify-between py-1.5 text-green-700">
+                    <span>Discount</span><span>−₹{discount.toLocaleString()}</span>
+                  </div>
+                )}
+                {cashback > 0 && (
+                  <div className="flex justify-between py-1.5 text-purple-700">
+                    <span>Cashback used</span><span>−₹{cashback.toLocaleString()}</span>
+                  </div>
+                )}
+                {wallet > 0 && (
+                  <div className="flex justify-between py-1.5 text-green-700">
+                    <span>Wallet applied</span><span>−₹{wallet.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <div className="w-full bg-white rounded-xl border border-green-200 px-4 py-3 text-center">
+            <p className="text-sm text-gray-600">Amount to collect</p>
+            <p className="text-2xl font-bold text-green-700">
+              ₹{(order.final_amount ?? order.total_price ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <a
+            href={`upi://pay?pa=7011585587@ptyes&pn=Laundrify&am=${order.final_amount ?? order.total_price ?? 0}&cu=INR`}
+            className="w-full py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold text-center active:bg-green-700">
+            Open in UPI App
+          </a>
+        </div>
+      </div>
+
+      {/* Step 2: Payment Screenshot */}
+      <div>
+        <Label className="text-sm font-semibold text-green-800 mb-2 block">2. Upload Payment Screenshot</Label>
+        <input
+          ref={paymentPhotoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadPaymentPhoto(f); e.target.value = ''; }}
+        />
+        {paymentPhoto ? (
+          <div className="relative inline-block">
+            <img src={paymentPhoto} alt="payment" className="h-28 w-28 object-cover rounded-xl border-2 border-green-400" />
+            <button
+              onClick={() => { setPaymentPhoto(null); paymentPhotoInputRef.current?.click(); }}
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm"
+              className="border-green-400 text-green-700 bg-white"
+              onClick={() => paymentPhotoInputRef.current?.click()}
+              disabled={paymentPhotoUploading}>
+              <Camera className="h-4 w-4 mr-1" />
+              {paymentPhotoUploading ? 'Uploading...' : 'Click Photo'}
+            </Button>
+            <Button variant="outline" size="sm"
+              className="border-green-400 text-green-700 bg-white"
+              onClick={() => { if (paymentPhotoInputRef.current) { paymentPhotoInputRef.current.removeAttribute('capture'); paymentPhotoInputRef.current.click(); setTimeout(() => paymentPhotoInputRef.current?.setAttribute('capture', 'environment'), 500); } }}
+              disabled={paymentPhotoUploading}>
+              Upload from Gallery
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Step 3: Mark Delivery Done */}
+      <div>
+        <Button
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-base disabled:opacity-50"
+          onClick={completeDelivery}
+          disabled={completingDelivery || !paymentPhoto}
+        >
+          {completingDelivery ? 'Completing...' : '✅ Submit Delivery'}
+        </Button>
+        {!paymentPhoto && (
+          <p className="text-xs text-green-600 text-center mt-1">Upload payment screenshot to enable submit</p>
+        )}
+      </div>
+
+        </>
+      )}
+
+    </CardContent>
+  </Card>
+  )}
 
   {/* Customer OTP Confirmation */}
   <Card>
@@ -1566,11 +2054,11 @@ export default function RiderOrders() {
       </CardDescription>
     </CardHeader>
     <CardContent>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button size="sm" onClick={() => requestCustomerOTP('pickup')}>Request Pickup OTP</Button>
         <Button size="sm" onClick={() => requestCustomerOTP('delivery')}>Request Delivery OTP</Button>
-        <div className="flex items-center gap-2 ml-auto">
-          <input type="text" value={customerOtp} onChange={(e) => setCustomerOtp(e.target.value.replace(/\D/g, '').slice(0,6))} placeholder="Enter OTP" className="px-3 py-2 border rounded text-sm" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="text" value={customerOtp} onChange={(e) => setCustomerOtp(e.target.value.replace(/\D/g, '').slice(0,6))} placeholder="Enter OTP" className="px-3 py-2 border rounded text-sm w-28" />
           <Button size="sm" onClick={() => verifyCustomerOTP('pickup')} disabled={otpVerifying}>{otpVerifying ? 'Verifying...' : 'Verify Pickup'}</Button>
           <Button size="sm" variant="outline" onClick={() => verifyCustomerOTP('delivery')} disabled={otpVerifying}>{otpVerifying ? 'Verifying...' : 'Verify Delivery'}</Button>
         </div>
@@ -1815,20 +2303,53 @@ export default function RiderOrders() {
                 </Card>
               )}
 
-              <div className="border-t pt-4">
-                <div className="flex justify-between items-center text-lg font-semibold">
-                  <span>Total Amount:</span>
-                  <div className="text-right">
-                    <span>₹{totalAmount}</span>
-                    {isEditing && totalAmount !== originalTotal && (
-                      <div className="text-sm font-normal">
-                        <span className={`${totalAmount > originalTotal ? 'text-red-600' : 'text-green-600'}`}>
-                          {totalAmount > originalTotal ? '+' : ''}₹{totalAmount - originalTotal}
-                        </span>
-                        <span className="text-gray-500 ml-1">(from ₹{originalTotal})</span>
+              <div className="border-t pt-4 space-y-1">
+                {/* Full price breakdown */}
+                {(() => {
+                  const discount = order.discount_amount || 0;
+                  const cashback = order.cashback || 0;
+                  const wallet = order.wallet_applied || 0;
+                  const final = order.final_amount ?? order.total_price ?? totalAmount;
+                  const hasDeductions = discount > 0 || cashback > 0 || wallet > 0;
+                  return (
+                    <div className="text-sm divide-y divide-gray-100 rounded-lg border bg-gray-50 mb-3">
+                      <div className="flex justify-between px-3 py-2 font-semibold text-base">
+                        <span>Items subtotal</span>
+                        <div className="text-right">
+                          <span>₹{totalAmount}</span>
+                          {isEditing && totalAmount !== originalTotal && (
+                            <div className="text-xs font-normal">
+                              <span className={totalAmount > originalTotal ? 'text-red-600' : 'text-green-600'}>
+                                {totalAmount > originalTotal ? '+' : ''}₹{totalAmount - originalTotal}
+                              </span>
+                              <span className="text-gray-400 ml-1">(was ₹{originalTotal})</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}\n                  </div>
-                </div>
+                      {discount > 0 && (
+                        <div className="flex justify-between px-3 py-1.5 text-green-700">
+                          <span>Discount</span><span>−₹{discount.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {cashback > 0 && (
+                        <div className="flex justify-between px-3 py-1.5 text-purple-700">
+                          <span>Cashback used</span><span>−₹{cashback.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {wallet > 0 && (
+                        <div className="flex justify-between px-3 py-1.5 text-green-700">
+                          <span>Wallet applied</span><span>−₹{wallet.toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between px-3 py-2 font-bold text-base bg-gray-100 rounded-b-lg">
+                        <span>{hasDeductions ? 'Final Amount' : 'Total'}</span>
+                        <span className={hasDeductions ? 'text-green-700' : ''}
+                        >₹{Number(hasDeductions ? final : totalAmount).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {isEditing && totalAmount !== originalTotal && (
                   <div className={`mt-2 p-3 rounded-lg ${totalAmount > originalTotal ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
                     <div className="flex items-center space-x-2">
@@ -1881,54 +2402,6 @@ export default function RiderOrders() {
                   <p className="font-medium">⏳ Waiting for customer verification</p>
                   <p className="text-sm">Customer has been notified of the changes and needs to verify them before you can save the order.</p>
 
-                  {/* Demo Buttons for Testing */}
-                  <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
-                    <p className="text-sm font-medium text-yellow-800 mb-2">🧪 Demo Testing Controls:</p>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => {
-                          setVerificationStatus('approved');
-                          if (orderId) {
-                            localStorage.setItem(`verification_status_${orderId}`, 'approved');
-                            globalVerificationManager.setVerificationStatus(orderId, 'approved');
-                          }
-                          toast.success('Demo: Customer approved changes!');
-                        }}
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        ✅ Demo Approve
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setVerificationStatus('rejected');
-                          if (orderId) {
-                            localStorage.setItem(`verification_status_${orderId}`, 'rejected');
-                            globalVerificationManager.setVerificationStatus(orderId, 'rejected');
-                          }
-                          toast.error('Demo: Customer rejected changes!');
-                        }}
-                        size="sm"
-                        variant="destructive"
-                      >
-                        ❌ Demo Reject
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setVerificationStatus('pending');
-                          if (orderId) {
-                            localStorage.setItem(`verification_status_${orderId}`, 'pending');
-                            globalVerificationManager.setVerificationStatus(orderId, 'pending');
-                          }
-                          toast.info('Demo: Reset to pending status');
-                        }}
-                        size="sm"
-                        variant="outline"
-                      >
-                        🔄 Reset
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               )}
 

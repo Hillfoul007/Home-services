@@ -52,6 +52,14 @@ class ApiClient {
     }
   }
 
+  adminRequest<T>(endpoint: string, options: RequestInit = {}) {
+    const adminHeaders = {
+      "admin-token": import.meta.env.VITE_ADMIN_SECRET || "",
+      ...((options.headers as Record<string, string>) || {}),
+    };
+    return this.request<T>(endpoint, { ...options, headers: adminHeaders });
+  }
+
   setToken(token: string | null) {
     this.token = token;
     if (token) {
@@ -272,6 +280,57 @@ class ApiClient {
 
 // Create and export the API client instance
 export const apiClient = new ApiClient(API_BASE_URL);
+
+// Export package-related API methods
+export const packageApi = {
+  // Get all active packages
+  getPackages: () => apiClient['request']('/packages'),
+  
+  // Get packages historical data and current balance for a user
+  getUserPackages: (userId: string) => apiClient['request'](`/packages/my-packages/${userId}`),
+  
+  // Create Razorpay order for purchasing a package
+  createOrder: (data: { packageId: string; userId: string }) => apiClient['request']('/packages/create-order', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  
+  // Verify Razorpay payment and fulfill package purchase
+  verifyPayment: (data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    packageId: string;
+    userId: string;
+  }) => apiClient['request']('/packages/verify-payment', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  })
+};
+
+// Admin API
+export const adminApi = {
+  // Packages Management
+  getPackages: () => apiClient.adminRequest('/admin/packages'),
+
+  createPackage: (data: any) => apiClient.adminRequest('/admin/packages', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+
+  updatePackage: (id: string, data: any) => apiClient.adminRequest(`/admin/packages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+
+  assignPackage: (userId: string, packageId: string) => apiClient.adminRequest(`/admin/users/${userId}/assign-package`, {
+    method: 'POST',
+    body: JSON.stringify({ packageId })
+  }),
+
+  // Get all assigned user packages (History)
+  getAllUserPackages: () => apiClient.adminRequest('/admin/users-packages')
+};
 
 // Export types for better TypeScript support
 export type { ApiResponse };

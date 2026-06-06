@@ -67,7 +67,20 @@ export class BookingService {
     const hostname = window.location.hostname;
     const isLocalhost = hostname.includes("localhost") || hostname.includes("127.0.0.1");
 
-    if (isLocalhost) {
+    // Detect Capacitor native app - it runs on localhost but needs production backend
+    const isCapacitorNative = (() => {
+      try {
+        const cap = (window as any).Capacitor;
+        if (cap?.isNativePlatform?.()) return true;
+        if (cap && cap.getPlatform && cap.getPlatform() !== 'web') return true;
+        return false;
+      } catch { return false; }
+    })();
+
+    if (isCapacitorNative) {
+      // Capacitor serves from localhost internally but needs real backend
+      this.apiBaseUrl = "https://home-services-5alb.onrender.com/api";
+    } else if (isLocalhost) {
       this.apiBaseUrl = "http://localhost:3001/api";
     } else {
       // For all hosted environments, use production backend
@@ -77,6 +90,7 @@ export class BookingService {
     console.log("📡 BookingService API URL:", {
       hostname,
       isLocalhost,
+      isCapacitorNative,
       apiBaseUrl: this.apiBaseUrl
     });
   }
@@ -1432,6 +1446,36 @@ export class BookingService {
           success: true,
           booking: data.booking,
         };
+      }
+
+      // For delivery date / time updates, use the dedicated less-strict endpoint
+      if (
+        Object.keys(updates).every(k =>
+          ['delivery_date', 'deliveryDate', 'delivery_time', 'deliveryTime', 'updatedAt'].includes(k)
+        ) &&
+        (updates.deliveryDate || updates.deliveryTime)
+      ) {
+        console.log("🔄 Syncing delivery date update to backend:", { bookingId });
+        const deliveryResponse = await fetch(
+          `${this.apiBaseUrl}/bookings/${bookingId}/delivery-date`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              delivery_date: updates.deliveryDate,
+              delivery_time: updates.deliveryTime,
+              user_phone: currentUser.phone || "",
+              user_id: currentUser._id || currentUser.id || "",
+            }),
+          },
+        );
+        if (deliveryResponse.ok) {
+          const deliveryData = await deliveryResponse.json();
+          console.log("✅ Delivery date updated successfully");
+          return { success: true, booking: deliveryData.booking };
+        }
+        const errText = await deliveryResponse.text();
+        throw new Error(`HTTP ${deliveryResponse.status}: ${errText}`);
       }
 
       // For other updates (like item quantities), use the general update endpoint

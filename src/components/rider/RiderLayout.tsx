@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/sheet';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { RiderLocationProvider } from '@/contexts/RiderLocationContext';
+import RiderPermissionSetup from '@/components/rider/RiderPermissionSetup';
 
 interface RiderLayoutProps {
   children?: React.ReactNode;
@@ -37,6 +39,7 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
   const [rider, setRider] = React.useState<any>(null);
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [showPermissionSetup, setShowPermissionSetup] = React.useState(false);
   const { isOnline } = useNetworkStatus();
 
   React.useEffect(() => {
@@ -45,6 +48,11 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
     if (riderData) {
       setRider(JSON.parse(riderData));
       fetchUnreadCount();
+      // Show permission setup once per install on native
+      const { Capacitor } = require('@capacitor/core');
+      if (Capacitor.isNativePlatform() && !localStorage.getItem('riderPermissionsSetupDone')) {
+        setShowPermissionSetup(true);
+      }
     } else if (location.pathname !== '/rider/register' && location.pathname !== '/rider/login') {
       navigate('/rider/login');
     }
@@ -149,6 +157,8 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
   };
 
   const handleLogout = () => {
+    // Stop GPS tracking before clearing auth
+    window.dispatchEvent(new Event('riderLogout'));
     localStorage.removeItem('riderAuth');
     localStorage.removeItem('riderToken');
     setRider(null);
@@ -167,9 +177,26 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
   const isActive = location.pathname;
 
   return (
+    <RiderLocationProvider>
+    {showPermissionSetup && (
+      <RiderPermissionSetup onDone={() => setShowPermissionSetup(false)} />
+    )}
     <div className="min-h-screen bg-gray-50 rider-mobile-layout">
       {rider && (
-        <header className="bg-white shadow-sm border-b sticky top-0 z-50 rider-header-mobile rider-safe-area-top">
+        <>
+        {/* Return to Factory - sticky bar at very top */}
+        <div className="bg-orange-600 px-3 py-2 flex items-center justify-between sticky top-0 z-[60]">
+          <span className="text-white text-xs font-semibold">🏭 Laundrify Factory</span>
+          <a
+            href="https://www.google.com/maps/place/Prempuri+Jharsa+Sec-32/@28.4485812,77.0438443,18.84z/data=!4m6!3m5!1s0x390d19cdae95569b:0xcb8532f9c5ae1862!8m2!3d28.4486252!4d77.0438643!16s%2Fg%2F11s2yh33mv?entry=ttu&g_ep=EgoyMDI2MDQxMy4wIKXMDSoASAFQAw%3D%3D"
+            target="_blank"
+            rel="noreferrer"
+            className="bg-white text-orange-600 text-xs font-bold px-3 py-1 rounded-lg active:bg-orange-50"
+          >
+            🏠 Return to Factory
+          </a>
+        </div>
+        <header className="bg-white shadow-sm border-b sticky top-10 z-50 rider-header-mobile rider-safe-area-top">
           <div className="px-3 sm:px-4 lg:px-8">
             <div className="flex justify-between items-center h-14 sm:h-16">
               {/* Left section */}
@@ -360,6 +387,7 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
             </div>
           </div>
         </header>
+        </>
       )}
 
       <main className="mx-auto py-3 sm:py-6 px-3 sm:px-4 lg:px-8 rider-main-content rider-safe-area-bottom">
@@ -368,28 +396,42 @@ export default function RiderLayout({ children }: RiderLayoutProps) {
         </ErrorBoundary>
       </main>
 
-      {/* Mobile bottom nav - simple and always visible on small screens */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t lg:hidden z-50">
-        <div className="max-w-screen-xl mx-auto px-3 py-2 flex items-center justify-between">
-          <button onClick={() => handleNavigation('/rider/dashboard')} className="flex-1 text-center text-sm py-2">
-            <Activity className="mx-auto" />
-            <div className="text-xs mt-1">Home</div>
-          </button>
-          <button onClick={() => handleNavigation('/rider/orders')} className="flex-1 text-center text-sm py-2">
-            <Package className="mx-auto" />
-            <div className="text-xs mt-1">Orders</div>
-          </button>
-          <button onClick={() => handleNavigation('/rider/notifications')} className="flex-1 text-center text-sm py-2">
-            <Bell className="mx-auto" />
-            <div className="text-xs mt-1">Alerts</div>
-          </button>
-          <button onClick={() => handleNavigation('/rider/profile')} className="flex-1 text-center text-sm py-2">
-            <User className="mx-auto" />
-            <div className="text-xs mt-1">Profile</div>
-          </button>
+      {/* Mobile bottom nav - large touch targets, always visible on small screens */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg lg:hidden z-50 safe-area-bottom">
+        <div className="max-w-screen-xl mx-auto px-2 py-1 flex items-center justify-around">
+          {[
+            { path: '/rider/dashboard', icon: Activity, label: 'Home' },
+            { path: '/rider/orders', icon: Package, label: 'Orders' },
+            { path: '/rider/notifications', icon: Bell, label: 'Alerts', badge: unreadCount },
+            { path: '/rider/profile', icon: User, label: 'Profile' },
+          ].map(({ path, icon: Icon, label, badge }) => {
+            const active = isActive === path;
+            return (
+              <button
+                key={path}
+                onClick={() => handleNavigation(path)}
+                className={`flex-1 flex flex-col items-center py-2.5 px-1 rounded-lg transition-colors min-h-[56px] ${
+                  active ? 'text-blue-600 bg-blue-50' : 'text-gray-500 active:bg-gray-100'
+                }`}
+              >
+                <div className="relative">
+                  <Icon className={`h-5 w-5 ${active ? 'text-blue-600' : ''}`} />
+                  {badge && badge > 0 ? (
+                    <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-bold">
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  ) : null}
+                </div>
+                <span className={`text-[11px] mt-1 font-medium ${active ? 'text-blue-600' : ''}`}>{label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
+      {/* Bottom nav spacer */}
+      <div className="h-16 lg:hidden" />
 
     </div>
+    </RiderLocationProvider>
   );
 }

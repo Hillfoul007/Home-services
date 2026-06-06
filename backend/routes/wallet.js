@@ -11,70 +11,88 @@ const mongoose = require("mongoose");
 const findUserById = async (userId) => {
   if (!userId) return null;
 
-  // Try to find by ObjectId first in User collection
+  let user = null;
+
+  // 1. Try to find by ObjectId in User collection
   if (mongoose.Types.ObjectId.isValid(userId)) {
-    const user = await User.findById(userId);
-    if (user) return user;
+    user = await User.findById(userId);
   }
 
-  // Try to find by phone number in User collection
-  const userByPhone = await User.findOne({ phone: userId });
-  if (userByPhone) return userByPhone;
-
-  // If not found in User collection, try CleanCareUser
-  try {
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      const CleanCareUser = mongoose.model("CleanCareUser");
-      const cleanCareUser = await CleanCareUser.findById(userId);
-      if (cleanCareUser) {
-        // Sync to User collection
-        let syncedUser = await User.findOne({ phone: cleanCareUser.phone });
-        if (!syncedUser) {
-          syncedUser = new User({
-            phone: cleanCareUser.phone,
-            name: cleanCareUser.name || "",
-            full_name: cleanCareUser.name || "",
-            is_verified: cleanCareUser.isVerified || false,
-            user_type: "customer",
-            wallet_balance: 0,
-            wallet_transactions: []
-          });
-          await syncedUser.save();
-          console.log(`✅ Synced CleanCareUser ${userId} to User collection`);
-        }
-        return syncedUser;
-      }
-    }
-  } catch (err) {
-    console.log(`ℹ️  CleanCareUser lookup failed (may not exist):`, err.message);
+  // 2. Try to find by phone number in User collection
+  if (!user) {
+    user = await User.findOne({ phone: userId });
   }
 
-  // If not found in User collection, try WhatsAppUser
+  // 3. If user exists in new collection, return it
+  if (user) return user;
+
+  // 4. If not found, try to sync from legacy collections (CleanCareUser, WhatsAppUser)
+  // Check CleanCareUser first
   try {
+    const CleanCareUser = mongoose.model("CleanCareUser");
+    let legacyUser = null;
+    
     if (mongoose.Types.ObjectId.isValid(userId)) {
-      const WhatsAppUser = mongoose.model("WhatsAppUser");
-      const whatsappUser = await WhatsAppUser.findById(userId);
-      if (whatsappUser) {
-        // Sync to User collection
-        let syncedUser = await User.findOne({ phone: whatsappUser.phone });
-        if (!syncedUser) {
-          syncedUser = new User({
-            phone: whatsappUser.phone,
-            name: whatsappUser.name || "",
-            full_name: whatsappUser.name || "",
-            is_verified: whatsappUser.isVerified || false,
-            user_type: "customer",
-            wallet_balance: 0,
-            wallet_transactions: []
-          });
-          await syncedUser.save();
-          console.log(`✅ Synced WhatsAppUser ${userId} to User collection`);
-        }
-        return syncedUser;
+      legacyUser = await CleanCareUser.findById(userId);
+    }
+    if (!legacyUser) {
+      legacyUser = await CleanCareUser.findOne({ phone: userId });
+    }
+
+    if (legacyUser) {
+      // Sync to User collection
+      let syncedUser = await User.findOne({ phone: legacyUser.phone });
+      if (!syncedUser) {
+        syncedUser = new User({
+          phone: legacyUser.phone,
+          name: legacyUser.name || "",
+          full_name: legacyUser.name || "",
+          is_verified: legacyUser.isVerified || false,
+          user_type: "customer",
+          wallet_balance: 0,
+          wallet_transactions: []
+        });
+        await syncedUser.save();
+        console.log(`✅ Synced CleanCareUser ${legacyUser._id} to User collection`);
       }
+      return syncedUser;
     }
   } catch (err) {
-    console.log(`ℹ️  WhatsAppUser lookup failed (may not exist):`, err.message);
+    console.log(`ℹ️  CleanCareUser lookup/sync failed:`, err.message);
+  }
+
+  // Check WhatsAppUser second
+  try {
+    const WhatsAppUser = mongoose.model("WhatsAppUser");
+    let legacyUser = null;
+
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      legacyUser = await WhatsAppUser.findById(userId);
+    }
+    if (!legacyUser) {
+      legacyUser = await WhatsAppUser.findOne({ phone: userId });
+    }
+
+    if (legacyUser) {
+      // Sync to User collection
+      let syncedUser = await User.findOne({ phone: legacyUser.phone });
+      if (!syncedUser) {
+        syncedUser = new User({
+          phone: legacyUser.phone,
+          name: legacyUser.name || "",
+          full_name: legacyUser.name || "",
+          is_verified: legacyUser.isVerified || false,
+          user_type: "customer",
+          wallet_balance: 0,
+          wallet_transactions: []
+        });
+        await syncedUser.save();
+        console.log(`✅ Synced WhatsAppUser ${legacyUser._id} to User collection`);
+      }
+      return syncedUser;
+    }
+  } catch (err) {
+    console.log(`ℹ️  WhatsAppUser lookup/sync failed:`, err.message);
   }
 
   return null;
@@ -100,9 +118,21 @@ router.get("/balance/:userId", async (req, res) => {
       });
     }
 
+    // Check if package is still valid
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const now = new Date(indianTime);
+    let activePackageBalance = user.package_balance || 0;
+    
+    // Reset to 0 if expired
+    if (user.package_validity && user.package_validity < now) {
+      activePackageBalance = 0;
+    }
+
     res.json({
       success: true,
       wallet_balance: user.wallet_balance || 0,
+      package_balance: activePackageBalance,
+      package_validity: user.package_validity,
       wallet_transactions: user.wallet_transactions || []
     });
   } catch (error) {
@@ -565,48 +595,74 @@ router.post("/debit-for-booking", async (req, res) => {
     const { user_id, booking_id, amount } = req.body;
 
     if (!user_id || !booking_id || !amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid parameters"
-      });
+      return res.status(400).json({ success: false, error: "Invalid parameters" });
     }
 
+    // Read current balances to calculate split
     const user = await findUserById(user_id);
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found"
-      });
+      return res.status(404).json({ success: false, error: "User not found" });
     }
 
-    if ((user.wallet_balance || 0) < amount) {
-      return res.status(400).json({
-        success: false,
-        error: "Insufficient wallet balance"
-      });
+    const indianTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const now = new Date(indianTime);
+
+    const isPackageValid = user.package_validity && user.package_validity >= now;
+    const packageBalance = isPackageValid ? (user.package_balance || 0) : 0;
+    const walletBalance = user.wallet_balance || 0;
+    const totalAvailable = packageBalance + walletBalance;
+
+    if (totalAvailable < amount) {
+      return res.status(400).json({ success: false, error: "Insufficient total balance (Wallet + Package)" });
     }
 
-    user.wallet_balance -= amount;
-    user.wallet_transactions.push({
-      type: "debit",
-      amount,
-      description: "Cashback used in booking",
-      booking_id,
-      created_at: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
-    });
+    // Calculate split
+    const deductFromPackage = Math.min(packageBalance, amount);
+    const deductFromWallet = amount - deductFromPackage;
 
-    await user.save();
+    // Build transactions to append
+    const newTransactions = [];
+    if (deductFromPackage > 0) {
+      newTransactions.push({ type: "debit", amount: deductFromPackage, description: "Package balance used for booking", booking_id, created_at: new Date(indianTime) });
+    }
+    if (deductFromWallet > 0) {
+      newTransactions.push({ type: "debit", amount: deductFromWallet, description: "Wallet balance used for booking", booking_id, created_at: new Date(indianTime) });
+    }
+
+    // Atomic update: only succeeds if wallet and package balances are still sufficient.
+    // $gte guards prevent over-deduction from concurrent requests.
+    const updateQuery = {
+      _id: user._id,
+      wallet_balance: { $gte: deductFromWallet },
+      ...(deductFromPackage > 0 ? { package_balance: { $gte: deductFromPackage } } : {}),
+    };
+    const updated = await User.findOneAndUpdate(
+      updateQuery,
+      {
+        $inc: {
+          wallet_balance: -deductFromWallet,
+          ...(deductFromPackage > 0 ? { package_balance: -deductFromPackage } : {}),
+        },
+        $push: { wallet_transactions: { $each: newTransactions } },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      // Balance changed between read and update — likely a concurrent request
+      return res.status(409).json({ success: false, error: "Balance changed during processing, please retry" });
+    }
 
     res.json({
       success: true,
-      wallet_balance: user.wallet_balance
+      wallet_balance: updated.wallet_balance,
+      package_balance: updated.package_balance,
+      deducted_from_package: deductFromPackage,
+      deducted_from_wallet: deductFromWallet,
     });
   } catch (error) {
     console.error("Error debiting wallet:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { getApiUrl } from '../config/env';
 
 export interface WalletTransaction {
   type: 'credit' | 'debit';
@@ -27,12 +28,17 @@ export class WalletService {
     return WalletService.instance;
   }
 
+  private getBaseUrl(): string {
+    return getApiUrl();
+  }
+
   /**
    * Get user's wallet balance
    */
   async getWalletBalance(userId: string): Promise<{ success: boolean; wallet_balance?: number; error?: string }> {
     try {
-      const response = await fetch(`/api/wallet/balance/${userId}`);
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/balance/${userId}`);
       return await response.json();
     } catch (error) {
       console.error('Error fetching wallet balance:', error);
@@ -45,7 +51,8 @@ export class WalletService {
    */
   async getWalletTransactions(userId: string): Promise<{ success: boolean; transactions?: WalletTransaction[]; error?: string }> {
     try {
-      const response = await fetch(`/api/wallet/transactions/${userId}`);
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/transactions/${userId}`);
       return await response.json();
     } catch (error) {
       console.error('Error fetching wallet transactions:', error);
@@ -58,7 +65,8 @@ export class WalletService {
    */
   async adminAddCashback(userId: string, amount: number, description: string = ''): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/admin/add-cashback', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/admin/add-cashback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, amount, description })
@@ -75,7 +83,8 @@ export class WalletService {
    */
   async adminBulkAddCashback(userIds: string[], amount: number, description: string = ''): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/admin/bulk-add-cashback', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/admin/bulk-add-cashback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_ids: userIds, amount, description })
@@ -92,7 +101,8 @@ export class WalletService {
    */
   async adminBulkAddCashbackToAllUsers(amount: number, description: string = ''): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/admin/bulk-add-to-all-users', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/admin/bulk-add-to-all-users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount, description })
@@ -109,7 +119,8 @@ export class WalletService {
    */
   async adminDeductAmount(userId: string, amount: number, description: string = ''): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/admin/deduct-amount', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/admin/deduct-amount`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, amount, description })
@@ -126,7 +137,8 @@ export class WalletService {
    */
   async adminBulkDeductAmount(userIds: string[], amount: number, description: string = ''): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/admin/bulk-deduct-amount', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/admin/bulk-deduct-amount`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_ids: userIds, amount, description })
@@ -143,7 +155,8 @@ export class WalletService {
    */
   async adminBulkDeductFromAllUsers(amount: number, description: string = ''): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/admin/bulk-deduct-from-all-users', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/admin/bulk-deduct-from-all-users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount, description })
@@ -160,7 +173,8 @@ export class WalletService {
    */
   async searchUsers(query: string): Promise<{ success: boolean; users?: UserWallet[]; error?: string }> {
     try {
-      const response = await fetch(`/api/wallet/admin/search-users?query=${encodeURIComponent(query)}`);
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/admin/search-users?query=${encodeURIComponent(query)}`);
       return await response.json();
     } catch (error) {
       console.error('Error searching users:', error);
@@ -173,7 +187,8 @@ export class WalletService {
    */
   async debitWalletForBooking(userId: string, bookingId: string, amount: number): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/debit-for-booking', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/debit-for-booking`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, booking_id: bookingId, amount })
@@ -190,7 +205,8 @@ export class WalletService {
    */
   async creditWalletAfterBooking(userId: string, bookingId: string, amount: number): Promise<any> {
     try {
-      const response = await fetch('/api/wallet/credit-after-booking', {
+      const baseUrl = this.getBaseUrl();
+      const response = await fetch(`${baseUrl}/wallet/credit-after-booking`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, booking_id: bookingId, amount })

@@ -66,6 +66,9 @@ router.get('/test', (req, res) => {
   });
 });
 
+// Memory storage multer for video uploads (GridFS streaming)
+const uploadVideo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -108,7 +111,8 @@ const verifyRiderToken = (req, res, next) => {
     req.rider = decoded;
     next();
   } catch (error) {
-    res.status(400).json({ message: 'Invalid token.' });
+    const msg = error.name === 'TokenExpiredError' ? 'Token expired.' : 'Invalid token.';
+    res.status(401).json({ message: msg });
   }
 };
 
@@ -352,7 +356,7 @@ router.post('/verify-otp', async (req, res) => {
 
       const token = jwt.sign(
         { riderId: demoRider._id, phone: demoRider.phone },
-        process.env.JWT_SECRET || 'fallback_secret_for_demo',
+        process.env.JWT_SECRET || 'fallback_secret',
         { expiresIn: '7d' }
       );
 
@@ -464,7 +468,7 @@ router.post('/login', async (req, res) => {
 
       const token = jwt.sign(
         { riderId: demoRider._id, phone: demoRider.phone },
-        process.env.JWT_SECRET || 'fallback_secret_for_demo',
+        process.env.JWT_SECRET || 'fallback_secret',
         { expiresIn: '7d' }
       );
 
@@ -586,6 +590,20 @@ router.post('/location', verifyRiderToken, async (req, res) => {
 
     await rider.updateLocation(location.lat, location.lng);
 
+    // Broadcast via Socket.io to desk dashboard (HTTP fallback path)
+    const broadcast = req.app.get("broadcastRiderLocation");
+    if (broadcast) {
+      broadcast(
+        rider._id,
+        location.lat,
+        location.lng,
+        rider.status || "idle",
+        rider.current_order || null,
+        rider.name,
+        rider.phone
+      );
+    }
+
     res.json({
       message: 'Location updated successfully',
       location,
@@ -601,6 +619,76 @@ router.post('/location', verifyRiderToken, async (req, res) => {
       timestamp: new Date().toISOString(),
       mode: 'error_fallback'
     });
+  }
+});
+
+// ─── GET current position of a specific rider (from Redis, no DB hit) ─────────
+// GET /api/riders/location/current?riderId=xxx  (vendor auth)
+router.get('/location/current', async (req, res) => {
+  try {
+    const { riderId } = req.query;
+    if (!riderId) return res.status(400).json({ error: 'riderId required' });
+
+    const { getRiderState } = require('../socketServer');
+    const state = await getRiderState(riderId);
+
+    if (!state || !state.lat) {
+      // Fall back to MongoDB last known position
+      const rider = await Rider.findById(riderId).select('name phone location lastLocationUpdate isActive').lean();
+      if (!rider) return res.status(404).json({ error: 'Rider not found' });
+      return res.json({
+        source: 'mongodb',
+        rider_id: riderId,
+        name: rider.name,
+        phone: rider.phone,
+        lat: rider.location?.lat || null,
+        lng: rider.location?.lng || null,
+        lastSeen: rider.lastLocationUpdate || null,
+        connected: false,
+      });
+    }
+
+    res.json({
+      source: 'redis',
+      rider_id: riderId,
+      name: state.name,
+      phone: state.phone,
+      lat: state.lat,
+      lng: state.lng,
+      status: state.status,
+      order_id: state.order_id,
+      speed_ms: state.speed_ms || 0,
+      lastSeen: state.lastSeen,
+      connected: state.connected,
+    });
+  } catch (err) {
+    console.error('❌ location/current error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET 24-hr location history trail for a rider ──────────────────────────
+// GET /api/riders/location/history?riderId=xxx&hours=24
+router.get('/location/history', async (req, res) => {
+  try {
+    const { riderId, hours = '24' } = req.query;
+    if (!riderId) return res.status(400).json({ error: 'riderId required' });
+
+    const hrsNum  = Math.min(parseInt(hours, 10) || 24, 24);
+    const sinceMs = Date.now() - hrsNum * 60 * 60 * 1000;
+
+    const { getRiderLocationHistory } = require('../socketServer');
+    const trail = await getRiderLocationHistory(riderId, sinceMs, Date.now());
+
+    if (!trail) {
+      // Redis not available — return empty with a flag
+      return res.json({ riderId, hours: hrsNum, points: [], source: 'unavailable' });
+    }
+
+    res.json({ riderId, hours: hrsNum, points: trail, source: 'redis', count: trail.length });
+  } catch (err) {
+    console.error('❌ location/history error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -719,22 +807,39 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
 
     console.log(`👤 Rider ID: ${riderId}`);
 
+    // Show orders from last 30 days (active + recently completed) so rider sees full daily view
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
     const [regularOrders, quickPickups] = await Promise.all([
-      // Regular bookings assigned to this rider
+      // All bookings assigned to this rider (last 30 days, excluding cancelled)
       Booking.find({
         assignedRider: riderId,
-        riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] }
+        riderStatus: { $nin: ['cancelled'] },
+        status: { $ne: 'completed' },
+        $or: [
+          { assignedAt: { $gte: thirtyDaysAgo } },
+          { scheduled_date: { $gte: thirtyDaysAgo.toISOString().split('T')[0] } },
+          { riderStatus: { $in: ['assigned', 'accepted', 'picked_up', 'on_the_way', 'pending'] } }
+        ]
       })
       .populate('customer_id', 'name phone')
-      .sort({ assignedAt: -1 }),
+      .sort({ assignedAt: -1 })
+      .limit(100)
+      .lean(),
 
-      // Quick pickups assigned to this rider
+      // Quick pickups assigned to this rider (last 30 days)
       QuickPickup.find({
         rider_id: riderId,
-        status: { $in: ['assigned', 'accepted', 'picked_up'] }
+        status: { $nin: ['cancelled', 'completed'] },
+        $or: [
+          { createdAt: { $gte: thirtyDaysAgo } },
+          { status: { $in: ['assigned', 'accepted', 'picked_up'] } }
+        ]
       })
       .populate('customer_id', 'name phone')
       .sort({ createdAt: -1 })
+      .limit(50)
+      .lean()
     ]);
 
     console.log(`📦 Found ${regularOrders.length} bookings and ${quickPickups.length} quick pickups for rider ${riderId}`);
@@ -746,7 +851,14 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       customerName: order.name || order.customer_id?.name,
       customerPhone: order.phone || order.customer_id?.phone,
       address: order.address,
-      pickupTime: `${order.scheduled_date} ${order.scheduled_time}`,
+      coordinates: order.coordinates || null,
+      pickupTime: [order.scheduled_date, order.scheduled_time].filter(Boolean).join(' '),
+      scheduled_date: order.scheduled_date,
+      scheduled_time: order.scheduled_time,
+      deliveryTime: [order.delivery_date, order.delivery_time].filter(Boolean).join(' ') || 'TBD',
+      delivery_date: order.delivery_date,
+      delivery_time: order.delivery_time,
+      status: order.status,
       type: 'Regular',
       riderStatus: order.riderStatus,
       assignedAt: order.assignedAt,
@@ -762,7 +874,12 @@ router.get('/orders', verifyRiderToken, async (req, res) => {
       customerName: qp.customer_name || qp.customer_id?.name,
       customerPhone: qp.customer_phone || qp.customer_id?.phone,
       address: qp.address,
-      pickupTime: `${qp.pickup_date} ${qp.pickup_time}`,
+      coordinates: qp.coordinates || null,
+      pickupTime: [qp.pickup_date, qp.pickup_time].filter(Boolean).join(' '),
+      scheduled_date: qp.pickup_date,
+      scheduled_time: qp.pickup_time,
+      deliveryTime: 'Same Day',
+      status: qp.status,
       type: 'Quick Pickup',
       riderStatus: qp.status === 'assigned' ? 'assigned' : qp.status,
       assignedAt: qp.createdAt,
@@ -1688,7 +1805,7 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
       body: req.body
     });
 
-    const { orderId, action, location, riderId } = req.body || {};
+    const { orderId, action, location, riderId, pickup_pieces } = req.body || {};
 
     // Validate required fields
     if (!orderId || !action) {
@@ -1727,7 +1844,11 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
     try {
       order = await Booking.findOne({
         _id: orderId,
-        assignedRider: req.rider?.riderId
+        $or: [
+          { assignedRider: req.rider?.riderId },
+          { pickupRider: req.rider?.riderId },
+          { deliveryRider: req.rider?.riderId },
+        ],
       });
     } catch (dbErr) {
       console.error('❌ DB query error while fetching order:', dbErr);
@@ -1764,27 +1885,33 @@ router.post('/order-action', verifyRiderToken, async (req, res) => {
     }
 
     // Apply status change
+    const now = new Date();
     switch (action) {
       case 'accept':
         order.riderStatus = 'accepted';
-        order.acceptedAt = new Date();
+        order.acceptedAt = now;
+        order.status = 'pickup_assigned';
         break;
       case 'start':
         order.riderStatus = 'picked_up';
-        order.pickedUpAt = new Date();
+        order.pickedUpAt = now;
+        order.status = 'rider_pickup_done';
+        if (pickup_pieces != null) order.pickup_pieces = Number(pickup_pieces);
         break;
       case 'complete':
-        order.riderStatus = 'completed';
-        order.completedAt = new Date();
+        order.riderStatus = 'delivered';
+        order.deliveredAt = now;
+        order.status = 'delivered';
         break;
       case 'reject':
         // Unassign the rider and mark rejected by rider
         order.riderStatus = 'rejected_by_rider';
         order.rejectedBy = req.rider?.riderId || null;
-        order.rejectedAt = new Date();
+        order.rejectedAt = now;
         order.assignedRider = null;
         break;
     }
+    order.updated_at = now;
 
     try {
       await order.save();
@@ -2161,7 +2288,10 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
       case 'pickup_completed':
         booking.riderStatus = 'picked_up';
         booking.pickedUpAt = timestampNow;
-        booking.status = 'pickup_completed';
+        booking.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
+        // Clear rider assignment so the order doesn't show in delivery for this rider
+        booking.assignedRider = null;
+        booking.assignedRiderPhone = null;
         break;
       case 'delivered_to_vendor':
       case 'delivered_vendor':
@@ -2177,8 +2307,12 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
         booking.status = 'delivery_assigned';
         break;
       case 'delivered':
-      case 'completed':
+        booking.riderStatus = 'delivered';
         booking.deliveredAt = timestampNow;
+        booking.status = 'delivered';
+        break;
+      case 'completed':
+        booking.deliveredAt = booking.deliveredAt || timestampNow;
         booking.completed_at = timestampNow;
         booking.status = 'completed';
         break;
@@ -2205,18 +2339,57 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
 
     await booking.save();
 
-    // Optionally create a notification for the customer about status change
+    // Create notification for the customer about status change + push notification
     try {
       const Notification = require('../models/Notification');
       if (booking.customer_id) {
-        await Notification.create({
+        // Build status-specific notification content
+        let notifTitle = 'Order status updated';
+        let notifMessage = `Your order ${booking.custom_order_id || booking._id} status changed to ${booking.status}`;
+
+        const orderRef = booking.custom_order_id || booking._id;
+        switch (booking.status) {
+          case 'ready_for_delivery':
+            notifTitle = 'Your clothes are ready for delivery!';
+            notifMessage = `Great news! Order #${orderRef} is ready and will be delivered soon. You can edit your preferred delivery time from My Orders.`;
+            break;
+          case 'pickup_assigned':
+            notifTitle = 'Rider assigned for pickup';
+            notifMessage = `A rider has been assigned to pick up your order #${orderRef}.`;
+            break;
+          case 'pickup_completed':
+            notifTitle = 'Pickup completed';
+            notifMessage = `Your order #${orderRef} has been picked up and is being processed.`;
+            break;
+          case 'delivery_assigned':
+            notifTitle = 'Out for delivery';
+            notifMessage = `Your order #${orderRef} is out for delivery! It will reach you soon.`;
+            break;
+          case 'delivered':
+            notifTitle = 'Order delivered!';
+            notifMessage = `Your order #${orderRef} has been delivered successfully. Thank you for choosing Laundrify!`;
+            break;
+          case 'completed':
+            notifTitle = 'Order completed';
+            notifMessage = `Your order #${orderRef} is marked as completed. Thank you!`;
+            break;
+        }
+
+        const notification = await Notification.create({
           user_id: booking.customer_id,
-          title: 'Order status updated',
-          message: `Your order ${booking.custom_order_id || booking._id} status changed to ${booking.status}`,
+          title: notifTitle,
+          message: notifMessage,
           type: 'booking_status',
           data: { bookingId: booking._id, status: booking.status },
           related_order: booking._id,
         });
+
+        // Send push notification via FCM
+        try {
+          await notificationService.sendPushNotification(booking.customer_id, notification);
+        } catch (pushErr) {
+          console.warn('⚠️ Push notification failed (non-critical):', pushErr.message);
+        }
       }
     } catch (notifErr) {
       console.warn('⚠️ Failed to create customer notification for status update', notifErr.message);
@@ -2229,6 +2402,531 @@ router.put('/orders/:orderId/status', verifyRiderToken, async (req, res) => {
   }
 });
 
+
+// Desk login - vendor-created riders login with phone + password (no OTP)
+router.post('/desk-login', async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({ message: 'Phone and password are required' });
+    }
+
+    const rider = await Rider.findOne({ phone: phone.trim() });
+
+    if (!rider) {
+      return res.status(400).json({ message: 'Invalid phone or password' });
+    }
+
+    if (!rider.password) {
+      return res.status(400).json({ message: 'This account uses OTP login. Please use the rider app.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, rider.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid phone or password' });
+    }
+
+    if (rider.status !== 'approved') {
+      return res.status(403).json({ message: 'Your account is not active. Contact your vendor.' });
+    }
+
+    const token = jwt.sign(
+      { riderId: rider._id, phone: rider.phone },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    console.log(`✅ Rider desk login: ${rider.name}`);
+    res.json({
+      success: true,
+      token,
+      rider: {
+        _id: rider._id,
+        name: rider.name,
+        phone: rider.phone,
+        live_location_link: rider.live_location_link || null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Desk login error:', error);
+    res.status(500).json({ message: 'Login failed. Please try again.' });
+  }
+});
+
+// ── OTP-based rider desk login ────────────────────────────────────────────────
+
+router.post('/desk-send-otp', async (req, res) => {
+  try {
+    const phone = (req.body.phone || '').replace(/\D/g, '');
+    if (!phone) return res.status(400).json({ success: false, message: 'Phone is required' });
+
+    const rider = await Rider.findOne({ phone });
+    if (!rider) return res.status(404).json({ success: false, message: 'No rider account found for this phone number' });
+
+    if (rider.status !== 'approved') {
+      return res.status(403).json({ success: false, message: 'Your account is not active. Contact your vendor.' });
+    }
+
+    const otp = otpService.generateOTP();
+    otpService.storeOTP(phone, otp, 'rider_desk');
+
+    const smsResult = await otpService.sendOTP(phone, otp, 'rider desk login');
+    if (!smsResult.success) {
+      return res.status(500).json({ success: false, message: 'Failed to send OTP. Try again.' });
+    }
+
+    console.log(`✅ Rider desk OTP sent to ${phone}`);
+    res.json({ success: true, message: 'OTP sent successfully', phone });
+  } catch (error) {
+    console.error('❌ Rider desk send-otp error:', error);
+    res.status(500).json({ success: false, message: 'Server error. Try again.' });
+  }
+});
+
+router.post('/desk-verify-otp', async (req, res) => {
+  try {
+    const phone = (req.body.phone || '').replace(/\D/g, '');
+    const otp = (req.body.otp || '').trim();
+
+    if (!phone || !otp) return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
+
+    const result = otpService.verifyOTP(phone, otp, 'rider_desk');
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.error || 'Invalid OTP' });
+    }
+
+    const rider = await Rider.findOne({ phone });
+    if (!rider) return res.status(404).json({ success: false, message: 'Rider not found' });
+
+    if (rider.status !== 'approved') {
+      return res.status(403).json({ success: false, message: 'Your account is not active.' });
+    }
+
+    const token = jwt.sign(
+      { riderId: rider._id, phone: rider.phone },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    console.log(`✅ Rider desk OTP login: ${rider.name}`);
+    res.json({
+      success: true,
+      token,
+      rider: {
+        _id: rider._id,
+        name: rider.name,
+        phone: rider.phone,
+        live_location_link: rider.live_location_link || null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Rider desk verify-otp error:', error);
+    res.status(500).json({ success: false, message: 'Verification failed. Try again.' });
+  }
+});
+
+// Upload pickup slip (item list photo) for an order
+router.post('/orders/:orderId/upload-pickup-slip', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
+      ],
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found or not assigned to you' });
+
+    const { image_base64, mime_type } = req.body;
+    if (!image_base64) return res.status(400).json({ message: 'image_base64 is required' });
+
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
+    const buffer = Buffer.from(image_base64, 'base64');
+    const url = await uploadToCloudinary(buffer, mime_type || 'image/jpeg', 'laundrify/pickup-slips');
+
+    if (!order.rider_pickup_slips) order.rider_pickup_slips = [];
+    order.rider_pickup_slips.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, file_id: url, url });
+  } catch (error) {
+    console.error('❌ Pickup slip upload error:', error);
+    res.status(500).json({ message: 'Upload failed' });
+  }
+});
+
+// Upload items video before completing pickup
+router.post('/orders/:orderId/upload-items-video', verifyRiderToken, uploadVideo.single('items_video'), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!req.file) return res.status(400).json({ error: 'No video file provided' });
+
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || 'video/mp4', 'laundrify/items-videos');
+
+    const order = await Booking.findById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    order.items_video = { file_id: url, filename: url, uploaded_at: new Date() };
+    await order.save();
+    res.json({ success: true, file_id: url, url });
+  } catch (error) {
+    console.error('❌ Rider items video upload error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Upload item photo(s) during pickup — saved to items_images so admin can see them
+router.post('/orders/:orderId/upload-item-photo', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
+      ],
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found or not assigned to you' });
+
+    const { image_base64, mime_type } = req.body;
+    if (!image_base64) return res.status(400).json({ message: 'image_base64 is required' });
+
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
+    const buffer = Buffer.from(image_base64, 'base64');
+    const url = await uploadToCloudinary(buffer, mime_type || 'image/jpeg', 'laundrify/item-photos');
+
+    if (!order.items_images) order.items_images = [];
+    order.items_images.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, file_id: url, url });
+  } catch (error) {
+    console.error('❌ Item photo upload error:', error);
+    res.status(500).json({ message: 'Upload failed' });
+  }
+});
+
+// Upload payment screenshot for an order (on delivery)
+router.post('/orders/:orderId/upload-payment-ss', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found or not assigned to you' });
+    }
+
+    const { image_base64, mime_type } = req.body;
+    if (!image_base64) return res.status(400).json({ message: 'image_base64 is required' });
+
+    const { uploadToCloudinary } = require('../services/cloudinaryUpload');
+    const buffer = Buffer.from(image_base64, 'base64');
+    const url = await uploadToCloudinary(buffer, mime_type || 'image/jpeg', 'laundrify/payment-screenshots');
+
+    if (!order.rider_payment_slips) order.rider_payment_slips = [];
+    order.rider_payment_slips.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    await order.save();
+    res.json({ success: true, file_id: url, url });
+  } catch (error) {
+    console.error('❌ Payment SS upload error:', error);
+    res.status(500).json({ message: 'Upload failed' });
+  }
+});
+
+// ─── GET public slip/image by fileId (for desk and admin to view) ─────────────
+
+router.get('/public/orders/:orderId/slip/:fileId', async (req, res) => {
+  try {
+    const { orderId, fileId } = req.params;
+
+    // New uploads: file_id is a Cloudinary URL — redirect directly
+    if (fileId.startsWith('http')) return res.redirect(fileId);
+
+    // Old uploads: stream from GridFS
+    const conn = mongoose.connection;
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db);
+
+    const order = await Booking.findById(orderId)
+      .select('rider_pickup_slips rider_payment_slips items_images vendor_payment_slips');
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const allFiles = [
+      ...(order.rider_pickup_slips || []),
+      ...(order.rider_payment_slips || []),
+      ...(order.items_images || []),
+      ...(order.vendor_payment_slips || []),
+    ];
+    const fileExists = allFiles.some(f => f.file_id.toString() === fileId);
+    if (!fileExists) return res.status(404).json({ message: 'File not found for this order' });
+
+    const downloadStream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+    downloadStream.on('error', () => res.status(404).json({ message: 'File not found' }));
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('ETag', `"${fileId}"`);
+    if (req.headers['if-none-match'] === `"${fileId}"`) { res.status(304).end(); return; }
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error('❌ Slip retrieval error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ─── Desk orders endpoint: returns full booking docs for RiderDeskDashboard ───
+
+router.get('/desk-orders', verifyRiderToken, async (req, res) => {
+  try {
+    const riderId = req.rider.riderId;
+
+    const orders = await Booking.find({
+      status: { $nin: ['completed', 'cancelled'] },
+      $or: [
+        { assignedRider: riderId, riderStatus: { $in: ['assigned', 'accepted', 'in_transit'] } },
+        { pickupRider: riderId },
+        { deliveryRider: riderId },
+      ],
+    })
+      .sort({ assignedAt: -1 })
+      .select(
+        '_id custom_order_id name phone address mapsLink status riderStatus ' +
+        'final_amount total_price item_prices assignedAt acceptedAt pickedUpAt ' +
+        'deliveredAt readyAt cod_collected cod_amount delivery_date scheduled_date ' +
+        'pickupRider deliveryRider assignedRider ' +
+        'rider_pickup_slips rider_payment_slips items_images items_video vendor_payment_slips created_at'
+      );
+
+    const doneOrders = await Booking.find({
+      $or: [
+        { assignedRider: riderId, riderStatus: { $in: ['picked_up', 'delivered', 'completed'] } },
+        { pickupRider: riderId, status: { $in: ['completed', 'delivered', 'pickup_completed', 'ready_for_delivery'] } },
+        { deliveryRider: riderId, status: { $in: ['completed', 'delivered'] } },
+      ],
+    })
+      .sort({ deliveredAt: -1 })
+      .limit(20)
+      .select(
+        '_id custom_order_id name phone address status riderStatus final_amount ' +
+        'total_price item_prices deliveredAt completedAt cod_collected cod_amount pickupRider deliveryRider assignedRider'
+      );
+
+    res.json({
+      success: true,
+      active: orders,
+      done: doneOrders,
+    });
+  } catch (error) {
+    console.error('❌ Desk orders fetch error:', error);
+    res.status(500).json({ message: 'Failed to fetch orders', error: error.message });
+  }
+});
+
+// Mark COD payment collected for an order
+router.post('/orders/:orderId/cod-collected', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { amount, notes } = req.body;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { assignedRiderPhone: req.rider.phone },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
+      ],
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found or not assigned to you' });
+
+    // Allow COD collection for any active delivery assignment
+    const allowedStatuses = ['assigned', 'accepted', 'picked_up', 'in_transit', 'ready_for_delivery', 'delivered'];
+    if (!allowedStatuses.includes(order.riderStatus)) {
+      return res.status(400).json({ message: 'Cannot collect COD for this order status' });
+    }
+
+    const now = new Date();
+    order.cod_collected = true;
+    order.cod_amount = amount || order.final_amount || 0;
+    order.cod_collected_at = now;
+
+    if (notes) {
+      order.notes = order.notes ? `${order.notes}\nCOD: ${notes}` : `COD: ${notes}`;
+    }
+
+    await order.save();
+
+    console.log(`✅ COD collected for order ${orderId}: ₹${order.cod_amount}`);
+    res.json({ success: true, message: 'COD payment marked as collected', order });
+  } catch (error) {
+    console.error('❌ COD collection error:', error);
+    res.status(500).json({ message: 'Failed to record COD collection', error: error.message });
+  }
+});
+
+// Mark order as in-transit (rider on the way to customer)
+router.post('/orders/:orderId/in-transit', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Booking.findOne({
+      _id: orderId,
+      $or: [
+        { assignedRider: req.rider.riderId },
+        { pickupRider: req.rider.riderId },
+        { deliveryRider: req.rider.riderId },
+      ],
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const isDeliveryRider = order.deliveryRider?.toString() === req.rider.riderId;
+    const allowedStatuses = ['accepted', 'picked_up', 'assigned', 'unassigned'];
+    if (!isDeliveryRider && !allowedStatuses.includes(order.riderStatus)) {
+      return res.status(400).json({ message: `Cannot mark in-transit from: ${order.riderStatus}` });
+    }
+
+    order.riderStatus = 'in_transit';
+    order.status = 'in_transit';
+    order.updated_at = new Date();
+
+    await order.save();
+
+    // Push notification to customer that delivery is on the way
+    (async () => {
+      try {
+        if (order.customer_id) {
+          await notificationService.sendPushNotification(order.customer_id, {
+            title: "Out for Delivery!",
+            message: `Your laundry order ${order.custom_order_id || order._id} is on the way. Rider is heading to you now.`,
+          });
+        }
+      } catch (err) {
+        console.warn("⚠️ Failed to push in-transit notification to customer:", err.message);
+      }
+    })();
+
+    res.json({ success: true, message: 'Order marked in transit', order });
+  } catch (error) {
+    console.error('❌ In-transit error:', error);
+    res.status(500).json({ message: 'Failed to update order', error: error.message });
+  }
+});
+
+// Complete pickup - rider marks order as picked up, updates item count
+router.post('/orders/:orderId/complete-pickup', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { item_count, pickup_pieces, timestamp } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const booking = await Booking.findById(orderId);
+    if (!booking) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date(timestamp || Date.now());
+    booking.riderStatus = 'picked_up';
+    booking.pickedUpAt = now;
+    booking.status = 'rider_pickup_done'; // Admin must click "Mark Pickup Complete" to advance
+    booking.pickup_pieces = pickup_pieces || item_count || booking.pickup_pieces || null;
+    // Clear rider assignment - admin will assign delivery rider
+    booking.assignedRider = null;
+    booking.assignedRiderPhone = null;
+    booking.updated_at = now;
+    await booking.save();
+
+    // Notify customer about pickup completion
+    try {
+      const Notification = require('../models/Notification');
+      if (booking.customer_id) {
+        const orderRef = booking.custom_order_id || booking._id;
+        const notif = await Notification.create({
+          user_id: booking.customer_id,
+          title: 'Pickup completed',
+          message: `Your order #${orderRef} has been picked up and is being processed. We'll notify you when it's ready for delivery.`,
+          type: 'booking_status',
+          data: { bookingId: booking._id, status: 'rider_pickup_done' },
+          related_order: booking._id,
+        });
+        try { await notificationService.sendPushNotification(booking.customer_id, notif); } catch {}
+      }
+    } catch {}
+
+    res.json({ success: true, message: 'Pickup completed successfully', booking });
+  } catch (error) {
+    console.error('❌ Complete pickup error:', error);
+    res.status(500).json({ message: 'Failed to complete pickup', error: error.message });
+  }
+});
+
+// Complete delivery - rider marks order as delivered (goes to 'delivered', not 'completed')
+// Desk/Admin must then mark it 'completed'
+router.post('/orders/:orderId/complete-delivery', verifyRiderToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { payment_photo, payment_method, timestamp } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const booking = await Booking.findById(orderId);
+    if (!booking) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date(timestamp || Date.now());
+    booking.riderStatus = 'delivered';
+    booking.deliveredAt = now;
+    booking.status = 'delivered';
+    if (payment_photo) booking.payment_photo = payment_photo;
+    if (payment_method === 'cash' && !booking.cod_collected) {
+      booking.cod_collected = true;
+      booking.cod_amount = booking.final_amount || booking.total_price || 0;
+      booking.cod_collected_at = now;
+    }
+    booking.updated_at = now;
+    await booking.save();
+
+    // Send push notification to customer
+    try {
+      const Notification = require('../models/Notification');
+      if (booking.customer_id) {
+        const orderRef = booking.custom_order_id || booking._id;
+        const notif = await Notification.create({
+          user_id: booking.customer_id,
+          title: 'Order delivered!',
+          message: `Your order #${orderRef} has been delivered successfully. Thank you for choosing Laundrify!`,
+          type: 'booking_status',
+          data: { bookingId: booking._id, status: 'delivered' },
+          related_order: booking._id,
+        });
+        try { await notificationService.sendPushNotification(booking.customer_id, notif); } catch {}
+      }
+    } catch {}
+
+    res.json({ success: true, message: 'Delivery completed successfully. Order is in Delivered state — Desk/Admin can now mark it Completed.', booking });
+  } catch (error) {
+    console.error('❌ Complete delivery error:', error);
+    res.status(500).json({ message: 'Failed to complete delivery', error: error.message });
+  }
+});
 
 // Debug catch-all route for unmatched rider routes
 router.all('*', (req, res) => {
@@ -2260,6 +2958,60 @@ router.all('*', (req, res) => {
       'GET /api/riders/notifications'
     ]
   });
+});
+
+// ── Wildcard routes — must be LAST to avoid shadowing specific routes ──────────
+
+// Get rider by ID
+router.get('/:riderId', verifyRiderToken, async (req, res) => {
+  try {
+    const rider = await Rider.findById(req.params.riderId).lean();
+    if (!rider) return res.status(404).json({ message: 'Rider not found' });
+    res.json(rider);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch rider', error: error.message });
+  }
+});
+
+// Update rider profile
+router.put('/:riderId', verifyRiderToken, async (req, res) => {
+  try {
+    const allowed = ['name', 'phone', 'aadharNumber', 'isActive', 'rating'];
+    const updates = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+    const rider = await Rider.findByIdAndUpdate(
+      req.params.riderId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!rider) return res.status(404).json({ message: 'Rider not found' });
+    res.json(rider);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update rider', error: error.message });
+  }
+});
+
+// Upload rider document
+router.post('/:riderId/documents', verifyRiderToken, upload.single('file'), async (req, res) => {
+  try {
+    const { riderId } = req.params;
+    const { documentType } = req.body;
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+    const fileUrl = `/uploads/riders/${req.file.filename}`;
+    const rider = await Rider.findById(riderId);
+    if (!rider) return res.status(404).json({ message: 'Rider not found' });
+
+    rider.documents = rider.documents || {};
+    rider.documents[documentType] = { uploaded: true, verified: false, url: fileUrl };
+    await rider.save();
+
+    res.json({ url: fileUrl });
+  } catch (error) {
+    res.status(500).json({ message: 'Document upload failed', error: error.message });
+  }
 });
 
 module.exports = router;

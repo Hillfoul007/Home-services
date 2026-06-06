@@ -68,9 +68,17 @@ export default {
           'pink': '#F36BAF',
           'mint': '#B9F9D3',
           'red': '#FF3F63',
-          'blue': '#243C90',
+          'blue': '#1E2D6B', // Deepened blue for more premium feel
           'yellow': '#E3FF63',
         },
+      },
+      boxShadow: {
+        'premium': '0 10px 40px -10px rgba(0,0,0,0.04)',
+        'premium-hover': '0 20px 40px -10px rgba(0,0,0,0.08)',
+        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.05)',
+      },
+      backgroundImage: {
+        'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.3) 100%)',
       },
       borderRadius: {
         lg: "var(--radius)",

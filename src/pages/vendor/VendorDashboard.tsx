@@ -126,69 +126,18 @@ const VendorDashboard: React.FC = () => {
         const vendorAuth = vendorAuthService.getVendorAuth();
         const rawToken = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
 
-        console.log("🔍 [DEBUG] Token Status:", {
-          hasToken: !!rawToken,
-          tokenType: rawToken ? 'Present' : 'MISSING',
-          tokenLength: rawToken?.length,
-          tokenPreview: rawToken ? rawToken.substring(0, 100) + '...' : 'NO_TOKEN'
-        });
-
-        console.log("🔍 [DEBUG] Vendor Auth from Token:", {
-          authExists: !!vendorAuth,
-          vendor_id: vendorAuth?.vendor_id,
-          vendor_id_str: vendorAuth?.vendor_id_str,
-          name: vendorAuth?.name,
-          allKeys: vendorAuth ? Object.keys(vendorAuth) : 'null'
-        });
-
         const vendorIdToUse = vendorAuth?.vendor_id || vendorAuth?.vendor_id_str;
 
         if (vendorIdToUse) {
-          console.log(`📍 [DEBUG] Using vendor ID: "${vendorIdToUse}"`);
-          console.log(`📍 [DEBUG] Fetching PG orders for vendor ID: "${vendorIdToUse}" (type: ${typeof vendorIdToUse})`);
-
           const pgResponse = await apiClient.request<any>(
             `/pg-orders/vendor/${vendorIdToUse}`
           );
-          console.log("📦 [DEBUG] Full PG Orders Response:", pgResponse);
-          console.log("📦 [DEBUG] PG Orders Response Structure:", {
-            success: pgResponse?.data?.success,
-            dataType: typeof pgResponse?.data,
-            isArray: Array.isArray(pgResponse?.data),
-            hasDataProperty: 'data' in (pgResponse?.data || {}),
-            dataLength: Array.isArray(pgResponse?.data) ? pgResponse.data.length : (pgResponse?.data?.data?.length || 0),
-            dataArray: Array.isArray(pgResponse?.data) ? pgResponse.data : (pgResponse?.data?.data || []),
-            error: pgResponse?.error,
-            status: pgResponse?.status
-          });
 
           // Backend returns { success: true, data: [...] }, so extract the actual array
           const pgOrdersArray = Array.isArray(pgResponse.data)
             ? pgResponse.data
             : (pgResponse.data?.data || []);
 
-          console.log(`✅ Found ${pgOrdersArray?.length || 0} PG orders`);
-          if (pgOrdersArray && pgOrdersArray.length > 0) {
-            console.log("✅ PG Orders Details:", pgOrdersArray.map((o: any) => ({
-              id: o.custom_order_id,
-              pg_name: o.pg_name,
-              address: o.address,
-              city: o.city,
-              status: o.status
-            })));
-          } else {
-            console.log("ℹ️ No PG orders found for vendor:", vendorIdToUse, {
-              possibleReasons: [
-                "No PG orders created for this vendor",
-                "PG orders not assigned to this vendor",
-                "Vendor ID mismatch in database"
-              ],
-              debugInfo: {
-                vendorIdUsed: vendorIdToUse,
-                responseData: pgResponse.data
-              }
-            });
-          }
 
           if (pgOrdersArray && Array.isArray(pgOrdersArray) && pgOrdersArray.length > 0) {
             const pgOrders: Order[] = pgOrdersArray.map((pgOrder: any) => {
@@ -217,36 +166,10 @@ const VendorDashboard: React.FC = () => {
                 no_of_items: pgOrder.no_of_items,
               };
             });
-            console.log("✅ PG Orders mapped:", pgOrders.map(o => ({
-              id: o.custom_order_id,
-              pg_name: o.pg_name,
-              address: o.address,
-              status: o.status
-            })));
             allOrders = [...allOrders, ...pgOrders];
-            console.log("✅ PG Orders merged into allOrders", {
-              regularOrdersCount: allOrders.filter(o => !o.isPGOrder).length,
-              pgOrdersCount: allOrders.filter(o => o.isPGOrder).length,
-              totalCount: allOrders.length,
-              sample_pg: pgOrders.slice(0, 2).map(o => ({
-                id: o.custom_order_id,
-                isPGOrder: o.isPGOrder,
-                pg_name: o.pg_name
-              }))
-            });
           }
         } else {
-          const errorDetails = {
-            vendorAuth_exists: !!vendorAuth,
-            vendor_id: vendorAuth?.vendor_id,
-            vendor_id_str: vendorAuth?.vendor_id_str,
-            available_keys: vendorAuth ? Object.keys(vendorAuth) : [],
-            token_exists: !!rawToken,
-            rawToken_length: rawToken?.length,
-            isCustomerToken: rawToken && !rawToken.includes('vendor_id'),
-            recommendation: 'Try logging out and logging back in with valid vendor credentials'
-          };
-          console.error("❌ [DEBUG] No vendor ID found in token!", errorDetails);
+          console.error("❌ No vendor ID found in token — please log in again");
           toast.error("Vendor authentication error: Invalid or expired token. Please log in again.");
 
           // Redirect to login
@@ -255,25 +178,16 @@ const VendorDashboard: React.FC = () => {
           }, 2000);
         }
       } catch (pgError) {
-        console.error("❌ [DEBUG] Could not load PG orders:", {
-          error: pgError,
-          message: (pgError as any)?.message,
-          stack: (pgError as any)?.stack
-        });
+        console.error("❌ Could not load PG orders:", (pgError as any)?.message);
       }
 
       // Deduplicate orders by _id (remove duplicates)
       const seenIds = new Set<string>();
       const uniqueOrders = allOrders.filter(order => {
-        if (seenIds.has(order._id)) {
-          console.log(`🚫 Removing duplicate order: ${order.custom_order_id} (${order._id})`);
-          return false;
-        }
+        if (seenIds.has(order._id)) return false;
         seenIds.add(order._id);
         return true;
       });
-
-      console.log(`📊 Order deduplication: ${allOrders.length} total → ${uniqueOrders.length} unique orders`);
 
       // Detect new orders and play notification
       setOrders(prevOrders => {
@@ -477,26 +391,8 @@ const VendorDashboard: React.FC = () => {
   // Apply filter based on filterType
   const getFilteredOrders = (ordersToFilter: Order[]): Order[] => {
     if (filterType === 'all') return ordersToFilter;
-    if (filterType === 'regular') {
-      const regularOnly = ordersToFilter.filter(o => !o.isPGOrder);
-      console.log("🔍 Filtering Regular Orders:", {
-        totalInput: ordersToFilter.length,
-        filteredOutput: regularOnly.length,
-        pgOrdersRemoved: ordersToFilter.filter(o => o.isPGOrder).length,
-        hasPGOrders: regularOnly.some(o => o.isPGOrder)
-      });
-      return regularOnly;
-    }
-    if (filterType === 'pg') {
-      const pgOnly = ordersToFilter.filter(o => o.isPGOrder);
-      console.log("🔍 Filtering PG Orders:", {
-        totalInput: ordersToFilter.length,
-        filteredOutput: pgOnly.length,
-        regularOrdersRemoved: ordersToFilter.filter(o => !o.isPGOrder).length,
-        hasRegularOrders: pgOnly.some(o => !o.isPGOrder)
-      });
-      return pgOnly;
-    }
+    if (filterType === 'regular') return ordersToFilter.filter(o => !o.isPGOrder);
+    if (filterType === 'pg') return ordersToFilter.filter(o => o.isPGOrder);
     return ordersToFilter;
   };
 
@@ -506,27 +402,6 @@ const VendorDashboard: React.FC = () => {
   const bucketB = sortOrdersByTime(filteredOrders.filter(o => o.status === 'ready_for_delivery'));
   const completed = sortOrdersByTime(filteredOrders.filter(o => (o.status === 'completed' || o.status === 'delivered') && o.status !== 'cancelled'));
 
-  // Verify PG and Regular orders are properly separated
-  const allPGOrders = orders.filter(o => o.isPGOrder);
-  const allRegularOrders = orders.filter(o => !o.isPGOrder);
-
-  console.log("📊 [DEBUG] Orders Separation Verification:", {
-    totalOrders: orders.length,
-    pgOrders: allPGOrders.length,
-    regularOrders: allRegularOrders.length,
-    sumMatches: allPGOrders.length + allRegularOrders.length === orders.length ? '✅ YES' : '❌ NO',
-    pgOrderIds: allPGOrders.map(o => o.custom_order_id),
-    filterType,
-    bucketA_count: bucketA.length,
-    bucketB_count: bucketB.length,
-    completed_count: completed.length,
-    bucketA_data: bucketA.map(o => ({
-      id: o.custom_order_id,
-      isPG: o.isPGOrder,
-      pg_name: o.pg_name,
-      status: o.status
-    }))
-  });
 
   if (loading && orders.length === 0) {
     return (

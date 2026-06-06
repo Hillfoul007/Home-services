@@ -30,6 +30,8 @@ interface UserMenuDropdownProps {
   currentUser: any;
   onLogout: () => void;
   onViewBookings: () => void;
+  onViewPackages?: () => void;
+  onViewReferral?: () => void;
   onUpdateProfile?: (updatedUser: any) => void;
 }
 
@@ -37,6 +39,8 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
   currentUser,
   onLogout,
   onViewBookings,
+  onViewPackages,
+  onViewReferral,
   onUpdateProfile,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -199,6 +203,68 @@ const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({
                   />
                 </div>
                 <span className="font-medium">My Wallet</span>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() =>
+                handleItemClick("packages", () => {
+                  setIsOpen(false);
+                  if (onViewPackages) onViewPackages();
+                })
+              }
+              className={`cursor-pointer rounded-xl p-3 hover:bg-orange-50 hover:text-orange-700 transition-all duration-200 group transform hover:scale-[1.02] ${
+                clickedItem === "packages"
+                  ? "scale-110 bg-orange-100 shadow-lg ring-2 ring-orange-300 ring-opacity-50"
+                  : ""
+              }`}
+            >
+              <div className="flex items-center w-full">
+                <div
+                  className={`w-8 h-8 bg-orange-100 group-hover:bg-orange-200 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+                    clickedItem === "packages"
+                      ? "animate-pulse bg-orange-200 scale-110"
+                      : ""
+                  }`}
+                >
+                  <Package
+                    className={`h-4 w-4 text-orange-600 transition-all duration-200 ${
+                      clickedItem === "packages" ? "scale-125" : ""
+                    }`}
+                  />
+                </div>
+                <span className="font-medium">My Packages</span>
+              </div>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem
+              onClick={() =>
+                handleItemClick("referral", () => {
+                  setIsOpen(false);
+                  if (onViewReferral) onViewReferral();
+                })
+              }
+              className={`cursor-pointer rounded-xl p-3 hover:bg-pink-50 hover:text-pink-700 transition-all duration-200 group transform hover:scale-[1.02] ${
+                clickedItem === "referral"
+                  ? "scale-110 bg-pink-100 shadow-lg ring-2 ring-pink-300 ring-opacity-50"
+                  : ""
+              }`}
+            >
+              <div className="flex items-center w-full">
+                <div
+                  className={`w-8 h-8 bg-pink-100 group-hover:bg-pink-200 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+                    clickedItem === "referral"
+                      ? "animate-pulse bg-pink-200 scale-110"
+                      : ""
+                  }`}
+                >
+                  <Gift
+                    className={`h-4 w-4 text-pink-600 transition-all duration-200 ${
+                      clickedItem === "referral" ? "scale-125" : ""
+                    }`}
+                  />
+                </div>
+                <span className="font-medium">Refer & Earn</span>
               </div>
             </DropdownMenuItem>
 

@@ -7,7 +7,7 @@ const { spawn } = require('child_process');
 // Using 400MB heap with aggressive GC tuning
 const buildEnv = {
   ...process.env,
-  NODE_OPTIONS: '--max-old-space-size=400 --expose-gc',
+  NODE_OPTIONS: '--max-old-space-size=400',
   NODE_ENV: 'production',
 };
 

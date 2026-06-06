@@ -42,6 +42,19 @@ export const BACKEND_URLS = {
   production: PRODUCTION_API_URL
 };
 
+// Detect if running inside Capacitor native app (Android/iOS)
+const isCapacitorNative = (): boolean => {
+  try {
+    // Capacitor sets window.Capacitor on native platforms
+    const cap = (window as any).Capacitor;
+    if (cap?.isNativePlatform?.()) return true;
+    if (cap && cap.getPlatform && cap.getPlatform() !== 'web') return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 // Main API URL getter
 export const getApiUrl = (): string => {
   // First check for explicit environment variable
@@ -51,6 +64,13 @@ export const getApiUrl = (): string => {
     const firstUrl = envApiUrl.split(',').map((s: string) => s.trim()).find(Boolean) || envApiUrl.trim();
     console.log(`🔧 Using explicit env API URL: ${envApiUrl} -> selected: ${firstUrl}`);
     return firstUrl.endsWith('/api') ? firstUrl : `${firstUrl}/api`;
+  }
+
+  // *** CRITICAL: If running inside Capacitor native app, always use production API ***
+  // Capacitor serves from localhost internally, but needs to hit the real backend
+  if (isCapacitorNative()) {
+    console.log(`📱 Capacitor native app detected, using production API: ${PRODUCTION_API_URL}`);
+    return PRODUCTION_API_URL;
   }
 
   // Detect environment based on hostname

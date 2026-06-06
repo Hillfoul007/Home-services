@@ -1,3 +1,4 @@
+const http = require("http");
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -7,9 +8,12 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
+const Notification = require("./models/Notification");
 
-// Load environment variables
+// Load environment variables FIRST so all modules get the correct JWT_SECRET
 dotenv.config();
+
+const { initSocketServer, broadcastRiderLocation, getActiveRidersSnapshot } = require("./socketServer");
 
 // Load production configuration
 const productionConfig = require("./config/production");
@@ -96,12 +100,35 @@ app.use("/api/pg-orders", (req, res, next) => {
   next();
 });
 
+// Disable caching for all vendor (desk) and admin dynamic endpoints
+app.use("/api/vendor", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+app.use("/api/admin", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+app.use("/api/riders", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // Additional CORS middleware to ensure headers are always set
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  // Check if origin is allowed
-  const isAllowed = !origin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
+  // Check if origin is allowed (always allow Capacitor native app origins)
+  const isCapacitorOrigin = origin === 'https://localhost' || origin === 'capacitor://localhost' || origin === 'http://localhost';
+  const isAllowed = !origin || isCapacitorOrigin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
     productionConfig.ALLOWED_ORIGINS.some(allowedOrigin => {
       if (allowedOrigin.includes('*')) {
         const pattern = allowedOrigin.replace(/\*/g, '.*');
@@ -134,6 +161,11 @@ app.use(
         return callback(null, true);
       }
 
+      // Always allow Capacitor native app origins (Android & iOS)
+      if (origin === 'https://localhost' || origin === 'capacitor://localhost' || origin === 'http://localhost') {
+        return callback(null, true);
+      }
+
       // Check if the origin is in our allowed list (exact match)
       if (productionConfig.ALLOWED_ORIGINS.includes(origin)) {
         return callback(null, true);
@@ -153,9 +185,9 @@ app.use(
         return callback(null, true);
       }
 
-      // Only log CORS blocks (actual issues)
+      // Block disallowed origins
       console.log(`🚫 CORS blocked origin: ${origin}`);
-      return callback(null, true); // Temporarily allow all origins for debugging
+      return callback(new Error(`CORS: Origin ${origin} not allowed`));
     },
     credentials: true, // Enable credentials for iOS
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -165,6 +197,7 @@ app.use(
       "Accept",
       "user-id",
       "admin-token", // Add admin-token header support
+      "school-token", // Add school-token header support
       "Cache-Control", // Add Cache-Control header support
       "Pragma",
       "Expires",
@@ -181,8 +214,9 @@ app.use(
 app.options('*', (req, res) => {
   const origin = req.headers.origin;
 
-  // Check if origin is allowed
-  const isAllowed = !origin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
+  // Check if origin is allowed (always allow Capacitor native app origins)
+  const isCapacitorOrigin = origin === 'https://localhost' || origin === 'capacitor://localhost' || origin === 'http://localhost';
+  const isAllowed = !origin || isCapacitorOrigin || productionConfig.ALLOWED_ORIGINS.includes(origin) ||
     productionConfig.ALLOWED_ORIGINS.some(allowedOrigin => {
       if (allowedOrigin.includes('*')) {
         const pattern = allowedOrigin.replace(/\*/g, '.*');
@@ -200,7 +234,7 @@ app.options('*', (req, res) => {
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, user-id, admin-token, Cache-Control, Pragma, Expires, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, user-id, admin-token, school-token, Cache-Control, Pragma, Expires, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   res.status(200).end();
@@ -226,6 +260,21 @@ const connectDB = async () => {
       "✅ MongoDB connected successfully to:",
       mongoURI.replace(/\/\/[^:]+:[^@]+@/, "//***:***@"),
     );
+
+    // Fix: drop non-sparse aadharNumber index so multiple riders can have null
+    try {
+      const ridersCollection = mongoose.connection.collection("riders");
+      const indexes = await ridersCollection.indexes();
+      const badIndex = indexes.find(
+        (idx) => idx.key?.aadharNumber && !idx.sparse
+      );
+      if (badIndex) {
+        await ridersCollection.dropIndex(badIndex.name);
+        console.log("✅ Dropped non-sparse aadharNumber index:", badIndex.name);
+      }
+    } catch (indexErr) {
+      console.warn("⚠️ Could not fix aadharNumber index:", indexErr.message);
+    }
   } catch (error) {
     console.error("❌ MongoDB connection error:", error.message);
     console.log("⚠️ Running in mock mode without database");
@@ -407,6 +456,16 @@ try {
   console.error("❌ Full admin routes error:", error);
 }
 
+// Packages routes (User facing)
+try {
+  const packageRoutes = require("./routes/packages");
+  app.use("/api/packages", packageRoutes);
+  console.log("🔗 Packages routes registered at /api/packages");
+} catch (error) {
+  console.error("❌ Failed to load Packages routes:", error.message);
+  console.error("❌ Full packages routes error:", error);
+}
+
 // Quick Pickup routes (new)
 try {
   const quickPickupRoutes = require("./routes/quick-pickup");
@@ -451,12 +510,16 @@ try {
 try {
   const vendorAuthRoutes = require("./routes/vendor-auth");
   const vendorOrdersRoutes = require("./routes/vendor-orders");
+  const vendorRidersRoutes = require("./routes/vendor-riders");
 
   app.use("/api/vendor/auth", vendorAuthRoutes);
   console.log("🔗 Vendor auth routes registered at /api/vendor/auth");
 
   app.use("/api/vendor/orders", vendorOrdersRoutes);
   console.log("🔗 Vendor order routes registered at /api/vendor/orders");
+
+  app.use("/api/vendor/riders", vendorRidersRoutes);
+  console.log("🔗 Vendor rider routes registered at /api/vendor/riders");
 } catch (error) {
   console.error("❌ Failed to load Vendor routes:", error.message);
 }
@@ -502,20 +565,228 @@ try {
   console.error("❌ Failed to load Offline Store routes:", error.message);
 }
 
+// Store Portal routes
+try {
+  const storeRoutes = require("./routes/store");
+  app.use("/api/store", storeRoutes);
+  console.log("🔗 Store routes registered at /api/store");
+} catch (error) {
+  console.error("❌ Failed to load Store routes:", error.message);
+}
+
 // Google Sheets integration removed
 
+// Hotel management routes
+try {
+  const hotelManagementRoutes = require("./routes/hotel-management");
+  app.use("/api/hotel-management", hotelManagementRoutes);
+  console.log("🔗 Hotel Management routes registered at /api/hotel-management");
+} catch (error) {
+  console.error("❌ Failed to load Hotel Management routes:", error.message);
+}
+
+// School management routes
+try {
+  const schoolManagementRoutes = require("./routes/school-management");
+  app.use("/api/school-management", schoolManagementRoutes);
+  console.log("🔗 School Management routes registered at /api/school-management");
+} catch (error) {
+  console.error("❌ Failed to load School Management routes:", error.message);
+}
+
+// School orders routes (also handles school manager auth)
+try {
+  const schoolOrdersRoutes = require("./routes/school-orders");
+  app.use("/api/school-orders", schoolOrdersRoutes);
+  console.log("🔗 School Orders routes registered at /api/school-orders");
+} catch (error) {
+  console.error("❌ Failed to load School Orders routes:", error.message);
+}
+
+const User = require("./models/User");
+const DeviceToken = require("./models/DeviceToken");
+const admin = require("firebase-admin");
+
+// Initialize Firebase Admin (Only if credentials exist)
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log("🔥 Firebase Admin Initialized");
+  } else {
+    console.log("⚠️ FIREBASE_SERVICE_ACCOUNT not set. Push notifications will be mocked.");
+  }
+} catch (error) {
+  console.error("❌ Failed to initialize Firebase Admin:", error.message);
+}
+
 // Push notification endpoints
-app.post("/api/push/subscribe", (req, res) => {
-  // Store push subscription in database
-  // In production, save this to your user's profile
-  console.log("Push subscription received:", req.body);
-  res.json({ success: true });
+app.post("/api/push/subscribe", async (req, res) => {
+  try {
+    const { token, userId, riderId, vendorId } = req.body;
+    if (token) {
+      // Upsert device token, supporting user, rider, and vendor associations
+      await DeviceToken.findOneAndUpdate(
+        { token },
+        {
+          token,
+          ...(userId ? { userId } : {}),
+          ...(riderId ? { riderId } : {}),
+          ...(vendorId ? { vendorId } : {}),
+          lastActive: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+      const owner = userId ? `user: ${userId}` : riderId ? `rider: ${riderId}` : vendorId ? `vendor: ${vendorId}` : "anonymous";
+      console.log(`📱 Saved FCM token for ${owner}`);
+
+      // Also attach to User document if available
+      if (userId) {
+        await User.findByIdAndUpdate(userId, { $addToSet: { fcmTokens: token } });
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Push subscribe error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
-app.post("/api/push/unsubscribe", (req, res) => {
-  // Remove push subscription from database
-  console.log("Push unsubscribe request");
-  res.json({ success: true });
+app.post("/api/push/unsubscribe", async (req, res) => {
+  try {
+    const { token, userId } = req.body;
+    if (userId && token) {
+      await User.findByIdAndUpdate(userId, { $pull: { fcmTokens: token } });
+      console.log(`📱 Removed FCM token for user ${userId}`);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Push unsubscribe error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/admin/push-all", async (req, res) => {
+  try {
+    const { title, body, route } = req.body;
+    console.log(`📣 Push Broadcast Triggered: "${title}"`);
+    
+    // 1. Fetch all users for in-app notifications
+    const allUsers = await User.find({}, '_id');
+    const dbNotifications = allUsers.map(u => ({
+      user_id: u._id,
+      title,
+      message: body,
+      type: 'general',
+      data: { route: route || '/' },
+      priority: 'high'
+    }));
+    
+    if (dbNotifications.length > 0) {
+      await Notification.insertMany(dbNotifications);
+      console.log(`✅ Saved in-app notification for ${dbNotifications.length} users`);
+    }
+    
+    // 2. Fetch all unique device tokens
+    const allDeviceTokens = await DeviceToken.find({}, 'token');
+    let allTokens = allDeviceTokens.map(dt => dt.token);
+    
+    const usersWithTokens = await User.find({ fcmTokens: { $exists: true, $not: { $size: 0 } } }, 'fcmTokens');
+    usersWithTokens.forEach(u => {
+      allTokens = allTokens.concat(u.fcmTokens);
+    });
+    
+    allTokens = [...new Set(allTokens)].filter(t => t && typeof t === 'string');
+    
+    if (allTokens.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: "Notifications saved in-app, but no registered devices found for native push.", 
+        sentCount: allUsers.length, 
+        nativeCount: 0,
+        mockMode: true 
+      });
+    }
+    
+    // 3. Send via Firebase Admin if initialized
+    if (admin.apps.length > 0) {
+      // FCM allows max 500 tokens per multicast call
+      const chunks = [];
+      for (let i = 0; i < allTokens.length; i += 500) {
+        chunks.push(allTokens.slice(i, i + 500));
+      }
+      
+      let successCount = 0;
+      let failureCount = 0;
+      
+      for (const tokenChunk of chunks) {
+        const message = {
+          notification: { title, body },
+          data: { 
+            route: route || '/',
+            title,
+            body
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              channelId: 'laundrify_notifications',
+              priority: 'high',
+              visibility: 'public'
+            }
+          },
+          apns: {
+            payload: {
+              aps: {
+                alert: { title, body },
+                sound: 'default',
+                badge: 1
+              }
+            }
+          },
+          tokens: tokenChunk,
+        };
+        
+        const response = await admin.messaging().sendEachForMulticast(message);
+        successCount += response.successCount;
+        failureCount += response.failureCount;
+      }
+      
+      console.log(`🔥 Native Push Results: ${successCount} success, ${failureCount} failure`);
+      return res.json({ 
+        success: true, 
+        sentCount: allUsers.length, 
+        nativeCount: successCount,
+        failedCount: failureCount 
+      });
+    } else {
+      console.log(`🔔 Firebase Admin not initialized. Mocking push to ${allTokens.length} devices.`);
+      return res.json({ 
+        success: true, 
+        message: "Firebase credentials missing. Notifications only sent in-app.",
+        sentCount: allUsers.length, 
+        nativeCount: 0,
+        mockMode: true 
+      });
+    }
+  } catch (error) {
+    console.error("❌ Push all error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Mobile App Version checking endpoint
+app.get("/api/config/mobile-app-version", (req, res) => {
+  res.json({
+    latestVersion: process.env.APP_LATEST_VERSION || "1.9",
+    minRequiredVersion: process.env.APP_MIN_REQUIRED_VERSION || "1.0",
+    updateUrl: {
+      android: process.env.ANDROID_UPDATE_URL || "https://play.google.com/store/apps/details?id=com.laundrify.laundry.app",
+      ios: process.env.IOS_UPDATE_URL || "https://apps.apple.com/app/laundrify/id123456789"
+    }
+  });
 });
 
 // Helper function to get IST timestamp
@@ -735,35 +1006,52 @@ if (productionConfig.isProduction()) {
 }
 
 // Keep-alive mechanism for Render deployment
+// Render free tier sleeps after ~15 min of no external traffic.
+// Ping every 4 min (well within that window) to keep the server warm.
 const setupKeepAlive = () => {
   if (productionConfig.isProduction()) {
-    const keepAliveInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const keepAliveInterval = 4 * 60 * 1000; // 4 minutes
 
     setInterval(async () => {
       try {
         const url =
           process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-        const response = await fetch(`${url}/api/health`);
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 10000);
+        const response = await fetch(`${url}/api/health`, { signal: ctrl.signal });
+        clearTimeout(tid);
 
         if (response.ok) {
-          console.log("🔄 Keep-alive ping successful");
+          console.log("🔄 Keep-alive ping OK");
         } else {
-          console.log(
-            "⚠��� Keep-alive ping failed with status:",
-            response.status,
-          );
+          console.warn("⚠️ Keep-alive ping:", response.status);
         }
       } catch (error) {
-        console.log("⚠️ Keep-alive ping error:", error.message);
+        console.warn("⚠️ Keep-alive ping error:", error.message);
       }
     }, keepAliveInterval);
 
-    console.log("🔄 Keep-alive mechanism started (5 min intervals)");
+    console.log("🔄 Keep-alive started (4 min intervals)");
   }
 };
 
+// ─── Active rider locations REST endpoint (for desk HTTP fallback) ─────────────
+app.get("/api/riders/active-locations", async (req, res) => {
+  const riders = await getActiveRidersSnapshot();
+  res.json({ success: true, riders });
+});
+
+// ─── Expose broadcast helper so riders.js route can use it ────────────────────
+app.set("broadcastRiderLocation", broadcastRiderLocation);
+
+// ─── Create HTTP server and attach Socket.io ──────────────────────────────────
+const httpServer = http.createServer(app);
+initSocketServer(httpServer).catch((err) =>
+  console.error("Socket init error:", err)
+);
+
 // Start server with error handling
-const server = app.listen(PORT, () => {
+const server = httpServer.listen(PORT, () => {
   console.log(`🚀 CleanCare Pro server running on port ${PORT}`);
   console.log(`📱 Environment: ${productionConfig.NODE_ENV}`);
   if (productionConfig.isProduction()) {
@@ -782,6 +1070,10 @@ const server = app.listen(PORT, () => {
 
   // Start keep-alive mechanism
   setupKeepAlive();
+
+  // Auto-delete GridFS files from completed/cancelled orders older than 7 days
+  const { startGridfsCleanup } = require("./services/gridfsCleanup");
+  startGridfsCleanup();
 
   // Google Sheets integration removed
 });

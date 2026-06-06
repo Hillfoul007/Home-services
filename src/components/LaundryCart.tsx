@@ -31,6 +31,7 @@ import {
   getCategoryDisplay,
 } from "@/data/laundryServices";
 import { OTPAuthService } from "@/services/otpAuthService";
+import { toast } from "sonner";
 
 import {
   saveBookingFormData,
@@ -644,6 +645,27 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
 
       // Structure data to match booking service requirements
       const cartItems = getCartItems();
+
+      // Check minimum order value of ₹300
+      const minOrderTotal = cartItems.reduce((total, item) => {
+        const price = Number(item.service?.price) || 0;
+        const quantity = Number(item.quantity) || 1;
+        return total + (price * quantity);
+      }, 0);
+
+      if (minOrderTotal < 300) {
+        toast.error(`Minimum order ₹300 required. Current: ₹${minOrderTotal}`, {
+          description: "Please add more items to continue.",
+          duration: 5000,
+        });
+        addNotification(
+          createErrorNotification(
+            "Minimum Order Value",
+            `Minimum order value is ₹300. Your current order is ₹${minOrderTotal}. Please add more items.`,
+          ),
+        );
+        return;
+      }
       console.log("Cart items:", cartItems);
 
       const services = cartItems
