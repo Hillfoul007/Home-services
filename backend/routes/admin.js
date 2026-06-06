@@ -1439,8 +1439,10 @@ router.post("/bookings", verifyAdminAccess, async (req, res) => {
     const booking = new Booking(bookingData);
     await booking.save();
 
-    // Populate customer data
-    await booking.populate("customer_id", "full_name phone email");
+    // Populate customer data (only for non-vendor orders)
+    if (!bookingData.is_vendor_order) {
+      await booking.populate("customer_id", "full_name phone email");
+    }
 
     console.log("✅ Admin created booking:", booking._id);
     res.status(201).json({

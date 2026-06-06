@@ -16,7 +16,7 @@ const bookingSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: [true, "Customer phone number is required"],
+      required: [function() { return !this.is_vendor_order; }, "Customer phone number is required"],
       trim: true,
       index: true,
     },
@@ -25,7 +25,7 @@ const bookingSchema = new mongoose.Schema(
     customer_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Customer ID is required"],
+      required: [function() { return !this.is_vendor_order; }, "Customer ID is required"],
     },
     rider_id: {
       type: mongoose.Schema.Types.ObjectId,
