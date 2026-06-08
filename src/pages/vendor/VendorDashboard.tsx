@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { vendorAuthService } from "@/services/vendorAuthService";
 import { soundNotificationService, SoundNotificationSettings } from "@/services/soundNotificationService";
@@ -8,6 +8,8 @@ import { formatDateOnlyIST } from "@/utils/timeUtils";
 import { toast } from "sonner";
 import { Volume2, VolumeX } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import VendorOrderList from "./VendorOrderList";
+import VendorInvoice from "./VendorInvoice";
 
 interface Order {
   _id: string;
@@ -81,6 +83,7 @@ const formatScheduledDateTime = (order: Order): string => {
 };
 
 type FilterType = 'all' | 'regular' | 'pg';
+type ActiveTab = 'kanban' | 'list' | 'invoice';
 
 const VendorDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -92,22 +95,43 @@ const VendorDashboard: React.FC = () => {
   const [soundSettings, setSoundSettings] = useState<SoundNotificationSettings>(soundNotificationService.getSettings());
   const [showSoundMenu, setShowSoundMenu] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('kanban');
+  const vendorAuth = vendorAuthService.getVendorAuth();
+  const vendorName: string = vendorAuth?.name || vendorAuth?.vendor_name || "";
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isPollingRef = useRef(false);
 
   const load = async () => {
+    if (isPollingRef.current) return;
+    isPollingRef.current = true;
     setLoading(true);
     try {
-      // Validate vendor authentication
-      const isValidAuth = await vendorAuthService.validateVendorAuth();
-      if (!isValidAuth) {
-        console.error("❌ Vendor authentication validation failed");
-        toast.error("Session expired or invalid. Please log in again.");
+      // Validate auth locally via JWT decode — no network call needed on every poll
+      const token = localStorage.getItem('laundrify_token') || localStorage.getItem('auth_token');
+      if (!token) {
         navigate("/vendor/login");
-        setLoading(false);
         return;
       }
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)));
+          if (payload.exp && Date.now() / 1000 > payload.exp) {
+            toast.error("Session expired. Please log in again.");
+            vendorAuthService.logout();
+            navigate("/vendor/login");
+            return;
+          }
+        }
+      } catch {}
 
       const vendorAuth = vendorAuthService.getVendorAuth();
-      console.log("✅ Vendor is authenticated:", vendorAuth?.name);
+      if (!vendorAuth) {
+        toast.error("Authentication error. Please log in again.");
+        navigate("/vendor/login");
+        return;
+      }
 
       const res = await vendorAuthService.fetchAssignedOrders();
       let allOrders: Order[] = [];
@@ -212,14 +236,14 @@ const VendorDashboard: React.FC = () => {
       toast.error(err?.message || "Failed to load orders");
     } finally {
       setLoading(false);
+      isPollingRef.current = false;
     }
   };
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 15000);
+    intervalRef.current = setInterval(load, 30000);
 
-    // Resume audio context on user interaction (browser requirement)
     const handleInteraction = () => {
       soundNotificationService.resumeAudioContext();
     };
@@ -228,7 +252,7 @@ const VendorDashboard: React.FC = () => {
     document.addEventListener('touchstart', handleInteraction);
 
     return () => {
-      clearInterval(interval);
+      if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener('click', handleInteraction);
       document.removeEventListener('touchstart', handleInteraction);
     };
@@ -416,7 +440,7 @@ const VendorDashboard: React.FC = () => {
 
   return (
     <div className="p-3 md:p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl md:text-2xl font-semibold">Vendor Dashboard</h1>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -496,6 +520,39 @@ const VendorDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Tab navigation */}
+      <div className="flex gap-1 border-b mb-4">
+        {([
+          { key: 'kanban',  label: '📋 Kanban'      },
+          { key: 'list',    label: '📊 Order List'  },
+          { key: 'invoice', label: '🧾 Invoice'     },
+        ] as { key: ActiveTab; label: string }[]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px ${
+              activeTab === tab.key
+                ? "border-purple-600 text-purple-600"
+                : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Order List tab */}
+      {activeTab === 'list' && (
+        <VendorOrderList orders={orders} onRefresh={load} loading={loading} />
+      )}
+
+      {/* Invoice tab */}
+      {activeTab === 'invoice' && (
+        <VendorInvoice orders={orders} vendorName={vendorName} />
+      )}
+
+      {/* Kanban tab */}
+      {activeTab === 'kanban' && <>
       <div className="mb-4 flex gap-2 flex-wrap">
         <Button
           variant={filterType === 'all' ? 'default' : 'outline'}
@@ -511,7 +568,7 @@ const VendorDashboard: React.FC = () => {
           onClick={() => setFilterType('regular')}
           className="text-xs md:text-sm"
         >
-          Regular Orders ({orders.filter(o => !o.isPGOrder).length})
+          Regular ({orders.filter(o => !o.isPGOrder).length})
         </Button>
         <Button
           variant={filterType === 'pg' ? 'default' : 'outline'}
@@ -519,7 +576,7 @@ const VendorDashboard: React.FC = () => {
           onClick={() => setFilterType('pg')}
           className="text-xs md:text-sm"
         >
-          🏠 PG Orders ({orders.filter(o => o.isPGOrder).length})
+          🏠 PG ({orders.filter(o => o.isPGOrder).length})
         </Button>
       </div>
 
@@ -828,6 +885,7 @@ const VendorDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+      </>}
     </div>
   );
 };
