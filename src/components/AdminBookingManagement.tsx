@@ -25,6 +25,8 @@ import {
   AlertCircle,
   Store,
   MessageCircle,
+  Copy,
+  ClipboardCheck,
 } from "lucide-react";
 import { vendorService } from "@/services/vendorService";
 import { walletService } from "@/services/walletService";
@@ -1265,6 +1267,47 @@ const AdminBookingManagement: React.FC = () => {
     }, {} as Record<string, Booking[]>);
   };
 
+  const [copiedOrderList, setCopiedOrderList] = useState(false);
+
+  const copyVendorOrderList = () => {
+    if (filteredVendorOrders.length === 0) {
+      toast.error("No orders to copy");
+      return;
+    }
+    const grouped = groupOrdersByVendor(filteredVendorOrders);
+    const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const lines: string[] = [`*LAUNDRIFY — Vendor Order List*`, `📅 ${today}`, ""];
+
+    Object.entries(grouped).forEach(([vendorName, orders]) => {
+      const total = orders.reduce((s, o) => s + (o.final_amount ?? o.total_price ?? 0), 0);
+      lines.push(`🏪 *${vendorName}* (${orders.length} orders | ₹${total.toLocaleString("en-IN")})`);
+      lines.push("─────────────────────");
+      orders.forEach((o, i) => {
+        const date = o.scheduled_date
+          ? new Date(o.scheduled_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+          : "—";
+        const client = o.vendor_client_name || o.name || "—";
+        const service = o.service || "—";
+        const amount = `₹${(o.final_amount ?? o.total_price ?? 0).toLocaleString("en-IN")}`;
+        const status = getStatusLabel(o.status);
+        lines.push(`${i + 1}. #${o.custom_order_id || o._id?.slice(-6)}`);
+        lines.push(`   Client: ${client}`);
+        lines.push(`   Service: ${service}`);
+        lines.push(`   Date: ${date}  |  ${amount}  |  ${status}`);
+      });
+      lines.push("");
+    });
+
+    const text = lines.join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success("Order list copied to clipboard");
+      setCopiedOrderList(true);
+      setTimeout(() => setCopiedOrderList(false), 3000);
+    }).catch(() => {
+      toast.error("Failed to copy — please try again");
+    });
+  };
+
   const getMonthYearKey = (dateStr?: string): string => {
     if (!dateStr) return "";
     try {
@@ -2348,9 +2391,21 @@ const AdminBookingManagement: React.FC = () => {
                 </h3>
                 <p className="text-sm text-gray-500">Orders created for bulk clients — no mobile number required</p>
               </div>
-              <div className="text-right bg-amber-50 p-3 rounded-lg border border-amber-200">
-                <div className="text-xs text-gray-600 font-medium">Total Value</div>
-                <div className="text-2xl font-bold text-amber-700">₹{calculateTotalPrice(filteredVendorOrders).toLocaleString('en-IN')}</div>
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={copyVendorOrderList}
+                  className={clsx("gap-2 border-amber-300 text-amber-700 hover:bg-amber-50", copiedOrderList && "border-green-400 text-green-700 bg-green-50")}
+                  disabled={filteredVendorOrders.length === 0}
+                >
+                  {copiedOrderList ? <ClipboardCheck className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copiedOrderList ? "Copied!" : "Copy Order List"}
+                </Button>
+                <div className="text-right bg-amber-50 p-3 rounded-lg border border-amber-200">
+                  <div className="text-xs text-gray-600 font-medium">Total Value</div>
+                  <div className="text-2xl font-bold text-amber-700">₹{calculateTotalPrice(filteredVendorOrders).toLocaleString('en-IN')}</div>
+                </div>
               </div>
             </div>
 
