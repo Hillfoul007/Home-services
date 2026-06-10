@@ -24,6 +24,8 @@ import {
   AlertCircle,
   Clock,
   MapPin,
+  Copy,
+  ClipboardCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
@@ -129,6 +131,60 @@ const AdminVendorOrders: React.FC = () => {
   const [editAssignedVendorId, setEditAssignedVendorId] = useState("");
   const [editCartItems, setEditCartItems] = useState<CartItem[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const [copiedList, setCopiedList] = useState(false);
+
+  const copyOrderList = () => {
+    if (filteredOrders.length === 0) {
+      toast.error("No orders to copy");
+      return;
+    }
+
+    // Group by assigned laundry vendor
+    const grouped: Record<string, VendorOrder[]> = {};
+    filteredOrders.forEach(o => {
+      const key = o.assignedVendor || "Unassigned";
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(o);
+    });
+
+    const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const lines: string[] = [`*LAUNDRIFY — Vendor Order List*`, `📅 ${today}`, ""];
+
+    Object.entries(grouped).forEach(([vendorName, orders]) => {
+      const total = orders.reduce((s, o) => s + (o.final_amount ?? o.total_price ?? 0), 0);
+      lines.push(`🏪 *${vendorName}* (${orders.length} order${orders.length !== 1 ? "s" : ""} | ₹${total.toLocaleString("en-IN")})`);
+      lines.push("─────────────────────");
+      orders.forEach((o, i) => {
+        const pickupDate = o.scheduled_date
+          ? new Date(o.scheduled_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+          : "—";
+        const status = getStatusInfo(normalizeStatus(o.status)).label;
+        lines.push(`${i + 1}. #${o.custom_order_id}`);
+        lines.push(`   Client: ${o.vendor_client_name || o.name || "—"}`);
+        if (o.item_prices && o.item_prices.length > 0) {
+          o.item_prices.forEach(it => {
+            lines.push(`   • ${it.service_name} × ${it.quantity} = ₹${it.total_price}`);
+          });
+        } else {
+          lines.push(`   Service: ${o.service || "—"}`);
+        }
+        lines.push(`   Pickup: ${pickupDate}  |  ₹${(o.final_amount ?? o.total_price ?? 0).toLocaleString("en-IN")}  |  ${status}`);
+      });
+      lines.push("");
+    });
+
+    const grandTotal = filteredOrders.reduce((s, o) => s + (o.final_amount ?? o.total_price ?? 0), 0);
+    lines.push(`📦 Total: ${filteredOrders.length} order${filteredOrders.length !== 1 ? "s" : ""}  |  ₹${grandTotal.toLocaleString("en-IN")}`);
+
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
+      toast.success("Order list copied to clipboard");
+      setCopiedList(true);
+      setTimeout(() => setCopiedList(false), 3000);
+    }).catch(() => {
+      toast.error("Failed to copy — please try again");
+    });
+  };
 
   const calculateTotal = () =>
     cartItems.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0);
@@ -430,10 +486,21 @@ const AdminVendorOrders: React.FC = () => {
           </p>
         </div>
         {activeTab === "orders" && (
-          <Button variant="outline" onClick={fetchOrders} disabled={ordersLoading}>
-            <RefreshCw className={clsx("mr-2 h-4 w-4", ordersLoading && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={copyOrderList}
+              disabled={filteredOrders.length === 0}
+              className={clsx("gap-2 border-amber-300 text-amber-700 hover:bg-amber-50", copiedList && "border-green-400 text-green-700 bg-green-50")}
+            >
+              {copiedList ? <ClipboardCheck className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copiedList ? "Copied!" : "Copy Order List"}
+            </Button>
+            <Button variant="outline" onClick={fetchOrders} disabled={ordersLoading}>
+              <RefreshCw className={clsx("mr-2 h-4 w-4", ordersLoading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         )}
       </div>
 
