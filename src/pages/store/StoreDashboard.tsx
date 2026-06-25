@@ -469,10 +469,11 @@ export default function StoreDashboard() {
                           <label className="block text-xs text-gray-500 mb-1">Qty</label>
                           <Input
                             type="number"
-                            inputMode="numeric"
-                            min={1}
+                            inputMode="decimal"
+                            min={0.01}
+                            step="0.01"
                             value={item.quantity}
-                            onChange={(e) => handleServiceChange(idx, "quantity", parseInt(e.target.value) || 1)}
+                            onChange={(e) => handleServiceChange(idx, "quantity", parseFloat(e.target.value) || 0)}
                             className="h-10 text-center text-sm font-medium"
                           />
                         </div>
@@ -491,7 +492,7 @@ export default function StoreDashboard() {
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">Total</label>
                           <div className="h-10 flex items-center justify-center bg-blue-50 border border-blue-200 rounded-md text-sm font-bold text-blue-700">
-                            ₹{item.total_price.toFixed(0)}
+                            ₹{item.total_price.toFixed(2)}
                           </div>
                         </div>
                       </div>
@@ -502,7 +503,7 @@ export default function StoreDashboard() {
                 {/* Cart subtotal */}
                 <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
                   <span className="text-sm text-gray-500">Subtotal</span>
-                  <span className="font-bold text-gray-800">₹{subtotal.toFixed(0)}</span>
+                  <span className="font-bold text-gray-800">₹{subtotal.toFixed(2)}</span>
                 </div>
               </Card>
 
