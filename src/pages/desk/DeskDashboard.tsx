@@ -341,12 +341,12 @@ const DeskDashboard: React.FC = () => {
     finally { setInitialLoading(false); }
   }, [token, navigate, metricsPeriod, ordersPeriod]);
 
-  // ── fetch 24hr trail for a rider ──
+  // ── fetch 12hr trail for a rider ──
   const openRiderTrail = useCallback(async (riderId: string, name: string) => {
     setTrailModal({ riderId, name, points: [], loading: true });
     try {
       const { getApiUrl } = await import('@/config/env');
-      const res = await fetch(`${getApiUrl()}/riders/location/history?riderId=${riderId}&hours=24`);
+      const res = await fetch(`${getApiUrl()}/riders/location/history?riderId=${riderId}&hours=12`);
       const data = await res.json();
       setTrailModal(prev => prev ? { ...prev, points: data.points || [], loading: false } : null);
     } catch {
@@ -1864,7 +1864,7 @@ const DeskDashboard: React.FC = () => {
                           onClick={() => openRiderTrail(selectedSocketRider.rider_id, selectedSocketRider.name)}
                           className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg font-medium"
                         >
-                          🕐 24hr Trail
+                          🕐 12hr Trail
                         </button>
                       </div>
                     </div>
@@ -2020,81 +2020,121 @@ const DeskDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* ══ 24HR TRAIL MODAL ══ */}
-        {trailModal && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <div>
-                  <p className="font-semibold text-gray-900">🕐 24hr Trail — {trailModal.name}</p>
-                  <p className="text-xs text-gray-400">{trailModal.loading ? 'Loading…' : `${trailModal.points.length} location points`}</p>
-                </div>
-                <button onClick={() => setTrailModal(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
-              </div>
+        {/* ══ 12HR TRAIL MODAL ══ */}
+        {trailModal && (() => {
+          const pts = [...trailModal.points].reverse(); // newest first
 
-              {trailModal.loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="w-7 h-7 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : trailModal.points.length === 0 ? (
-                <div className="py-10 text-center">
-                  <p className="text-gray-400 text-sm">No location data found for the last 24 hours.</p>
-                  <p className="text-gray-300 text-xs mt-1">Make sure Redis (REDIS_URL) is configured and the rider has been active.</p>
-                </div>
-              ) : (
-                <div className="p-4 space-y-3">
-                  {/* Quick stats */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-purple-50 rounded-xl p-3 text-center">
-                      <p className="text-lg font-bold text-purple-700">{trailModal.points.length}</p>
-                      <p className="text-xs text-purple-500">Points</p>
-                    </div>
-                    <div className="bg-blue-50 rounded-xl p-3 text-center">
-                      <p className="text-sm font-bold text-blue-700">
-                        {new Date(trailModal.points[0].ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      <p className="text-xs text-blue-500">First seen</p>
-                    </div>
-                    <div className="bg-green-50 rounded-xl p-3 text-center">
-                      <p className="text-sm font-bold text-green-700">
-                        {new Date(trailModal.points[trailModal.points.length - 1].ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      <p className="text-xs text-green-500">Last seen</p>
-                    </div>
+          // Group points by hour
+          const grouped: { hourKey: string; items: typeof pts }[] = [];
+          pts.forEach(p => {
+            const hourKey = new Date(p.ts).toLocaleString('en-IN', {
+              timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: true,
+            });
+            const last = grouped[grouped.length - 1];
+            if (!last || last.hourKey !== hourKey) grouped.push({ hourKey, items: [p] });
+            else last.items.push(p);
+          });
+
+          const minsAgo = (ts: number) => {
+            const m = Math.round((Date.now() - ts) / 60000);
+            if (m < 1) return 'just now';
+            if (m < 60) return `${m}m ago`;
+            const h = Math.floor(m / 60); const rm = m % 60;
+            return rm > 0 ? `${h}h ${rm}m ago` : `${h}h ago`;
+          };
+
+          return (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+              <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+                  <div>
+                    <p className="font-semibold text-gray-900">🕐 12hr Trail — {trailModal.name}</p>
+                    <p className="text-xs text-gray-400">
+                      {trailModal.loading ? 'Loading…' : `${trailModal.points.length} location points in last 12 hours`}
+                    </p>
                   </div>
-                  {/* Open full trail in Google Maps */}
-                  <a
-                    href={(() => {
-                      const pts = trailModal.points;
-                      const last = pts[pts.length - 1];
-                      const first = pts[0];
-                      return `https://www.google.com/maps/dir/${first.lat},${first.lng}/${last.lat},${last.lng}`;
-                    })()}
-                    target="_blank" rel="noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium"
-                  >
-                    📍 Open Start → End in Google Maps
-                  </a>
-                  {/* Last 10 positions */}
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-1">Recent positions (last 10)</p>
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {trailModal.points.slice(-10).reverse().map((p, i) => (
+                  <button onClick={() => setTrailModal(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+                </div>
+
+                {trailModal.loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-7 h-7 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : trailModal.points.length === 0 ? (
+                  <div className="py-10 text-center px-4">
+                    <p className="text-4xl mb-3">📡</p>
+                    <p className="text-gray-500 text-sm font-medium">No location data in the last 12 hours</p>
+                    <p className="text-gray-400 text-xs mt-1">Rider may be offline or Redis is not configured.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col overflow-hidden">
+                    {/* Quick stats */}
+                    <div className="grid grid-cols-3 gap-2 p-4 pb-2 shrink-0">
+                      <div className="bg-purple-50 rounded-xl p-2.5 text-center">
+                        <p className="text-lg font-bold text-purple-700">{trailModal.points.length}</p>
+                        <p className="text-xs text-purple-500">Points</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-2.5 text-center">
+                        <p className="text-sm font-bold text-blue-700">
+                          {new Date(trailModal.points[0].ts).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </p>
+                        <p className="text-xs text-blue-500">First seen</p>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-2.5 text-center">
+                        <p className="text-sm font-bold text-green-700">
+                          {new Date(trailModal.points[trailModal.points.length - 1].ts).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </p>
+                        <p className="text-xs text-green-500">Last seen</p>
+                      </div>
+                    </div>
+
+                    {/* Google Maps link */}
+                    <div className="px-4 pb-2 shrink-0">
                       <a
-                        key={i}
-                        href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+                        href={`https://www.google.com/maps/dir/${trailModal.points[0].lat},${trailModal.points[0].lng}/${trailModal.points[trailModal.points.length - 1].lat},${trailModal.points[trailModal.points.length - 1].lng}`}
                         target="_blank" rel="noreferrer"
-                        className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs"
+                        className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium"
                       >
-                        <span className="font-mono text-gray-600">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</span>
-                        <span className="text-gray-400 shrink-0 ml-2">{new Date(p.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                        📍 Open Start → End in Google Maps
                       </a>
-                    ))}
+                    </div>
+
+                    {/* All points grouped by hour */}
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 pb-1 shrink-0">
+                      All positions — newest first
+                    </p>
+                    <div className="overflow-y-auto flex-1 px-4 pb-4 space-y-3">
+                      {grouped.map((group, gi) => (
+                        <div key={gi}>
+                          <p className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-1 rounded-md mb-1 sticky top-0">
+                            🕐 {group.hourKey}
+                          </p>
+                          <div className="space-y-1">
+                            {group.items.map((p, i) => (
+                              <a
+                                key={i}
+                                href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+                                target="_blank" rel="noreferrer"
+                                className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs gap-2"
+                              >
+                                <span className="font-bold text-gray-800 shrink-0 tabular-nums">
+                                  {new Date(p.ts).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                                </span>
+                                <span className="font-mono text-gray-400 truncate">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</span>
+                                <span className="text-gray-300 shrink-0">{minsAgo(p.ts)}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ══ EFFICIENCY TAB ══ */}
         {tab === "efficiency" && (
