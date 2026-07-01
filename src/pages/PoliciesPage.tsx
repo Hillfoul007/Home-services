@@ -1,6 +1,19 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, ArrowLeft, ShieldCheck, AlertTriangle, Shirt, Search } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  ArrowLeft,
+  ShieldCheck,
+  Star,
+  RefreshCw,
+  AlertTriangle,
+  Phone,
+  Smartphone,
+  Clock,
+  FileText,
+  Info,
+} from "lucide-react";
 
 interface PolicySection {
   id: string;
@@ -8,506 +21,414 @@ interface PolicySection {
   title: string;
   subtitle: string;
   content: React.ReactNode;
+  highlight?: boolean;
 }
 
 const PoliciesPage: React.FC = () => {
   const navigate = useNavigate();
-  const [openSection, setOpenSection] = useState<string | null>("general");
+  const [openSection, setOpenSection] = useState<string | null>("gcpp");
 
   const toggle = (id: string) =>
     setOpenSection((prev) => (prev === id ? null : id));
 
   const sections: PolicySection[] = [
     {
-      id: "general",
+      id: "gcpp",
+      highlight: true,
       icon: <ShieldCheck className="w-5 h-5" />,
-      title: "General Terms & Service Policy",
-      subtitle: "How Laundrify operates and what we promise",
+      title: "Guaranteed Cloth Protection Program",
+      subtitle: "5× refund on processing value · Free re-processing · Zero cost",
       content: (
-        <div className="space-y-4 text-gray-700 text-sm leading-relaxed">
-          <p>
-            Laundrify is a laundry pickup and delivery service that connects
-            customers with trusted laundry vendors. By placing an order, you
-            agree to the following terms of service.
-          </p>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              1. Service Coverage
-            </h4>
-            <p>
-              Laundrify operates within designated service zones. Orders placed
-              outside our coverage area may be cancelled and fully refunded.
-              Service availability may vary based on vendor capacity, weather
-              conditions, and peak demand periods.
+        <div className="space-y-5 text-gray-700 text-sm leading-relaxed">
+          {/* Hero callout */}
+          <div className="bg-gradient-to-br from-purple-600 to-pink-500 rounded-2xl p-5 text-white">
+            <p className="text-lg font-bold mb-1">
+              Your clothes are fully protected with Laundrify.
+            </p>
+            <p className="text-white/80 text-sm">
+              The Guaranteed Cloth Protection Program (GCPP) covers every
+              eligible order against damage, loss, and quality issues — at
+              absolutely zero cost to you.
             </p>
           </div>
 
+          {/* 3 key benefits */}
+          <div className="grid grid-cols-1 gap-3">
+            <div className="flex items-start gap-3 bg-purple-50 border border-purple-100 rounded-xl p-4">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                <Star className="w-4 h-4 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-purple-900 text-sm">
+                  Up to 5× Refund on Processing Value
+                </p>
+                <p className="text-purple-700 text-xs mt-0.5">
+                  In case of confirmed damage or loss, you receive up to{" "}
+                  <strong>5 times the processing cost</strong> of the affected
+                  item — as charged on your Laundrify invoice after any
+                  discount. Not the retail price. Not the brand value. The
+                  exact amount we charged you to process that item, multiplied
+                  by 5.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 bg-green-50 border border-green-100 rounded-xl p-4">
+              <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                <RefreshCw className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-green-900 text-sm">
+                  Free Re-Processing for Quality Issues
+                </p>
+                <p className="text-green-700 text-xs mt-0.5">
+                  If your garment is returned with unsatisfactory cleaning,
+                  pressing, or finishing quality, we will re-process it{" "}
+                  <strong>completely free of charge</strong> — no questions
+                  asked. Just report within 7 days of delivery.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <Smartphone className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-blue-900 text-sm">
+                  Zero Cost — Promotional Offer
+                </p>
+                <p className="text-blue-700 text-xs mt-0.5">
+                  This protection program is provided at <strong>no extra charge</strong> as a
+                  promotional offer. It is automatically applied to all eligible
+                  orders — no enrolment needed.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Eligibility */}
           <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              2. Order Pickup & Delivery
+            <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-purple-500" />
+              Eligibility — Important Condition
             </h4>
-            <p>
-              Our riders will collect your laundry from your provided address
-              within the scheduled pickup window. Delivery timelines are
-              estimated and may vary. We are not responsible for delays caused
-              by circumstances beyond our control (traffic, weather, vendor
-              capacity).
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-amber-800 text-sm">
+                The Guaranteed Cloth Protection Program applies{" "}
+                <strong>only to orders for which full payment is made
+                through the Laundrify mobile app</strong>. Cash payments,
+                partial app payments, or orders placed through third-party
+                platforms are not eligible for GCPP coverage.
+              </p>
+            </div>
+          </div>
+
+          {/* Reporting window */}
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-purple-500" />
+              7-Day Reporting Window
+            </h4>
+            <p className="text-gray-600 text-sm">
+              Customers are requested to <strong>examine garments at the time of
+              delivery</strong>. All damage, loss, or quality issues must be
+              reported within <strong>7 days of delivery</strong>. Any complaint
+              received after 7 days of delivery will be <strong>null and void</strong> and
+              will not be covered under this program.
             </p>
           </div>
 
+          {/* Item confiscation */}
           <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              3. Item Responsibility
+            <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-purple-500" />
+              Item Confiscation on Dispute
             </h4>
-            <p>
-              Customers are responsible for checking their clothes before
-              handing them over to our rider. Any pre-existing stains, damages,
-              or defects must be reported at the time of pickup. Laundrify and
-              its vendor partners are not liable for damage to garments that
-              were already worn, torn, or stained before collection.
+            <p className="text-gray-600 text-sm">
+              In case a refund is approved under GCPP, the article under
+              dispute will be <strong>confiscated by Laundrify</strong>. The customer
+              will no longer retain the item once the refund is processed. This
+              condition applies to all damage and loss claims.
             </p>
           </div>
 
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              4. Delicate & High-Value Items
+          {/* What "order value of item" means */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <h4 className="font-semibold text-gray-800 text-sm mb-1">
+              What does "Order Value of Item" mean?
             </h4>
-            <p>
-              We strongly advise against sending jewellery, cash, valuable
-              accessories, heirlooms, or irreplaceable items with your laundry.
-              Laundrify bears no responsibility for such items found inside
-              pockets or bundled with clothes. Delicate fabrics (silk, leather,
-              embroidered garments) must be clearly labelled and declared at
-              the time of pickup so our team can handle them with extra care.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              5. Billing & Payments
-            </h4>
-            <p>
-              Your order bill is generated based on the services selected and
-              the weight or count of garments. A detailed bill will be shared
-              via the app before or after delivery. Payments can be made online
-              or using your Laundrify Wallet. All charges are inclusive of
-              taxes as applicable.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              6. Cancellation Policy
-            </h4>
-            <p>
-              Orders may be cancelled free of charge before a rider is
-              assigned. Once a rider is dispatched, a cancellation fee may
-              apply. If the cancellation is due to a fault on our end (e.g.,
-              rider unable to reach, vendor not available), you will receive a
-              full refund.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              7. Complaints & Grievance
-            </h4>
-            <p>
-              Any complaint must be raised within <strong>48 hours</strong> of
-              delivery. Complaints submitted after this window may not be
-              considered for compensation. You can raise a complaint via the
-              app's support section or by contacting our customer care team.
+            <p className="text-gray-600 text-xs leading-relaxed">
+              <strong>Order value of item</strong> refers to the{" "}
+              <em>processing cost charged for that specific garment</em> on your
+              Laundrify invoice — after any applicable discounts or offers. It
+              is <strong>not</strong> the retail price, purchase price, or
+              brand value of the garment. For example: if we charged ₹40 to
+              wash and press a shirt, the maximum refund under GCPP for that
+              shirt would be ₹40 × 5 = <strong>₹200</strong>.
             </p>
           </div>
         </div>
       ),
     },
     {
-      id: "damaged",
-      icon: <Shirt className="w-5 h-5" />,
-      title: "Clothes Damaged / Ruined Policy",
-      subtitle: "What happens if your garment is damaged during the process",
-      content: (
-        <div className="space-y-4 text-gray-700 text-sm leading-relaxed">
-          <p>
-            We take the utmost care with every garment entrusted to us.
-            However, in the rare event that a garment is{" "}
-            <strong>damaged, ruined, discoloured, shrunk, or torn</strong>{" "}
-            during the laundering process, Laundrify will take full
-            accountability and process a compensation claim.
-          </p>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <p className="font-semibold text-amber-800 mb-1">
-              Compensation Structure — Damaged Clothes
-            </p>
-            <p className="text-amber-700 text-sm">
-              If the damage is confirmed to have occurred at our vendor's end,
-              and the order bill is verified, you are eligible for a{" "}
-              <strong>50% refund of the order bill value</strong>:
-            </p>
-            <ul className="mt-3 space-y-2 text-amber-800">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
-                <span>
-                  <strong>25% credited to your Bank Account</strong> — refunded
-                  to the original payment method within 5–7 business days.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
-                <span>
-                  <strong>25% credited to your Laundrify Wallet</strong> —
-                  instantly available and usable on your next Laundrify order.
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              Eligibility Conditions
-            </h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600">
-              <li>
-                The damage complaint must be raised within{" "}
-                <strong>48 hours</strong> of delivery.
-              </li>
-              <li>
-                Photo/video proof of the damaged garment must be submitted
-                through the app.
-              </li>
-              <li>
-                The garment must have been in good condition at the time of
-                pickup (no pre-existing damage).
-              </li>
-              <li>
-                The item must appear on the verified order bill.
-              </li>
-              <li>
-                Damage caused by following the garment's care label
-                instructions is not covered.
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              Non-Eligible Cases
-            </h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600">
-              <li>
-                Garments with pre-existing damage declared or visible at
-                pickup.
-              </li>
-              <li>
-                Delicate items not declared at the time of pickup (e.g., silk,
-                embroidered, leather).
-              </li>
-              <li>Items with no-wash or dry-clean-only labels ignored.</li>
-              <li>Normal fading or wear due to standard washing.</li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              Investigation Process
-            </h4>
-            <p>
-              Once a claim is submitted, our team will review the complaint
-              with the vendor within <strong>3 business days</strong>. You will
-              be notified of the outcome via the app. If the claim is approved,
-              the refund will be processed as described above.
-            </p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "lost",
-      icon: <Search className="w-5 h-5" />,
-      title: "Clothes Lost or Not Returned Policy",
-      subtitle: "What happens if an item goes missing after pickup",
-      content: (
-        <div className="space-y-4 text-gray-700 text-sm leading-relaxed">
-          <p>
-            In the unlikely event that a garment is{" "}
-            <strong>lost, misplaced, or not returned</strong> after being
-            collected by our rider or processed by our vendor, Laundrify
-            acknowledges full responsibility and will process a compensation
-            claim.
-          </p>
-
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <p className="font-semibold text-red-800 mb-1">
-              Compensation Structure — Lost Clothes
-            </p>
-            <p className="text-red-700 text-sm">
-              If a garment is confirmed lost after internal investigation, and
-              the bill is verified, you are eligible for a{" "}
-              <strong>50% refund of the order bill value</strong>:
-            </p>
-            <ul className="mt-3 space-y-2 text-red-800">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                <span>
-                  <strong>25% credited to your Bank Account</strong> — refunded
-                  to the original payment method within 5–7 business days.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                <span>
-                  <strong>25% credited to your Laundrify Wallet</strong> —
-                  instantly available and usable on your next Laundrify order.
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              How We Investigate
-            </h4>
-            <p>
-              Upon receiving a missing item complaint, our operations team
-              will:
-            </p>
-            <ol className="list-decimal list-inside space-y-1 text-gray-600 mt-2">
-              <li>Contact the assigned rider and trace the pickup chain.</li>
-              <li>
-                Reach out to the vendor to cross-check items received and
-                returned.
-              </li>
-              <li>
-                Review any available pickup/delivery records or photos taken
-                at handover.
-              </li>
-              <li>
-                Provide a resolution within <strong>5–7 business days</strong>.
-              </li>
-            </ol>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              Eligibility Conditions
-            </h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600">
-              <li>
-                The missing item complaint must be raised within{" "}
-                <strong>48 hours</strong> of delivery.
-              </li>
-              <li>
-                The item must be listed on the original pickup order or
-                confirmed at the time of collection.
-              </li>
-              <li>
-                Photo proof of the item (before pickup) is encouraged but not
-                mandatory.
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              High-Value Items Disclaimer
-            </h4>
-            <p>
-              For garments or items valued above ₹2,000, customers are advised
-              to declare the value at the time of pickup for better
-              protection. Laundrify's standard compensation is limited to 50%
-              of the <strong>order bill value</strong>, not the retail or
-              sentimental value of the garment. Irreplaceable or heirloom items
-              should not be sent for laundry.
-            </p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "destroyed",
+      id: "damage",
       icon: <AlertTriangle className="w-5 h-5" />,
-      title: "Clothes Destroyed Policy",
-      subtitle: "Irreparable damage or complete destruction of a garment",
+      title: "Damage & Loss Coverage",
+      subtitle: "What qualifies and how claims are processed",
       content: (
         <div className="space-y-4 text-gray-700 text-sm leading-relaxed">
           <p>
-            If a garment is returned in a condition that renders it{" "}
-            <strong>completely unusable</strong> — including burning (rare, due
-            to machine malfunction), extreme tearing, permanent chemical
-            staining, or structural destruction — this falls under our Clothes
-            Destroyed Policy.
+            GCPP covers your garments against confirmed damage or loss that
+            occurs while the item is in Laundrify's custody — from pickup to
+            delivery.
           </p>
 
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-            <p className="font-semibold text-orange-800 mb-1">
-              Compensation Structure — Destroyed Clothes
-            </p>
-            <p className="text-orange-700 text-sm">
-              If the destruction is confirmed to be caused during our
-              laundering process, and the bill is verified, you are eligible
-              for a <strong>50% refund of the order bill value</strong>:
-            </p>
-            <ul className="mt-3 space-y-2 text-orange-800">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />
-                <span>
-                  <strong>25% credited to your Bank Account</strong> — refunded
-                  to the original payment method within 5–7 business days.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />
-                <span>
-                  <strong>25% credited to your Laundrify Wallet</strong> —
-                  instantly available and usable on your next Laundrify order.
-                </span>
-              </li>
-            </ul>
-          </div>
-
           <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
-              What Counts as "Destroyed"
+            <h4 className="font-semibold text-gray-900 mb-2">
+              What is Covered
             </h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600">
-              <li>
-                Garment is completely burnt or melted (machine/dryer
-                malfunction).
-              </li>
-              <li>
-                Extreme tearing where the garment cannot be worn in any
-                capacity.
-              </li>
-              <li>
-                Severe irreversible chemical damage (bleach spills, acid
-                exposure from cleaning agents).
-              </li>
-              <li>
-                Structural destruction that makes the fabric entirely
-                unusable.
-              </li>
+            <ul className="space-y-1.5">
+              {[
+                "Damage caused during the washing, drying, or finishing process",
+                "Discolouration or colour bleeding caused by our processing",
+                "Shrinkage beyond normal tolerance due to machine handling",
+                "Tearing or fraying caused during processing",
+                "Item lost, misplaced, or not returned after pickup",
+                "Item mixed up or delivered to wrong customer",
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-2 text-gray-600">
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
             </ul>
           </div>
 
           <div>
-            <h4 className="font-semibold text-gray-900 mb-1">
+            <h4 className="font-semibold text-gray-900 mb-2">
+              What is NOT Covered
+            </h4>
+            <ul className="space-y-1.5">
+              {[
+                "Pre-existing damage or stains present before pickup",
+                "Delicate items (silk, leather, embroidered) not declared at pickup",
+                "Items sent with no-wash or dry-clean-only labels that were ignored by the customer",
+                "Jewellery, cash, accessories, or valuables found inside pockets",
+                "Normal fading or wear due to standard washing",
+                "Orders paid via cash or outside the Laundrify app",
+                "Complaints submitted after 7 days of delivery",
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-2 text-gray-600">
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-2">
               Claim Process
             </h4>
-            <p>
-              Submit your claim via the app with clear photographs of the
-              destroyed garment. Our team will verify the claim with the
-              vendor. If the garment was destroyed due to vendor negligence or
-              machine malfunction, compensation will be approved and processed
-              within <strong>7 business days</strong>.
-            </p>
+            <ol className="space-y-2 text-gray-600">
+              {[
+                "Examine garments at time of delivery and note any issues immediately.",
+                "Report the issue via the Laundrify app within 7 days of delivery.",
+                "Upload clear photographs of the damaged or missing item.",
+                "Our team investigates with the vendor within 3–5 business days.",
+                "If approved, refund (up to 5× processing value) is issued and the item is confiscated.",
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "reprocessing",
+      icon: <RefreshCw className="w-5 h-5" />,
+      title: "Free Re-Processing Policy",
+      subtitle: "Not satisfied with cleaning quality? We'll redo it free",
+      content: (
+        <div className="space-y-4 text-gray-700 text-sm leading-relaxed">
+          <p>
+            If you are not satisfied with the quality of processing — whether
+            it is cleaning, washing, ironing, dry-cleaning, or any other
+            service — Laundrify will arrange a{" "}
+            <strong>free re-processing of the item</strong>. This is included
+            in the GCPP at no additional cost.
+          </p>
+
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-2">
+              What Qualifies for Re-Processing
+            </h4>
+            <ul className="space-y-1.5">
+              {[
+                "Clothes returned with stains or dirt not removed despite standard washing",
+                "Clothes returned with poor ironing — creases not removed, new creases introduced",
+                "Dry-cleaned items returned with residual odour or marks",
+                "Folding or finishing quality below reasonable standard",
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-2 text-gray-600">
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
 
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-            <p className="text-xs text-gray-500 leading-relaxed">
-              <strong>Note:</strong> In all damage, loss, or destruction cases,
-              the refund is calculated on the <strong>order bill value</strong>{" "}
-              — meaning 50% of what you paid for that particular order, split
-              equally as 25% to bank and 25% to Laundrify Wallet. Laundrify
-              reserves the right to reject claims where the damage was
-              pre-existing, caused by the customer's own labelling
-              instructions, or where the complaint was raised after the
-              48-hour window.
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-2">Conditions</h4>
+            <ul className="space-y-1.5">
+              {[
+                "Quality issue must be reported within 7 days of delivery.",
+                "The item must be returned to Laundrify in its delivered condition for re-processing.",
+                "Re-processing is limited to one attempt per order.",
+                "Applicable only to GCPP-eligible orders (app payment).",
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-2 text-gray-600">
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <p className="text-green-800 text-xs">
+              <strong>Note:</strong> Re-processing is a service remedy, not a
+              refund. If the quality issue persists after re-processing, you
+              may escalate to a damage/loss claim under GCPP.
             </p>
           </div>
         </div>
       ),
     },
     {
-      id: "refund",
-      icon: <ShieldCheck className="w-5 h-5" />,
-      title: "Refund Policy Summary",
-      subtitle: "A quick reference for all refund scenarios",
+      id: "general",
+      icon: <FileText className="w-5 h-5" />,
+      title: "General Service Terms",
+      subtitle: "Pickup, delivery, billing, cancellations",
+      content: (
+        <div className="space-y-4 text-gray-700 text-sm leading-relaxed">
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-1">Service Coverage</h4>
+            <p className="text-gray-600">
+              Laundrify operates within designated service zones. Orders
+              outside our coverage area may be cancelled and fully refunded.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-1">Item Responsibility</h4>
+            <p className="text-gray-600">
+              Customers must check garments before handing them over. Pre-existing
+              stains, damage, or defects must be declared at pickup. Laundrify is
+              not liable for damage to garments already worn, torn, or stained
+              before collection.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-1">Delicate & High-Value Items</h4>
+            <p className="text-gray-600">
+              Do not send jewellery, cash, accessories, or valuables with your
+              laundry. Delicate fabrics (silk, leather, embroidered) must be
+              declared at pickup. Laundrify bears no responsibility for
+              undisclosed high-value or delicate items.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-1">Billing</h4>
+            <p className="text-gray-600">
+              Your bill is generated based on services selected and garment
+              count or weight. A detailed invoice is available in the app.
+              All charges are inclusive of applicable taxes.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-1">Cancellation</h4>
+            <p className="text-gray-600">
+              Orders may be cancelled free of charge before a rider is
+              assigned. Once a rider is dispatched, a cancellation fee may
+              apply. Cancellations due to our fault receive a full refund.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-1">Jurisdiction</h4>
+            <p className="text-gray-600">
+              All disputes are subject to the jurisdiction of Courts in the
+              city of service only.
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "contact",
+      icon: <Phone className="w-5 h-5" />,
+      title: "Contact & Grievance",
+      subtitle: "How to reach us for claims and support",
       content: (
         <div className="space-y-4 text-gray-700 text-sm leading-relaxed">
           <p>
-            The following table summarises the refund structure applicable
-            across all claim types:
+            For any damage, loss, or quality complaints, first use the{" "}
+            <strong>Help & Support</strong> section in the Laundrify app — it
+            is the fastest way to file a claim and track its status.
           </p>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full text-sm">
-              <thead className="bg-gradient-to-r from-purple-600 to-pink-500 text-white">
-                <tr>
-                  <th className="text-left px-4 py-3 font-semibold">
-                    Scenario
-                  </th>
-                  <th className="text-center px-4 py-3 font-semibold">
-                    Total Refund
-                  </th>
-                  <th className="text-center px-4 py-3 font-semibold">
-                    Bank A/C
-                  </th>
-                  <th className="text-center px-4 py-3 font-semibold">
-                    Wallet
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {[
-                  ["Clothes Damaged / Ruined", "50%", "25%", "25%"],
-                  ["Clothes Lost / Missing", "50%", "25%", "25%"],
-                  ["Clothes Destroyed", "50%", "25%", "25%"],
-                  ["Order Cancelled (our fault)", "100%", "100%", "0%"],
-                  ["Out-of-coverage cancellation", "100%", "100%", "0%"],
-                ].map(([scenario, total, bank, wallet], i) => (
-                  <tr
-                    key={i}
-                    className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                  >
-                    <td className="px-4 py-3 text-gray-800">{scenario}</td>
-                    <td className="px-4 py-3 text-center font-semibold text-purple-700">
-                      {total}
-                    </td>
-                    <td className="px-4 py-3 text-center text-green-700 font-medium">
-                      {bank}
-                    </td>
-                    <td className="px-4 py-3 text-center text-blue-700 font-medium">
-                      {wallet}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <Phone className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xs text-purple-500 font-medium uppercase tracking-wide">
+                Customer Care
+              </p>
+              <p className="text-purple-900 font-bold text-lg">
+                Contact support in-app
+              </p>
+              <p className="text-purple-600 text-xs">
+                Available via Laundrify Help & Support
+              </p>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <h4 className="font-semibold text-gray-900">
-              Laundrify Wallet — How it works
-            </h4>
-            <p>
-              Wallet credits are added instantly upon claim approval. They can
-              be used on any future Laundrify order and do not expire. Wallet
-              credits <strong>cannot</strong> be withdrawn as cash.
-            </p>
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-2">Claim Timelines</h4>
+            <div className="space-y-2">
+              {[
+                ["Report deadline", "Within 7 days of delivery"],
+                ["Investigation turnaround", "3–5 business days"],
+                ["Refund processing (if approved)", "5–7 business days"],
+                ["Re-processing turnaround", "Same as standard order"],
+              ].map(([label, value], i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                >
+                  <span className="text-gray-500">{label}</span>
+                  <span className="font-medium text-gray-800">{value}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <h4 className="font-semibold text-gray-900">Bank Refund Timeline</h4>
-            <p>
-              Bank account refunds are processed within{" "}
-              <strong>5–7 business days</strong> from the date of claim
-              approval. The timeline may vary slightly based on your bank's
-              processing speed.
-            </p>
-          </div>
-
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-            <p className="text-xs text-purple-700 leading-relaxed">
-              All refund amounts are based on the{" "}
-              <strong>order bill value</strong> — the amount you actually paid
-              for that specific order. Laundrify does not cover the market
-              value, brand value, or sentimental value of any garment beyond
-              this policy.
-            </p>
-          </div>
+          <p className="text-gray-400 text-xs">
+            Laundrify reserves the right to update these policies at any time.
+            The most current version is always available in the app.
+          </p>
         </div>
       ),
     },
@@ -520,53 +441,101 @@ const PoliciesPage: React.FC = () => {
         <div className="max-w-2xl mx-auto px-4 py-6">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-white/80 hover:text-white text-sm mb-4 transition-colors"
+            className="flex items-center gap-2 text-white/80 hover:text-white text-sm mb-5 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-white" />
+
+          {/* GCPP Hero badge */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="bg-white/20 rounded-full px-3 py-1 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-white" />
+              <span className="text-white text-xs font-semibold tracking-wide uppercase">
+                GCPP Enabled
+              </span>
             </div>
-            <h1 className="text-2xl font-bold">Laundrify Policies</h1>
           </div>
-          <p className="text-white/80 text-sm ml-[52px]">
-            Your rights, our responsibilities
+
+          <h1 className="text-2xl font-bold mb-1">Laundrify Policies</h1>
+          <p className="text-white/80 text-sm">
+            Guaranteed Cloth Protection Program &amp; Service Terms
           </p>
-          <p className="text-white/60 text-xs mt-2 ml-[52px]">
-            Last updated: July 2025
-          </p>
+
+          {/* Key stats row */}
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            {[
+              { value: "5×", label: "Max Refund" },
+              { value: "Free", label: "Re-processing" },
+              { value: "7 Days", label: "Claim Window" },
+            ].map(({ value, label }) => (
+              <div
+                key={label}
+                className="bg-white/15 rounded-xl p-3 text-center"
+              >
+                <p className="text-white font-bold text-lg leading-none">
+                  {value}
+                </p>
+                <p className="text-white/70 text-xs mt-1">{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Policy Sections */}
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-3">
+      {/* Sections */}
+      <div className="max-w-2xl mx-auto px-4 py-5 space-y-3">
         {sections.map((section) => {
           const isOpen = openSection === section.id;
           return (
             <div
               key={section.id}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              className={`rounded-2xl shadow-sm border overflow-hidden ${
+                section.highlight
+                  ? "border-purple-200 shadow-purple-100"
+                  : "border-gray-100 bg-white"
+              }`}
             >
               <button
                 onClick={() => toggle(section.id)}
-                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+                className={`w-full flex items-center justify-between px-5 py-4 text-left transition-colors ${
+                  section.highlight
+                    ? "bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100"
+                    : "bg-white hover:bg-gray-50"
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-purple-600">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                      section.highlight
+                        ? "bg-gradient-to-br from-purple-500 to-pink-500 text-white"
+                        : "bg-gradient-to-br from-purple-100 to-pink-100 text-purple-600"
+                    }`}
+                  >
                     {section.icon}
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm leading-tight">
+                    <p
+                      className={`font-semibold text-sm leading-tight ${
+                        section.highlight ? "text-purple-900" : "text-gray-900"
+                      }`}
+                    >
                       {section.title}
                     </p>
-                    <p className="text-gray-400 text-xs mt-0.5">
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        section.highlight ? "text-purple-500" : "text-gray-400"
+                      }`}
+                    >
                       {section.subtitle}
                     </p>
                   </div>
                 </div>
-                <div className="text-gray-400 flex-shrink-0 ml-2">
+                <div
+                  className={`flex-shrink-0 ml-2 ${
+                    section.highlight ? "text-purple-400" : "text-gray-400"
+                  }`}
+                >
                   {isOpen ? (
                     <ChevronUp className="w-4 h-4" />
                   ) : (
@@ -576,7 +545,7 @@ const PoliciesPage: React.FC = () => {
               </button>
 
               {isOpen && (
-                <div className="px-5 pb-5 pt-1 border-t border-gray-100">
+                <div className="px-5 pb-5 pt-2 border-t border-gray-100 bg-white">
                   {section.content}
                 </div>
               )}
@@ -585,13 +554,10 @@ const PoliciesPage: React.FC = () => {
         })}
       </div>
 
-      {/* Footer note */}
       <div className="max-w-2xl mx-auto px-4 pb-10">
         <p className="text-center text-gray-400 text-xs">
-          For questions or to raise a claim, contact us via the app's Help &
-          Support section.
-          <br />
-          Laundrify reserves the right to update these policies at any time.
+          Last updated July 2025 · Laundrify reserves the right to modify
+          these policies at any time.
         </p>
       </div>
     </div>
