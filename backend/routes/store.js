@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Store = require("../models/Store");
 const Booking = require("../models/Booking");
+const StoreOrder = require("../models/StoreOrder");
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -108,10 +109,8 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
     const dateStr = now.toISOString().slice(0, 10);
     const timeStr = now.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
 
-    const booking = new Booking({
+    const storeOrder = new StoreOrder({
       custom_order_id: storeOrderId,
-      name: customer_name,
-      phone: customer_phone,
       customer_id: store._id,
       service: "Store Order",
       service_type: "Store",
@@ -144,20 +143,20 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
       store_code: store.store_code,
     });
 
-    await booking.save();
+    await storeOrder.save();
 
     res.json({
       success: true,
       message: "Order created successfully",
       order: {
-        _id: booking._id,
-        custom_order_id: booking.custom_order_id,
-        customer_name: booking.customer_name,
-        customer_phone: booking.customer_phone,
-        total_price: booking.total_price,
-        final_amount: booking.final_amount,
-        status: booking.status,
-        created_at: booking.created_at,
+        _id: storeOrder._id,
+        custom_order_id: storeOrder.custom_order_id,
+        customer_name: storeOrder.customer_name,
+        customer_phone: storeOrder.customer_phone,
+        total_price: storeOrder.total_price,
+        final_amount: storeOrder.final_amount,
+        status: storeOrder.status,
+        created_at: storeOrder.created_at,
       },
     });
   } catch (err) {
@@ -173,16 +172,16 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
 
     const sort = sortBy === "oldest" ? 1 : -1;
 
-    // Store orders: created by this store
-    let storeQuery = { store_id: req.store._id, is_store_order: true };
+    // Store orders: created by this store (new StoreOrder collection)
+    let storeQuery = { store_id: req.store._id };
     if (filterStatus) storeQuery.status = filterStatus;
 
-    // Admin-assigned online orders: assigned to this store via store_id
+    // Admin-assigned online orders: assigned to this store via assigned_store_id (still in Booking)
     let assignedQuery = { assigned_store_id: req.store._id };
     if (filterStatus) assignedQuery.status = filterStatus;
 
     const [storeOrders, assignedOrders] = await Promise.all([
-      Booking.find(storeQuery)
+      StoreOrder.find(storeQuery)
         .sort({ created_at: sort })
         .select("custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id"),
       Booking.find(assignedQuery)
@@ -212,15 +211,18 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
 router.put("/orders/:orderId/status", verifyStoreToken, async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Booking.findOne({
-      _id: req.params.orderId,
-      $or: [{ store_id: req.store._id }, { assigned_store_id: req.store._id }],
-    });
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+
+    // Try StoreOrder first, then fall back to Booking (admin-assigned)
+    let order = await StoreOrder.findOne({ _id: req.params.orderId, store_id: req.store._id });
+    if (!order) {
+      order = await Booking.findOne({ _id: req.params.orderId, assigned_store_id: req.store._id });
+    }
 
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
 
     order.status = status;
-    order.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    order.updated_at = now;
     await order.save();
 
     res.json({ success: true, order });
@@ -233,11 +235,7 @@ router.put("/orders/:orderId/status", verifyStoreToken, async (req, res) => {
 router.put("/orders/:orderId", verifyStoreToken, async (req, res) => {
   try {
     const { customer_name, customer_phone, item_prices, total_price, final_amount } = req.body;
-    const order = await Booking.findOne({
-      _id: req.params.orderId,
-      store_id: req.store._id,
-      is_store_order: true,
-    });
+    const order = await StoreOrder.findOne({ _id: req.params.orderId, store_id: req.store._id });
 
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
 
@@ -264,7 +262,7 @@ router.put("/orders/:orderId", verifyStoreToken, async (req, res) => {
 // DELETE /api/store/orders/:orderId
 router.delete("/orders/:orderId", verifyStoreToken, async (req, res) => {
   try {
-    const order = await Booking.findOneAndDelete({ _id: req.params.orderId, store_id: req.store._id, is_store_order: true });
+    const order = await StoreOrder.findOneAndDelete({ _id: req.params.orderId, store_id: req.store._id });
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
     res.json({ success: true, message: "Order deleted" });
   } catch (err) {
@@ -353,21 +351,107 @@ router.delete("/admin/stores/:id", verifyAdmin, async (req, res) => {
   }
 });
 
+// POST /api/store/admin/orders/create — admin creates a store order
+router.post("/admin/orders/create", verifyAdmin, async (req, res) => {
+  try {
+    const { customer_name, customer_phone, services, address, store_id, total_price, discount_amount, final_amount } = req.body;
+
+    if (!customer_name || !customer_phone || !Array.isArray(services) || services.length === 0)
+      return res.status(400).json({ success: false, error: "Customer name, phone and services are required" });
+
+    let store = null;
+    let storeOrderId;
+
+    if (store_id) {
+      store = await Store.findById(store_id);
+      if (!store) return res.status(404).json({ success: false, error: "Store not found" });
+      storeOrderId = await store.nextOrderId();
+    } else {
+      // No store selected — generate a generic ID
+      const timestamp = Date.now().toString().slice(-6);
+      storeOrderId = `STOREADM${timestamp}`;
+    }
+
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+
+    const storeOrder = new StoreOrder({
+      custom_order_id: storeOrderId,
+      customer_name,
+      customer_phone,
+      services: services.map((s) => s.service_name || s),
+      item_prices: services.map((s) => ({
+        service_name: s.service_name || s,
+        quantity: s.quantity || 1,
+        unit_price: s.unit_price || 0,
+        total_price: s.total_price || 0,
+      })),
+      address: address || "",
+      total_price: total_price || 0,
+      discount_amount: discount_amount || 0,
+      final_amount: final_amount || total_price || 0,
+      scheduled_date: dateStr,
+      scheduled_time: timeStr,
+      status: "created",
+      is_store_order: true,
+      store_id: store ? store._id : undefined,
+      store_code: store ? store.store_code : "",
+      provider_name: store ? store.store_name : "Admin",
+      created_at: now,
+      updated_at: now,
+    });
+
+    await storeOrder.save();
+
+    res.json({
+      success: true,
+      order: {
+        _id: storeOrder._id,
+        custom_order_id: storeOrder.custom_order_id,
+        customer_name: storeOrder.customer_name,
+        customer_phone: storeOrder.customer_phone,
+        total_price: storeOrder.total_price,
+        final_amount: storeOrder.final_amount,
+        status: storeOrder.status,
+        created_at: storeOrder.created_at,
+      },
+    });
+  } catch (err) {
+    console.error("Admin store order create error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/store/admin/orders  — all store orders + admin-assigned
 router.get("/admin/orders", verifyAdmin, async (req, res) => {
   try {
     const { filterStatus, storeId, sortBy = "recent" } = req.query;
     const sort = sortBy === "oldest" ? 1 : -1;
 
-    let query = {
-      $or: [{ is_store_order: true }, { assigned_store_id: { $exists: true, $ne: null } }],
-    };
-    if (filterStatus) query.status = filterStatus;
-    if (storeId) query.$or = [{ store_id: storeId }, { assigned_store_id: storeId }];
+    // Store-created orders from StoreOrder collection
+    let storeQuery = {};
+    if (filterStatus) storeQuery.status = filterStatus;
+    if (storeId) storeQuery.store_id = storeId;
 
-    const orders = await Booking.find(query)
-      .sort({ created_at: sort })
-      .select("custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id store_code assigned_store_id");
+    // Admin-assigned orders still live in Booking collection
+    let assignedQuery = { assigned_store_id: { $exists: true, $ne: null } };
+    if (filterStatus) assignedQuery.status = filterStatus;
+    if (storeId) assignedQuery.assigned_store_id = storeId;
+
+    const [storeOrders, assignedOrders] = await Promise.all([
+      StoreOrder.find(storeQuery)
+        .sort({ created_at: sort })
+        .select("custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id store_code"),
+      Booking.find(assignedQuery)
+        .sort({ created_at: sort })
+        .select("custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order assigned_store_id assigned_store_name"),
+    ]);
+
+    const orders = [
+      ...storeOrders.map(o => ({ ...o.toObject(), _source: "store_orders" })),
+      ...assignedOrders.map(o => ({ ...o.toObject(), _source: "bookings", is_store_order: false })),
+    ].sort((a, b) => sort * (new Date(a.created_at) - new Date(b.created_at)));
 
     res.json({ success: true, orders });
   } catch (err) {
@@ -379,11 +463,15 @@ router.get("/admin/orders", verifyAdmin, async (req, res) => {
 router.put("/admin/orders/:orderId/status", verifyAdmin, async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Booking.findById(req.params.orderId);
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+
+    // Try StoreOrder first, then Booking (for admin-assigned)
+    let order = await StoreOrder.findById(req.params.orderId);
+    if (!order) order = await Booking.findById(req.params.orderId);
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
 
     order.status = status;
-    order.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    order.updated_at = now;
     await order.save();
 
     res.json({ success: true, order });

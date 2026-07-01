@@ -45,6 +45,7 @@ import RiderDeskLogin from "@/pages/rider-desk/RiderDeskLogin";
 import RiderDeskDashboard from "@/pages/rider-desk/RiderDeskDashboard";
 import SchoolManagerLogin from "@/pages/school/SchoolManagerLogin";
 import SchoolManagerDashboard from "@/pages/school/SchoolManagerDashboard";
+import PoliciesPage from "@/pages/PoliciesPage";
 import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
@@ -249,6 +250,8 @@ function App() {
               {/* School Manager */}
               <Route path="/school-manager" element={<SchoolManagerLogin />} />
               <Route path="/school-manager/dashboard" element={<SchoolManagerDashboard />} />
+              {/* Policies */}
+              <Route path="/policies" element={<PoliciesPage />} />
               <Route path="*" element={<LaundryIndex />} />
             </Routes>
             <Toaster />
