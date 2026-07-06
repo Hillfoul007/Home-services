@@ -42,7 +42,8 @@
       "Bash(ls c:/Users/Kataria/Home-services/scripts/build-*aab*.sh)",
       "Read(//c/Users/Kataria/.claude/projects/c--Users-Kataria-Home-services/memory/**)",
       "Bash(grep -n \"completed\\\\|status.*complete\\\\|mark.*complete\\\\|complete.*button\" c:/Users/Kataria/Home-services/src/pages/desk/*.tsx)",
-      "Bash(cat /c/Users/Kataria/Home-services/backend/routes/*.js)"
+      "Bash(cat /c/Users/Kataria/Home-services/backend/routes/*.js)",
+      "Bash(npx tsc *)"
     ]
   },
   "enableAllProjectMcpServers": true,

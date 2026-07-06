@@ -207,6 +207,7 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
   ready_for_pickup: "ready_for_delivery",
   out_for_delivery: "ready_for_delivery",
   delivery_assigned: "ready_for_delivery",
+  in_transit: "ready_for_delivery",
   delivered: "delivered",
   completed: "completed",
   cancelled: "cancelled",

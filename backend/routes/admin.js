@@ -1141,7 +1141,7 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
     ];
     const BUCKET_B = [
       "delivered_to_vendor", "ready_for_delivery", "delivery_assigned", "in_progress", "delivered",
-      "processing", "in_process", "ready_for_pickup", "out_for_delivery",
+      "processing", "in_process", "ready_for_pickup", "out_for_delivery", "in_transit",
     ];
     const BUCKET_C = ["completed", "cancelled"];
     const ALL_STATUSES = [...BUCKET_A, ...BUCKET_B, ...BUCKET_C];
