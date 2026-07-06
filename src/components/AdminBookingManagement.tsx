@@ -1452,17 +1452,38 @@ const AdminBookingManagement: React.FC = () => {
       next[index] = { ...prev[index], ...update };
       return next;
     };
-    setBookings(patchList);
-    setBucketA(patchList);
-    setBucketB(patchList);
+
+    // Insert brand-new bookings (SSE inserts / poll results for orders created after
+    // the page loaded) instead of silently dropping them because patchList only
+    // updates entries that already exist in a given list.
+    const insertOrPatch = (prev: Booking[]): Booking[] => {
+      const index = prev.findIndex((b) => b._id === bookingId);
+      if (index === -1) {
+        return update._id ? [...prev, update as Booking] : prev;
+      }
+      const next = [...prev];
+      next[index] = { ...prev[index], ...update };
+      return next;
+    };
+
+    const isNewBooking = !bookings.some((b) => b._id === bookingId);
+    const normalizedStatus = normalizeStatus((update as any).status);
+    const isOfflineOrder = (update as any).is_offline_order === true;
+    const isVendorOrder = (update as any).is_vendor_order === true;
+    const isBucketA = ["created", "vendor_assigned", "rider_pickup_done", "pickup_completed"].includes(normalizedStatus);
+    const isBucketB = ["in_progress", "ready_for_delivery", "delivered"].includes(normalizedStatus);
+
+    setBookings((prev) => (isNewBooking && !isOfflineOrder && !isVendorOrder ? insertOrPatch(prev) : patchList(prev)));
+    setBucketA((prev) => (isNewBooking && isBucketA && !isOfflineOrder && !isVendorOrder ? insertOrPatch(prev) : patchList(prev)));
+    setBucketB((prev) => (isNewBooking && isBucketB && !isOfflineOrder && !isVendorOrder ? insertOrPatch(prev) : patchList(prev)));
     setFilteredBookings(patchList);
     setFilteredPickupOrders(patchList);
     setFilteredReadyOrders(patchList);
     setCompletedOrders(patchList);
     setFilteredCompletedOrders(patchList);
-    setOfflineOrders(patchList);
+    setOfflineOrders((prev) => (isNewBooking && isOfflineOrder ? insertOrPatch(prev) : patchList(prev)));
     setFilteredOfflineOrders(patchList);
-    setVendorOrders(patchList);
+    setVendorOrders((prev) => (isNewBooking && isVendorOrder ? insertOrPatch(prev) : patchList(prev)));
     setFilteredVendorOrders(patchList);
     setAllOrdersList(patchList);
   };
