@@ -1218,11 +1218,6 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
 
     const total = await Booking.countDocuments(query);
 
-    // Split into buckets - exclude offline orders from buckets
-    const bucketA = bookings.filter((b) => BUCKET_A.includes(b.status) && b.is_offline_order !== true);
-    const bucketB = bookings.filter((b) => BUCKET_B.includes(b.status) && b.is_offline_order !== true);
-    const bucketC = bookings.filter((b) => BUCKET_C.includes(b.status) && b.is_offline_order !== true);
-
     // Sort buckets by nearest pickup time (scheduled_date + scheduled_time)
     const parsePickupTime = (b) => {
       try {
@@ -1231,6 +1226,36 @@ router.get("/bookings", verifyAdminAccess, async (req, res) => {
         return new Date(b.created_at || Date.now());
       }
     };
+
+    let bucketA, bucketB, bucketC;
+    if (modified_since || (status && status !== "all")) {
+      // Narrow result set (polling delta or explicit status filter) - reuse the single fetch above.
+      bucketA = bookings.filter((b) => BUCKET_A.includes(b.status) && b.is_offline_order !== true);
+      bucketB = bookings.filter((b) => BUCKET_B.includes(b.status) && b.is_offline_order !== true);
+      bucketC = bookings.filter((b) => BUCKET_C.includes(b.status) && b.is_offline_order !== true);
+    } else {
+      // Default view: query each bucket independently so a large backlog in one bucket
+      // (e.g. many stale pending pickups) can't push the other bucket's results past
+      // the shared limit and silently drop newly created bookings from the admin UI.
+      const fetchBucket = (statuses) =>
+        Booking.find({ ...query, status: { $in: statuses } })
+          .populate("customer_id", "full_name phone email")
+          .populate("rider_id", "full_name phone")
+          .populate("assignedRider", "name phone")
+          .populate("pickupRider", "name phone")
+          .populate("deliveryRider", "name phone")
+          .sort({ scheduled_date: 1, scheduled_time: 1, created_at: -1 })
+          .limit(parseInt(limit))
+          .select("+item_prices +charges_breakdown +is_offline_order +assignedVendor +assignedVendorDetails");
+
+      const [bucketABookings, bucketBBookings] = await Promise.all([
+        fetchBucket(BUCKET_A),
+        fetchBucket(BUCKET_B),
+      ]);
+      bucketA = bucketABookings.filter((b) => b.is_offline_order !== true);
+      bucketB = bucketBBookings.filter((b) => b.is_offline_order !== true);
+      bucketC = [];
+    }
 
     bucketA.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));
     bucketB.sort((x, y) => parsePickupTime(x) - parsePickupTime(y));

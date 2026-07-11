@@ -80,7 +80,7 @@ router.post("/check-availability", async (req, res) => {
       });
     }
 
-    const availabilityResult = DetectedLocation.checkAvailability(city, pincode);
+    const availabilityResult = DetectedLocation.checkAvailability(city, pincode, full_address);
     console.log("✅ Availability result:", availabilityResult);
 
     res.json({

@@ -88,17 +88,23 @@ detectedLocationSchema.index({ is_available: 1 });
 detectedLocationSchema.index({ ip_address: 1 });
 
 // Static method to check if location is available
-detectedLocationSchema.statics.checkAvailability = function (city, pincode) {
+detectedLocationSchema.statics.checkAvailability = function (city, pincode, fullAddress) {
   // Normalize input
   const normalizedCity = city?.toLowerCase().trim();
   const normalizedPincode = pincode?.trim();
+  const normalizedFullAddress = fullAddress?.toLowerCase().trim();
 
   // Service available in Delhi, Gurgaon, Chandigarh, Mohali, Kharar
   const availableCities = ["gurgaon", "gurugram", "delhi", "chandigarh", "mohali", "kharar"];
 
-  // Check if the city matches any available city
+  // Check if the city matches any available city. Address parsers upstream
+  // sometimes leave the actual city name out of `city` (e.g. it ends up as
+  // just "Haryana 122003"), so fall back to scanning the full address too.
   const isAvailableCity = availableCities.some((availableCity) => {
-    return normalizedCity?.includes(availableCity);
+    return (
+      normalizedCity?.includes(availableCity) ||
+      normalizedFullAddress?.includes(availableCity)
+    );
   });
 
   if (isAvailableCity) {
@@ -138,6 +144,7 @@ detectedLocationSchema.statics.saveDetectedLocation = async function (
     const availabilityResult = this.checkAvailability(
       locationData.city,
       locationData.pincode,
+      locationData.full_address,
     );
 
     const detectedLocation = new this({
