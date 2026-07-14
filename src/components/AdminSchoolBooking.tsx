@@ -926,7 +926,7 @@ const AdminSchoolBooking: React.FC = () => {
                             <span className={`text-xs px-2 py-0.5 rounded-full ${order.payment_status === "paid" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>{order.payment_status}</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{fmtDate(order.created_at)}</td>
+                        <td className="px-4 py-3 text-xs text-gray-400">{fmtDate(order.pickup_date || order.created_at)}</td>
                         <td className="px-4 py-3">
                           {editingOrderId === order._id ? (
                             <div className="flex gap-1">
@@ -967,7 +967,7 @@ const AdminSchoolBooking: React.FC = () => {
                       <span className="font-bold">₹{order.total_amount}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">{fmtDate(order.created_at)}</span>
+                      <span className="text-xs text-gray-400">{fmtDate(order.pickup_date || order.created_at)}</span>
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => { setEditingOrderId(order._id); setEditStatus(order.status); setEditPaymentStatus(order.payment_status); }}>
                           <Edit className="w-3 h-3" />
