@@ -1,14 +1,29 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, FileText, ArrowLeft, ArrowRight, Eye } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Trash2, FileText, ArrowLeft, ArrowRight, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/apiClient";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+interface School {
+  _id: string;
+  name: string;
+  school_code: string;
+}
+
 interface InvoiceSetup {
+  schoolId: string;
   invoiceNo: string;
   schoolName: string;
   issueDate: string;
@@ -21,6 +36,14 @@ interface Entry {
   date: string;
   pieces: number | "";
   pricePerPiece: number | "";
+}
+
+interface SchoolOrderLite {
+  pickup_date: string | null;
+  created_at: string;
+  items_count: number;
+  price_per_item: number;
+  total_amount: number;
 }
 
 type Step = "setup" | "entries" | "preview";
@@ -222,28 +245,89 @@ function buildSchoolInvoiceHTML(setup: InvoiceSetup, entries: Entry[]): string {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_ENTRIES: Entry[] = [
-  { id: 1,  date: "10-04-2026", pieces: 97,  pricePerPiece: 25 },
-  { id: 2,  date: "14-04-2026", pieces: 199, pricePerPiece: 25 },
-  { id: 3,  date: "17-04-2026", pieces: 69,  pricePerPiece: 25 },
-  { id: 4,  date: "21-04-2026", pieces: 159, pricePerPiece: 25 },
-  { id: 5,  date: "24-04-2026", pieces: 107, pricePerPiece: 25 },
-  { id: 6,  date: "28-04-2026", pieces: 163, pricePerPiece: 25 },
-  { id: 7,  date: "03-05-2026", pieces: 119, pricePerPiece: 25 },
-];
+const emptySetup = (): InvoiceSetup => ({
+  schoolId: "",
+  invoiceNo: "",
+  schoolName: "",
+  issueDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }),
+  periodStart: "",
+  periodEnd: "",
+});
 
 const AdminSchoolInvoice: React.FC = () => {
   const [step, setStep] = useState<Step>("setup");
 
-  const [setup, setSetup] = useState<InvoiceSetup>({
-    invoiceNo: "",
-    schoolName: "Shree Swaminarayan Gurukul International School",
-    issueDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }),
-    periodStart: "2026-04-10",
-    periodEnd: "2026-05-03",
-  });
+  const [schools, setSchools] = useState<School[]>([]);
+  const [setup, setSetup] = useState<InvoiceSetup>(emptySetup());
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [fetchingEntries, setFetchingEntries] = useState(false);
 
-  const [entries, setEntries] = useState<Entry[]>(DEFAULT_ENTRIES);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiClient.adminRequest<any>("/school-management");
+        if (res.data?.success) setSchools(res.data.data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, []);
+
+  // ── Fetch real orders for the selected school + period, grouped by pickup date ──
+
+  const fetchPeriodEntries = async (): Promise<Entry[]> => {
+    const params = new URLSearchParams();
+    params.set("school_id", setup.schoolId);
+    params.set("pickup_date_from", setup.periodStart);
+    params.set("pickup_date_to", setup.periodEnd);
+    params.set("limit", "10000");
+    const res = await apiClient.adminRequest<any>(`/school-orders?${params.toString()}`);
+    const orders: SchoolOrderLite[] = res.data?.data || [];
+
+    const dateMap = new Map<string, { pieces: number; amount: number }>();
+    for (const o of orders) {
+      const raw = o.pickup_date || o.created_at;
+      if (!raw) continue;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) continue;
+      const key = d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+      const existing = dateMap.get(key) || { pieces: 0, amount: 0 };
+      existing.pieces += o.items_count || 0;
+      existing.amount += o.total_amount || 0;
+      dateMap.set(key, existing);
+    }
+
+    return [...dateMap.entries()]
+      .sort((a, b) => {
+        const toIso = (s: string) => s.split("-").reverse().join("-");
+        return new Date(toIso(a[0])).getTime() - new Date(toIso(b[0])).getTime();
+      })
+      .map(([date, v], idx) => ({
+        id: Date.now() + idx,
+        date,
+        pieces: v.pieces,
+        pricePerPiece: v.pieces > 0 ? Math.round((v.amount / v.pieces) * 100) / 100 : 0,
+      }));
+  };
+
+  const goToEntries = async () => {
+    if (!canProceedSetup) return;
+    setFetchingEntries(true);
+    try {
+      const fetched = await fetchPeriodEntries();
+      if (fetched.length === 0) {
+        toast.error("No orders found for this school in the selected period — add entries manually.");
+      } else {
+        toast.success(`Loaded ${fetched.length} date${fetched.length > 1 ? "s" : ""} of orders for this period.`);
+      }
+      setEntries(fetched);
+      setStep("entries");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to fetch orders for this period");
+    } finally {
+      setFetchingEntries(false);
+    }
+  };
 
   // ── Entry helpers ──────────────────────────────────────────────────────────
 
@@ -290,7 +374,10 @@ const AdminSchoolInvoice: React.FC = () => {
   // ── Step validation ───────────────────────────────────────────────────────
 
   const canProceedSetup =
-    setup.schoolName.trim() !== "" && setup.issueDate.trim() !== "";
+    setup.schoolId.trim() !== "" &&
+    setup.issueDate.trim() !== "" &&
+    setup.periodStart.trim() !== "" &&
+    setup.periodEnd.trim() !== "";
 
   const canProceedEntries =
     entries.some((e) => e.date && Number(e.pieces) > 0);
@@ -329,13 +416,25 @@ const AdminSchoolInvoice: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <Label>School Name</Label>
-                <Input
-                  value={setup.schoolName}
-                  onChange={(e) => setSetup({ ...setup, schoolName: e.target.value })}
-                  placeholder="School name"
-                  className="mt-1"
-                />
+                <Label>School</Label>
+                <Select
+                  value={setup.schoolId}
+                  onValueChange={(id) => {
+                    const s = schools.find((sc) => sc._id === id);
+                    setSetup({ ...setup, schoolId: id, schoolName: s ? s.name : "" });
+                  }}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select school" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {schools.map((s) => (
+                      <SelectItem key={s._id} value={s._id}>
+                        [{s.school_code}] {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Invoice Number</Label>
@@ -377,11 +476,19 @@ const AdminSchoolInvoice: React.FC = () => {
 
             <div className="flex justify-end">
               <Button
-                onClick={() => setStep("entries")}
-                disabled={!canProceedSetup}
+                onClick={goToEntries}
+                disabled={!canProceedSetup || fetchingEntries}
                 className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
               >
-                Next <ArrowRight className="w-4 h-4" />
+                {fetchingEntries ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading orders…
+                  </>
+                ) : (
+                  <>
+                    Next <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>
@@ -590,14 +697,8 @@ const AdminSchoolInvoice: React.FC = () => {
                   variant="outline"
                   onClick={() => {
                     setStep("setup");
-                    setSetup({
-                      invoiceNo: "",
-                      schoolName: "Shree Swaminarayan Gurukul International School",
-                      issueDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }),
-                      periodStart: "",
-                      periodEnd: "",
-                    });
-                    setEntries(DEFAULT_ENTRIES);
+                    setSetup(emptySetup());
+                    setEntries([]);
                   }}
                   className="flex items-center gap-2"
                 >

@@ -158,7 +158,7 @@ router.get("/my-orders", verifySchoolManager, async (req, res) => {
 // GET /api/school-orders  (admin: all school orders)
 router.get("/", verifyAdminAccess, async (req, res) => {
   try {
-    const { school_id, member_id, student_name, date_from, date_to, status, page = 1, limit = 50 } = req.query;
+    const { school_id, member_id, student_name, date_from, date_to, pickup_date_from, pickup_date_to, status, page = 1, limit = 50 } = req.query;
 
     const query = {};
     if (school_id) query.school_id = school_id;
@@ -172,6 +172,15 @@ router.get("/", verifyAdminAccess, async (req, res) => {
         const toDate = new Date(date_to);
         toDate.setHours(23, 59, 59, 999);
         query.created_at.$lte = toDate;
+      }
+    }
+    if (pickup_date_from || pickup_date_to) {
+      query.pickup_date = {};
+      if (pickup_date_from) query.pickup_date.$gte = new Date(pickup_date_from);
+      if (pickup_date_to) {
+        const toDate = new Date(pickup_date_to);
+        toDate.setHours(23, 59, 59, 999);
+        query.pickup_date.$lte = toDate;
       }
     }
 
