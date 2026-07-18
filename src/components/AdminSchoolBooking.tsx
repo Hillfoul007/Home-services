@@ -226,7 +226,7 @@ const AdminSchoolBooking: React.FC = () => {
       // ── Sheet 3: Date-wise summary ──
       const dateMap = new Map<string, { orders: number; items: number; total: number }>();
       for (const o of allOrders) {
-        const key = dateKey(o.created_at);
+        const key = dateKey(o.pickup_date || o.created_at);
         const existing = dateMap.get(key) || { orders: 0, items: 0, total: 0 };
         existing.orders += 1;
         existing.items  += o.items_count;
