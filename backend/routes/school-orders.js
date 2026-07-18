@@ -175,13 +175,19 @@ router.get("/", verifyAdminAccess, async (req, res) => {
       }
     }
     if (pickup_date_from || pickup_date_to) {
-      query.pickup_date = {};
-      if (pickup_date_from) query.pickup_date.$gte = new Date(pickup_date_from);
+      const range = {};
+      if (pickup_date_from) range.$gte = new Date(pickup_date_from);
       if (pickup_date_to) {
         const toDate = new Date(pickup_date_to);
         toDate.setHours(23, 59, 59, 999);
-        query.pickup_date.$lte = toDate;
+        range.$lte = toDate;
       }
+      // Orders without a pickup_date fall back to created_at so they aren't
+      // silently dropped from period-based views (e.g. invoicing).
+      query.$or = [
+        { pickup_date: range },
+        { pickup_date: null, created_at: range },
+      ];
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);

@@ -124,6 +124,9 @@ const AdminSchoolBooking: React.FC = () => {
   const [orderSchoolFilter, setOrderSchoolFilter] = useState("all");
   const [orderMemberFilter, setOrderMemberFilter] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState("all");
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [orderTotalPages, setOrderTotalPages] = useState(1);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editPaymentStatus, setEditPaymentStatus] = useState("");
@@ -158,11 +161,16 @@ const AdminSchoolBooking: React.FC = () => {
       if (orderMemberFilter.trim()) params.set("member_id", orderMemberFilter.trim());
       if (orderStatusFilter !== "all") params.set("status", orderStatusFilter);
       params.set("limit", "100");
+      params.set("page", String(orderPage));
       const res = await apiClient.adminRequest<any>(`/school-orders?${params.toString()}`);
-      if (res.data?.success) setOrders(res.data.data || []);
+      if (res.data?.success) {
+        setOrders(res.data.data || []);
+        setOrderTotal(res.data.pagination?.total ?? 0);
+        setOrderTotalPages(res.data.pagination?.pages ?? 1);
+      }
     } catch (err) { console.error(err); }
     finally { setLoadingOrders(false); }
-  }, [orderSchoolFilter, orderMemberFilter, orderStatusFilter]);
+  }, [orderSchoolFilter, orderMemberFilter, orderStatusFilter, orderPage]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -832,7 +840,7 @@ const AdminSchoolBooking: React.FC = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-            <Select value={orderSchoolFilter} onValueChange={setOrderSchoolFilter}>
+            <Select value={orderSchoolFilter} onValueChange={(v) => { setOrderPage(1); setOrderSchoolFilter(v); }}>
               <SelectTrigger><SelectValue placeholder="All schools..." /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Schools</SelectItem>
@@ -844,10 +852,10 @@ const AdminSchoolBooking: React.FC = () => {
             <Input
               placeholder="Filter by member ID..."
               value={orderMemberFilter}
-              onChange={(e) => setOrderMemberFilter(e.target.value.toUpperCase())}
+              onChange={(e) => { setOrderPage(1); setOrderMemberFilter(e.target.value.toUpperCase()); }}
               className="font-mono text-sm"
             />
-            <Select value={orderStatusFilter} onValueChange={setOrderStatusFilter}>
+            <Select value={orderStatusFilter} onValueChange={(v) => { setOrderPage(1); setOrderStatusFilter(v); }}>
               <SelectTrigger><SelectValue placeholder="All statuses..." /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
@@ -981,6 +989,31 @@ const AdminSchoolBooking: React.FC = () => {
                 ))}
               </div>
             </>
+          )}
+          {!loadingOrders && orders.length > 0 && orderTotalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-sm">
+              <span className="text-gray-500">
+                Page {orderPage} of {orderTotalPages} · {orderTotal} orders total
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={orderPage <= 1}
+                  onClick={() => setOrderPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={orderPage >= orderTotalPages}
+                  onClick={() => setOrderPage((p) => Math.min(orderTotalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
