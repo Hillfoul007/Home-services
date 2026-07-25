@@ -4,6 +4,9 @@ const jwt = require("jsonwebtoken");
 const Store = require("../models/Store");
 const Booking = require("../models/Booking");
 const StoreOrder = require("../models/StoreOrder");
+const CustomerPackage = require("../models/CustomerPackage");
+const User = require("../models/User");
+const { getPackageBalance, deductPackageBalance } = require("../utils/customerPackages");
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -94,13 +97,33 @@ router.post("/auth/login", async (req, res) => {
 // POST /api/store/orders/create
 router.post("/orders/create", verifyStoreToken, async (req, res) => {
   try {
-    const { customer_name, customer_phone, services, address, total_price, discount_amount, wallet_applied, final_amount } = req.body;
+    const { customer_name, customer_phone, services, address, total_price, discount_amount, wallet_applied, final_amount, package_applied } = req.body;
 
     if (!customer_name || !customer_phone || !services || !Array.isArray(services) || services.length === 0)
       return res.status(400).json({ success: false, error: "Customer name, phone and at least one service are required" });
 
     const store = await Store.findById(req.store._id);
     if (!store) return res.status(404).json({ success: false, error: "Store not found" });
+
+    // Apply quantity-based package balance (kg/pcs) if requested — deducted
+    // server-side against the live balance, never trusting client totals.
+    let packageAppliedResult = null;
+    if (package_applied && package_applied.unit_type && package_applied.quantity > 0) {
+      try {
+        const { amount_covered } = await deductPackageBalance(
+          customer_phone,
+          package_applied.unit_type,
+          package_applied.quantity
+        );
+        packageAppliedResult = {
+          unit_type: package_applied.unit_type,
+          quantity: package_applied.quantity,
+          amount_covered,
+        };
+      } catch (err) {
+        return res.status(400).json({ success: false, error: err.message || "Insufficient package balance" });
+      }
+    }
 
     // Generate store order ID
     const storeOrderId = await store.nextOrderId();
@@ -132,6 +155,7 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
       total_price: total_price || 0,
       discount_amount: discount_amount || 0,
       wallet_applied: wallet_applied || 0,
+      package_applied: packageAppliedResult || undefined,
       final_amount: final_amount || total_price || 0,
       status: "created",
       riderStatus: "unassigned",
@@ -168,9 +192,12 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
 // GET /api/store/orders/my-orders
 router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
   try {
-    const { sortBy = "recent", filterStatus } = req.query;
+    const { sortBy = "recent", filterStatus, page = "1", limit = "20" } = req.query;
 
     const sort = sortBy === "oldest" ? 1 : -1;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const fetchCap = pageNum * limitNum; // over-fetch each source up to this page's window, then merge+slice
 
     // Store orders: created by this store (new StoreOrder collection)
     let storeQuery = { store_id: req.store._id };
@@ -183,9 +210,11 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
     const [storeOrders, assignedOrders] = await Promise.all([
       StoreOrder.find(storeQuery)
         .sort({ created_at: sort })
-        .select("custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id"),
+        .limit(fetchCap)
+        .select("custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id package_applied"),
       Booking.find(assignedQuery)
         .sort({ created_at: sort })
+        .limit(fetchCap)
         .select("custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order assigned_store_id"),
     ]);
 
@@ -196,11 +225,14 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
       customer_phone: o.customer_phone || o.phone,
     }));
 
-    const all = [...storeOrders.map((o) => o.toObject()), ...normalisedAssigned].sort(
+    const merged = [...storeOrders.map((o) => o.toObject()), ...normalisedAssigned].sort(
       (a, b) => sort * (new Date(a.created_at) - new Date(b.created_at))
     );
+    const startIdx = (pageNum - 1) * limitNum;
+    const all = merged.slice(startIdx, startIdx + limitNum);
+    const hasMore = merged.length > startIdx + limitNum || storeOrders.length === fetchCap || assignedOrders.length === fetchCap;
 
-    res.json({ success: true, orders: all, storeOrders, assignedOrders: normalisedAssigned });
+    res.json({ success: true, orders: all, hasMore, page: pageNum });
   } catch (err) {
     console.error("Error fetching store orders:", err);
     res.status(500).json({ success: false, error: err.message });
@@ -265,6 +297,105 @@ router.delete("/orders/:orderId", verifyStoreToken, async (req, res) => {
     const order = await StoreOrder.findOneAndDelete({ _id: req.params.orderId, store_id: req.store._id });
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
     res.json({ success: true, message: "Order deleted" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Customer Packages (kg/pcs) ────────────────────────────────────────────────
+
+// POST /api/store/packages — create a quantity package for a customer
+router.post("/packages", verifyStoreToken, async (req, res) => {
+  try {
+    const { customer_name, customer_phone, unit_type, quantity, price, start_date, validity_days } = req.body;
+
+    if (!customer_phone || !unit_type || !["KG", "PC"].includes(unit_type))
+      return res.status(400).json({ success: false, error: "Customer phone and a valid unit_type (KG or PC) are required" });
+    if (!quantity || quantity <= 0)
+      return res.status(400).json({ success: false, error: "Quantity must be greater than 0" });
+    if (price === undefined || price < 0)
+      return res.status(400).json({ success: false, error: "Price is required" });
+    if (!validity_days || validity_days <= 0)
+      return res.status(400).json({ success: false, error: "Validity period is required" });
+
+    const store = await Store.findById(req.store._id);
+    if (!store) return res.status(404).json({ success: false, error: "Store not found" });
+
+    const startDate = start_date ? new Date(start_date) : new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + Number(validity_days));
+
+    const user = await User.findOne({ phone: customer_phone }).select("_id");
+
+    const pkg = new CustomerPackage({
+      customer_name: customer_name || "",
+      customer_phone,
+      user_id: user ? user._id : null,
+      unit_type,
+      total_quantity: quantity,
+      remaining_quantity: quantity,
+      price,
+      start_date: startDate,
+      end_date: endDate,
+      created_by_store: store._id,
+      created_by_store_name: store.store_name,
+    });
+    await pkg.save();
+
+    res.json({ success: true, package: pkg });
+  } catch (err) {
+    console.error("Create customer package error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/store/packages — list packages created by this store
+router.get("/packages", verifyStoreToken, async (req, res) => {
+  try {
+    const { search = "", page = "1", limit = "20" } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+
+    const query = { created_by_store: req.store._id };
+    if (search) {
+      query.$or = [
+        { customer_name: { $regex: search, $options: "i" } },
+        { customer_phone: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const [packages, total] = await Promise.all([
+      CustomerPackage.find(query)
+        .sort({ created_at: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum),
+      CustomerPackage.countDocuments(query),
+    ]);
+
+    res.json({ success: true, packages, total, page: pageNum, hasMore: pageNum * limitNum < total });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/store/packages/balance/:phone — aggregated KG/PC balance for a phone
+router.get("/packages/balance/:phone", verifyStoreToken, async (req, res) => {
+  try {
+    const balance = await getPackageBalance(req.params.phone);
+    res.json({ success: true, balance });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/store/packages/:id — cancel a package this store created
+router.delete("/packages/:id", verifyStoreToken, async (req, res) => {
+  try {
+    const pkg = await CustomerPackage.findOne({ _id: req.params.id, created_by_store: req.store._id });
+    if (!pkg) return res.status(404).json({ success: false, error: "Package not found" });
+    pkg.is_active = false;
+    await pkg.save();
+    res.json({ success: true, message: "Package cancelled" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

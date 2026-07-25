@@ -224,6 +224,12 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Wallet cashback must be non-negative"],
     },
+    // Quantity-based package (kg/pcs) applied to this booking
+    package_applied: {
+      unit_type: { type: String, enum: ["KG", "PC", null], default: null },
+      quantity: { type: Number, default: 0 },
+      amount_covered: { type: Number, default: 0 },
+    },
     coupon_code: {
       type: String,
       default: null,

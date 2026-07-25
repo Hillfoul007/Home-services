@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   LogOut, Plus, Eye, Trash2, Phone, User, Clock, Calendar,
-  Save, Store, Package, Search,
+  Save, Store, Package, Search, Scale, Ban, Loader2, CheckCircle2, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
@@ -28,6 +28,31 @@ interface ServiceItem {
   total_price: number;
 }
 
+interface PackageApplied {
+  unit_type: "KG" | "PC";
+  quantity: number;
+  amount_covered?: number;
+}
+
+interface CustomerPackageT {
+  _id: string;
+  customer_name: string;
+  customer_phone: string;
+  unit_type: "KG" | "PC";
+  total_quantity: number;
+  remaining_quantity: number;
+  price: number;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface PackageBalance {
+  KG: number;
+  PC: number;
+}
+
 interface Order {
   _id: string;
   custom_order_id: string;
@@ -43,6 +68,7 @@ interface Order {
   riderStatus: string;
   is_store_order?: boolean;
   assigned_store_id?: string;
+  package_applied?: PackageApplied;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -71,12 +97,16 @@ function formatTime(d: string) {
 export default function StoreDashboard() {
   const navigate = useNavigate();
   const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "create">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "create" | "packages">("orders");
 
   // Orders tab state
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersHasMore, setOrdersHasMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "oldest">("recent");
   const [showInactive, setShowInactive] = useState(false);
@@ -85,6 +115,24 @@ export default function StoreDashboard() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
+
+  // Packages tab state
+  const [packages, setPackages] = useState<CustomerPackageT[]>([]);
+  const [loadingPackages, setLoadingPackages] = useState(false);
+  const [packageSearch, setPackageSearch] = useState("");
+  const [pkgCustomerName, setPkgCustomerName] = useState("");
+  const [pkgCustomerPhone, setPkgCustomerPhone] = useState("");
+  const [pkgUnitType, setPkgUnitType] = useState<"KG" | "PC">("KG");
+  const [pkgQuantity, setPkgQuantity] = useState("");
+  const [pkgPrice, setPkgPrice] = useState("");
+  const [pkgStartDate, setPkgStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pkgValidityDays, setPkgValidityDays] = useState(30);
+  const [creatingPackage, setCreatingPackage] = useState(false);
+
+  // Package balance lookup for the "Create Order" tab
+  const [orderPhoneBalance, setOrderPhoneBalance] = useState<PackageBalance | null>(null);
+  const [checkingBalance, setCheckingBalance] = useState(false);
+  const [packageApplied, setPackageApplied] = useState<PackageApplied | null>(null);
 
   // Create order tab state
   const [customerName, setCustomerName] = useState("");
@@ -112,19 +160,23 @@ export default function StoreDashboard() {
     }
   }, [navigate]);
 
-  const fetchOrders = async () => {
+  const ORDERS_PAGE_SIZE = 20;
+
+  const fetchOrders = async (page = 1, append = false) => {
     const token = localStorage.getItem("store_token");
     if (!token) return;
-    setLoadingOrders(true);
+    if (append) setLoadingMoreOrders(true); else setLoadingOrders(true);
     try {
-      const params = new URLSearchParams({ sortBy });
+      const params = new URLSearchParams({ sortBy, page: String(page), limit: String(ORDERS_PAGE_SIZE) });
       if (filterStatus) params.set("filterStatus", filterStatus);
       const res = await fetch(`${getApiUrl()}/store/orders/my-orders?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
-        setOrders(data.orders || []);
+        setOrders((prev) => (append ? [...prev, ...(data.orders || [])] : data.orders || []));
+        setOrdersHasMore(!!data.hasMore);
+        setOrdersPage(page);
       } else {
         toast.error(data.error || "Failed to fetch orders");
       }
@@ -132,20 +184,32 @@ export default function StoreDashboard() {
       toast.error("Error fetching orders");
     } finally {
       setLoadingOrders(false);
+      setLoadingMoreOrders(false);
     }
   };
 
   useEffect(() => {
-    if (storeInfo) fetchOrders();
+    if (storeInfo) fetchOrders(1, false);
   }, [storeInfo, sortBy, filterStatus]);
 
+  const loadMoreOrders = () => {
+    if (loadingMoreOrders || !ordersHasMore) return;
+    fetchOrders(ordersPage + 1, true);
+  };
+
+  // Debounce the search box so typing doesn't re-filter on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
   const filteredOrders = orders.filter((o) => {
-    if (!searchTerm) return true;
-    const s = searchTerm.toLowerCase();
+    if (!debouncedSearchTerm) return true;
+    const s = debouncedSearchTerm.toLowerCase();
     return (
       o.custom_order_id?.toLowerCase().includes(s) ||
       o.customer_name?.toLowerCase().includes(s) ||
-      o.customer_phone?.includes(searchTerm)
+      o.customer_phone?.includes(debouncedSearchTerm)
     );
   });
 
@@ -265,7 +329,66 @@ export default function StoreDashboard() {
 
   const subtotal = serviceItems.reduce((s, i) => s + i.total_price, 0);
   const discountAmount = discountType === "percentage" ? (subtotal * discountValue) / 100 : discountValue;
-  const finalAmount = Math.max(0, subtotal - discountAmount);
+
+  // ─── Package balance application ───────────────────────────────────────────
+
+  const getServiceUnit = (name: string): "KG" | "PC" | "SET" | null => {
+    const match = getSortedServices().find((s) => s.name === name);
+    return (match?.unit as "KG" | "PC" | "SET") || null;
+  };
+
+  const requiredByUnit = serviceItems.reduce(
+    (acc, item) => {
+      const unit = getServiceUnit(item.service_name);
+      if (unit === "KG") acc.KG += item.quantity;
+      if (unit === "PC") acc.PC += item.quantity;
+      return acc;
+    },
+    { KG: 0, PC: 0 }
+  );
+
+  const packageCoveredAmount = packageApplied
+    ? serviceItems
+        .filter((item) => getServiceUnit(item.service_name) === packageApplied.unit_type)
+        .reduce((s, i) => s + i.total_price, 0)
+    : 0;
+
+  const finalAmount = Math.max(0, subtotal - discountAmount - packageCoveredAmount);
+
+  // Look up the customer's package balance once a full phone number is entered
+  useEffect(() => {
+    setPackageApplied(null);
+    if (!/^\d{10}$/.test(customerPhone)) {
+      setOrderPhoneBalance(null);
+      return;
+    }
+    const token = localStorage.getItem("store_token");
+    if (!token) return;
+    const t = setTimeout(async () => {
+      setCheckingBalance(true);
+      try {
+        const res = await fetch(`${getApiUrl()}/store/packages/balance/${customerPhone}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) setOrderPhoneBalance(data.balance);
+      } catch {
+        // silent — package balance is an optional affordance
+      } finally {
+        setCheckingBalance(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [customerPhone]);
+
+  const applyPackage = (unitType: "KG" | "PC") => {
+    const required = requiredByUnit[unitType];
+    const available = orderPhoneBalance?.[unitType] || 0;
+    if (required <= 0 || available < required) return;
+    setPackageApplied({ unit_type: unitType, quantity: required });
+  };
+
+  const removePackage = () => setPackageApplied(null);
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,6 +414,7 @@ export default function StoreDashboard() {
           total_price: subtotal,
           discount_amount: discountAmount,
           final_amount: finalAmount,
+          package_applied: packageApplied,
         }),
       });
       const data = await res.json();
@@ -301,6 +425,8 @@ export default function StoreDashboard() {
         setAddress("");
         setServiceItems([{ service_name: "", quantity: 1, unit_price: 0, total_price: 0 }]);
         setDiscountValue(0);
+        setPackageApplied(null);
+        setOrderPhoneBalance(null);
         setActiveTab("orders");
         fetchOrders();
       } else {
@@ -311,6 +437,132 @@ export default function StoreDashboard() {
     } finally {
       setCreatingOrder(false);
     }
+  };
+
+  // ─── Packages tab ───────────────────────────────────────────────────────────
+
+  const fetchPackages = async (search = packageSearch) => {
+    const token = localStorage.getItem("store_token");
+    if (!token) return;
+    setLoadingPackages(true);
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (search) params.set("search", search);
+      const res = await fetch(`${getApiUrl()}/store/packages?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPackages(data.packages || []);
+      } else {
+        toast.error(data.error || "Failed to fetch packages");
+      }
+    } catch {
+      toast.error("Error fetching packages");
+    } finally {
+      setLoadingPackages(false);
+    }
+  };
+
+  useEffect(() => {
+    if (storeInfo && activeTab === "packages") fetchPackages();
+  }, [storeInfo, activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "packages") return;
+    const t = setTimeout(() => fetchPackages(packageSearch), 300);
+    return () => clearTimeout(t);
+  }, [packageSearch]);
+
+  const packageEndDatePreview = (() => {
+    const d = new Date(pkgStartDate);
+    d.setDate(d.getDate() + (Number(pkgValidityDays) || 0));
+    return d;
+  })();
+
+  const handleCreatePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pkgCustomerPhone || !/^\d{10}$/.test(pkgCustomerPhone)) {
+      toast.error("A valid 10-digit customer phone is required");
+      return;
+    }
+    const quantity = parseFloat(pkgQuantity);
+    const price = parseFloat(pkgPrice);
+    if (!quantity || quantity <= 0) {
+      toast.error("Enter a valid quantity");
+      return;
+    }
+    if (isNaN(price) || price < 0) {
+      toast.error("Enter a valid price");
+      return;
+    }
+    const token = localStorage.getItem("store_token");
+    setCreatingPackage(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/store/packages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          customer_name: pkgCustomerName,
+          customer_phone: pkgCustomerPhone,
+          unit_type: pkgUnitType,
+          quantity,
+          price,
+          start_date: pkgStartDate,
+          validity_days: pkgValidityDays,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Package created for ${pkgCustomerName || pkgCustomerPhone}`);
+        setPkgCustomerName("");
+        setPkgCustomerPhone("");
+        setPkgQuantity("");
+        setPkgPrice("");
+        setPkgValidityDays(30);
+        fetchPackages();
+      } else {
+        toast.error(data.error || "Failed to create package");
+      }
+    } catch {
+      toast.error("Error creating package");
+    } finally {
+      setCreatingPackage(false);
+    }
+  };
+
+  const handleCancelPackage = async (pkg: CustomerPackageT) => {
+    if (!window.confirm(`Cancel this ${pkg.unit_type} package for ${pkg.customer_name || pkg.customer_phone}?`)) return;
+    const token = localStorage.getItem("store_token");
+    try {
+      const res = await fetch(`${getApiUrl()}/store/packages/${pkg._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Package cancelled");
+        fetchPackages();
+      } else {
+        toast.error(data.error || "Failed to cancel package");
+      }
+    } catch {
+      toast.error("Error cancelling package");
+    }
+  };
+
+  const packageStatus = (pkg: CustomerPackageT): "active" | "expired" | "used" | "cancelled" => {
+    if (!pkg.is_active) return "cancelled";
+    if (new Date(pkg.end_date) < new Date()) return "expired";
+    if (pkg.remaining_quantity <= 0) return "used";
+    return "active";
+  };
+
+  const PACKAGE_STATUS_COLORS: Record<string, string> = {
+    active: "bg-green-100 text-green-800",
+    expired: "bg-gray-200 text-gray-700",
+    used: "bg-orange-100 text-orange-800",
+    cancelled: "bg-red-100 text-red-800",
   };
 
   if (!storeInfo) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
@@ -338,18 +590,18 @@ export default function StoreDashboard() {
 
       {/* Tabs */}
       <div className="bg-white border-b sticky top-16 z-40">
-        <div className="max-w-7xl mx-auto px-4 flex gap-6">
-          {(["orders", "create"] as const).map((tab) => (
+        <div className="max-w-7xl mx-auto px-4 flex gap-6 overflow-x-auto">
+          {(["orders", "create", "packages"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`py-4 font-medium border-b-2 capitalize transition-all ${
+              className={`py-4 font-medium border-b-2 capitalize transition-all whitespace-nowrap ${
                 activeTab === tab
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-gray-600 hover:text-gray-900"
               }`}
             >
-              {tab === "orders" ? "📋 My Orders" : "➕ Create Order"}
+              {tab === "orders" ? "📋 My Orders" : tab === "create" ? "➕ Create Order" : "🎟️ Packages"}
             </button>
           ))}
         </div>
@@ -507,6 +759,66 @@ export default function StoreDashboard() {
                 </div>
               </Card>
 
+              {/* Package Balance */}
+              {customerPhone.length === 10 && (checkingBalance || orderPhoneBalance) && (
+                <Card className="p-4 border-indigo-200 bg-indigo-50">
+                  <h3 className="font-semibold text-sm mb-2 flex items-center gap-2 text-indigo-900">
+                    <Scale className="w-4 h-4 text-indigo-600" /> Package Balance
+                  </h3>
+                  {checkingBalance ? (
+                    <p className="text-sm text-indigo-700 flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking balance...
+                    </p>
+                  ) : packageApplied ? (
+                    <div className="flex items-center justify-between bg-white border border-indigo-300 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm text-indigo-800 font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        Applying {packageApplied.quantity} {packageApplied.unit_type} from package
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-red-500" onClick={removePackage}>
+                        Remove
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {(["KG", "PC"] as const).map((unit) => {
+                        const available = orderPhoneBalance?.[unit] || 0;
+                        const required = requiredByUnit[unit];
+                        if (available <= 0 || required <= 0) return null;
+                        const sufficient = available >= required;
+                        return (
+                          <div key={unit} className="flex items-center justify-between bg-white border border-indigo-200 rounded-lg p-3">
+                            <div className="text-sm">
+                              <p className="font-medium text-gray-800">{available} {unit} available</p>
+                              <p className={`text-xs ${sufficient ? "text-gray-500" : "text-red-500"}`}>
+                                {sufficient
+                                  ? `Order needs ${required} ${unit}`
+                                  : `Order needs ${required} ${unit} — short by ${(required - available).toFixed(2)}, top up to apply`}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!sufficient}
+                              onClick={() => applyPackage(unit)}
+                              className="h-9 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                        );
+                      })}
+                      {orderPhoneBalance && requiredByUnit.KG === 0 && requiredByUnit.PC === 0 && (
+                        <p className="text-xs text-indigo-700">Customer has a package balance, but no KG/PC services are in the cart yet.</p>
+                      )}
+                      {orderPhoneBalance && orderPhoneBalance.KG <= 0 && orderPhoneBalance.PC <= 0 && (
+                        <p className="text-xs text-indigo-700">No active package balance for this phone number.</p>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )}
+
               {/* Discount */}
               <Card className="p-4 border-orange-200 bg-orange-50">
                 <label className="block text-sm font-semibold text-gray-700 mb-3">Discount (optional)</label>
@@ -554,6 +866,12 @@ export default function StoreDashboard() {
                     <div className="flex justify-between text-sm text-orange-600">
                       <span>Discount {discountType === "percentage" ? `(${discountValue}%)` : ""}</span>
                       <span className="font-medium">−₹{discountAmount.toFixed(0)}</span>
+                    </div>
+                  )}
+                  {packageApplied && (
+                    <div className="flex justify-between text-sm text-indigo-600">
+                      <span>Package ({packageApplied.quantity} {packageApplied.unit_type})</span>
+                      <span className="font-medium">−₹{packageCoveredAmount.toFixed(0)}</span>
                     </div>
                   )}
                   <div className="border-t border-blue-200 pt-2 flex justify-between items-center">
@@ -633,9 +951,18 @@ export default function StoreDashboard() {
             </Card>
 
             {loadingOrders ? (
-              <Card className="p-12 text-center">
-                <p className="text-gray-500">Loading orders...</p>
-              </Card>
+              <div className="space-y-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <Card key={i} className="p-4 animate-pulse">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="h-4 w-24 bg-gray-200 rounded" />
+                      <div className="h-5 w-16 bg-gray-200 rounded-full" />
+                    </div>
+                    <div className="h-3 w-32 bg-gray-100 rounded mb-2" />
+                    <div className="h-3 w-20 bg-gray-100 rounded" />
+                  </Card>
+                ))}
+              </div>
             ) : filteredOrders.length === 0 ? (
               <Card className="p-12 text-center">
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -681,6 +1008,237 @@ export default function StoreDashboard() {
                     )}
                   </div>
                 )}
+
+                {ordersHasMore && !debouncedSearchTerm && (
+                  <div className="flex justify-center pt-2">
+                    <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMoreOrders} className="flex items-center gap-2">
+                      {loadingMoreOrders ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      {loadingMoreOrders ? "Loading..." : "Load More Orders"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Packages Tab ── */}
+        {activeTab === "packages" && (
+          <div className="space-y-6">
+            {/* Create Package */}
+            <Card className="p-4">
+              <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
+                <Package className="w-4 h-4 text-indigo-600" /> Sell a Package
+              </h3>
+              <form onSubmit={handleCreatePackage} className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                    <Input
+                      placeholder="Customer name"
+                      value={pkgCustomerName}
+                      onChange={(e) => setPkgCustomerName(e.target.value)}
+                      className="h-11 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                    <Input
+                      type="tel"
+                      inputMode="numeric"
+                      placeholder="10-digit phone"
+                      value={pkgCustomerPhone}
+                      onChange={(e) => setPkgCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      maxLength={10}
+                      className="h-11 text-base"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Type</label>
+                  <div className="flex gap-2">
+                    {(["KG", "PC"] as const).map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setPkgUnitType(u)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          pkgUnitType === u ? "bg-indigo-600 text-white" : "bg-white text-indigo-600 border border-indigo-300"
+                        }`}
+                      >
+                        {u === "KG" ? "⚖️ By Weight (KG)" : "🧺 By Pieces (PC)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity ({pkgUnitType}) *</label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min={0.01}
+                      step="0.01"
+                      placeholder={pkgUnitType === "KG" ? "e.g. 20" : "e.g. 50"}
+                      value={pkgQuantity}
+                      onChange={(e) => setPkgQuantity(e.target.value)}
+                      className="h-11 text-base"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price ₹ *</label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="0.01"
+                      placeholder="e.g. 1500"
+                      value={pkgPrice}
+                      onChange={(e) => setPkgPrice(e.target.value)}
+                      className="h-11 text-base"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <Input
+                      type="date"
+                      value={pkgStartDate}
+                      onChange={(e) => setPkgStartDate(e.target.value)}
+                      className="h-11 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Validity</label>
+                    <select
+                      value={pkgValidityDays}
+                      onChange={(e) => setPkgValidityDays(Number(e.target.value))}
+                      className="w-full h-11 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    >
+                      {[7, 15, 30, 60, 90].map((d) => (
+                        <option key={d} value={d}>{d} days</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Valid from {new Date(pkgStartDate).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" })} until{" "}
+                  <span className="font-medium text-gray-700">
+                    {packageEndDatePreview.toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" })}
+                  </span>
+                </p>
+
+                <Button type="submit" disabled={creatingPackage} className="w-full h-12 text-base bg-indigo-600 hover:bg-indigo-700 font-semibold">
+                  {creatingPackage ? "Creating..." : "Create Package"}
+                </Button>
+              </form>
+            </Card>
+
+            {/* Package List */}
+            <Card className="p-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search by name or phone"
+                  value={packageSearch}
+                  onChange={(e) => setPackageSearch(e.target.value)}
+                  className="pl-9 h-10"
+                />
+              </div>
+            </Card>
+
+            {loadingPackages ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <Card key={i} className="p-4 animate-pulse h-20" />
+                ))}
+              </div>
+            ) : packages.length === 0 ? (
+              <Card className="p-12 text-center">
+                <Scale className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No packages created yet</p>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {/* Desktop table */}
+                <Card className="hidden md:block overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        {["Customer", "Unit", "Remaining", "Price", "Valid Until", "Status", ""].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {packages.map((pkg) => {
+                        const status = packageStatus(pkg);
+                        return (
+                          <tr key={pkg._id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-sm">{pkg.customer_name || "—"}</p>
+                              <p className="text-xs text-gray-500">{pkg.customer_phone}</p>
+                            </td>
+                            <td className="px-4 py-3 text-sm">{pkg.unit_type}</td>
+                            <td className="px-4 py-3 text-sm font-semibold">{pkg.remaining_quantity} / {pkg.total_quantity}</td>
+                            <td className="px-4 py-3 text-sm">₹{pkg.price}</td>
+                            <td className="px-4 py-3 text-xs text-gray-500">{formatDate(pkg.end_date)}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${PACKAGE_STATUS_COLORS[status]}`}>
+                                {status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {status === "active" && (
+                                <Button variant="outline" size="sm" onClick={() => handleCancelPackage(pkg)} className="text-red-500 hover:bg-red-50">
+                                  <Ban className="w-3 h-3 mr-1" /> Cancel
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </Card>
+
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {packages.map((pkg) => {
+                    const status = packageStatus(pkg);
+                    return (
+                      <Card key={pkg._id} className="p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-medium text-sm">{pkg.customer_name || "—"}</p>
+                            <p className="text-sm text-gray-500">{pkg.customer_phone}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${PACKAGE_STATUS_COLORS[status]}`}>
+                            {status}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm mb-1">
+                          <span className="text-gray-600">{pkg.remaining_quantity} / {pkg.total_quantity} {pkg.unit_type} remaining</span>
+                          <span className="font-bold">₹{pkg.price}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">Valid until {formatDate(pkg.end_date)}</p>
+                        {status === "active" && (
+                          <Button variant="outline" size="sm" onClick={() => handleCancelPackage(pkg)} className="w-full text-red-500 hover:bg-red-50">
+                            <Ban className="w-3 h-3 mr-1" /> Cancel Package
+                          </Button>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

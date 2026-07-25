@@ -34,6 +34,11 @@ const storeOrderSchema = new mongoose.Schema(
     total_price: { type: Number, default: 0 },
     discount_amount: { type: Number, default: 0 },
     wallet_applied: { type: Number, default: 0 },
+    package_applied: {
+      unit_type: { type: String, enum: ["KG", "PC", null], default: null },
+      quantity: { type: Number, default: 0 },
+      amount_covered: { type: Number, default: 0 },
+    },
     final_amount: { type: Number, default: 0 },
     // Status
     status: { type: String, default: "created", index: true },

@@ -466,6 +466,16 @@ try {
   console.error("❌ Full packages routes error:", error);
 }
 
+// Customer quantity packages (kg/pcs sold by stores)
+try {
+  const customerPackageRoutes = require("./routes/customer-packages");
+  app.use("/api/customer-packages", customerPackageRoutes);
+  console.log("🔗 Customer package routes registered at /api/customer-packages");
+} catch (error) {
+  console.error("❌ Failed to load Customer Package routes:", error.message);
+  console.error("❌ Full customer package routes error:", error);
+}
+
 // Quick Pickup routes (new)
 try {
   const quickPickupRoutes = require("./routes/quick-pickup");

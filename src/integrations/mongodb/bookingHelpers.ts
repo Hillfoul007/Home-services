@@ -315,6 +315,9 @@ export const bookingHelpers = {
           },
           // Save item prices for accurate booking history display
           item_prices: bookingData.item_prices || [],
+          cashback: Number(bookingData.cashback || bookingData.wallet_applied || 0),
+          wallet_applied: Number(bookingData.wallet_applied || 0),
+          package_applied: bookingData.package_applied || null,
         };
 
         console.log(

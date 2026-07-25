@@ -83,6 +83,7 @@ router.post("/", async (req, res) => {
       item_prices: requestItemPrices,
       cashback: requestCashback,
       wallet_applied: requestWalletApplied,
+      package_applied: requestPackageApplied,
     } = req.body;
 
     // Validation
@@ -543,6 +544,31 @@ router.post("/", async (req, res) => {
     console.log(`   - Discount: ₹${finalDiscount}`);
     console.log(`   - Final amount: ₹${finalAmount}`);
 
+    // Apply quantity-based package balance (kg/pcs) if requested — deducted
+    // server-side against the live balance before the booking is created,
+    // since an insufficient balance must block booking creation entirely.
+    let packageAppliedResult = null;
+    if (requestPackageApplied && requestPackageApplied.unit_type && requestPackageApplied.quantity > 0) {
+      try {
+        const { deductPackageBalance } = require("../utils/customerPackages");
+        const { amount_covered } = await deductPackageBalance(
+          customer.phone,
+          requestPackageApplied.unit_type,
+          requestPackageApplied.quantity
+        );
+        packageAppliedResult = {
+          unit_type: requestPackageApplied.unit_type,
+          quantity: requestPackageApplied.quantity,
+          amount_covered,
+        };
+      } catch (packageError) {
+        console.error("❌ Package balance deduction failed:", packageError.message);
+        return res.status(400).json({
+          error: packageError.message || "Insufficient package balance",
+        });
+      }
+    }
+
     // Create booking with proper customer_id as ObjectId
     // Get Indian Standard Time for timestamps
     const indianTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
@@ -583,6 +609,7 @@ router.post("/", async (req, res) => {
       final_amount: finalAmount,
       coupon_code: coupon_code || null,
       cashback: Number(requestCashback || requestWalletApplied || 0),
+      package_applied: packageAppliedResult || undefined,
       special_instructions,
       charges_breakdown,
       item_prices, // Store individual service prices

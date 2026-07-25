@@ -810,6 +810,7 @@ const getDetailedLocationInfo = async (
         special_instructions: cartData.instructions || "",
         cashback: cartData.wallet_applied || 0,
         wallet_applied: cartData.wallet_applied || 0,
+        package_applied: cartData.package_applied || null,
         charges_breakdown: cartData.charges_breakdown || {
           base_price: cartData.original_total || cartData.totalAmount,
           delivery_fee: 0,

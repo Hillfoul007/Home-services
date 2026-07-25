@@ -62,7 +62,8 @@ import { AddressService } from "@/services/addressService";
 import { SessionManager } from "@/utils/sessionManager";
 import { CouponService } from "@/services/couponService";
 import { walletService } from "@/services/walletService";
-import { Wallet } from "lucide-react";
+import { customerPackageService, CustomerPackageBalance } from "@/services/customerPackageService";
+import { Wallet, Scale } from "lucide-react";
 
 
 interface LaundryCartProps {
@@ -102,6 +103,10 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   const [showWalletInput, setShowWalletInput] = useState(false);
   const [walletAmount, setWalletAmount] = useState("");
 
+  // Quantity package (kg/pcs) state
+  const [packageBalance, setPackageBalance] = useState<CustomerPackageBalance>({ KG: 0, PC: 0 });
+  const [packageApplied, setPackageApplied] = useState<{ unit_type: "KG" | "PC"; quantity: number } | null>(null);
+
   // Location availability modal state
   const [showLocationUnavailable, setShowLocationUnavailable] = useState(false);
   const [unavailableLocationText, setUnavailableLocationText] = useState("");
@@ -130,6 +135,24 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
 
     fetchWalletBalance();
   }, [currentUser]);
+
+  // Fetch quantity package (kg/pcs) balance
+  useEffect(() => {
+    const fetchPackageBalance = async () => {
+      const phone = currentUser?.phone || phoneNumber;
+      if (!phone) return;
+      try {
+        const result = await customerPackageService.getBalance(phone);
+        if (result.success && result.balance) {
+          setPackageBalance(result.balance);
+        }
+      } catch (error) {
+        console.error("Error fetching package balance:", error);
+      }
+    };
+
+    fetchPackageBalance();
+  }, [currentUser, phoneNumber]);
 
   // Load saved form data on component mount (excluding date autofill)
   useEffect(() => {
@@ -340,6 +363,33 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
     }, 0);
   };
 
+  const getRequiredByUnit = () => {
+    return getCartItems().reduce(
+      (acc, item) => {
+        if (item.service!.unit === "KG") acc.KG += item.quantity;
+        if (item.service!.unit === "PC") acc.PC += item.quantity;
+        return acc;
+      },
+      { KG: 0, PC: 0 }
+    );
+  };
+
+  const getPackageCoveredAmount = () => {
+    if (!packageApplied) return 0;
+    return getCartItems()
+      .filter((item) => item.service!.unit === packageApplied.unit_type)
+      .reduce((sum, item) => sum + item.service!.price * item.quantity, 0);
+  };
+
+  const applyPackage = (unitType: "KG" | "PC") => {
+    const required = getRequiredByUnit()[unitType];
+    const available = packageBalance[unitType] || 0;
+    if (required <= 0 || available < required) return;
+    setPackageApplied({ unit_type: unitType, quantity: required });
+  };
+
+  const removePackage = () => setPackageApplied(null);
+
   const getDeliveryCharge = () => {
     return 0; // Free delivery
   };
@@ -363,7 +413,8 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
       getDeliveryCharge() +
       getHandlingFee() -
       getCouponDiscount() -
-      walletApplied
+      walletApplied -
+      getPackageCoveredAmount()
     );
   };
 
@@ -726,7 +777,8 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         finalTotal,
       });
 
-      const finalAmountAfterWallet = Math.max(0, finalTotal - walletApplied);
+      const packageCoveredAmount = getPackageCoveredAmount();
+      const finalAmountAfterWallet = Math.max(0, finalTotal - walletApplied - packageCoveredAmount);
 
       const orderData = {
         services,
@@ -745,6 +797,8 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
         // Wallet information
         wallet_applied: walletApplied,
         cashback: walletApplied,
+        // Quantity package (kg/pcs) information
+        package_applied: packageApplied,
         original_total: serviceTotal + deliveryCharge + handlingFee,
         charges_breakdown: {
           base_price: serviceTotal,
@@ -767,9 +821,9 @@ ${services.map((s) => `• ${s.name} x${s.quantity} - ₹${s.price * s.quantity}
 Pickup: ${selectedDate.toLocaleDateString()} at ${selectedTime}
 Delivery: ${finalDeliveryDate.toLocaleDateString()} at ${finalDeliveryTime}
 
-${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})\n` : ""}${walletApplied > 0 ? `Wallet Applied: (-₹${walletApplied.toFixed(2)})\n` : ""}
+${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})\n` : ""}${walletApplied > 0 ? `Wallet Applied: (-₹${walletApplied.toFixed(2)})\n` : ""}${packageApplied ? `Package Applied: ${packageApplied.quantity} ${packageApplied.unit_type} (-₹${packageCoveredAmount.toFixed(2)})\n` : ""}
 Total Amount: ₹${finalTotal}
-${walletApplied > 0 ? `Final Amount (after wallet): ₹${finalAmountAfterWallet.toFixed(2)}` : ""}
+${(walletApplied > 0 || packageCoveredAmount > 0) ? `Final Amount (after deductions): ₹${finalAmountAfterWallet.toFixed(2)}` : ""}
 
 Confirm this booking?`;
 
@@ -822,6 +876,7 @@ Confirm this booking?`;
           setSpecialInstructions("");
           setCouponCode("");
           setAppliedCoupon(null);
+          setPackageApplied(null);
 
           addNotification(
             createSuccessNotification(
@@ -1448,6 +1503,57 @@ Confirm this booking?`;
                 </div>
               )}
             </div>
+
+            {/* Package Balance Section */}
+            {(packageBalance.KG > 0 || packageBalance.PC > 0) && (
+              <div className="space-y-2 pt-2 border-t">
+                {packageApplied ? (
+                  <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600 font-medium text-xs">
+                        ✓ Package Applied ({packageApplied.quantity} {packageApplied.unit_type})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600 font-medium">
+                        -₹{getPackageCoveredAmount().toFixed(2)}
+                      </span>
+                      <Button
+                        onClick={removePackage}
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-red-500 hover:bg-red-50"
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  (["KG", "PC"] as const).map((unit) => {
+                    const available = packageBalance[unit] || 0;
+                    const required = getRequiredByUnit()[unit];
+                    if (available <= 0 || required <= 0) return null;
+                    const sufficient = available >= required;
+                    return (
+                      <Button
+                        key={unit}
+                        onClick={() => applyPackage(unit)}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs h-8 flex items-center justify-center gap-2"
+                        disabled={!sufficient}
+                        title={!sufficient ? `Need ${required} ${unit}, only ${available} available` : undefined}
+                      >
+                        <Scale className="h-3 w-3" />
+                        {sufficient
+                          ? `Use Package (${available} ${unit} available)`
+                          : `Insufficient package balance (${available}/${required} ${unit})`}
+                      </Button>
+                    );
+                  })
+                )}
+              </div>
+            )}
 
             <hr className="my-2" />
 

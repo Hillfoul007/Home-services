@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { laundryServices } from "@/data/laundryServices";
@@ -121,6 +121,27 @@ interface RiderDailyEntry {
   deliveries: Order[];
 }
 
+interface RiderEfficiencyEntry {
+  riderId: string;
+  riderName: string;
+  riderPhone: string;
+  pickupsAssigned: number;
+  deliveriesAssigned: number;
+  pickupsDone: number;
+  deliveriesDone: number;
+  totalAssigned: number;
+  totalDone: number;
+  completionRate: number;
+  score: number;
+}
+
+// A pickup task counts as "done" once the order has moved past pickup_assigned.
+const PICKUP_DONE_STATUSES = new Set([
+  "pickup_completed", "in_progress", "ready_for_delivery",
+  "delivery_assigned", "in_transit", "delivered", "completed",
+]);
+const DELIVERY_DONE_STATUSES = new Set(["delivered", "completed"]);
+
 // ─── Status labels / colours ──────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, string> = {
@@ -237,9 +258,6 @@ const DeskDashboard: React.FC = () => {
   const [itemSearch, setItemSearch] = useState<Record<number, string>>({});
 
 
-  // Rider efficiency data
-  const [efficiencyData, setEfficiencyData] = useState<any[]>([]);
-  const [efficiencyLoading, setEfficiencyLoading] = useState(false);
 
   // ── Real-time rider tracking via Socket.io ────────────────────────────────
   const { riderMap, connected: socketConnected, requestSnapshot } = useRiderSocket(token);
@@ -538,97 +556,6 @@ const DeskDashboard: React.FC = () => {
   };
 
 
-  // ── compute rider efficiency ──
-  const computeEfficiency = useCallback(() => {
-    if (!riders.length) return;
-    setEfficiencyLoading(true);
-    try {
-      const allOrdersFlat = Object.values(sections).flat() as Order[];
-
-      const riderStats = riders.map(r => {
-        const riderOrders = allOrdersFlat.filter(o => {
-          const ar = o.assignedRider;
-          if (!ar) return false;
-          if (typeof ar === 'string') return ar === r._id;
-          return ar._id === r._id;
-        });
-
-        const delivered = riderOrders.filter(o =>
-          ['delivered', 'completed'].includes(o.status || '')
-        ).length;
-
-        const total = riderOrders.length;
-        const breach = riderOrders.filter(o => o._breach).length;
-
-        // On-time rate (delivered without breach)
-        const onTimeRate = total > 0 ? Math.round(((delivered - breach) / Math.max(delivered, 1)) * 100) : 0;
-
-        // Average response: time from order created to pickup
-        const responseTimes: number[] = [];
-        riderOrders.forEach(o => {
-          if (o.created_at && (o.status === 'pickup_completed' || o.status === 'in_progress')) {
-            const created = new Date(o.created_at).getTime();
-            const readyTime = o.readyAt ? new Date(o.readyAt).getTime() : 0;
-            if (readyTime > created) {
-              responseTimes.push((readyTime - created) / 3600000); // hours
-            }
-          }
-        });
-        const avgResponseHrs = responseTimes.length > 0
-          ? responseTimes.reduce((s, v) => s + v, 0) / responseTimes.length
-          : 0;
-
-        // Location freshness score (0-20): how recently location was updated
-        let locationScore = 0;
-        if (r.isActive && r.lastLocationUpdate) {
-          const minsAgo = (Date.now() - new Date(r.lastLocationUpdate).getTime()) / 60000;
-          locationScore = minsAgo < 5 ? 20 : minsAgo < 15 ? 15 : minsAgo < 30 ? 10 : minsAgo < 60 ? 5 : 0;
-        }
-
-        // Volume score (0-20): more orders = higher score, capped at 20
-        const volumeScore = Math.min(20, delivered * 2);
-
-        // On-time score (0-40)
-        const onTimeScore = Math.round(onTimeRate * 0.4);
-
-        // Breach penalty (0 to -20)
-        const breachPenalty = Math.min(20, breach * 5);
-
-        // Speed score (0-20): faster response = better
-        const speedScore = avgResponseHrs === 0 ? 10
-          : avgResponseHrs < 2 ? 20
-          : avgResponseHrs < 4 ? 15
-          : avgResponseHrs < 8 ? 10
-          : avgResponseHrs < 12 ? 5 : 0;
-
-        const score = Math.max(0, Math.min(100,
-          locationScore + volumeScore + onTimeScore - breachPenalty + speedScore
-        ));
-
-        return {
-          ...r,
-          score,
-          delivered,
-          total,
-          breach,
-          onTimeRate,
-          avgResponseHrs: Math.round(avgResponseHrs * 10) / 10,
-          locationScore,
-          volumeScore,
-          onTimeScore,
-          breachPenalty,
-          speedScore,
-        };
-      });
-
-      // Sort by score descending
-      riderStats.sort((a, b) => b.score - a.score);
-      setEfficiencyData(riderStats);
-    } finally {
-      setEfficiencyLoading(false);
-    }
-  }, [riders, sections]);
-
   // ── fetch daily summary ──
   const fetchDailyData = useCallback(async (date?: string) => {
     if (!token) return;
@@ -650,6 +577,38 @@ const DeskDashboard: React.FC = () => {
     } catch { /* silent */ }
     finally { setDailyLoading(false); }
   }, [token, dailyDate]);
+
+  // ── rider efficiency, derived from the day's pickups/deliveries ──
+  const dailyEfficiency: RiderEfficiencyEntry[] = useMemo(() => {
+    const entries = riderDailyData.map(r => {
+      const pickupsAssigned = r.pickups.length;
+      const deliveriesAssigned = r.deliveries.length;
+      const pickupsDone = r.pickups.filter(o => PICKUP_DONE_STATUSES.has(o.status || "")).length;
+      const deliveriesDone = r.deliveries.filter(o => DELIVERY_DONE_STATUSES.has(o.status || "")).length;
+      const totalAssigned = pickupsAssigned + deliveriesAssigned;
+      const totalDone = pickupsDone + deliveriesDone;
+      const completionRate = totalAssigned > 0 ? Math.round((totalDone / totalAssigned) * 100) : 0;
+      const completionScore = totalAssigned > 0 ? Math.round((totalDone / totalAssigned) * 60) : 0;
+      const volumeScore = Math.min(40, totalDone * 4);
+      const score = Math.max(0, Math.min(100, completionScore + volumeScore));
+
+      return {
+        riderId: r.riderId,
+        riderName: r.riderName,
+        riderPhone: r.riderPhone,
+        pickupsAssigned,
+        deliveriesAssigned,
+        pickupsDone,
+        deliveriesDone,
+        totalAssigned,
+        totalDone,
+        completionRate,
+        score,
+      };
+    });
+    entries.sort((a, b) => b.score - a.score || b.totalDone - a.totalDone);
+    return entries;
+  }, [riderDailyData]);
 
   // ── cart editor ──
   const openCartEditor = async (order: Order) => {
@@ -1625,8 +1584,7 @@ const DeskDashboard: React.FC = () => {
             key={key}
             onClick={() => {
               setTab(key as any);
-              if (key === "efficiency") computeEfficiency();
-              if (key === "daily") fetchDailyData();
+              if (key === "efficiency" || key === "daily") fetchDailyData();
             }}
             className={`shrink-0 flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 min-h-[48px] min-w-[60px] ${(tab as string) === key ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50" : "text-gray-500 active:bg-gray-50"}`}
           >
@@ -2139,111 +2097,109 @@ const DeskDashboard: React.FC = () => {
         {/* ══ EFFICIENCY TAB ══ */}
         {tab === "efficiency" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-gray-900 text-base">Rider Efficiency</h2>
-              <button onClick={computeEfficiency} disabled={efficiencyLoading}
-                className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-60">
-                {efficiencyLoading ? "Computing..." : "↻ Refresh"}
-              </button>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h2 className="font-bold text-gray-900 text-base">📊 Rider Efficiency</h2>
+                <p className="text-xs text-gray-500">{new Date(dailyDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="date"
+                  value={dailyDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={e => {
+                    setDailyDate(e.target.value);
+                    setDailyData(null);
+                    setRiderDailyData([]);
+                    setExpandedRider(null);
+                  }}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+                <button onClick={() => fetchDailyData(dailyDate)} disabled={dailyLoading}
+                  className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-60 shrink-0">
+                  {dailyLoading ? "..." : "↻"}
+                </button>
+              </div>
             </div>
 
             {/* Score Formula — always visible */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-2">
-              <p className="font-bold text-sm">How Efficiency Score is Calculated (0–100)</p>
+              <p className="font-bold text-sm">How Daily Efficiency Score is Calculated (0–100)</p>
               <div className="space-y-1">
-                <div className="flex justify-between"><span>📍 Location freshness</span><span className="font-semibold">+0–20 pts</span></div>
-                <p className="text-blue-600 pl-3">&lt;5 min ago = 20 · &lt;15 min = 15 · &lt;30 min = 10 · &lt;60 min = 5</p>
-                <div className="flex justify-between"><span>📦 Delivery volume</span><span className="font-semibold">+0–20 pts</span></div>
-                <p className="text-blue-600 pl-3">Deliveries × 2, capped at 20</p>
-                <div className="flex justify-between"><span>⏱️ On-time delivery rate</span><span className="font-semibold">+0–40 pts</span></div>
-                <p className="text-blue-600 pl-3">onTimeRate% × 0.4 (40 pts max)</p>
-                <div className="flex justify-between"><span>⚡ Pickup response speed</span><span className="font-semibold">+0–20 pts</span></div>
-                <p className="text-blue-600 pl-3">&lt;2 h = 20 · &lt;4 h = 15 · &lt;8 h = 10 · &lt;12 h = 5</p>
-                <div className="flex justify-between text-red-700"><span>⚠️ Breach penalty</span><span className="font-semibold">–5 per breach</span></div>
+                <div className="flex justify-between"><span>✅ Completion rate</span><span className="font-semibold">+0–60 pts</span></div>
+                <p className="text-blue-600 pl-3">(Pickups + Deliveries done) ÷ (Pickups + Deliveries assigned) × 60</p>
+                <div className="flex justify-between"><span>📦 Task volume</span><span className="font-semibold">+0–40 pts</span></div>
+                <p className="text-blue-600 pl-3">Tasks done today × 4, capped at 40 (10+ done = max)</p>
               </div>
-              <p className="text-blue-700 font-semibold border-t border-blue-200 pt-2">Total = Location + Volume + On-time + Speed − Breaches</p>
+              <p className="text-blue-700 font-semibold border-t border-blue-200 pt-2">Total = Completion Rate + Task Volume</p>
             </div>
 
-            {efficiencyData.length === 0 ? (
+            {dailyLoading && dailyEfficiency.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-3xl mb-2">⏳</p>
+                <p className="text-sm">Loading rider activity...</p>
+              </div>
+            ) : dailyEfficiency.length === 0 ? (
               <div className="text-center py-8 text-gray-400">
                 <p className="text-4xl mb-3">📊</p>
-                <p className="font-medium">No rider data yet</p>
-                <p className="text-sm mt-1">Click Refresh to compute efficiency scores</p>
+                <p className="font-medium">No pickups or deliveries assigned yet for this day</p>
+                <p className="text-sm mt-1">Tap ↻ to refresh</p>
               </div>
             ) : (
-              <>
-
-
-                {/* Rider Table */}
-                <div className="space-y-3">
-                  {efficiencyData.map((r, idx) => {
-                    const scoreColor = r.score >= 80 ? "text-green-700 bg-green-100" :
-                      r.score >= 60 ? "text-yellow-700 bg-yellow-100" :
-                      r.score >= 40 ? "text-orange-700 bg-orange-100" : "text-red-700 bg-red-100";
-                    const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
-                    return (
-                      <div key={r._id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                        {/* Header */}
-                        <div className="flex items-center gap-3 px-4 py-3">
-                          <span className="text-xl shrink-0">{medal}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 text-sm truncate">{r.name}</p>
-                            <a href={`tel:${r.phone}`} className="text-xs text-blue-600">{r.phone}</a>
-                          </div>
-                          <div className={`shrink-0 px-3 py-1.5 rounded-full font-bold text-lg ${scoreColor}`}>
-                            {r.score}
-                          </div>
+              <div className="space-y-3">
+                {dailyEfficiency.map((r, idx) => {
+                  const scoreColor = r.score >= 80 ? "text-green-700 bg-green-100" :
+                    r.score >= 60 ? "text-yellow-700 bg-yellow-100" :
+                    r.score >= 40 ? "text-orange-700 bg-orange-100" : "text-red-700 bg-red-100";
+                  const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
+                  return (
+                    <div key={r.riderId} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                      {/* Header */}
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <span className="text-xl shrink-0">{medal}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 text-sm truncate">{r.riderName}</p>
+                          <a href={`tel:${r.riderPhone}`} className="text-xs text-blue-600">{r.riderPhone}</a>
                         </div>
-
-                        {/* Score bar */}
-                        <div className="px-4 pb-2">
-                          <div className="w-full bg-gray-100 rounded-full h-2">
-                            <div className={`h-2 rounded-full transition-all ${
-                              r.score >= 80 ? "bg-green-500" :
-                              r.score >= 60 ? "bg-yellow-500" :
-                              r.score >= 40 ? "bg-orange-500" : "bg-red-500"
-                            }`} style={{ width: `${r.score}%` }} />
-                          </div>
-                        </div>
-
-                        {/* Stats grid */}
-                        <div className="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100 text-center text-xs">
-                          <div className="py-2 px-1">
-                            <p className="font-bold text-gray-900">{r.delivered}</p>
-                            <p className="text-gray-500">Delivered</p>
-                          </div>
-                          <div className="py-2 px-1">
-                            <p className="font-bold text-gray-900">{r.onTimeRate}%</p>
-                            <p className="text-gray-500">On Time</p>
-                          </div>
-                          <div className="py-2 px-1">
-                            <p className={`font-bold ${r.breach > 0 ? "text-red-600" : "text-gray-900"}`}>{r.breach}</p>
-                            <p className="text-gray-500">Breaches</p>
-                          </div>
-                        </div>
-
-                        {/* Extra row */}
-                        <div className="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100 text-center text-xs bg-gray-50">
-                          <div className="py-2 px-1">
-                            <p className="font-bold text-gray-900">{r.avgResponseHrs}h</p>
-                            <p className="text-gray-500">Avg Speed</p>
-                          </div>
-                          <div className="py-2 px-1">
-                            <p className={`font-bold ${r.isActive ? "text-green-600" : "text-gray-400"}`}>
-                              {r.isActive ? "Active" : "Offline"}
-                            </p>
-                            <p className="text-gray-500">Status</p>
-                          </div>
-                          <div className="py-2 px-1">
-                            <p className="font-bold text-gray-900">{r.locationScore}/20</p>
-                            <p className="text-gray-500">Location</p>
-                          </div>
+                        <div className={`shrink-0 px-3 py-1.5 rounded-full font-bold text-lg ${scoreColor}`}>
+                          {r.score}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
+
+                      {/* Score bar */}
+                      <div className="px-4 pb-2">
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                          <div className={`h-2 rounded-full transition-all ${
+                            r.score >= 80 ? "bg-green-500" :
+                            r.score >= 60 ? "bg-yellow-500" :
+                            r.score >= 40 ? "bg-orange-500" : "bg-red-500"
+                          }`} style={{ width: `${r.score}%` }} />
+                        </div>
+                      </div>
+
+                      {/* Stats grid */}
+                      <div className="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100 text-center text-xs">
+                        <div className="py-2 px-1">
+                          <p className="font-bold text-gray-900">{r.pickupsDone}/{r.pickupsAssigned}</p>
+                          <p className="text-gray-500">🧺 Pickups</p>
+                        </div>
+                        <div className="py-2 px-1">
+                          <p className="font-bold text-gray-900">{r.deliveriesDone}/{r.deliveriesAssigned}</p>
+                          <p className="text-gray-500">🚚 Deliveries</p>
+                        </div>
+                        <div className="py-2 px-1">
+                          <p className="font-bold text-gray-900">{r.totalDone}</p>
+                          <p className="text-gray-500">Total Done</p>
+                        </div>
+                        <div className="py-2 px-1">
+                          <p className="font-bold text-gray-900">{r.completionRate}%</p>
+                          <p className="text-gray-500">Completion</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
