@@ -62,7 +62,7 @@ import { AddressService } from "@/services/addressService";
 import { SessionManager } from "@/utils/sessionManager";
 import { CouponService } from "@/services/couponService";
 import { walletService } from "@/services/walletService";
-import { customerPackageService, CustomerPackageBalance } from "@/services/customerPackageService";
+import { customerPackageService, CustomerPackageBalanceEntry } from "@/services/customerPackageService";
 import { Wallet, Scale } from "lucide-react";
 
 
@@ -103,9 +103,9 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
   const [showWalletInput, setShowWalletInput] = useState(false);
   const [walletAmount, setWalletAmount] = useState("");
 
-  // Quantity package (kg/pcs) state
-  const [packageBalance, setPackageBalance] = useState<CustomerPackageBalance>({ KG: 0, PC: 0 });
-  const [packageApplied, setPackageApplied] = useState<{ unit_type: "KG" | "PC"; quantity: number } | null>(null);
+  // Quantity package (kg/pcs, tied to a specific service) state
+  const [packageBalance, setPackageBalance] = useState<CustomerPackageBalanceEntry[]>([]);
+  const [packageApplied, setPackageApplied] = useState<{ service_name: string; unit_type: "KG" | "PC"; quantity: number } | null>(null);
 
   // Location availability modal state
   const [showLocationUnavailable, setShowLocationUnavailable] = useState(false);
@@ -363,29 +363,28 @@ const LaundryCart: React.FC<LaundryCartProps> = ({
     }, 0);
   };
 
-  const getRequiredByUnit = () => {
-    return getCartItems().reduce(
-      (acc, item) => {
-        if (item.service!.unit === "KG") acc.KG += item.quantity;
-        if (item.service!.unit === "PC") acc.PC += item.quantity;
-        return acc;
-      },
-      { KG: 0, PC: 0 }
-    );
+  // Cart quantity required per exact service name — a package only covers
+  // the specific service it was sold for (e.g. Laundry and Fold vs Laundry
+  // and Iron are priced very differently despite both being KG-based)
+  const getRequiredByService = () => {
+    return getCartItems().reduce((acc: Record<string, number>, item) => {
+      const name = item.service!.name;
+      acc[name] = (acc[name] || 0) + item.quantity;
+      return acc;
+    }, {});
   };
 
   const getPackageCoveredAmount = () => {
     if (!packageApplied) return 0;
     return getCartItems()
-      .filter((item) => item.service!.unit === packageApplied.unit_type)
+      .filter((item) => item.service!.name === packageApplied.service_name)
       .reduce((sum, item) => sum + item.service!.price * item.quantity, 0);
   };
 
-  const applyPackage = (unitType: "KG" | "PC") => {
-    const required = getRequiredByUnit()[unitType];
-    const available = packageBalance[unitType] || 0;
-    if (required <= 0 || available < required) return;
-    setPackageApplied({ unit_type: unitType, quantity: required });
+  const applyPackage = (entry: CustomerPackageBalanceEntry) => {
+    const required = getRequiredByService()[entry.service_name] || 0;
+    if (required <= 0 || entry.remaining_quantity < required) return;
+    setPackageApplied({ service_name: entry.service_name, unit_type: entry.unit_type, quantity: required });
   };
 
   const removePackage = () => setPackageApplied(null);
@@ -821,7 +820,7 @@ ${services.map((s) => `• ${s.name} x${s.quantity} - ₹${s.price * s.quantity}
 Pickup: ${selectedDate.toLocaleDateString()} at ${selectedTime}
 Delivery: ${finalDeliveryDate.toLocaleDateString()} at ${finalDeliveryTime}
 
-${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})\n` : ""}${walletApplied > 0 ? `Wallet Applied: (-₹${walletApplied.toFixed(2)})\n` : ""}${packageApplied ? `Package Applied: ${packageApplied.quantity} ${packageApplied.unit_type} (-₹${packageCoveredAmount.toFixed(2)})\n` : ""}
+${appliedCoupon ? `Coupon Applied: ${appliedCoupon.code} (-₹${couponDiscount})\n` : ""}${walletApplied > 0 ? `Wallet Applied: (-₹${walletApplied.toFixed(2)})\n` : ""}${packageApplied ? `Package Applied: ${packageApplied.quantity} ${packageApplied.unit_type} ${packageApplied.service_name} (-₹${packageCoveredAmount.toFixed(2)})\n` : ""}
 Total Amount: ₹${finalTotal}
 ${(walletApplied > 0 || packageCoveredAmount > 0) ? `Final Amount (after deductions): ₹${finalAmountAfterWallet.toFixed(2)}` : ""}
 
@@ -1505,13 +1504,13 @@ Confirm this booking?`;
             </div>
 
             {/* Package Balance Section */}
-            {(packageBalance.KG > 0 || packageBalance.PC > 0) && (
+            {packageBalance.length > 0 && (
               <div className="space-y-2 pt-2 border-t">
                 {packageApplied ? (
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
                       <span className="text-green-600 font-medium text-xs">
-                        ✓ Package Applied ({packageApplied.quantity} {packageApplied.unit_type})
+                        ✓ Package Applied ({packageApplied.quantity} {packageApplied.unit_type} {packageApplied.service_name})
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1529,25 +1528,24 @@ Confirm this booking?`;
                     </div>
                   </div>
                 ) : (
-                  (["KG", "PC"] as const).map((unit) => {
-                    const available = packageBalance[unit] || 0;
-                    const required = getRequiredByUnit()[unit];
-                    if (available <= 0 || required <= 0) return null;
-                    const sufficient = available >= required;
+                  packageBalance.map((entry) => {
+                    const required = getRequiredByService()[entry.service_name] || 0;
+                    if (required <= 0) return null;
+                    const sufficient = entry.remaining_quantity >= required;
                     return (
                       <Button
-                        key={unit}
-                        onClick={() => applyPackage(unit)}
+                        key={entry.service_name}
+                        onClick={() => applyPackage(entry)}
                         variant="outline"
                         size="sm"
                         className="w-full text-xs h-8 flex items-center justify-center gap-2"
                         disabled={!sufficient}
-                        title={!sufficient ? `Need ${required} ${unit}, only ${available} available` : undefined}
+                        title={!sufficient ? `Need ${required} ${entry.unit_type}, only ${entry.remaining_quantity} available` : undefined}
                       >
                         <Scale className="h-3 w-3" />
                         {sufficient
-                          ? `Use Package (${available} ${unit} available)`
-                          : `Insufficient package balance (${available}/${required} ${unit})`}
+                          ? `Use Package (${entry.remaining_quantity} ${entry.unit_type} ${entry.service_name} available)`
+                          : `Insufficient package balance (${entry.remaining_quantity}/${required} ${entry.unit_type} ${entry.service_name})`}
                       </Button>
                     );
                   })

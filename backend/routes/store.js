@@ -105,17 +105,19 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
     const store = await Store.findById(req.store._id);
     if (!store) return res.status(404).json({ success: false, error: "Store not found" });
 
-    // Apply quantity-based package balance (kg/pcs) if requested — deducted
-    // server-side against the live balance, never trusting client totals.
+    // Apply a quantity-based package balance (tied to a specific service) if
+    // requested — deducted server-side against the live balance, never
+    // trusting client totals.
     let packageAppliedResult = null;
-    if (package_applied && package_applied.unit_type && package_applied.quantity > 0) {
+    if (package_applied && package_applied.service_name && package_applied.quantity > 0) {
       try {
         const { amount_covered } = await deductPackageBalance(
           customer_phone,
-          package_applied.unit_type,
+          package_applied.service_name,
           package_applied.quantity
         );
         packageAppliedResult = {
+          service_name: package_applied.service_name,
           unit_type: package_applied.unit_type,
           quantity: package_applied.quantity,
           amount_covered,
@@ -150,6 +152,7 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
         quantity: s.quantity || 1,
         unit_price: s.unit_price || 0,
         total_price: s.total_price || 0,
+        piece_count: s.piece_count ?? null,
       })),
       address: address || "",
       total_price: total_price || 0,
@@ -211,11 +214,11 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
       StoreOrder.find(storeQuery)
         .sort({ created_at: sort })
         .limit(fetchCap)
-        .select("custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id package_applied"),
+        .select("custom_order_id customer_name customer_phone services item_prices total_price discount_amount wallet_applied final_amount status created_at updated_at riderStatus is_store_order store_id package_applied address"),
       Booking.find(assignedQuery)
         .sort({ created_at: sort })
         .limit(fetchCap)
-        .select("custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order assigned_store_id"),
+        .select("custom_order_id name phone customer_name customer_phone services item_prices total_price discount_amount cashback final_amount status created_at updated_at riderStatus is_store_order assigned_store_id address package_applied"),
     ]);
 
     // Normalise assigned orders to have customer_name/customer_phone for display
@@ -302,15 +305,21 @@ router.delete("/orders/:orderId", verifyStoreToken, async (req, res) => {
   }
 });
 
-// ─── Customer Packages (kg/pcs) ────────────────────────────────────────────────
+// ─── Customer Packages (per-service, kg/pcs) ───────────────────────────────────
 
-// POST /api/store/packages — create a quantity package for a customer
+// POST /api/store/packages — create a quantity package for a customer, tied
+// to a specific service (e.g. "Laundry and Fold"). The client resolves
+// unit_type from its own service catalog and sends both.
 router.post("/packages", verifyStoreToken, async (req, res) => {
   try {
-    const { customer_name, customer_phone, unit_type, quantity, price, start_date, validity_days } = req.body;
+    const { customer_name, customer_phone, service_name, unit_type, quantity, price, start_date, validity_days } = req.body;
 
-    if (!customer_phone || !unit_type || !["KG", "PC"].includes(unit_type))
-      return res.status(400).json({ success: false, error: "Customer phone and a valid unit_type (KG or PC) are required" });
+    if (!customer_phone)
+      return res.status(400).json({ success: false, error: "Customer phone is required" });
+    if (!service_name)
+      return res.status(400).json({ success: false, error: "A service must be selected for this package" });
+    if (!unit_type || !["KG", "PC"].includes(unit_type))
+      return res.status(400).json({ success: false, error: "A valid unit_type (KG or PC) is required" });
     if (!quantity || quantity <= 0)
       return res.status(400).json({ success: false, error: "Quantity must be greater than 0" });
     if (price === undefined || price < 0)
@@ -331,6 +340,7 @@ router.post("/packages", verifyStoreToken, async (req, res) => {
       customer_name: customer_name || "",
       customer_phone,
       user_id: user ? user._id : null,
+      service_name,
       unit_type,
       total_quantity: quantity,
       remaining_quantity: quantity,
@@ -378,7 +388,7 @@ router.get("/packages", verifyStoreToken, async (req, res) => {
   }
 });
 
-// GET /api/store/packages/balance/:phone — aggregated KG/PC balance for a phone
+// GET /api/store/packages/balance/:phone — per-service balance for a phone
 router.get("/packages/balance/:phone", verifyStoreToken, async (req, res) => {
   try {
     const balance = await getPackageBalance(req.params.phone);
@@ -517,6 +527,7 @@ router.post("/admin/orders/create", verifyAdmin, async (req, res) => {
         quantity: s.quantity || 1,
         unit_price: s.unit_price || 0,
         total_price: s.total_price || 0,
+        piece_count: s.piece_count ?? null,
       })),
       address: address || "",
       total_price: total_price || 0,

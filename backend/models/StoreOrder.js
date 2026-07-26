@@ -22,6 +22,7 @@ const storeOrderSchema = new mongoose.Schema(
         quantity: { type: Number, default: 1 },
         unit_price: { type: Number, default: 0 },
         total_price: { type: Number, default: 0 },
+        piece_count: { type: Number, default: null },
       },
     ],
     // Address / schedule
@@ -35,6 +36,7 @@ const storeOrderSchema = new mongoose.Schema(
     discount_amount: { type: Number, default: 0 },
     wallet_applied: { type: Number, default: 0 },
     package_applied: {
+      service_name: { type: String, default: null },
       unit_type: { type: String, enum: ["KG", "PC", null], default: null },
       quantity: { type: Number, default: 0 },
       amount_covered: { type: Number, default: 0 },

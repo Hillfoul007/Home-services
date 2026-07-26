@@ -1,8 +1,9 @@
 import { getApiUrl } from '../config/env';
 
-export interface CustomerPackageBalance {
-  KG: number;
-  PC: number;
+export interface CustomerPackageBalanceEntry {
+  service_name: string;
+  unit_type: "KG" | "PC";
+  remaining_quantity: number;
 }
 
 export class CustomerPackageService {
@@ -20,9 +21,10 @@ export class CustomerPackageService {
   }
 
   /**
-   * Get a customer's quantity package balance (kg/pcs) by phone number.
+   * Get a customer's quantity package balance, broken down per service, by
+   * phone number.
    */
-  async getBalance(phone: string): Promise<{ success: boolean; balance?: CustomerPackageBalance; error?: string }> {
+  async getBalance(phone: string): Promise<{ success: boolean; balance?: CustomerPackageBalanceEntry[]; error?: string }> {
     try {
       const baseUrl = this.getBaseUrl();
       const response = await fetch(`${baseUrl}/customer-packages/balance/${phone}`);

@@ -544,19 +544,21 @@ router.post("/", async (req, res) => {
     console.log(`   - Discount: ₹${finalDiscount}`);
     console.log(`   - Final amount: ₹${finalAmount}`);
 
-    // Apply quantity-based package balance (kg/pcs) if requested — deducted
-    // server-side against the live balance before the booking is created,
-    // since an insufficient balance must block booking creation entirely.
+    // Apply a quantity-based package balance (tied to a specific service) if
+    // requested — deducted server-side against the live balance before the
+    // booking is created, since an insufficient balance must block booking
+    // creation entirely.
     let packageAppliedResult = null;
-    if (requestPackageApplied && requestPackageApplied.unit_type && requestPackageApplied.quantity > 0) {
+    if (requestPackageApplied && requestPackageApplied.service_name && requestPackageApplied.quantity > 0) {
       try {
         const { deductPackageBalance } = require("../utils/customerPackages");
         const { amount_covered } = await deductPackageBalance(
           customer.phone,
-          requestPackageApplied.unit_type,
+          requestPackageApplied.service_name,
           requestPackageApplied.quantity
         );
         packageAppliedResult = {
+          service_name: requestPackageApplied.service_name,
           unit_type: requestPackageApplied.unit_type,
           quantity: requestPackageApplied.quantity,
           amount_covered,

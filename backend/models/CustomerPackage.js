@@ -16,6 +16,11 @@ const customerPackageSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    service_name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     unit_type: {
       type: String,
       enum: ["KG", "PC"],
@@ -71,7 +76,7 @@ const customerPackageSchema = new mongoose.Schema(
   }
 );
 
-customerPackageSchema.index({ customer_phone: 1, unit_type: 1, is_active: 1 });
+customerPackageSchema.index({ customer_phone: 1, service_name: 1, is_active: 1 });
 
 customerPackageSchema.pre("save", function (next) {
   this.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   LogOut, Plus, Eye, Trash2, Phone, User, Clock, Calendar,
   Save, Store, Package, Search, Scale, Ban, Loader2, CheckCircle2, RefreshCw,
+  MessageCircle, Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
@@ -26,9 +27,11 @@ interface ServiceItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  piece_count?: number;
 }
 
 interface PackageApplied {
+  service_name: string;
   unit_type: "KG" | "PC";
   quantity: number;
   amount_covered?: number;
@@ -38,6 +41,7 @@ interface CustomerPackageT {
   _id: string;
   customer_name: string;
   customer_phone: string;
+  service_name: string;
   unit_type: "KG" | "PC";
   total_quantity: number;
   remaining_quantity: number;
@@ -48,9 +52,10 @@ interface CustomerPackageT {
   created_at: string;
 }
 
-interface PackageBalance {
-  KG: number;
-  PC: number;
+interface PackageBalanceEntry {
+  service_name: string;
+  unit_type: "KG" | "PC";
+  remaining_quantity: number;
 }
 
 interface Order {
@@ -61,6 +66,9 @@ interface Order {
   services: string[];
   item_prices: ServiceItem[];
   total_price: number;
+  discount_amount?: number;
+  wallet_applied?: number;
+  cashback?: number;
   final_amount: number;
   status: string;
   created_at: string;
@@ -69,6 +77,7 @@ interface Order {
   is_store_order?: boolean;
   assigned_store_id?: string;
   package_applied?: PackageApplied;
+  address?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -92,6 +101,103 @@ function formatDate(d: string) {
 }
 function formatTime(d: string) {
   return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function toWhatsAppPhone(phone: string) {
+  const digits = (phone || "").replace(/\D/g, "");
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
+
+function callHref(phone: string) {
+  return `tel:${(phone || "").replace(/\D/g, "")}`;
+}
+
+function whatsAppHref(phone: string, message: string) {
+  return `https://wa.me/${toWhatsAppPhone(phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildOrderSummaryText(order: Order, storeName: string) {
+  const lines = [
+    `*${storeName}*`,
+    `Order: ${order.custom_order_id}`,
+    `Date: ${formatDate(order.created_at)} ${formatTime(order.created_at)}`,
+    "",
+    "Items:",
+    ...order.item_prices.map(
+      (i) =>
+        `• ${i.service_name} x${i.quantity}${i.piece_count ? ` (${i.piece_count} pcs)` : ""} — ₹${i.total_price ?? i.unit_price * i.quantity}`
+    ),
+    "",
+    `Subtotal: ₹${order.total_price}`,
+  ];
+  if (order.discount_amount) lines.push(`Discount: -₹${order.discount_amount}`);
+  if (order.wallet_applied || order.cashback) lines.push(`Wallet Applied: -₹${order.wallet_applied || order.cashback}`);
+  if (order.package_applied?.quantity) {
+    lines.push(
+      `Package (${order.package_applied.quantity} ${order.package_applied.unit_type} ${order.package_applied.service_name}): -₹${(order.package_applied.amount_covered || 0).toFixed(0)}`
+    );
+  }
+  lines.push(`*Total: ₹${order.final_amount}*`, "", `Status: ${order.status}`);
+  return lines.join("\n");
+}
+
+function printReceipt(order: Order, storeName: string) {
+  const win = window.open("", "_blank", "width=380,height=600");
+  if (!win) return;
+  const itemRows = order.item_prices
+    .map(
+      (i) => `
+      <tr>
+        <td>${i.service_name}${i.piece_count ? `<br/><span class="muted">${i.piece_count} pcs</span>` : ""}</td>
+        <td class="center">${i.quantity}</td>
+        <td class="right">₹${i.total_price ?? i.unit_price * i.quantity}</td>
+      </tr>`
+    )
+    .join("");
+
+  win.document.write(`
+    <html>
+      <head>
+        <title>Receipt ${order.custom_order_id}</title>
+        <style>
+          body { font-family: monospace; padding: 16px; max-width: 340px; margin: 0 auto; color: #111; }
+          h1 { font-size: 16px; text-align: center; margin: 0 0 4px; }
+          .center-text { text-align: center; font-size: 12px; margin-bottom: 12px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { padding: 4px 2px; text-align: left; border-bottom: 1px dashed #ccc; }
+          .center { text-align: center; }
+          .right { text-align: right; }
+          .muted { color: #777; font-size: 10px; }
+          .totals td { border-bottom: none; padding-top: 6px; }
+          .grand { font-weight: bold; font-size: 14px; border-top: 1px solid #000; }
+          hr { border: none; border-top: 1px dashed #999; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <h1>${storeName}</h1>
+        <div class="center-text">Order ${order.custom_order_id}<br/>${formatDate(order.created_at)} ${formatTime(order.created_at)}</div>
+        <div>Customer: ${order.customer_name}<br/>Phone: ${order.customer_phone}</div>
+        <hr/>
+        <table>
+          <thead><tr><th>Item</th><th class="center">Qty</th><th class="right">Amount</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+          <tbody class="totals">
+            <tr><td colspan="2">Subtotal</td><td class="right">₹${order.total_price}</td></tr>
+            ${order.discount_amount ? `<tr><td colspan="2">Discount</td><td class="right">-₹${order.discount_amount}</td></tr>` : ""}
+            ${order.wallet_applied || order.cashback ? `<tr><td colspan="2">Wallet</td><td class="right">-₹${order.wallet_applied || order.cashback}</td></tr>` : ""}
+            ${order.package_applied?.quantity ? `<tr><td colspan="2">Package (${order.package_applied.quantity} ${order.package_applied.unit_type} ${order.package_applied.service_name})</td><td class="right">-₹${(order.package_applied.amount_covered || 0).toFixed(0)}</td></tr>` : ""}
+            <tr class="grand"><td colspan="2">Total</td><td class="right">₹${order.final_amount}</td></tr>
+          </tbody>
+        </table>
+        <hr/>
+        <div class="center-text">Thank you!</div>
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  win.print();
 }
 
 export default function StoreDashboard() {
@@ -122,7 +228,7 @@ export default function StoreDashboard() {
   const [packageSearch, setPackageSearch] = useState("");
   const [pkgCustomerName, setPkgCustomerName] = useState("");
   const [pkgCustomerPhone, setPkgCustomerPhone] = useState("");
-  const [pkgUnitType, setPkgUnitType] = useState<"KG" | "PC">("KG");
+  const [pkgServiceName, setPkgServiceName] = useState("");
   const [pkgQuantity, setPkgQuantity] = useState("");
   const [pkgPrice, setPkgPrice] = useState("");
   const [pkgStartDate, setPkgStartDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -130,7 +236,7 @@ export default function StoreDashboard() {
   const [creatingPackage, setCreatingPackage] = useState(false);
 
   // Package balance lookup for the "Create Order" tab
-  const [orderPhoneBalance, setOrderPhoneBalance] = useState<PackageBalance | null>(null);
+  const [orderPhoneBalance, setOrderPhoneBalance] = useState<PackageBalanceEntry[]>([]);
   const [checkingBalance, setCheckingBalance] = useState(false);
   const [packageApplied, setPackageApplied] = useState<PackageApplied | null>(null);
 
@@ -337,19 +443,21 @@ export default function StoreDashboard() {
     return (match?.unit as "KG" | "PC" | "SET") || null;
   };
 
-  const requiredByUnit = serviceItems.reduce(
-    (acc, item) => {
-      const unit = getServiceUnit(item.service_name);
-      if (unit === "KG") acc.KG += item.quantity;
-      if (unit === "PC") acc.PC += item.quantity;
-      return acc;
-    },
-    { KG: 0, PC: 0 }
-  );
+  // Services that can carry a quantity package — SET-unit services never can
+  const PACKAGEABLE_SERVICES = getSortedServices().filter((s) => s.unit === "KG" || s.unit === "PC");
+
+  // Cart quantity required per exact service name (a package only covers the
+  // specific service it was sold for, since e.g. Laundry and Fold vs Laundry
+  // and Iron are priced very differently despite both being KG-based)
+  const requiredByService = serviceItems.reduce((acc: Record<string, number>, item) => {
+    if (!item.service_name) return acc;
+    acc[item.service_name] = (acc[item.service_name] || 0) + item.quantity;
+    return acc;
+  }, {});
 
   const packageCoveredAmount = packageApplied
     ? serviceItems
-        .filter((item) => getServiceUnit(item.service_name) === packageApplied.unit_type)
+        .filter((item) => item.service_name === packageApplied.service_name)
         .reduce((s, i) => s + i.total_price, 0)
     : 0;
 
@@ -359,7 +467,7 @@ export default function StoreDashboard() {
   useEffect(() => {
     setPackageApplied(null);
     if (!/^\d{10}$/.test(customerPhone)) {
-      setOrderPhoneBalance(null);
+      setOrderPhoneBalance([]);
       return;
     }
     const token = localStorage.getItem("store_token");
@@ -371,7 +479,7 @@ export default function StoreDashboard() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        if (data.success) setOrderPhoneBalance(data.balance);
+        if (data.success) setOrderPhoneBalance(data.balance || []);
       } catch {
         // silent — package balance is an optional affordance
       } finally {
@@ -381,11 +489,10 @@ export default function StoreDashboard() {
     return () => clearTimeout(t);
   }, [customerPhone]);
 
-  const applyPackage = (unitType: "KG" | "PC") => {
-    const required = requiredByUnit[unitType];
-    const available = orderPhoneBalance?.[unitType] || 0;
-    if (required <= 0 || available < required) return;
-    setPackageApplied({ unit_type: unitType, quantity: required });
+  const applyPackage = (entry: PackageBalanceEntry) => {
+    const required = requiredByService[entry.service_name] || 0;
+    if (required <= 0 || entry.remaining_quantity < required) return;
+    setPackageApplied({ service_name: entry.service_name, unit_type: entry.unit_type, quantity: required });
   };
 
   const removePackage = () => setPackageApplied(null);
@@ -486,6 +593,15 @@ export default function StoreDashboard() {
       toast.error("A valid 10-digit customer phone is required");
       return;
     }
+    if (!pkgServiceName) {
+      toast.error("Please select a service for this package");
+      return;
+    }
+    const pkgUnitType = getServiceUnit(pkgServiceName);
+    if (!pkgUnitType || pkgUnitType === "SET") {
+      toast.error("Selected service cannot carry a quantity package");
+      return;
+    }
     const quantity = parseFloat(pkgQuantity);
     const price = parseFloat(pkgPrice);
     if (!quantity || quantity <= 0) {
@@ -505,6 +621,7 @@ export default function StoreDashboard() {
         body: JSON.stringify({
           customer_name: pkgCustomerName,
           customer_phone: pkgCustomerPhone,
+          service_name: pkgServiceName,
           unit_type: pkgUnitType,
           quantity,
           price,
@@ -517,6 +634,7 @@ export default function StoreDashboard() {
         toast.success(`Package created for ${pkgCustomerName || pkgCustomerPhone}`);
         setPkgCustomerName("");
         setPkgCustomerPhone("");
+        setPkgServiceName("");
         setPkgQuantity("");
         setPkgPrice("");
         setPkgValidityDays(30);
@@ -748,6 +866,23 @@ export default function StoreDashboard() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Pieces — optional, for reconciling garment count on kg-billed laundry */}
+                      {getServiceUnit(item.service_name) === "KG" && (
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Pieces (optional garment count)</label>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            step="1"
+                            placeholder="e.g. 12"
+                            value={item.piece_count ?? ""}
+                            onChange={(e) => handleServiceChange(idx, "piece_count", e.target.value === "" ? undefined : parseInt(e.target.value, 10) || 0)}
+                            className="h-10 text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -760,7 +895,7 @@ export default function StoreDashboard() {
               </Card>
 
               {/* Package Balance */}
-              {customerPhone.length === 10 && (checkingBalance || orderPhoneBalance) && (
+              {customerPhone.length === 10 && (checkingBalance || orderPhoneBalance.length > 0) && (
                 <Card className="p-4 border-indigo-200 bg-indigo-50">
                   <h3 className="font-semibold text-sm mb-2 flex items-center gap-2 text-indigo-900">
                     <Scale className="w-4 h-4 text-indigo-600" /> Package Balance
@@ -773,7 +908,7 @@ export default function StoreDashboard() {
                     <div className="flex items-center justify-between bg-white border border-indigo-300 rounded-lg p-3">
                       <div className="flex items-center gap-2 text-sm text-indigo-800 font-medium">
                         <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        Applying {packageApplied.quantity} {packageApplied.unit_type} from package
+                        Applying {packageApplied.quantity} {packageApplied.unit_type} of {packageApplied.service_name}
                       </div>
                       <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-red-500" onClick={removePackage}>
                         Remove
@@ -781,26 +916,25 @@ export default function StoreDashboard() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {(["KG", "PC"] as const).map((unit) => {
-                        const available = orderPhoneBalance?.[unit] || 0;
-                        const required = requiredByUnit[unit];
-                        if (available <= 0 || required <= 0) return null;
-                        const sufficient = available >= required;
+                      {orderPhoneBalance.map((entry) => {
+                        const required = requiredByService[entry.service_name] || 0;
+                        if (required <= 0) return null;
+                        const sufficient = entry.remaining_quantity >= required;
                         return (
-                          <div key={unit} className="flex items-center justify-between bg-white border border-indigo-200 rounded-lg p-3">
+                          <div key={entry.service_name} className="flex items-center justify-between bg-white border border-indigo-200 rounded-lg p-3">
                             <div className="text-sm">
-                              <p className="font-medium text-gray-800">{available} {unit} available</p>
+                              <p className="font-medium text-gray-800">{entry.remaining_quantity} {entry.unit_type} of {entry.service_name} available</p>
                               <p className={`text-xs ${sufficient ? "text-gray-500" : "text-red-500"}`}>
                                 {sufficient
-                                  ? `Order needs ${required} ${unit}`
-                                  : `Order needs ${required} ${unit} — short by ${(required - available).toFixed(2)}, top up to apply`}
+                                  ? `Order needs ${required} ${entry.unit_type}`
+                                  : `Order needs ${required} ${entry.unit_type} — short by ${(required - entry.remaining_quantity).toFixed(2)}, top up to apply`}
                               </p>
                             </div>
                             <Button
                               type="button"
                               size="sm"
                               disabled={!sufficient}
-                              onClick={() => applyPackage(unit)}
+                              onClick={() => applyPackage(entry)}
                               className="h-9 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
                             >
                               Apply
@@ -808,11 +942,8 @@ export default function StoreDashboard() {
                           </div>
                         );
                       })}
-                      {orderPhoneBalance && requiredByUnit.KG === 0 && requiredByUnit.PC === 0 && (
-                        <p className="text-xs text-indigo-700">Customer has a package balance, but no KG/PC services are in the cart yet.</p>
-                      )}
-                      {orderPhoneBalance && orderPhoneBalance.KG <= 0 && orderPhoneBalance.PC <= 0 && (
-                        <p className="text-xs text-indigo-700">No active package balance for this phone number.</p>
+                      {orderPhoneBalance.every((entry) => !requiredByService[entry.service_name]) && (
+                        <p className="text-xs text-indigo-700">Customer has a package balance, but none of those services are in the cart yet.</p>
                       )}
                     </div>
                   )}
@@ -870,7 +1001,7 @@ export default function StoreDashboard() {
                   )}
                   {packageApplied && (
                     <div className="flex justify-between text-sm text-indigo-600">
-                      <span>Package ({packageApplied.quantity} {packageApplied.unit_type})</span>
+                      <span>Package ({packageApplied.quantity} {packageApplied.unit_type} {packageApplied.service_name})</span>
                       <span className="font-medium">−₹{packageCoveredAmount.toFixed(0)}</span>
                     </div>
                   )}
@@ -985,7 +1116,7 @@ export default function StoreDashboard() {
                       <p className="text-green-700 font-medium">✓ All caught up — no active orders!</p>
                     </Card>
                   ) : (
-                    <OrderTable orders={activeOrders} onView={openOrder} />
+                    <OrderTable orders={activeOrders} onView={openOrder} storeName={storeInfo.store_name} />
                   )}
                 </div>
 
@@ -1003,7 +1134,7 @@ export default function StoreDashboard() {
                     </button>
                     {showInactive && (
                       <div className="mt-4">
-                        <OrderTable orders={inactiveOrders} onView={openOrder} />
+                        <OrderTable orders={inactiveOrders} onView={openOrder} storeName={storeInfo.store_name} />
                       </div>
                     )}
                   </div>
@@ -1057,32 +1188,34 @@ export default function StoreDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Type</label>
-                  <div className="flex gap-2">
-                    {(["KG", "PC"] as const).map((u) => (
-                      <button
-                        key={u}
-                        type="button"
-                        onClick={() => setPkgUnitType(u)}
-                        className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                          pkgUnitType === u ? "bg-indigo-600 text-white" : "bg-white text-indigo-600 border border-indigo-300"
-                        }`}
-                      >
-                        {u === "KG" ? "⚖️ By Weight (KG)" : "🧺 By Pieces (PC)"}
-                      </button>
-                    ))}
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Service *</label>
+                  <Select value={pkgServiceName} onValueChange={setPkgServiceName}>
+                    <SelectTrigger className="h-11 text-sm font-medium">
+                      <SelectValue placeholder="Select a service">
+                        {pkgServiceName || "Select a service"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PACKAGEABLE_SERVICES.map((svc) => (
+                        <SelectItem key={svc.id || svc.name} value={svc.name}>
+                          {svc.name} — ₹{svc.price}/{svc.unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity ({pkgUnitType}) *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Quantity {getServiceUnit(pkgServiceName) ? `(${getServiceUnit(pkgServiceName)})` : ""} *
+                    </label>
                     <Input
                       type="number"
                       inputMode="decimal"
                       min={0.01}
                       step="0.01"
-                      placeholder={pkgUnitType === "KG" ? "e.g. 20" : "e.g. 50"}
+                      placeholder={getServiceUnit(pkgServiceName) === "PC" ? "e.g. 50" : "e.g. 20"}
                       value={pkgQuantity}
                       onChange={(e) => setPkgQuantity(e.target.value)}
                       className="h-11 text-base"
@@ -1173,7 +1306,7 @@ export default function StoreDashboard() {
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b">
                       <tr>
-                        {["Customer", "Unit", "Remaining", "Price", "Valid Until", "Status", ""].map((h) => (
+                        {["Customer", "Service", "Remaining", "Price", "Valid Until", "Status", ""].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
                         ))}
                       </tr>
@@ -1187,8 +1320,8 @@ export default function StoreDashboard() {
                               <p className="font-medium text-sm">{pkg.customer_name || "—"}</p>
                               <p className="text-xs text-gray-500">{pkg.customer_phone}</p>
                             </td>
-                            <td className="px-4 py-3 text-sm">{pkg.unit_type}</td>
-                            <td className="px-4 py-3 text-sm font-semibold">{pkg.remaining_quantity} / {pkg.total_quantity}</td>
+                            <td className="px-4 py-3 text-sm">{pkg.service_name}</td>
+                            <td className="px-4 py-3 text-sm font-semibold">{pkg.remaining_quantity} / {pkg.total_quantity} {pkg.unit_type}</td>
                             <td className="px-4 py-3 text-sm">₹{pkg.price}</td>
                             <td className="px-4 py-3 text-xs text-gray-500">{formatDate(pkg.end_date)}</td>
                             <td className="px-4 py-3">
@@ -1225,6 +1358,7 @@ export default function StoreDashboard() {
                             {status}
                           </span>
                         </div>
+                        <p className="text-sm text-gray-700 font-medium mb-1">{pkg.service_name}</p>
                         <div className="flex justify-between items-center text-sm mb-1">
                           <span className="text-gray-600">{pkg.remaining_quantity} / {pkg.total_quantity} {pkg.unit_type} remaining</span>
                           <span className="font-bold">₹{pkg.price}</span>
@@ -1262,6 +1396,31 @@ export default function StoreDashboard() {
                   onClick={() => { setSelectedOrder(null); setIsEditMode(false); }}
                   className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 text-xl leading-none"
                 >×</button>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2 mb-4">
+                <a
+                  href={callHref(selectedOrder.customer_phone)}
+                  className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-lg border text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <Phone className="w-4 h-4" /> Call
+                </a>
+                <a
+                  href={whatsAppHref(selectedOrder.customer_phone, buildOrderSummaryText(selectedOrder, storeInfo.store_name))}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-lg border text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <MessageCircle className="w-4 h-4" /> WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={() => printReceipt(selectedOrder, storeInfo.store_name)}
+                  className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-lg border text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <Printer className="w-4 h-4" /> Receipt
+                </button>
               </div>
 
               <div className="space-y-3">
@@ -1376,7 +1535,12 @@ export default function StoreDashboard() {
                           </div>
                         ) : (
                           <div className="flex justify-between items-center py-1.5 border-b last:border-0">
-                            <span className="text-sm">{item.service_name} × {item.quantity}</span>
+                            <div>
+                              <span className="text-sm">{item.service_name} × {item.quantity}</span>
+                              {typeof item.piece_count === "number" && item.piece_count > 0 && (
+                                <span className="ml-2 text-xs text-gray-500">({item.piece_count} pcs)</span>
+                              )}
+                            </div>
                             <span className="font-semibold text-sm">₹{item.total_price ?? item.unit_price * item.quantity}</span>
                           </div>
                         )}
@@ -1384,6 +1548,16 @@ export default function StoreDashboard() {
                     )) : (
                       <p className="text-sm text-gray-500">No items listed</p>
                     )}
+                    {selectedOrder.package_applied?.quantity ? (
+                      <div className="mt-2 pt-2 border-t flex justify-between items-center text-xs">
+                        <span className="text-indigo-700 font-medium flex items-center gap-1">
+                          <Scale className="w-3 h-3" /> Package: {selectedOrder.package_applied.quantity} {selectedOrder.package_applied.unit_type} {selectedOrder.package_applied.service_name}
+                        </span>
+                        <span className="text-indigo-700 font-semibold">
+                          −₹{(selectedOrder.package_applied.amount_covered || 0).toFixed(0)}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -1443,7 +1617,7 @@ export default function StoreDashboard() {
 
 // ─── Sub-component: order table ───────────────────────────────────────────────
 
-function OrderTable({ orders, onView }: { orders: Order[]; onView: (o: Order) => void }) {
+function OrderTable({ orders, onView, storeName }: { orders: Order[]; onView: (o: Order) => void; storeName: string }) {
   return (
     <div className="space-y-3">
       {/* Desktop table */}
@@ -1478,9 +1652,17 @@ function OrderTable({ orders, onView }: { orders: Order[]; onView: (o: Order) =>
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-500">{formatDate(o.created_at)}</td>
                 <td className="px-4 py-3">
-                  <Button variant="outline" size="sm" onClick={() => onView(o)}>
-                    <Eye className="w-3 h-3 mr-1" /> View
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <a href={callHref(o.customer_phone)} title="Call customer" className="h-8 w-8 flex items-center justify-center rounded-md border text-gray-500 hover:bg-gray-100 hover:text-green-600">
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                    <a href={whatsAppHref(o.customer_phone, buildOrderSummaryText(o, storeName))} target="_blank" rel="noreferrer" title="WhatsApp customer" className="h-8 w-8 flex items-center justify-center rounded-md border text-gray-500 hover:bg-gray-100 hover:text-green-600">
+                      <MessageCircle className="w-3.5 h-3.5" />
+                    </a>
+                    <Button variant="outline" size="sm" onClick={() => onView(o)}>
+                      <Eye className="w-3 h-3 mr-1" /> View
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1503,9 +1685,17 @@ function OrderTable({ orders, onView }: { orders: Order[]; onView: (o: Order) =>
             </div>
             <p className="font-medium text-sm">{o.customer_name}</p>
             <p className="text-sm text-gray-500">{o.customer_phone}</p>
-            <div className="flex justify-between items-center mt-3">
+            <div className="flex items-center justify-between mt-3 gap-2">
               <span className="font-bold">₹{o.final_amount || o.total_price}</span>
-              <Button variant="outline" size="sm" onClick={() => onView(o)}>View</Button>
+              <div className="flex items-center gap-1.5">
+                <a href={callHref(o.customer_phone)} className="h-9 w-9 flex items-center justify-center rounded-lg border text-gray-500 active:bg-gray-100">
+                  <Phone className="w-4 h-4" />
+                </a>
+                <a href={whatsAppHref(o.customer_phone, buildOrderSummaryText(o, storeName))} target="_blank" rel="noreferrer" className="h-9 w-9 flex items-center justify-center rounded-lg border text-gray-500 active:bg-gray-100">
+                  <MessageCircle className="w-4 h-4" />
+                </a>
+                <Button variant="outline" size="sm" onClick={() => onView(o)}>View</Button>
+              </div>
             </div>
           </Card>
         ))}

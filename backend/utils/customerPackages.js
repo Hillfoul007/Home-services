@@ -1,10 +1,10 @@
 const CustomerPackage = require("../models/CustomerPackage");
 
-function usableQuery(phone, unit_type) {
+function usableQuery(phone, service_name) {
   const now = new Date();
   return {
     customer_phone: phone,
-    unit_type,
+    service_name,
     is_active: true,
     remaining_quantity: { $gt: 0 },
     end_date: { $gte: now },
@@ -12,36 +12,49 @@ function usableQuery(phone, unit_type) {
 }
 
 /**
- * Returns remaining KG/PC balance for a phone number, summed across all
- * usable (active, non-expired, non-zero) packages regardless of which
- * store created them.
+ * Returns remaining balance for a phone number, broken down per service
+ * (e.g. "Laundry and Fold", "Laundry and Iron"), summed across all usable
+ * (active, non-expired, non-zero) packages for that service — regardless of
+ * which store created them.
  */
 async function getPackageBalance(phone) {
-  const [kgDocs, pcDocs] = await Promise.all([
-    CustomerPackage.find(usableQuery(phone, "KG")).select("remaining_quantity"),
-    CustomerPackage.find(usableQuery(phone, "PC")).select("remaining_quantity"),
-  ]);
-  return {
-    KG: kgDocs.reduce((sum, d) => sum + d.remaining_quantity, 0),
-    PC: pcDocs.reduce((sum, d) => sum + d.remaining_quantity, 0),
-  };
+  const docs = await CustomerPackage.find({
+    customer_phone: phone,
+    is_active: true,
+    remaining_quantity: { $gt: 0 },
+    end_date: { $gte: new Date() },
+  }).select("service_name unit_type remaining_quantity");
+
+  const byService = {};
+  for (const doc of docs) {
+    if (!byService[doc.service_name]) {
+      byService[doc.service_name] = {
+        service_name: doc.service_name,
+        unit_type: doc.unit_type,
+        remaining_quantity: 0,
+      };
+    }
+    byService[doc.service_name].remaining_quantity += doc.remaining_quantity;
+  }
+
+  return Object.values(byService);
 }
 
 /**
- * Deducts `quantity` of `unit_type` from a phone's usable packages, FIFO by
- * soonest end_date. Throws an Error with a user-facing message if the
- * combined balance is insufficient — callers should respond 400.
+ * Deducts `quantity` from a phone's usable packages for a specific service,
+ * FIFO by soonest end_date. Throws an Error with a user-facing message if
+ * the combined balance is insufficient — callers should respond 400.
  * Returns { amount_covered } where amount_covered is the price-weighted
  * value of the deducted quantity (proportional to each package's price/total_quantity).
  */
-async function deductPackageBalance(phone, unit_type, quantity) {
+async function deductPackageBalance(phone, service_name, quantity) {
   if (!quantity || quantity <= 0) return { amount_covered: 0 };
 
-  const docs = await CustomerPackage.find(usableQuery(phone, unit_type)).sort({ end_date: 1 });
+  const docs = await CustomerPackage.find(usableQuery(phone, service_name)).sort({ end_date: 1 });
   const available = docs.reduce((sum, d) => sum + d.remaining_quantity, 0);
 
   if (available < quantity) {
-    throw new Error("Insufficient package balance");
+    throw new Error(`Insufficient package balance for ${service_name}`);
   }
 
   let remainingToDeduct = quantity;
