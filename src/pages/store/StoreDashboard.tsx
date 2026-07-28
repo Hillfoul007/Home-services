@@ -28,6 +28,11 @@ interface ServiceItem {
   unit_price: number;
   total_price: number;
   piece_count?: number;
+  // Set when this line was added via the "by piece (package)" option — the
+  // catalog says this service is KG-priced, but this customer's package
+  // covers it by piece count instead. Overrides the catalog-derived unit
+  // for matching/display purposes on this line only.
+  unit_override?: "PC";
 }
 
 interface PackageApplied {
@@ -432,6 +437,7 @@ export default function StoreDashboard() {
     const items = [...serviceItems];
     const item = { ...items[index], [field]: value };
     if (field === "service_name") {
+      item.unit_override = undefined;
       const match = getSortedServices().find((s) => s.name === value);
       if (match) {
         item.unit_price = match.price;
@@ -453,6 +459,33 @@ export default function StoreDashboard() {
   const getServiceUnit = (name: string): "KG" | "PC" | "SET" | null => {
     const match = getSortedServices().find((s) => s.name === name);
     return (match?.unit as "KG" | "PC" | "SET") || null;
+  };
+
+  // A cart line's real unit — normally from the catalog, but a line added
+  // via "by piece (package)" overrides it, since some customers have a
+  // piece-count package for a service the catalog otherwise sells by kg.
+  const getEffectiveUnit = (item: ServiceItem): "KG" | "PC" | "SET" | null =>
+    item.unit_override || getServiceUnit(item.service_name);
+
+  // Package balance entries whose service is normally KG-priced in the
+  // catalog, but this customer has a PC (piece) package for it instead —
+  // these get a special "by piece" quick-add option in the cart, scoped to
+  // only the customers who actually have such a package.
+  const pieceOverridePackages = orderPhoneBalance.filter(
+    (entry) => entry.unit_type === "PC" && getServiceUnit(entry.service_name) === "KG"
+  );
+
+  const handleSelectPackagePieceService = (index: number, serviceName: string) => {
+    const items = [...serviceItems];
+    items[index] = {
+      ...items[index],
+      service_name: serviceName,
+      unit_override: "PC",
+      unit_price: 0,
+      total_price: 0,
+      piece_count: undefined,
+    };
+    setServiceItems(items);
   };
 
   // Services that can carry a quantity package — SET-unit services never can
@@ -841,17 +874,31 @@ export default function StoreDashboard() {
                           <Select
                             value={item.service_name || ""}
                             onValueChange={(value) => {
-                              const realValue = value === "__none__" ? "" : value;
-                              handleServiceChange(idx, "service_name", realValue);
+                              if (value === "__none__") {
+                                handleServiceChange(idx, "service_name", "");
+                                return;
+                              }
+                              if (value.endsWith("__pkg_pc")) {
+                                handleSelectPackagePieceService(idx, value.replace(/__pkg_pc$/, ""));
+                                return;
+                              }
+                              handleServiceChange(idx, "service_name", value);
                             }}
                           >
                             <SelectTrigger className="h-11 text-sm font-medium">
                               <SelectValue placeholder="Select service">
-                                {item.service_name || "Select service"}
+                                {item.service_name
+                                  ? `${item.service_name}${item.unit_override === "PC" ? " (by piece — package)" : ""}`
+                                  : "Select service"}
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">Select service</SelectItem>
+                              {pieceOverridePackages.map((entry) => (
+                                <SelectItem key={`${entry.service_name}__pkg_pc`} value={`${entry.service_name}__pkg_pc`}>
+                                  🎟️ {entry.service_name} — by piece (Package, {entry.remaining_quantity} left)
+                                </SelectItem>
+                              ))}
                               {getSortedServices().map((svc) => (
                                 <SelectItem key={svc.id || svc.name} value={svc.name}>
                                   {svc.name} — ₹{svc.price}
@@ -859,6 +906,9 @@ export default function StoreDashboard() {
                               ))}
                             </SelectContent>
                           </Select>
+                          {item.unit_override === "PC" && (
+                            <p className="text-xs text-indigo-600 mt-1">🎟️ Billed by piece from this customer's package</p>
+                          )}
                         </div>
                         <Button
                           type="button"
@@ -875,7 +925,9 @@ export default function StoreDashboard() {
                       {/* Qty + Rate + Total — 3 col row */}
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">Qty</label>
+                          <label className="block text-xs text-gray-500 mb-1">
+                            {getEffectiveUnit(item) === "PC" ? "Pieces" : "Qty"}
+                          </label>
                           <Input
                             type="number"
                             inputMode="decimal"
@@ -907,7 +959,7 @@ export default function StoreDashboard() {
                       </div>
 
                       {/* Pieces — optional, for reconciling garment count on kg-billed laundry */}
-                      {getServiceUnit(item.service_name) === "KG" && (
+                      {getEffectiveUnit(item) === "KG" && (
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">Pieces (optional garment count)</label>
                           <Input
