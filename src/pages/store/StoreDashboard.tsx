@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   LogOut, Plus, Eye, Trash2, Phone, User, Clock, Calendar,
   Save, Store, Package, Search, Scale, Ban, Loader2, CheckCircle2, RefreshCw,
-  MessageCircle, Printer,
+  MessageCircle, Printer, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
@@ -37,6 +37,16 @@ interface PackageApplied {
   amount_covered?: number;
 }
 
+interface PackageConsumptionEntry {
+  _id: string;
+  order_id: string | null;
+  order_custom_id: string;
+  order_type: "store_order" | "booking";
+  quantity: number;
+  amount_covered: number;
+  consumed_at: string;
+}
+
 interface CustomerPackageT {
   _id: string;
   customer_name: string;
@@ -50,6 +60,7 @@ interface CustomerPackageT {
   end_date: string;
   is_active: boolean;
   created_at: string;
+  consumption_history?: PackageConsumptionEntry[];
 }
 
 interface PackageBalanceEntry {
@@ -234,6 +245,7 @@ export default function StoreDashboard() {
   const [pkgStartDate, setPkgStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [pkgValidityDays, setPkgValidityDays] = useState(30);
   const [creatingPackage, setCreatingPackage] = useState(false);
+  const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
 
   // Package balance lookup for the "Create Order" tab
   const [orderPhoneBalance, setOrderPhoneBalance] = useState<PackageBalanceEntry[]>([]);
@@ -681,6 +693,33 @@ export default function StoreDashboard() {
     expired: "bg-gray-200 text-gray-700",
     used: "bg-orange-100 text-orange-800",
     cancelled: "bg-red-100 text-red-800",
+  };
+
+  const renderPackageHistory = (pkg: CustomerPackageT) => {
+    const history = pkg.consumption_history || [];
+    if (history.length === 0) {
+      return <p className="text-xs text-gray-500">No orders have used this package yet.</p>;
+    }
+    return (
+      <div className="space-y-1.5">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Consumption History</p>
+        {[...history]
+          .sort((a, b) => new Date(b.consumed_at).getTime() - new Date(a.consumed_at).getTime())
+          .map((entry) => (
+            <div key={entry._id} className="flex items-center justify-between text-sm bg-white border rounded-lg px-3 py-2">
+              <div>
+                <span className="font-mono text-blue-600">{entry.order_custom_id || "Pending order"}</span>
+                <span className="ml-2 text-xs text-gray-500 capitalize">{entry.order_type.replace("_", " ")}</span>
+                <p className="text-xs text-gray-500">{formatDate(entry.consumed_at)} {formatTime(entry.consumed_at)}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold">{entry.quantity} {pkg.unit_type}</p>
+                <p className="text-xs text-gray-500">₹{entry.amount_covered.toFixed(0)} value</p>
+              </div>
+            </div>
+          ))}
+      </div>
+    );
   };
 
   if (!storeInfo) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
@@ -1314,29 +1353,48 @@ export default function StoreDashboard() {
                     <tbody className="divide-y">
                       {packages.map((pkg) => {
                         const status = packageStatus(pkg);
+                        const isExpanded = expandedPackageId === pkg._id;
                         return (
-                          <tr key={pkg._id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-sm">{pkg.customer_name || "—"}</p>
-                              <p className="text-xs text-gray-500">{pkg.customer_phone}</p>
-                            </td>
-                            <td className="px-4 py-3 text-sm">{pkg.service_name}</td>
-                            <td className="px-4 py-3 text-sm font-semibold">{pkg.remaining_quantity} / {pkg.total_quantity} {pkg.unit_type}</td>
-                            <td className="px-4 py-3 text-sm">₹{pkg.price}</td>
-                            <td className="px-4 py-3 text-xs text-gray-500">{formatDate(pkg.end_date)}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${PACKAGE_STATUS_COLORS[status]}`}>
-                                {status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              {status === "active" && (
-                                <Button variant="outline" size="sm" onClick={() => handleCancelPackage(pkg)} className="text-red-500 hover:bg-red-50">
-                                  <Ban className="w-3 h-3 mr-1" /> Cancel
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
+                          <Fragment key={pkg._id}>
+                            <tr className="hover:bg-gray-50">
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-sm">{pkg.customer_name || "—"}</p>
+                                <p className="text-xs text-gray-500">{pkg.customer_phone}</p>
+                              </td>
+                              <td className="px-4 py-3 text-sm">{pkg.service_name}</td>
+                              <td className="px-4 py-3 text-sm font-semibold">{pkg.remaining_quantity} / {pkg.total_quantity} {pkg.unit_type}</td>
+                              <td className="px-4 py-3 text-sm">₹{pkg.price}</td>
+                              <td className="px-4 py-3 text-xs text-gray-500">{formatDate(pkg.end_date)}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${PACKAGE_STATUS_COLORS[status]}`}>
+                                  {status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setExpandedPackageId(isExpanded ? null : pkg._id)}
+                                  >
+                                    <ListChecks className="w-3 h-3 mr-1" /> History ({pkg.consumption_history?.length || 0})
+                                  </Button>
+                                  {status === "active" && (
+                                    <Button variant="outline" size="sm" onClick={() => handleCancelPackage(pkg)} className="text-red-500 hover:bg-red-50">
+                                      <Ban className="w-3 h-3 mr-1" /> Cancel
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="bg-gray-50">
+                                <td colSpan={7} className="px-4 py-3">
+                                  {renderPackageHistory(pkg)}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
@@ -1347,6 +1405,7 @@ export default function StoreDashboard() {
                 <div className="md:hidden space-y-3">
                   {packages.map((pkg) => {
                     const status = packageStatus(pkg);
+                    const isExpanded = expandedPackageId === pkg._id;
                     return (
                       <Card key={pkg._id} className="p-4">
                         <div className="flex justify-between items-start mb-2">
@@ -1364,11 +1423,22 @@ export default function StoreDashboard() {
                           <span className="font-bold">₹{pkg.price}</span>
                         </div>
                         <p className="text-xs text-gray-500 mb-3">Valid until {formatDate(pkg.end_date)}</p>
-                        {status === "active" && (
-                          <Button variant="outline" size="sm" onClick={() => handleCancelPackage(pkg)} className="w-full text-red-500 hover:bg-red-50">
-                            <Ban className="w-3 h-3 mr-1" /> Cancel Package
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setExpandedPackageId(isExpanded ? null : pkg._id)}
+                            className="flex-1"
+                          >
+                            <ListChecks className="w-3 h-3 mr-1" /> History ({pkg.consumption_history?.length || 0})
                           </Button>
-                        )}
+                          {status === "active" && (
+                            <Button variant="outline" size="sm" onClick={() => handleCancelPackage(pkg)} className="flex-1 text-red-500 hover:bg-red-50">
+                              <Ban className="w-3 h-3 mr-1" /> Cancel
+                            </Button>
+                          )}
+                        </div>
+                        {isExpanded && <div className="mt-3 pt-3 border-t">{renderPackageHistory(pkg)}</div>}
                       </Card>
                     );
                   })}

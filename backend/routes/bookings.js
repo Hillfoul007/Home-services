@@ -549,10 +549,11 @@ router.post("/", async (req, res) => {
     // booking is created, since an insufficient balance must block booking
     // creation entirely.
     let packageAppliedResult = null;
+    let packageConsumptionTouched = [];
     if (requestPackageApplied && requestPackageApplied.service_name && requestPackageApplied.quantity > 0) {
       try {
         const { deductPackageBalance } = require("../utils/customerPackages");
-        const { amount_covered } = await deductPackageBalance(
+        const { amount_covered, touched } = await deductPackageBalance(
           customer.phone,
           requestPackageApplied.service_name,
           requestPackageApplied.quantity
@@ -563,6 +564,7 @@ router.post("/", async (req, res) => {
           quantity: requestPackageApplied.quantity,
           amount_covered,
         };
+        packageConsumptionTouched = touched;
       } catch (packageError) {
         console.error("❌ Package balance deduction failed:", packageError.message);
         return res.status(400).json({
@@ -649,6 +651,15 @@ router.post("/", async (req, res) => {
       booking._id,
     );
     console.log("🆔 Generated custom order ID:", booking.custom_order_id);
+
+    if (packageConsumptionTouched.length > 0) {
+      const { attachOrderToConsumption } = require("../utils/customerPackages");
+      await attachOrderToConsumption(packageConsumptionTouched, {
+        order_id: booking._id,
+        order_custom_id: booking.custom_order_id,
+        order_type: "booking",
+      });
+    }
 
     // Deduct wallet balance if wallet was applied
     const walletAppliedAmount = Number(requestCashback || requestWalletApplied || 0);

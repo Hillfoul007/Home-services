@@ -6,7 +6,7 @@ const Booking = require("../models/Booking");
 const StoreOrder = require("../models/StoreOrder");
 const CustomerPackage = require("../models/CustomerPackage");
 const User = require("../models/User");
-const { getPackageBalance, deductPackageBalance } = require("../utils/customerPackages");
+const { getPackageBalance, deductPackageBalance, attachOrderToConsumption } = require("../utils/customerPackages");
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -109,9 +109,10 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
     // requested — deducted server-side against the live balance, never
     // trusting client totals.
     let packageAppliedResult = null;
+    let packageConsumptionTouched = [];
     if (package_applied && package_applied.service_name && package_applied.quantity > 0) {
       try {
-        const { amount_covered } = await deductPackageBalance(
+        const { amount_covered, touched } = await deductPackageBalance(
           customer_phone,
           package_applied.service_name,
           package_applied.quantity
@@ -122,6 +123,7 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
           quantity: package_applied.quantity,
           amount_covered,
         };
+        packageConsumptionTouched = touched;
       } catch (err) {
         return res.status(400).json({ success: false, error: err.message || "Insufficient package balance" });
       }
@@ -171,6 +173,14 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
     });
 
     await storeOrder.save();
+
+    if (packageConsumptionTouched.length > 0) {
+      await attachOrderToConsumption(packageConsumptionTouched, {
+        order_id: storeOrder._id,
+        order_custom_id: storeOrder.custom_order_id,
+        order_type: "store_order",
+      });
+    }
 
     res.json({
       success: true,

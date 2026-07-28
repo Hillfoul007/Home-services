@@ -62,6 +62,21 @@ const customerPackageSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Ledger of orders that drew from this package, so consumption can be
+    // audited per customer rather than just a running remaining_quantity.
+    consumption_history: [
+      {
+        order_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+        order_custom_id: { type: String, default: "" },
+        order_type: { type: String, enum: ["store_order", "booking"], default: "store_order" },
+        quantity: { type: Number, required: true },
+        amount_covered: { type: Number, default: 0 },
+        consumed_at: {
+          type: Date,
+          default: () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
+        },
+      },
+    ],
     created_at: {
       type: Date,
       default: () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })),
