@@ -245,6 +245,7 @@ export default function StoreDashboard() {
   const [pkgCustomerName, setPkgCustomerName] = useState("");
   const [pkgCustomerPhone, setPkgCustomerPhone] = useState("");
   const [pkgServiceName, setPkgServiceName] = useState("");
+  const [pkgUnitType, setPkgUnitType] = useState<"KG" | "PC">("KG");
   const [pkgQuantity, setPkgQuantity] = useState("");
   const [pkgPrice, setPkgPrice] = useState("");
   const [pkgStartDate, setPkgStartDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -642,11 +643,6 @@ export default function StoreDashboard() {
       toast.error("Please select a service for this package");
       return;
     }
-    const pkgUnitType = getServiceUnit(pkgServiceName);
-    if (!pkgUnitType || pkgUnitType === "SET") {
-      toast.error("Selected service cannot carry a quantity package");
-      return;
-    }
     const quantity = parseFloat(pkgQuantity);
     const price = parseFloat(pkgPrice);
     if (!quantity || quantity <= 0) {
@@ -680,6 +676,7 @@ export default function StoreDashboard() {
         setPkgCustomerName("");
         setPkgCustomerPhone("");
         setPkgServiceName("");
+        setPkgUnitType("KG");
         setPkgQuantity("");
         setPkgPrice("");
         setPkgValidityDays(30);
@@ -1280,7 +1277,14 @@ export default function StoreDashboard() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Service *</label>
-                  <Select value={pkgServiceName} onValueChange={setPkgServiceName}>
+                  <Select
+                    value={pkgServiceName}
+                    onValueChange={(value) => {
+                      setPkgServiceName(value);
+                      const naturalUnit = getServiceUnit(value);
+                      if (naturalUnit === "KG" || naturalUnit === "PC") setPkgUnitType(naturalUnit);
+                    }}
+                  >
                     <SelectTrigger className="h-11 text-sm font-medium">
                       <SelectValue placeholder="Select a service">
                         {pkgServiceName || "Select a service"}
@@ -1296,17 +1300,40 @@ export default function StoreDashboard() {
                   </Select>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sell this package by
+                    {pkgServiceName && getServiceUnit(pkgServiceName) !== pkgUnitType && (
+                      <span className="text-indigo-600 font-normal"> (overriding the usual {getServiceUnit(pkgServiceName)} pricing for this service)</span>
+                    )}
+                  </label>
+                  <div className="flex gap-2">
+                    {(["KG", "PC"] as const).map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setPkgUnitType(u)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          pkgUnitType === u ? "bg-indigo-600 text-white" : "bg-white text-indigo-600 border border-indigo-300"
+                        }`}
+                      >
+                        {u === "KG" ? "⚖️ By Weight (KG)" : "🧺 By Piece (PC)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quantity {getServiceUnit(pkgServiceName) ? `(${getServiceUnit(pkgServiceName)})` : ""} *
+                      Quantity ({pkgUnitType}) *
                     </label>
                     <Input
                       type="number"
                       inputMode="decimal"
                       min={0.01}
                       step="0.01"
-                      placeholder={getServiceUnit(pkgServiceName) === "PC" ? "e.g. 50" : "e.g. 20"}
+                      placeholder={pkgUnitType === "PC" ? "e.g. 50" : "e.g. 20"}
                       value={pkgQuantity}
                       onChange={(e) => setPkgQuantity(e.target.value)}
                       className="h-11 text-base"
