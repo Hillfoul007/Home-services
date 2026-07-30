@@ -228,6 +228,11 @@ const AdminHotelManagement: React.FC = () => {
   });
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
+  // Detailed (piece-wise) report export — month or custom date range
+  const [reportMode, setReportMode] = useState<"month" | "range">("month");
+  const [reportFrom, setReportFrom] = useState("");
+  const [reportTo, setReportTo] = useState("");
+
   // Slip upload
   const pickupFileRef = useRef<HTMLInputElement>(null);
   const dropFileRef = useRef<HTMLInputElement>(null);
@@ -604,11 +609,58 @@ const AdminHotelManagement: React.FC = () => {
     toast.success("All bills exported");
   };
 
+  // Detailed, piece-wise export — one row per article across the given
+  // orders, so quantities can be summed/pivoted per day or per article in
+  // Excel rather than just seeing an order-level total.
+  const exportDetailedReport = (ordersToExport: HotelOrder[], label: string) => {
+    if (ordersToExport.length === 0) {
+      toast.error("No entries in this period");
+      return;
+    }
+    const sorted = [...ordersToExport].sort((a, b) => a.date.localeCompare(b.date));
+    const wb = XLSX.utils.book_new();
+    const rows: (string | number)[][] = [
+      ["Date", "Invoice No", "Hotel", "Article", "Qty", "DC Pcs", "Price (₹)", "Amount (₹)", "Guest Laundry (pcs)", "Staff Laundry (pcs)", "Order Total (₹)", "Status", "Payment"],
+    ];
+    let totalQty = 0;
+    let totalAmount = 0;
+    for (const o of sorted) {
+      const paymentLabel = o.is_paid ? "PAID" : "UNPAID";
+      const statusLabel = STATUS_LABELS[o.status]?.label || o.status;
+      if (o.items.length === 0) {
+        rows.push([o.date, o.invoice_no, o.hotel_name, "", "", "", "", "", o.guest_laundry_pcs || 0, o.staff_laundry_pcs || 0, o.total || 0, statusLabel, paymentLabel]);
+      } else {
+        for (const item of o.items) {
+          rows.push([
+            o.date, o.invoice_no, o.hotel_name, item.name,
+            item.qty || 0, item.dc_qty || 0, item.price || 0, item.amount || 0,
+            o.guest_laundry_pcs || 0, o.staff_laundry_pcs || 0, o.total || 0, statusLabel, paymentLabel,
+          ]);
+          totalQty += item.qty || 0;
+        }
+      }
+      totalAmount += o.total || 0;
+    }
+    rows.push([]);
+    rows.push(["", "", "", "TOTAL", totalQty, "", "", "", "", "", totalAmount, "", ""]);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 12 }, { wch: 16 }, { wch: 20 }, { wch: 22 }, { wch: 8 }, { wch: 8 },
+      { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 10 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, "Detailed Report");
+    XLSX.writeFile(wb, `Laundrify_Detailed_${label}_${todayStr()}.xlsx`);
+    toast.success(`Detailed report downloaded (${sorted.length} entries)`);
+  };
+
   // ── Derived data ────────────────────────────────────────────────────────────
 
   const filteredOrders = orders.filter(o => {
     if (filterHotelId !== "all" && o.hotel_id !== filterHotelId) return false;
     if (filterStatus !== "all" && o.status !== filterStatus) return false;
+    if (reportFrom && o.date && o.date < reportFrom) return false;
+    if (reportTo && o.date && o.date > reportTo) return false;
     return true;
   });
 
@@ -1028,6 +1080,70 @@ const AdminHotelManagement: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* ── Detailed (piece-wise) report download ── */}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+                    <FileDown className="h-4 w-4 text-purple-600" /> Download Detailed Report
+                  </div>
+                  <div className="flex gap-2">
+                    {(["month", "range"] as const).map(m => (
+                      <Button
+                        key={m}
+                        size="sm"
+                        variant={reportMode === m ? "default" : "outline"}
+                        onClick={() => setReportMode(m)}
+                      >
+                        {m === "month" ? "Full Month" : "Custom Range"}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {reportMode === "month" ? (
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <p className="text-xs text-gray-500">
+                      Every article/piece for <span className="font-semibold text-gray-700">{MONTHS[month]} {year}</span> (the month shown in the calendar above), one row per item.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700"
+                      onClick={() => {
+                        const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+                        const monthOrders = hOrders.filter(o => o.date?.startsWith(prefix));
+                        exportDetailedReport(monthOrders, `${hotel.name.replace(/\s+/g, "_")}_${prefix}`);
+                      }}
+                    >
+                      <FileDown className="h-3.5 w-3.5 mr-1.5" /> Download {MONTHS[month]}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-end gap-2 flex-wrap">
+                    <div>
+                      <Label className="text-xs">From</Label>
+                      <Input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)} className="h-9" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">To</Label>
+                      <Input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)} className="h-9" />
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700 h-9"
+                      disabled={!reportFrom || !reportTo}
+                      onClick={() => {
+                        const rangeOrders = hOrders.filter(o => o.date && o.date >= reportFrom && o.date <= reportTo);
+                        exportDetailedReport(rangeOrders, `${hotel.name.replace(/\s+/g, "_")}_${reportFrom}_to_${reportTo}`);
+                      }}
+                    >
+                      <FileDown className="h-3.5 w-3.5 mr-1.5" /> Download Range
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         );
       })()}
@@ -1220,15 +1336,29 @@ const AdminHotelManagement: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <Input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)} className="h-9 w-36" title="From date" />
+              <Input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)} className="h-9 w-36" title="To date" />
+              {(reportFrom || reportTo) && (
+                <Button size="sm" variant="ghost" onClick={() => { setReportFrom(""); setReportTo(""); }}>Clear dates</Button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => { fetchOrders(); fetchHotels(); fetchRiders(); }}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
               <span className="text-sm text-gray-500">{filteredOrders.length} entries</span>
             </div>
             {filteredOrders.length > 0 && (
-              <Button variant="outline" onClick={exportAllToExcel} className="flex items-center gap-2">
-                <FileDown className="h-4 w-4" /> Export All Excel
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => exportDetailedReport(filteredOrders, reportFrom || reportTo ? `${reportFrom || "start"}_to_${reportTo || "end"}` : "AllBills")}
+                  className="flex items-center gap-2"
+                >
+                  <FileDown className="h-4 w-4" /> Detailed (piece-wise)
+                </Button>
+                <Button variant="outline" onClick={exportAllToExcel} className="flex items-center gap-2">
+                  <FileDown className="h-4 w-4" /> Export All Excel
+                </Button>
+              </div>
             )}
           </div>
 
