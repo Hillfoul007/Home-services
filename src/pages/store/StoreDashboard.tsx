@@ -759,31 +759,31 @@ export default function StoreDashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Store className="w-5 h-5 text-white" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 bg-blue-600 rounded-xl flex items-center justify-center">
+              <Store className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{storeInfo.store_name}</h1>
-              <p className="text-xs text-gray-500">Code: {storeInfo.store_code} · ID: {storeInfo.store_id}</p>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">{storeInfo.store_name}</h1>
+              <p className="text-[11px] sm:text-xs text-gray-500 truncate">Code: {storeInfo.store_code} · ID: {storeInfo.store_id}</p>
             </div>
           </div>
-          <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2 flex-shrink-0 px-2.5 sm:px-4">
             <LogOut className="w-4 h-4" />
-            Logout
+            <span className="hidden sm:inline">Logout</span>
           </Button>
         </div>
       </header>
 
       {/* Tabs */}
-      <div className="bg-white border-b sticky top-16 z-40">
-        <div className="max-w-7xl mx-auto px-4 flex gap-6 overflow-x-auto">
+      <div className="bg-white border-b sticky top-[57px] sm:top-16 z-40">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 flex gap-4 sm:gap-6 overflow-x-auto">
           {(["orders", "online", "create", "packages"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`py-4 font-medium border-b-2 capitalize transition-all whitespace-nowrap ${
+              className={`py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 capitalize transition-all whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-gray-600 hover:text-gray-900"

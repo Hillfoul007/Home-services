@@ -358,7 +358,7 @@ export default function StoreOnlineOrders() {
               <button
                 key={key}
                 onClick={() => setActiveSection(key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm whitespace-nowrap transition-colors ${
+                className={`flex flex-shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm whitespace-nowrap transition-colors ${
                   activeSection === key ? color + " font-semibold" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
                 }`}
               >
@@ -374,7 +374,7 @@ export default function StoreOnlineOrders() {
           ) : currentList.length === 0 ? (
             <Card className="p-8 text-center text-gray-400">No orders in this section</Card>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {currentList.map(order => (
                 <Card
                   key={order._id}
@@ -411,7 +411,7 @@ export default function StoreOnlineOrders() {
 
       {/* ── Order detail dialog ── */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => { if (!open) setSelectedOrder(null); }}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl p-4 sm:p-6">
           {selectedOrder && (
             <>
               <DialogHeader>
@@ -431,26 +431,42 @@ export default function StoreOnlineOrders() {
                 {cartDraft && cartDraft.length > 0 && (
                   <div className="border rounded-md p-3 space-y-2">
                     <div className="font-medium text-xs text-gray-500 uppercase">Items</div>
-                    {cartDraft.map((line, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span className="flex-1 truncate">{line.service_name}</span>
-                        <Input
-                          type="number" className="w-16 h-8"
-                          value={line.quantity}
-                          disabled={selectedOrder.status !== "picked_up" && selectedOrder.status !== "pickup_completed" && !["created", "vendor_assigned", "pickup_assigned", "in_progress"].includes(selectedOrder.status)}
-                          onChange={(e) => updateCartLine(idx, "quantity", Number(e.target.value))}
-                        />
-                        <Input
-                          type="number" className="w-20 h-8"
-                          value={line.unit_price}
-                          disabled={!["created", "vendor_assigned", "pickup_assigned", "pickup_completed", "in_progress"].includes(selectedOrder.status)}
-                          onChange={(e) => updateCartLine(idx, "unit_price", Number(e.target.value))}
-                        />
-                        <span className="w-16 text-right text-xs text-gray-500">₹{line.total_price}</span>
-                      </div>
-                    ))}
+                    {cartDraft.map((line, idx) => {
+                      const editable = selectedOrder.status === "picked_up" || ["created", "vendor_assigned", "pickup_assigned", "pickup_completed", "in_progress"].includes(selectedOrder.status);
+                      return (
+                        <div key={idx} className="bg-gray-50 rounded-lg border p-2 space-y-2">
+                          <div className="text-sm font-medium truncate">{line.service_name}</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[11px] text-gray-400 mb-0.5">Qty</label>
+                              <Input
+                                type="number" inputMode="decimal" className="h-9 text-center text-sm"
+                                value={line.quantity}
+                                disabled={!editable}
+                                onChange={(e) => updateCartLine(idx, "quantity", Number(e.target.value))}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-gray-400 mb-0.5">Rate ₹</label>
+                              <Input
+                                type="number" inputMode="decimal" className="h-9 text-center text-sm"
+                                value={line.unit_price}
+                                disabled={!editable}
+                                onChange={(e) => updateCartLine(idx, "unit_price", Number(e.target.value))}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-gray-400 mb-0.5">Total</label>
+                              <div className="h-9 flex items-center justify-center bg-blue-50 border border-blue-200 rounded text-sm font-semibold text-blue-700">
+                                ₹{line.total_price}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                     {["pickup_assigned", "pickup_completed", "in_progress", "created", "vendor_assigned"].includes(selectedOrder.status) && (
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => saveCart(selectedOrder._id)}>
+                      <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={busy} onClick={() => saveCart(selectedOrder._id)}>
                         Save Cart & Move to Processing
                       </Button>
                     )}
@@ -484,43 +500,43 @@ export default function StoreOnlineOrders() {
                     onFile={(f) => uploadFile(selectedOrder._id, "payment_ss", f)} accept="image/*" />
                 </div>
 
-                {/* Section actions */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {/* Section actions — full-width stacked buttons on mobile, wrap into a row from sm up */}
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 pt-2 border-t">
                   {["created", "vendor_assigned", "pickup_assigned"].includes(selectedOrder.status) && (
                     <>
-                      <Button size="sm" disabled={busy} onClick={() => setAssignModal({ orderId: selectedOrder._id, type: "pickup" })}>
+                      <Button size="sm" className="sm:w-auto" disabled={busy} onClick={() => setAssignModal({ orderId: selectedOrder._id, type: "pickup" })}>
                         <Bike className="w-4 h-4 mr-1" /> Assign Pickup Rider
                       </Button>
-                      <Button size="sm" variant="secondary" disabled={busy || !selectedOrder.items_images?.length} onClick={() => markPickedUp(selectedOrder._id)}>
+                      <Button size="sm" variant="secondary" className="sm:w-auto" disabled={busy || !selectedOrder.items_images?.length} onClick={() => markPickedUp(selectedOrder._id)}>
                         <PackageCheck className="w-4 h-4 mr-1" /> Mark Picked Up (staff)
                       </Button>
                     </>
                   )}
                   {selectedOrder.status === "in_progress" && (
-                    <Button size="sm" disabled={busy} onClick={() => markReady(selectedOrder._id)}>
+                    <Button size="sm" className="sm:w-auto" disabled={busy} onClick={() => markReady(selectedOrder._id)}>
                       <CheckCircle2 className="w-4 h-4 mr-1" /> Mark Ready for Delivery
                     </Button>
                   )}
                   {["ready_for_delivery", "delivery_assigned"].includes(selectedOrder.status) && (
                     <>
-                      <Button size="sm" disabled={busy} onClick={() => setAssignModal({ orderId: selectedOrder._id, type: "delivery" })}>
+                      <Button size="sm" className="sm:w-auto" disabled={busy} onClick={() => setAssignModal({ orderId: selectedOrder._id, type: "delivery" })}>
                         <Bike className="w-4 h-4 mr-1" /> Assign Delivery Rider
                       </Button>
-                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => markInTransit(selectedOrder._id)}>
+                      <Button size="sm" variant="secondary" className="sm:w-auto" disabled={busy} onClick={() => markInTransit(selectedOrder._id)}>
                         <Truck className="w-4 h-4 mr-1" /> Mark In Transit (staff)
                       </Button>
-                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => markDelivered(selectedOrder._id)}>
+                      <Button size="sm" variant="secondary" className="sm:w-auto" disabled={busy} onClick={() => markDelivered(selectedOrder._id)}>
                         <CheckCircle2 className="w-4 h-4 mr-1" /> Mark Delivered (staff)
                       </Button>
                     </>
                   )}
                   {selectedOrder.status === "in_transit" && (
-                    <Button size="sm" disabled={busy} onClick={() => markDelivered(selectedOrder._id)}>
+                    <Button size="sm" className="sm:w-auto" disabled={busy} onClick={() => markDelivered(selectedOrder._id)}>
                       <CheckCircle2 className="w-4 h-4 mr-1" /> Mark Delivered
                     </Button>
                   )}
                   {selectedOrder.status === "delivered" && (
-                    <Button size="sm" disabled={busy} onClick={() => markCompleted(selectedOrder._id)}>
+                    <Button size="sm" className="sm:w-auto" disabled={busy} onClick={() => markCompleted(selectedOrder._id)}>
                       <CheckCircle2 className="w-4 h-4 mr-1" /> Mark Completed
                     </Button>
                   )}
@@ -616,7 +632,7 @@ function RidersPanel({ riders, loading, onAdd }: { riders: RiderRef[]; loading: 
       ) : riders.length === 0 ? (
         <Card className="p-6 text-center text-gray-400 text-sm">No riders yet. Add one to assign pickups & deliveries.</Card>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {riders.map(r => (
             <Card key={r._id} className="p-3 flex items-center justify-between">
               <div>
