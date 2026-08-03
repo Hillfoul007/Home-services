@@ -614,14 +614,22 @@ router.put("/admin/orders/:orderId/status", verifyAdmin, async (req, res) => {
 router.put("/admin/orders/:orderId/assign", verifyAdmin, async (req, res) => {
   try {
     const { store_id } = req.body;
-    const store = await Store.findById(store_id);
-    if (!store) return res.status(404).json({ success: false, error: "Store not found" });
 
     const order = await Booking.findById(req.params.orderId);
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
 
-    order.assigned_store_id = store._id;
-    order.assigned_store_name = store.store_name;
+    if (!store_id) {
+      // Explicit clear — used when admin switches this order from a store
+      // assignment to a vendor (or unassigned) in the unified assignment UI.
+      order.assigned_store_id = null;
+      order.assigned_store_name = null;
+    } else {
+      const store = await Store.findById(store_id);
+      if (!store) return res.status(404).json({ success: false, error: "Store not found" });
+      order.assigned_store_id = store._id;
+      order.assigned_store_name = store.store_name;
+    }
+
     order.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
     await order.save();
 

@@ -46,6 +46,14 @@ interface VendorOption {
   address?: string;
 }
 
+interface StoreOption {
+  _id: string;
+  store_name: string;
+  store_code: string;
+}
+
+const STORE_VALUE_PREFIX = "store:";
+
 interface VendorOrder {
   _id: string;
   custom_order_id: string;
@@ -64,6 +72,8 @@ interface VendorOrder {
   total_price: number;
   final_amount: number;
   assignedVendor?: string;
+  assigned_store_id?: string | null;
+  assigned_store_name?: string | null;
   special_instructions?: string;
   item_prices?: Array<{ service_name?: string; quantity?: number; unit_price?: number; total_price?: number }>;
   created_at: string;
@@ -111,6 +121,7 @@ const AdminVendorOrders: React.FC = () => {
   const [assignedLaundryVendorId, setAssignedLaundryVendorId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [laundryVendors, setLaundryVendors] = useState<VendorOption[]>([]);
+  const [stores, setStores] = useState<StoreOption[]>([]);
 
   // Orders list state
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -143,7 +154,7 @@ const AdminVendorOrders: React.FC = () => {
     // Group by assigned laundry vendor
     const grouped: Record<string, VendorOrder[]> = {};
     filteredOrders.forEach(o => {
-      const key = o.assignedVendor || "Unassigned";
+      const key = o.assignedVendor || (o.assigned_store_name ? `🏪 ${o.assigned_store_name}` : "Unassigned");
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(o);
     });
@@ -233,6 +244,15 @@ const AdminVendorOrders: React.FC = () => {
     } catch {}
   };
 
+  const fetchStores = async () => {
+    try {
+      const res = await apiClient.adminRequest<{ stores: any[] }>("/store/admin/stores");
+      if (res.data?.stores) {
+        setStores(res.data.stores.map((s: any) => ({ _id: s._id, store_name: s.store_name, store_code: s.store_code })));
+      }
+    } catch {}
+  };
+
   const fetchOrders = async () => {
     setOrdersLoading(true);
     try {
@@ -254,6 +274,7 @@ const AdminVendorOrders: React.FC = () => {
 
   useEffect(() => {
     fetchLaundryVendors();
+    fetchStores();
     fetchOrders();
   }, []);
 
@@ -265,7 +286,8 @@ const AdminVendorOrders: React.FC = () => {
         o.custom_order_id?.toLowerCase().includes(q) ||
         o.vendor_client_name?.toLowerCase().includes(q) ||
         o.service?.toLowerCase().includes(q) ||
-        o.assignedVendor?.toLowerCase().includes(q)
+        o.assignedVendor?.toLowerCase().includes(q) ||
+        o.assigned_store_name?.toLowerCase().includes(q)
       );
     }
     if (statusFilter !== "all") {
@@ -307,8 +329,9 @@ const AdminVendorOrders: React.FC = () => {
         final_amount: total,
         created_by_admin: true,
         status: assignedLaundryVendorId ? "vendor_assigned" : "created",
-        assignedVendor: assignedLaundryVendor || "",
-        assignedVendorId: assignedLaundryVendorId || "",
+        ...(assignedLaundryVendorId.startsWith(STORE_VALUE_PREFIX)
+          ? { assigned_store_id: assignedLaundryVendorId.slice(STORE_VALUE_PREFIX.length), assigned_store_name: assignedLaundryVendor || "" }
+          : { assignedVendor: assignedLaundryVendor || "", assignedVendorId: assignedLaundryVendorId || "" }),
       };
 
       const res = await apiClient.adminRequest<{ booking: any }>("/admin/bookings", {
@@ -369,9 +392,14 @@ const AdminVendorOrders: React.FC = () => {
     setEditDeliveryDate(order.delivery_date || "");
     setEditDeliveryTime(order.delivery_time || "18:00");
     setEditNotes(order.special_instructions || "");
-    const vendor = laundryVendors.find(v => v.name === order.assignedVendor);
-    setEditAssignedVendor(order.assignedVendor || "");
-    setEditAssignedVendorId(vendor?.id || "");
+    if (!order.assignedVendor && order.assigned_store_id) {
+      setEditAssignedVendor(order.assigned_store_name || "");
+      setEditAssignedVendorId(`${STORE_VALUE_PREFIX}${order.assigned_store_id}`);
+    } else {
+      const vendor = laundryVendors.find(v => v.name === order.assignedVendor);
+      setEditAssignedVendor(order.assignedVendor || "");
+      setEditAssignedVendorId(vendor?.id || "");
+    }
     const items = (order.item_prices || []).map((it, i) => ({
       service_name: it.service_name || "",
       quantity: it.quantity || 1,
@@ -448,9 +476,20 @@ const AdminVendorOrders: React.FC = () => {
         special_instructions: editNotes,
         total_price: total,
         final_amount: total,
-        assignedVendor: editAssignedVendor || "",
-        assignedVendorId: editAssignedVendorId || "",
         status: editAssignedVendorId ? "vendor_assigned" : editingOrder.status,
+        ...(editAssignedVendorId.startsWith(STORE_VALUE_PREFIX)
+          ? {
+              assignedVendor: "",
+              assignedVendorId: "",
+              assigned_store_id: editAssignedVendorId.slice(STORE_VALUE_PREFIX.length),
+              assigned_store_name: editAssignedVendor || "",
+            }
+          : {
+              assignedVendor: editAssignedVendor || "",
+              assignedVendorId: editAssignedVendorId || "",
+              assigned_store_id: null,
+              assigned_store_name: null,
+            }),
       };
 
       const res = await apiClient.adminRequest<{ booking?: any }>(`/admin/bookings/${editingOrder._id}`, {
@@ -616,23 +655,34 @@ const AdminVendorOrders: React.FC = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <Store className="h-4 w-4" />
-                  Assign Laundry Vendor (Optional)
+                  Assign Laundry Vendor / Store (Optional)
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <Select
                   value={assignedLaundryVendorId}
                   onValueChange={val => {
-                    const v = laundryVendors.find(lv => lv.id === val);
-                    setAssignedLaundryVendorId(val);
-                    setAssignedLaundryVendor(v?.name || "");
+                    if (val.startsWith(STORE_VALUE_PREFIX)) {
+                      const store = stores.find(s => s._id === val.slice(STORE_VALUE_PREFIX.length));
+                      setAssignedLaundryVendorId(val);
+                      setAssignedLaundryVendor(store?.store_name || "");
+                    } else {
+                      const v = laundryVendors.find(lv => lv.id === val);
+                      setAssignedLaundryVendorId(val);
+                      setAssignedLaundryVendor(v?.name || "");
+                    }
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select laundry vendor..." />
+                    <SelectValue placeholder="Select laundry vendor or store..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None / Unassigned</SelectItem>
+                    {stores.map(s => (
+                      <SelectItem key={s._id} value={`${STORE_VALUE_PREFIX}${s._id}`}>
+                        🏪 {s.store_name} ({s.store_code})
+                      </SelectItem>
+                    ))}
                     {laundryVendors.map(v => (
                       <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                     ))}
@@ -888,10 +938,10 @@ const AdminVendorOrders: React.FC = () => {
                                 Delivery: {order.delivery_date}
                               </span>
                             )}
-                            {order.assignedVendor && (
+                            {(order.assignedVendor || order.assigned_store_name) && (
                               <span className="flex items-center gap-1">
                                 <Store className="h-3.5 w-3.5 text-blue-500" />
-                                <span className="text-blue-700 font-medium">{order.assignedVendor}</span>
+                                <span className="text-blue-700 font-medium">{order.assignedVendor || `🏪 ${order.assigned_store_name}`}</span>
                               </span>
                             )}
                           </div>
@@ -1024,13 +1074,17 @@ const AdminVendorOrders: React.FC = () => {
 
               {/* Assigned vendor */}
               <div>
-                <Label>Assign Laundry Vendor</Label>
+                <Label>Assign Laundry Vendor / Store</Label>
                 <Select
                   value={editAssignedVendorId || "none"}
                   onValueChange={val => {
                     if (val === "none") {
                       setEditAssignedVendorId("");
                       setEditAssignedVendor("");
+                    } else if (val.startsWith(STORE_VALUE_PREFIX)) {
+                      const store = stores.find(s => s._id === val.slice(STORE_VALUE_PREFIX.length));
+                      setEditAssignedVendorId(val);
+                      setEditAssignedVendor(store?.store_name || "");
                     } else {
                       const v = laundryVendors.find(lv => lv.id === val);
                       setEditAssignedVendorId(val);
@@ -1039,10 +1093,15 @@ const AdminVendorOrders: React.FC = () => {
                   }}
                 >
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select laundry vendor..." />
+                    <SelectValue placeholder="Select laundry vendor or store..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None / Unassigned</SelectItem>
+                    {stores.map(s => (
+                      <SelectItem key={s._id} value={`${STORE_VALUE_PREFIX}${s._id}`}>
+                        🏪 {s.store_name} ({s.store_code})
+                      </SelectItem>
+                    ))}
                     {laundryVendors.map(v => (
                       <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                     ))}
@@ -1215,10 +1274,10 @@ const AdminVendorOrders: React.FC = () => {
                     <div>{viewingOrder.delivery_date} {viewingOrder.delivery_time}</div>
                   </div>
                 )}
-                {viewingOrder.assignedVendor && (
+                {(viewingOrder.assignedVendor || viewingOrder.assigned_store_name) && (
                   <div className="col-span-2">
-                    <span className="text-gray-500">Laundry Vendor</span>
-                    <div className="text-blue-700 font-medium">{viewingOrder.assignedVendor}</div>
+                    <span className="text-gray-500">{viewingOrder.assignedVendor ? "Laundry Vendor" : "Store"}</span>
+                    <div className="text-blue-700 font-medium">{viewingOrder.assignedVendor || `🏪 ${viewingOrder.assigned_store_name}`}</div>
                   </div>
                 )}
               </div>

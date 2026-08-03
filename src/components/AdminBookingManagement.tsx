@@ -104,6 +104,8 @@ interface Booking {
   vendor_client_name?: string;
   assignedVendorId?: string;
   vendorGroupLink?: string;
+  assigned_store_id?: string | null;
+  assigned_store_name?: string | null;
   pickupRider?: { _id: string; name: string; phone: string } | string | null;
   deliveryRider?: { _id: string; name: string; phone: string } | string | null;
   items_images?: Array<{
@@ -708,6 +710,14 @@ interface VendorOption {
   name: string;
 }
 
+interface StoreOption {
+  _id: string;
+  store_name: string;
+  store_code: string;
+}
+
+const STORE_VALUE_PREFIX = "store:";
+
 const AdminBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bucketA, setBucketA] = useState<Booking[]>([]);
@@ -740,6 +750,7 @@ const AdminBookingManagement: React.FC = () => {
   const [vendorOrderStatusFilter, setVendorOrderStatusFilter] = useState("all");
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorFullData, setVendorFullData] = useState<Record<string, any>>({});
+  const [stores, setStores] = useState<StoreOption[]>([]);
   const [riders, setRiders] = useState<Array<{ _id: string; name: string; phone: string; live_location_link?: string; location?: { lat: number; lng: number } }>>([]);
   const [bookingAddressCoords, setBookingAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
@@ -815,6 +826,22 @@ const AdminBookingManagement: React.FC = () => {
       console.warn('Failed to fetch vendors:', error);
       setVendors([]);
       setVendorFullData({});
+    }
+  };
+
+  const fetchStores = async () => {
+    try {
+      const response = await apiClient.adminRequest<{ stores: any[] }>('/store/admin/stores');
+      if (response.data?.stores) {
+        setStores(response.data.stores.map((s: any) => ({
+          _id: s._id,
+          store_name: s.store_name,
+          store_code: s.store_code,
+        })));
+      }
+    } catch (error) {
+      console.warn('Failed to fetch stores:', error);
+      setStores([]);
     }
   };
 
@@ -1036,6 +1063,7 @@ const AdminBookingManagement: React.FC = () => {
   useEffect(() => {
     fetchBookings();
     fetchVendors();
+    fetchStores();
     fetchRiders();
     fetchCompletedOrders();
 
@@ -1428,7 +1456,8 @@ const AdminBookingManagement: React.FC = () => {
         booking.vendor_client_name?.toLowerCase().includes(q) ||
         booking.name?.toLowerCase().includes(q) ||
         booking.service?.toLowerCase().includes(q) ||
-        booking.assignedVendor?.toLowerCase().includes(q)
+        booking.assignedVendor?.toLowerCase().includes(q) ||
+        booking.assigned_store_name?.toLowerCase().includes(q)
       );
     }
 
@@ -1887,10 +1916,10 @@ const AdminBookingManagement: React.FC = () => {
                             <span className="text-sm text-gray-700 truncate" title={booking.address}>{booking.address}</span>
                           </div>
                         )}
-                        {booking.assignedVendor && (
+                        {(booking.assignedVendor || booking.assigned_store_name) && (
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor || `🏪 ${booking.assigned_store_name}`}</span>
                           </div>
                         )}
                         {(() => {
@@ -2113,10 +2142,10 @@ const AdminBookingManagement: React.FC = () => {
                             <span className="text-sm text-gray-700 truncate" title={booking.address}>{booking.address}</span>
                           </div>
                         )}
-                        {booking.assignedVendor && (
+                        {(booking.assignedVendor || booking.assigned_store_name) && (
                           <div className="flex items-center gap-2 mt-1">
                             <Store className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-green-700">{booking.assignedVendor}</span>
+                            <span className="text-sm text-green-700">{booking.assignedVendor || `🏪 ${booking.assigned_store_name}`}</span>
                           </div>
                         )}
                         {(() => {
@@ -2481,10 +2510,10 @@ const AdminBookingManagement: React.FC = () => {
                             <Package className="h-4 w-4 text-amber-600" />
                             <span className="font-medium text-sm">#{booking.custom_order_id}</span>
                           </div>
-                          {booking.assignedVendor && (
+                          {(booking.assignedVendor || booking.assigned_store_name) && (
                             <div className="flex items-center gap-2 mt-1">
                               <Store className="h-4 w-4 text-blue-600" />
-                              <span className="text-sm font-medium text-blue-600">{booking.assignedVendor}</span>
+                              <span className="text-sm font-medium text-blue-600">{booking.assignedVendor || `🏪 ${booking.assigned_store_name}`}</span>
                             </div>
                           )}
                         </div>
@@ -2813,16 +2842,18 @@ const AdminBookingManagement: React.FC = () => {
                       {(() => {
                         const prObj = booking.pickupRider && typeof booking.pickupRider === "object" ? booking.pickupRider as { _id: string; name: string; phone: string } : null;
                         const drObj = booking.deliveryRider && typeof booking.deliveryRider === "object" ? booking.deliveryRider as { _id: string; name: string; phone: string } : null;
-                        const hasAny = booking.assignedVendor || riderName || prObj || drObj;
+                        const hasAny = booking.assignedVendor || booking.assigned_store_name || riderName || prObj || drObj;
                         if (!hasAny) return null;
                         return (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {booking.assignedVendor && (
+                            {(booking.assignedVendor || booking.assigned_store_name) && (
                               <div className="bg-white rounded-lg border p-4">
-                                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assigned Vendor</p>
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                                  {booking.assignedVendor ? "Assigned Vendor" : "Assigned Store"}
+                                </p>
                                 <div className="flex items-center gap-2">
                                   <Store className="h-4 w-4 text-green-600" />
-                                  <span className="font-medium text-sm">{booking.assignedVendor}</span>
+                                  <span className="font-medium text-sm">{booking.assignedVendor || `🏪 ${booking.assigned_store_name}`}</span>
                                 </div>
                               </div>
                             )}
@@ -3589,18 +3620,32 @@ const AdminBookingManagement: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Assign Vendor</Label>
+                  <Label>Assign Vendor / Store</Label>
                   <Select
-                    value={editingBooking.vendor ?? "__unassigned__"}
+                    value={
+                      editingBooking.vendor
+                        ?? (editingBooking.assigned_store_id ? `${STORE_VALUE_PREFIX}${editingBooking.assigned_store_id}` : "__unassigned__")
+                    }
                     onValueChange={(value) => {
-                      setEditingBooking((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              vendor: value === "__unassigned__" ? null : value,
-                            }
-                          : prev,
-                      );
+                      setEditingBooking((prev) => {
+                        if (!prev) return prev;
+                        if (value.startsWith(STORE_VALUE_PREFIX)) {
+                          const storeId = value.slice(STORE_VALUE_PREFIX.length);
+                          const store = stores.find((s) => s._id === storeId);
+                          return {
+                            ...prev,
+                            vendor: null,
+                            assigned_store_id: storeId,
+                            assigned_store_name: store?.store_name ?? null,
+                          };
+                        }
+                        return {
+                          ...prev,
+                          vendor: value === "__unassigned__" ? null : value,
+                          assigned_store_id: null,
+                          assigned_store_name: null,
+                        };
+                      });
                     }}
                   >
                     <SelectTrigger>
@@ -3608,6 +3653,11 @@ const AdminBookingManagement: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                      {stores.map((store) => (
+                        <SelectItem key={store._id} value={`${STORE_VALUE_PREFIX}${store._id}`}>
+                          🏪 {store.store_name} ({store.store_code})
+                        </SelectItem>
+                      ))}
                       {vendors.length > 0 ? (
                         vendors
                           .map((vendor) => {
@@ -4174,6 +4224,19 @@ const AdminBookingManagement: React.FC = () => {
                       });
 
                       if (response.data) {
+                        // Vendor/store assignment are mutually exclusive fields split across
+                        // two collections — sync the store side here regardless of direction
+                        // (setting a store, clearing one, or switching to a vendor) since the
+                        // main PUT above only ever touches assignedVendor.
+                        try {
+                          await apiClient.adminRequest(`/store/admin/orders/${editingBooking._id}/assign`, {
+                            method: "PUT",
+                            body: { store_id: editingBooking.assigned_store_id || null },
+                          });
+                        } catch (storeErr) {
+                          console.warn("Failed to sync store assignment:", storeErr);
+                        }
+
                         toast.success("Booking updated successfully");
                         applyBookingUpdate(editingBooking._id, response.data.booking || editingBooking);
                         setShowEditDialog(false);
