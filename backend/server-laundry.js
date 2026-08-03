@@ -580,6 +580,14 @@ try {
   const storeRoutes = require("./routes/store");
   app.use("/api/store", storeRoutes);
   console.log("🔗 Store routes registered at /api/store");
+
+  const storeOrdersRoutes = require("./routes/store-orders");
+  app.use("/api/store/online-orders", storeOrdersRoutes);
+  console.log("🔗 Store online-order routes registered at /api/store/online-orders");
+
+  const storeRidersRoutes = require("./routes/store-riders");
+  app.use("/api/store/riders", storeRidersRoutes);
+  console.log("🔗 Store rider routes registered at /api/store/riders");
 } catch (error) {
   console.error("❌ Failed to load Store routes:", error.message);
 }

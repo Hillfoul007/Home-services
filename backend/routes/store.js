@@ -203,6 +203,9 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
 });
 
 // GET /api/store/orders/my-orders
+// Walk-in orders this store created itself (StoreOrder collection only).
+// Admin-assigned online orders (Booking.assigned_store_id) now live in their
+// own "Online Orders" dashboard section, powered by routes/store-orders.js.
 router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
   try {
     const { sortBy = "recent", filterStatus, page = "1", limit = "20" } = req.query;
@@ -210,42 +213,20 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
     const sort = sortBy === "oldest" ? 1 : -1;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
-    const fetchCap = pageNum * limitNum; // over-fetch each source up to this page's window, then merge+slice
 
-    // Store orders: created by this store (new StoreOrder collection)
-    let storeQuery = { store_id: req.store._id };
+    const storeQuery = { store_id: req.store._id };
     if (filterStatus) storeQuery.status = filterStatus;
 
-    // Admin-assigned online orders: assigned to this store via assigned_store_id (still in Booking)
-    let assignedQuery = { assigned_store_id: req.store._id };
-    if (filterStatus) assignedQuery.status = filterStatus;
-
-    const [storeOrders, assignedOrders] = await Promise.all([
+    const [storeOrders, total] = await Promise.all([
       StoreOrder.find(storeQuery)
         .sort({ created_at: sort })
-        .limit(fetchCap)
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
         .select("custom_order_id customer_name customer_phone services item_prices total_price discount_amount wallet_applied final_amount status created_at updated_at riderStatus is_store_order store_id package_applied address"),
-      Booking.find(assignedQuery)
-        .sort({ created_at: sort })
-        .limit(fetchCap)
-        .select("custom_order_id name phone customer_name customer_phone services item_prices total_price discount_amount cashback final_amount status created_at updated_at riderStatus is_store_order assigned_store_id address package_applied"),
+      StoreOrder.countDocuments(storeQuery),
     ]);
 
-    // Normalise assigned orders to have customer_name/customer_phone for display
-    const normalisedAssigned = assignedOrders.map((o) => ({
-      ...o.toObject(),
-      customer_name: o.customer_name || o.name,
-      customer_phone: o.customer_phone || o.phone,
-    }));
-
-    const merged = [...storeOrders.map((o) => o.toObject()), ...normalisedAssigned].sort(
-      (a, b) => sort * (new Date(a.created_at) - new Date(b.created_at))
-    );
-    const startIdx = (pageNum - 1) * limitNum;
-    const all = merged.slice(startIdx, startIdx + limitNum);
-    const hasMore = merged.length > startIdx + limitNum || storeOrders.length === fetchCap || assignedOrders.length === fetchCap;
-
-    res.json({ success: true, orders: all, hasMore, page: pageNum });
+    res.json({ success: true, orders: storeOrders, hasMore: pageNum * limitNum < total, page: pageNum });
   } catch (err) {
     console.error("Error fetching store orders:", err);
     res.status(500).json({ success: false, error: err.message });
@@ -253,17 +234,14 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
 });
 
 // PUT /api/store/orders/:orderId/status
+// Walk-in (StoreOrder) status edits only — online orders use the validated
+// state machine in routes/store-orders.js.
 router.put("/orders/:orderId/status", verifyStoreToken, async (req, res) => {
   try {
     const { status } = req.body;
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 
-    // Try StoreOrder first, then fall back to Booking (admin-assigned)
-    let order = await StoreOrder.findOne({ _id: req.params.orderId, store_id: req.store._id });
-    if (!order) {
-      order = await Booking.findOne({ _id: req.params.orderId, assigned_store_id: req.store._id });
-    }
-
+    const order = await StoreOrder.findOne({ _id: req.params.orderId, store_id: req.store._id });
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
 
     order.status = status;

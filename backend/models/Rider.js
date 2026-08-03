@@ -29,6 +29,11 @@ const riderSchema = new mongoose.Schema(
       ref: "Vendor",
       default: null,
     },
+    created_by_store: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      default: null,
+    },
     aadharImageUrl: {
       type: String,
       required: false,

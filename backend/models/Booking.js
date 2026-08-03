@@ -404,6 +404,7 @@ const bookingSchema = new mongoose.Schema(
           changed_at: Date,
           changed_by: String,
           vendor_id: mongoose.Schema.Types.ObjectId,
+          store_id: mongoose.Schema.Types.ObjectId,
         },
       ],
       default: [],

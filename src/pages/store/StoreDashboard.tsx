@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
 import { getSortedServices } from "@/data/laundryServices";
+import StoreOnlineOrders from "./StoreOnlineOrders";
 
 interface StoreInfo {
   _id: string;
@@ -219,7 +220,7 @@ function printReceipt(order: Order, storeName: string) {
 export default function StoreDashboard() {
   const navigate = useNavigate();
   const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "create" | "packages">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "create" | "packages" | "online">("orders");
 
   // Orders tab state
   const [orders, setOrders] = useState<Order[]>([]);
@@ -778,7 +779,7 @@ export default function StoreDashboard() {
       {/* Tabs */}
       <div className="bg-white border-b sticky top-16 z-40">
         <div className="max-w-7xl mx-auto px-4 flex gap-6 overflow-x-auto">
-          {(["orders", "create", "packages"] as const).map((tab) => (
+          {(["orders", "online", "create", "packages"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -788,13 +789,16 @@ export default function StoreDashboard() {
                   : "border-transparent text-gray-600 hover:text-gray-900"
               }`}
             >
-              {tab === "orders" ? "📋 My Orders" : tab === "create" ? "➕ Create Order" : "🎟️ Packages"}
+              {tab === "orders" ? "📋 My Orders" : tab === "online" ? "🌐 Online Orders" : tab === "create" ? "➕ Create Order" : "🎟️ Packages"}
             </button>
           ))}
         </div>
       </div>
 
-      <main className="max-w-2xl mx-auto px-3 py-4 sm:px-4 sm:py-6">
+      <main className={`mx-auto px-3 py-4 sm:px-4 sm:py-6 ${activeTab === "online" ? "max-w-6xl" : "max-w-2xl"}`}>
+        {/* ── Online Orders Tab (admin-assigned bookings, vendor-style workflow) ── */}
+        {activeTab === "online" && <StoreOnlineOrders />}
+
         {/* ── Create Order Tab ── */}
         {activeTab === "create" && (
           <div className="max-w-2xl mx-auto">
