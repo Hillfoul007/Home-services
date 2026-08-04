@@ -716,4 +716,26 @@ router.put("/orders/:orderId/save-cart", verifyStoreToken, async (req, res) => {
   }
 });
 
+// ─── POST mark cash-on-delivery as collected ──────────────────────────────────
+
+router.post("/orders/:orderId/cod-collected", verifyStoreToken, async (req, res) => {
+  try {
+    const { amount, notes } = req.body;
+    const order = await Booking.findOne({ _id: req.params.orderId, assigned_store_id: req.store._id });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    const now = indianNow();
+    order.cod_collected = true;
+    order.cod_amount = amount || order.final_amount || order.total_price || 0;
+    order.cod_collected_at = now;
+    if (notes) order.notes = order.notes ? `${order.notes}\nCOD: ${notes}` : `COD: ${notes}`;
+
+    await order.save();
+    res.json({ success: true, message: "COD payment marked as collected", order });
+  } catch (error) {
+    console.error("❌ Error marking COD collected:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;

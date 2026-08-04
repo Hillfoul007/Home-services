@@ -40,7 +40,36 @@ router.post("/create", verifyStoreToken, async (req, res) => {
 
     const existing = await Rider.findOne({ phone: phone.trim() });
     if (existing) {
-      return res.status(400).json({ error: "A rider with this phone number already exists" });
+      // A rider with this phone already has an account elsewhere (created by
+      // admin and/or a vendor) — link them to this store instead of blocking,
+      // so the same person can work at both places with one login. Only block
+      // if another store already claimed them, so stores can't silently pull
+      // a rider out of a rival store's roster.
+      if (existing.created_by_store && String(existing.created_by_store) === String(req.store._id)) {
+        return res.status(400).json({ error: "This rider is already in your rider list" });
+      }
+      if (existing.created_by_store) {
+        return res.status(400).json({ error: "A rider with this phone number is already registered with another store" });
+      }
+
+      existing.created_by_store = req.store._id;
+      if (existing.status !== "approved") existing.status = "approved";
+      if (existing.isActive === false) existing.isActive = true;
+      await existing.save();
+
+      console.log(`✅ Store ${req.store.store_name} linked existing rider: ${existing.name} (${existing.phone})`);
+
+      return res.json({
+        success: true,
+        linked_existing: true,
+        message: `${existing.name} already has a rider account — added to your rider list. They keep using their existing phone number and password to log in.`,
+        rider: {
+          _id: existing._id,
+          name: existing.name,
+          phone: existing.phone,
+          live_location_link: existing.live_location_link,
+        },
+      });
     }
 
     const plainPassword = generatePassword(8);

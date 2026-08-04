@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -10,8 +10,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2, RefreshCw, Bike, Camera, Video, Receipt, Truck, PackageCheck,
-  CheckCircle2, Clock, Phone, MapPin, Plus, KeyRound, AlertTriangle,
+  Loader2, RefreshCw, Bike, Camera, Truck, PackageCheck,
+  CheckCircle2, Clock, Phone, MapPin, Plus, KeyRound, AlertTriangle, Upload,
+  CalendarClock, Banknote,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
@@ -59,6 +60,13 @@ interface OnlineOrder {
   total_price?: number;
   discount_amount?: number;
   final_amount?: number;
+  scheduled_date?: string;
+  scheduled_time?: string;
+  delivery_date?: string;
+  delivery_time?: string;
+  cod_collected?: boolean;
+  cod_amount?: number;
+  cod_collected_at?: string | null;
   assignedRider?: RiderRef | string | null;
   pickupRider?: RiderRef | string | null;
   deliveryRider?: RiderRef | string | null;
@@ -112,6 +120,15 @@ function fmtTime(d?: string | null) {
   if (!d) return "";
   return new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
+// scheduled_date/delivery_date are plain "YYYY-MM-DD" strings paired with a
+// separate *_time string — format them together without going through Date
+// parsing (which would misinterpret the bare date as midnight UTC).
+function fmtDateTime(date?: string | null, time?: string | null) {
+  if (!date) return "";
+  const d = new Date(`${date}T00:00:00`);
+  const dateLabel = isNaN(d.getTime()) ? date : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  return time ? `${dateLabel}, ${time}` : dateLabel;
+}
 
 const API = () => `${getApiUrl()}/store/online-orders`;
 const RIDERS_API = () => `${getApiUrl()}/store/riders`;
@@ -154,8 +171,33 @@ export default function StoreOnlineOrders() {
   const [newRiderPhone, setNewRiderPhone] = useState("");
   const [creatingRider, setCreatingRider] = useState(false);
   const [newRiderCreds, setNewRiderCreds] = useState<{ phone: string; password: string } | null>(null);
+  const [linkedExistingRider, setLinkedExistingRider] = useState<{ name: string; phone: string } | null>(null);
 
   const [cartDraft, setCartDraft] = useState<ItemPrice[] | null>(null);
+  const [codAmount, setCodAmount] = useState<number>(0);
+
+  // Tracks every order id seen so far so we can tell a genuinely new online
+  // order apart from one just moving between kanban sections. Null until the
+  // first load completes, so we never "notify" about the store's existing
+  // backlog on initial mount.
+  const knownOrderIdsRef = useRef<Set<string> | null>(null);
+
+  const notifyNewOrders = useCallback((newOrders: OnlineOrder[]) => {
+    if (newOrders.length === 0) return;
+    const title = newOrders.length === 1 ? "New online order" : `${newOrders.length} new online orders`;
+    const body = newOrders.length === 1
+      ? `${newOrders[0].custom_order_id || "Order"} — ${customerName(newOrders[0])} · ₹${newOrders[0].final_amount ?? newOrders[0].total_price ?? 0}`
+      : newOrders.map(o => o.custom_order_id || o._id.slice(-6)).join(", ");
+    toast.success(title, { description: body });
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      try {
+        const n = new Notification(title, { body, tag: "laundrify-store-new-order" });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch {
+        // Some embedded webviews restrict the Notification constructor — the toast above still covers it.
+      }
+    }
+  }, []);
 
   const fetchDashboard = useCallback(async (silent = false) => {
     if (!token) return;
@@ -166,6 +208,16 @@ export default function StoreOnlineOrders() {
       if (data.success) {
         setSections(data.sections);
         setCounts(data.counts || {});
+
+        const allOrders: OnlineOrder[] = [];
+        const allIds = new Set<string>();
+        Object.values(data.sections as Sections).forEach((list) => (list as OnlineOrder[]).forEach((o) => { allIds.add(o._id); allOrders.push(o); }));
+
+        if (knownOrderIdsRef.current) {
+          const freshlySeen = allOrders.filter((o) => !knownOrderIdsRef.current!.has(o._id));
+          notifyNewOrders(freshlySeen);
+        }
+        knownOrderIdsRef.current = allIds;
       } else {
         toast.error(data.error || "Failed to load online orders");
       }
@@ -175,7 +227,7 @@ export default function StoreOnlineOrders() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
+  }, [token, notifyNewOrders]);
 
   const fetchRiders = useCallback(async () => {
     if (!token) return;
@@ -193,15 +245,32 @@ export default function StoreOnlineOrders() {
 
   useEffect(() => { fetchDashboard(); fetchRiders(); }, [fetchDashboard, fetchRiders]);
 
+  // Ask once for permission to show a phone/desktop notification when a new
+  // online order comes in while this tab is open.
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Poll for new online orders so the board updates itself instead of
+  // requiring a manual tap on Refresh.
+  useEffect(() => {
+    const id = setInterval(() => { fetchDashboard(true); }, 25000);
+    return () => clearInterval(id);
+  }, [fetchDashboard]);
+
   // Keep the open detail dialog's order data fresh after any mutation
   const refreshSelected = (updated: OnlineOrder) => {
     setSelectedOrder(updated);
     setCartDraft(updated.item_prices || null);
+    setCodAmount(updated.cod_amount || updated.final_amount || updated.total_price || 0);
   };
 
   const openOrder = (order: OnlineOrder) => {
     setSelectedOrder(order);
     setCartDraft(order.item_prices || null);
+    setCodAmount(order.cod_amount || order.final_amount || order.total_price || 0);
   };
 
   async function callAction(url: string, options: RequestInit, successMsg: string) {
@@ -282,6 +351,13 @@ export default function StoreOnlineOrders() {
   const markCompleted = (orderId: string) =>
     callAction(`${API()}/orders/${orderId}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "completed" }) }, "Order completed").then(d => d?.order && refreshSelected(d.order));
 
+  const markCodCollected = (orderId: string) =>
+    callAction(
+      `${API()}/orders/${orderId}/cod-collected`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: codAmount }) },
+      "Cash marked as collected"
+    ).then(d => d?.order && refreshSelected(d.order));
+
   const saveCart = (orderId: string) => {
     if (!cartDraft) return;
     return callAction(
@@ -319,8 +395,15 @@ export default function StoreOnlineOrders() {
         toast.error(data.error || "Failed to create rider");
         return;
       }
-      toast.success(`Rider ${data.rider.name} created`);
-      setNewRiderCreds(data.credentials);
+      if (data.linked_existing) {
+        toast.success(data.message || `${data.rider.name} added to your rider list`);
+        setLinkedExistingRider({ name: data.rider.name, phone: data.rider.phone });
+        setNewRiderCreds(null);
+      } else {
+        toast.success(`Rider ${data.rider.name} created`);
+        setNewRiderCreds(data.credentials);
+        setLinkedExistingRider(null);
+      }
       setNewRiderName("");
       setNewRiderPhone("");
       fetchRiders();
@@ -387,6 +470,12 @@ export default function StoreOnlineOrders() {
                   </div>
                   <div className="text-sm text-gray-700 flex items-center gap-1"><Phone className="w-3 h-3" />{customerName(order)} · {customerPhone(order)}</div>
                   {order.address && <div className="text-xs text-gray-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{order.address}</div>}
+                  {(order.scheduled_date || order.delivery_date) && (
+                    <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                      {order.scheduled_date && <div className="flex items-center gap-1"><CalendarClock className="w-3 h-3" /> Pickup: {fmtDateTime(order.scheduled_date, order.scheduled_time)}</div>}
+                      {order.delivery_date && <div className="flex items-center gap-1"><CalendarClock className="w-3 h-3" /> Delivery: {fmtDateTime(order.delivery_date, order.delivery_time)}</div>}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                     <span>₹{order.final_amount ?? order.total_price ?? 0}</span>
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{order._timeElapsed || fmtTime(order.created_at)}</span>
@@ -405,7 +494,7 @@ export default function StoreOnlineOrders() {
         <RidersPanel
           riders={riders}
           loading={loadingRiders}
-          onAdd={() => { setNewRiderCreds(null); setCreateRiderOpen(true); }}
+          onAdd={() => { setNewRiderCreds(null); setLinkedExistingRider(null); setCreateRiderOpen(true); }}
         />
       )}
 
@@ -423,8 +512,37 @@ export default function StoreOnlineOrders() {
                   <div><span className="text-gray-500">Customer:</span> {customerName(selectedOrder)}</div>
                   <div><span className="text-gray-500">Phone:</span> {customerPhone(selectedOrder)}</div>
                   {selectedOrder.address && <div className="col-span-2"><span className="text-gray-500">Address:</span> {selectedOrder.address}</div>}
+                  {selectedOrder.scheduled_date && <div><span className="text-gray-500">Pickup:</span> {fmtDateTime(selectedOrder.scheduled_date, selectedOrder.scheduled_time)}</div>}
+                  {selectedOrder.delivery_date && <div><span className="text-gray-500">Delivery:</span> {fmtDateTime(selectedOrder.delivery_date, selectedOrder.delivery_time)}</div>}
                   <div><span className="text-gray-500">Status:</span> {selectedOrder.status}</div>
                   <div><span className="text-gray-500">Total:</span> ₹{selectedOrder.final_amount ?? selectedOrder.total_price ?? 0}</div>
+                </div>
+
+                {/* Cash on delivery */}
+                <div className={`p-3 rounded-xl border ${selectedOrder.cod_collected ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+                  {selectedOrder.cod_collected ? (
+                    <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
+                      <Banknote className="w-4 h-4" />
+                      Cash collected: ₹{selectedOrder.cod_amount ?? 0}
+                      {selectedOrder.cod_collected_at && <span className="text-xs text-green-600 font-normal">· {fmtTime(selectedOrder.cod_collected_at)}</span>}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-amber-800 uppercase flex items-center gap-1">
+                        <Banknote className="w-3.5 h-3.5" /> Cash on Delivery
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number" inputMode="decimal" className="h-9 flex-1"
+                          value={codAmount}
+                          onChange={(e) => setCodAmount(Number(e.target.value) || 0)}
+                        />
+                        <Button size="sm" disabled={busy} onClick={() => markCodCollected(selectedOrder._id)}>
+                          Mark Collected
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Cart */}
@@ -490,14 +608,23 @@ export default function StoreOnlineOrders() {
                   ))}
                 </div>
 
-                {/* Upload controls */}
-                <div className="flex flex-wrap gap-2">
-                  <UploadButton icon={<Camera className="w-4 h-4" />} label="Photo" disabled={busy}
-                    onFile={(f) => uploadFile(selectedOrder._id, "items_image", f)} accept="image/*" />
-                  <UploadButton icon={<Video className="w-4 h-4" />} label="Video" disabled={busy}
-                    onFile={(f) => uploadFile(selectedOrder._id, "items_video", f)} accept="video/*" />
-                  <UploadButton icon={<Receipt className="w-4 h-4" />} label="Payment Slip" disabled={busy}
-                    onFile={(f) => uploadFile(selectedOrder._id, "payment_ss", f)} accept="image/*" />
+                {/* Upload controls — camera capture and choose-from-device side by side */}
+                <div className="space-y-2">
+                  <CaptureOrChoosePair
+                    mediaLabel="Item Photo" accept="image/*" disabled={busy}
+                    onFile={(f) => uploadFile(selectedOrder._id, "items_image", f)}
+                    cameraLabel="Take Photo" chooseLabel="Choose Photo"
+                  />
+                  <CaptureOrChoosePair
+                    mediaLabel="Item Video" accept="video/*" disabled={busy}
+                    onFile={(f) => uploadFile(selectedOrder._id, "items_video", f)}
+                    cameraLabel="Record Video" chooseLabel="Choose Video"
+                  />
+                  <CaptureOrChoosePair
+                    mediaLabel="Payment Slip" accept="image/*" disabled={busy}
+                    onFile={(f) => uploadFile(selectedOrder._id, "payment_ss", f)}
+                    cameraLabel="Take Photo" chooseLabel="Choose Slip"
+                  />
                 </div>
 
                 {/* Section actions — full-width stacked buttons on mobile, wrap into a row from sm up */}
@@ -581,7 +708,7 @@ export default function StoreOnlineOrders() {
       </Dialog>
 
       {/* ── Create rider dialog ── */}
-      <Dialog open={createRiderOpen} onOpenChange={(open) => { setCreateRiderOpen(open); if (!open) setNewRiderCreds(null); }}>
+      <Dialog open={createRiderOpen} onOpenChange={(open) => { setCreateRiderOpen(open); if (!open) { setNewRiderCreds(null); setLinkedExistingRider(null); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Rider</DialogTitle></DialogHeader>
           {newRiderCreds ? (
@@ -593,12 +720,21 @@ export default function StoreOnlineOrders() {
               </div>
               <Button className="w-full" onClick={() => setCreateRiderOpen(false)}>Done</Button>
             </div>
+          ) : linkedExistingRider ? (
+            <div className="space-y-2 text-sm">
+              <p className="text-green-700 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> {linkedExistingRider.name} already has a Laundrify rider account.</p>
+              <div className="bg-gray-50 border rounded p-3 text-gray-600">
+                Added to your rider list — they keep logging in with their existing phone number and password: <span className="font-mono">{linkedExistingRider.phone}</span>
+              </div>
+              <Button className="w-full" onClick={() => setCreateRiderOpen(false)}>Done</Button>
+            </div>
           ) : (
             <div className="space-y-3">
               <Input placeholder="Rider name" value={newRiderName} onChange={(e) => setNewRiderName(e.target.value)} />
               <Input placeholder="Phone number" value={newRiderPhone} onChange={(e) => setNewRiderPhone(e.target.value)} />
+              <p className="text-xs text-gray-500">If this phone is already registered (e.g. by admin), we'll just add that rider to your list instead of creating a duplicate.</p>
               <Button className="w-full" disabled={creatingRider} onClick={createRider}>
-                {creatingRider ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Rider"}
+                {creatingRider ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Rider"}
               </Button>
             </div>
           )}
@@ -608,15 +744,32 @@ export default function StoreOnlineOrders() {
   );
 }
 
-function UploadButton({ icon, label, onFile, accept, disabled }: { icon: React.ReactNode; label: string; onFile: (f: File) => void; accept: string; disabled?: boolean }) {
+function UploadButton({ icon, label, onFile, accept, disabled, capture, className }: { icon: React.ReactNode; label: string; onFile: (f: File) => void; accept: string; disabled?: boolean; capture?: "environment"; className?: string }) {
   return (
-    <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm cursor-pointer hover:bg-gray-50 ${disabled ? "opacity-50 pointer-events-none" : ""}`}>
+    <label className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border text-sm cursor-pointer hover:bg-gray-50 ${disabled ? "opacity-50 pointer-events-none" : ""} ${className || ""}`}>
       {icon}{label}
       <input
-        type="file" accept={accept} className="hidden"
+        type="file" accept={accept} capture={capture} className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
       />
     </label>
+  );
+}
+
+// A camera-capture button paired with a choose-from-device button, sharing the
+// same upload target. Mirrors the Camera/Gallery pattern already used in
+// RiderDeskDashboard.tsx so the two apps feel consistent.
+function CaptureOrChoosePair({ mediaLabel, accept, disabled, onFile, cameraLabel = "Take Photo", chooseLabel = "Choose File" }: {
+  mediaLabel: string; accept: string; disabled?: boolean; onFile: (f: File) => void; cameraLabel?: string; chooseLabel?: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 mb-1">{mediaLabel}</p>
+      <div className="flex gap-2">
+        <UploadButton className="flex-1" icon={<Camera className="w-4 h-4" />} label={cameraLabel} capture="environment" disabled={disabled} onFile={onFile} accept={accept} />
+        <UploadButton className="flex-1" icon={<Upload className="w-4 h-4" />} label={chooseLabel} disabled={disabled} onFile={onFile} accept={accept} />
+      </div>
+    </div>
   );
 }
 
