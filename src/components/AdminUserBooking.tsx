@@ -57,6 +57,14 @@ interface VendorWithDistance {
   isActive?: boolean;
 }
 
+interface StoreOption {
+  _id: string;
+  store_name: string;
+  store_code: string;
+  address?: string;
+  phone?: string;
+}
+
 const AdminUserBooking: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,6 +92,12 @@ const AdminUserBooking: React.FC = () => {
   const [vendors, setVendors] = useState<VendorWithDistance[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<VendorWithDistance | null>(null);
+
+  // Store management state — stores have no coordinates, so unlike vendors
+  // they aren't distance-ranked; just fetched once and offered as an
+  // alternative allotment target.
+  const [stores, setStores] = useState<StoreOption[]>([]);
+  const [selectedStore, setSelectedStore] = useState<StoreOption | null>(null);
 
   // New user inline form state
   const [newUserName, setNewUserName] = useState("");
@@ -244,6 +258,25 @@ const AdminUserBooking: React.FC = () => {
     }
   };
 
+  const fetchStores = async () => {
+    try {
+      const response = await apiClient.adminRequest<{ stores: any[] }>('/store/admin/stores');
+      if (response.data?.stores) {
+        setStores(
+          response.data.stores
+            .filter((s: any) => s.is_active !== false)
+            .map((s: any) => ({ _id: s._id, store_name: s.store_name, store_code: s.store_code, address: s.address, phone: s.phone }))
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching stores:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStores();
+  }, []);
+
   useEffect(() => {
     if (searchTerm.length >= 3) {
       searchUsers();
@@ -386,8 +419,8 @@ const AdminUserBooking: React.FC = () => {
       return;
     }
 
-    if (!selectedVendor) {
-      toast.error("Please select a vendor for this booking");
+    if (!selectedVendor && !selectedStore) {
+      toast.error("Please select a vendor or store for this booking");
       return;
     }
 
@@ -471,16 +504,23 @@ const AdminUserBooking: React.FC = () => {
         is_quick_pickup: bookingData.is_quick_pickup || false,
         quick_pickup_tag: bookingData.is_quick_pickup ? `QP_${Date.now()}` : null,
         is_reservice: bookingData.is_reservice || false,
-        assignedVendor: selectedVendor ? decodeHtmlEntities(selectedVendor.name) : "",
-        assignedVendorId: selectedVendor?.id || "",
-        assignedVendorDetails: selectedVendor ? {
-          name: decodeHtmlEntities(selectedVendor.name),
-          address: decodeHtmlEntities(selectedVendor.address),
-          phone: selectedVendor.phone,
-          distance: selectedVendor.distance,
-          estimatedTime: selectedVendor.estimatedTime,
-        } : undefined,
-        status: selectedVendor ? "vendor_assigned" : "created",
+        status: (selectedVendor || selectedStore) ? "vendor_assigned" : "created",
+        ...(selectedStore
+          ? {
+              assigned_store_id: selectedStore._id,
+              assigned_store_name: selectedStore.store_name,
+            }
+          : {
+              assignedVendor: selectedVendor ? decodeHtmlEntities(selectedVendor.name) : "",
+              assignedVendorId: selectedVendor?.id || "",
+              assignedVendorDetails: selectedVendor ? {
+                name: decodeHtmlEntities(selectedVendor.name),
+                address: decodeHtmlEntities(selectedVendor.address),
+                phone: selectedVendor.phone,
+                distance: selectedVendor.distance,
+                estimatedTime: selectedVendor.estimatedTime,
+              } : undefined,
+            }),
       };
 
       // Include coordinates if extracted from Google Maps link
@@ -515,6 +555,7 @@ const AdminUserBooking: React.FC = () => {
         setNewUserAddress("");
         setVendors([]);
         setSelectedVendor(null);
+        setSelectedStore(null);
         setBookingData({
           service: "",
           services: [],
@@ -696,6 +737,7 @@ const AdminUserBooking: React.FC = () => {
                           setSelectedUser(null);
                           setVendors([]);
                           setSelectedVendor(null);
+                          setSelectedStore(null);
                           setBookingData(prev => ({ ...prev, address: "", assignedVendor: "", mapsLink: "", coordinates: null }));
                         }}
                       >
@@ -729,6 +771,26 @@ const AdminUserBooking: React.FC = () => {
                             <span className="text-xs text-gray-600">
                               📞 {selectedVendor.phone}
                             </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedStore && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="font-medium text-green-900 mb-3">Assigned Store</div>
+                      <div className="space-y-2">
+                        <div className="text-sm">
+                          <span className="font-medium">🏪 {selectedStore.store_name}</span>
+                        </div>
+                        {selectedStore.address && (
+                          <div className="text-xs text-gray-700">📍 {selectedStore.address}</div>
+                        )}
+                        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-green-200">
+                          <Badge variant="secondary" className="text-xs">{selectedStore.store_code}</Badge>
+                          {selectedStore.phone && (
+                            <span className="text-xs text-gray-600">📞 {selectedStore.phone}</span>
                           )}
                         </div>
                       </div>
@@ -1087,7 +1149,7 @@ const AdminUserBooking: React.FC = () => {
 
             {/* Vendor Selection */}
             <div>
-              <Label htmlFor="vendor-select">Assign Vendor (Allotment)</Label>
+              <Label htmlFor="vendor-select">Assign Vendor or Store (Allotment)</Label>
               {vendorsLoading && (
                 <div className="text-sm text-gray-500 py-3 text-center">
                   <div className="flex items-center justify-center gap-2">
@@ -1105,6 +1167,7 @@ const AdminUserBooking: React.FC = () => {
                         key={vendor.id}
                         onClick={() => {
                           setSelectedVendor(vendor);
+                          setSelectedStore(null);
                           setBookingData(prev => ({ ...prev, assignedVendor: vendor.id }));
                         }}
                         className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -1163,6 +1226,49 @@ const AdminUserBooking: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Store Selection — stores have no coordinates, so shown as a
+                flat list rather than distance-ranked like vendors. */}
+            {stores.length > 0 && (
+              <div>
+                <Label>Or assign to a Store</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                  {stores.map((store) => (
+                    <div
+                      key={store._id}
+                      onClick={() => {
+                        setSelectedStore(store);
+                        setSelectedVendor(null);
+                        setBookingData(prev => ({ ...prev, assignedVendor: "" }));
+                      }}
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedStore?._id === store._id
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">🏪 {store.store_name}</div>
+                          {store.address && (
+                            <div className="text-xs text-gray-600 mt-1 line-clamp-2">📍 {store.address}</div>
+                          )}
+                        </div>
+                        {selectedStore?._id === store._id && (
+                          <div className="ml-2">
+                            <CheckCircle className="h-5 w-5 text-blue-600" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap pt-2 border-t mt-2">
+                        <Badge variant="outline" className="text-xs">{store.store_code}</Badge>
+                        {store.phone && <Badge variant="outline" className="text-xs">📞 {store.phone}</Badge>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Services Selection */}
             <div className="border-t pt-4">
