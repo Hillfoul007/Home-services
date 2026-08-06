@@ -414,7 +414,7 @@ router.get("/admin/stores", verifyAdmin, async (req, res) => {
 // POST /api/store/admin/stores
 router.post("/admin/stores", verifyAdmin, async (req, res) => {
   try {
-    const { store_name, phone, address, password } = req.body;
+    const { store_name, phone, address, password, coordinates } = req.body;
     if (!store_name || !password)
       return res.status(400).json({ success: false, error: "Store name and password are required" });
 
@@ -422,6 +422,7 @@ router.post("/admin/stores", verifyAdmin, async (req, res) => {
       store_name,
       phone: phone || "",
       address: address || "",
+      coordinates: coordinates?.lat != null && coordinates?.lng != null ? coordinates : undefined,
       password_hash: password,
       temp_password: password,
     });
@@ -437,6 +438,7 @@ router.post("/admin/stores", verifyAdmin, async (req, res) => {
         store_name: store.store_name,
         phone: store.phone,
         address: store.address,
+        coordinates: store.coordinates,
         temp_password: password,
       },
     });
@@ -449,13 +451,16 @@ router.post("/admin/stores", verifyAdmin, async (req, res) => {
 // PUT /api/store/admin/stores/:id
 router.put("/admin/stores/:id", verifyAdmin, async (req, res) => {
   try {
-    const { store_name, phone, address, is_active, password } = req.body;
+    const { store_name, phone, address, is_active, password, coordinates } = req.body;
     const store = await Store.findById(req.params.id).select("+password_hash +temp_password");
     if (!store) return res.status(404).json({ success: false, error: "Store not found" });
 
     if (store_name) store.store_name = store_name;
     if (phone !== undefined) store.phone = phone;
     if (address !== undefined) store.address = address;
+    if (coordinates !== undefined) {
+      store.coordinates = coordinates?.lat != null && coordinates?.lng != null ? coordinates : undefined;
+    }
     if (is_active !== undefined) store.is_active = is_active;
     if (password) {
       store.password_hash = password;

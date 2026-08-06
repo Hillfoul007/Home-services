@@ -38,6 +38,10 @@ const storeSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    coordinates: {
+      lat: Number,
+      lng: Number,
+    },
     is_active: {
       type: Boolean,
       default: true,

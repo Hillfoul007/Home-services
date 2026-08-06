@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit3, Trash2, RefreshCw, Copy, Store, Eye, EyeOff } from "lucide-react";
+import { Plus, Edit3, Trash2, RefreshCw, Copy, Store, Eye, EyeOff, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { resolveAndParseGoogleMapsLink } from "@/utils/mapsLinkParser";
 
 interface StoreRecord {
   _id: string;
@@ -17,6 +18,7 @@ interface StoreRecord {
   store_name: string;
   phone: string;
   address: string;
+  coordinates?: { lat: number; lng: number };
   is_active: boolean;
   temp_password?: string;
   created_at: string;
@@ -34,8 +36,9 @@ export default function AdminStoreManagement() {
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
 
   // Form state
-  const [form, setForm] = useState({ store_name: "", phone: "", address: "", password: "" });
+  const [form, setForm] = useState({ store_name: "", phone: "", address: "", password: "", googleMapsLink: "", lat: "", lng: "" });
   const [saving, setSaving] = useState(false);
+  const [resolvingMapsLink, setResolvingMapsLink] = useState(false);
 
   const fetchStores = async () => {
     setLoading(true);
@@ -57,14 +60,42 @@ export default function AdminStoreManagement() {
 
   const openCreate = () => {
     setEditingStore(null);
-    setForm({ store_name: "", phone: "", address: "", password: "" });
+    setForm({ store_name: "", phone: "", address: "", password: "", googleMapsLink: "", lat: "", lng: "" });
     setShowCreateDialog(true);
   };
 
   const openEdit = (store: StoreRecord) => {
     setEditingStore(store);
-    setForm({ store_name: store.store_name, phone: store.phone, address: store.address, password: "" });
+    setForm({
+      store_name: store.store_name,
+      phone: store.phone,
+      address: store.address,
+      password: "",
+      googleMapsLink: "",
+      lat: store.coordinates?.lat != null ? String(store.coordinates.lat) : "",
+      lng: store.coordinates?.lng != null ? String(store.coordinates.lng) : "",
+    });
     setShowCreateDialog(true);
+  };
+
+  const handleGoogleMapsLinkChange = async (link: string) => {
+    setForm((prev) => ({ ...prev, googleMapsLink: link }));
+    if (!link.trim()) return;
+
+    setResolvingMapsLink(true);
+    try {
+      const parsed = await resolveAndParseGoogleMapsLink(link);
+      if (parsed.error) {
+        toast.error(parsed.error);
+        return;
+      }
+      if (parsed.coordinates) {
+        setForm((prev) => ({ ...prev, lat: parsed.coordinates!.lat.toString(), lng: parsed.coordinates!.lng.toString() }));
+        toast.success("Location coordinates extracted");
+      }
+    } finally {
+      setResolvingMapsLink(false);
+    }
   };
 
   const handleSave = async () => {
@@ -77,10 +108,14 @@ export default function AdminStoreManagement() {
       return;
     }
 
+    const lat = parseFloat(form.lat);
+    const lng = parseFloat(form.lng);
+    const coordinates = !isNaN(lat) && !isNaN(lng) ? { lat, lng } : undefined;
+
     setSaving(true);
     try {
       if (editingStore) {
-        const body: any = { store_name: form.store_name, phone: form.phone, address: form.address };
+        const body: any = { store_name: form.store_name, phone: form.phone, address: form.address, coordinates };
         if (form.password) body.password = form.password;
         const res = await apiClient.adminRequest<any>(`/store/admin/stores/${editingStore._id}`, {
           method: "PUT",
@@ -96,7 +131,7 @@ export default function AdminStoreManagement() {
       } else {
         const res = await apiClient.adminRequest<any>("/store/admin/stores", {
           method: "POST",
-          body: form,
+          body: { store_name: form.store_name, phone: form.phone, address: form.address, password: form.password, coordinates },
         });
         if (res.data?.success) {
           toast.success(`Store created! ID: ${res.data.store.store_id} | Code: ${res.data.store.store_code}`);
@@ -210,7 +245,14 @@ export default function AdminStoreManagement() {
                           {store.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </div>
-                      {store.address && <p className="text-sm text-gray-500">{store.address}</p>}
+                      {store.address && (
+                        <p className="text-sm text-gray-500 flex items-center gap-1">
+                          {store.address}
+                          {store.coordinates?.lat != null && (
+                            <MapPin className="w-3 h-3 text-green-600 flex-shrink-0" aria-label="Location set" />
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -331,6 +373,37 @@ export default function AdminStoreManagement() {
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Google Maps Link</label>
+              <Input
+                placeholder="Paste a Google Maps link to auto-fill coordinates"
+                value={form.googleMapsLink}
+                onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                {resolvingMapsLink ? "Resolving link…" : "Used so this store can show distance in vendor/store assignment screens."}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                <Input
+                  type="number" step="0.0001"
+                  placeholder="e.g. 28.4595"
+                  value={form.lat}
+                  onChange={(e) => setForm({ ...form, lat: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                <Input
+                  type="number" step="0.0001"
+                  placeholder="e.g. 77.0266"
+                  value={form.lng}
+                  onChange={(e) => setForm({ ...form, lng: e.target.value })}
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

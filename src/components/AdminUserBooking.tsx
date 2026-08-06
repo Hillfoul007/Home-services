@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { vendorService } from "@/services/vendorService";
 import { X } from "lucide-react";
-import { isGoogleMapsUrl, resolveAndParseGoogleMapsLink } from "@/utils/mapsLinkParser";
+import { isGoogleMapsUrl, resolveAndParseGoogleMapsLink, calculateDistance } from "@/utils/mapsLinkParser";
 import { locationService } from "@/services/locationService";
 import VendorTimeSlotSelector from "@/components/VendorTimeSlotSelector";
 
@@ -63,6 +63,8 @@ interface StoreOption {
   store_code: string;
   address?: string;
   phone?: string;
+  coordinates?: { lat: number; lng: number };
+  distance?: number;
 }
 
 const AdminUserBooking: React.FC = () => {
@@ -265,7 +267,7 @@ const AdminUserBooking: React.FC = () => {
         setStores(
           response.data.stores
             .filter((s: any) => s.is_active !== false)
-            .map((s: any) => ({ _id: s._id, store_name: s.store_name, store_code: s.store_code, address: s.address, phone: s.phone }))
+            .map((s: any) => ({ _id: s._id, store_name: s.store_name, store_code: s.store_code, address: s.address, phone: s.phone, coordinates: s.coordinates }))
         );
       }
     } catch (error) {
@@ -276,6 +278,21 @@ const AdminUserBooking: React.FC = () => {
   useEffect(() => {
     fetchStores();
   }, []);
+
+  // Distance to each store, once both the store and the pickup address have
+  // coordinates — mirrors the vendor-distance calc but stays independent of
+  // vendorService (which holds a single shared vendors array and would clobber
+  // vendor state if reused here).
+  const storesWithDistance = useMemo(() => {
+    const pickupCoords = bookingData.coordinates;
+    const withDistance = stores.map((s) => ({
+      ...s,
+      distance: pickupCoords && s.coordinates?.lat != null && s.coordinates?.lng != null
+        ? calculateDistance(pickupCoords.lat, pickupCoords.lng, s.coordinates.lat, s.coordinates.lng)
+        : undefined,
+    }));
+    return withDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+  }, [stores, bookingData.coordinates]);
 
   useEffect(() => {
     if (searchTerm.length >= 3) {
@@ -788,6 +805,12 @@ const AdminUserBooking: React.FC = () => {
                           <div className="text-xs text-gray-700">📍 {selectedStore.address}</div>
                         )}
                         <div className="flex items-center gap-3 mt-2 pt-2 border-t border-green-200">
+                          {selectedStore.distance != null && (
+                            <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                              <Navigation className="h-3 w-3" />
+                              {selectedStore.distance.toFixed(2)}km away
+                            </Badge>
+                          )}
                           <Badge variant="secondary" className="text-xs">{selectedStore.store_code}</Badge>
                           {selectedStore.phone && (
                             <span className="text-xs text-gray-600">📞 {selectedStore.phone}</span>
@@ -1227,13 +1250,13 @@ const AdminUserBooking: React.FC = () => {
               )}
             </div>
 
-            {/* Store Selection — stores have no coordinates, so shown as a
-                flat list rather than distance-ranked like vendors. */}
+            {/* Store Selection — distance-sorted once the store has coordinates
+                and the pickup address has been geocoded, same as vendors. */}
             {stores.length > 0 && (
               <div>
                 <Label>Or assign to a Store</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                  {stores.map((store) => (
+                  {storesWithDistance.map((store) => (
                     <div
                       key={store._id}
                       onClick={() => {
@@ -1261,12 +1284,23 @@ const AdminUserBooking: React.FC = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap pt-2 border-t mt-2">
+                        {store.distance != null && (
+                          <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                            <Navigation className="h-3 w-3" />
+                            {store.distance.toFixed(2)}km
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="text-xs">{store.store_code}</Badge>
                         {store.phone && <Badge variant="outline" className="text-xs">📞 {store.phone}</Badge>}
                       </div>
                     </div>
                   ))}
                 </div>
+                {!bookingData.coordinates && stores.some((s) => s.coordinates) && (
+                  <p className="text-xs text-gray-400 mt-2">
+                    Paste a Google Maps link for the pickup address above to see distance to stores.
+                  </p>
+                )}
               </div>
             )}
 
