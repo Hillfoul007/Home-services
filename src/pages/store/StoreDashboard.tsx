@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   LogOut, Plus, Eye, Trash2, Phone, User, Clock, Calendar,
   Save, Store, Package, Search, Scale, Ban, Loader2, CheckCircle2, RefreshCw,
-  MessageCircle, Printer, ListChecks,
+  MessageCircle, Printer, ListChecks, Banknote, Camera, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getApiUrl } from "@/config/env";
@@ -75,6 +75,12 @@ interface PackageBalanceEntry {
   remaining_quantity: number;
 }
 
+interface FileRef {
+  file_id: string;
+  filename?: string;
+  uploaded_at?: string;
+}
+
 interface Order {
   _id: string;
   custom_order_id: string;
@@ -95,6 +101,11 @@ interface Order {
   assigned_store_id?: string;
   package_applied?: PackageApplied;
   address?: string;
+  payment_status?: string;
+  payment_slips?: FileRef[];
+  cod_collected?: boolean;
+  cod_amount?: number;
+  cod_collected_at?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -111,7 +122,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 const ALL_STATUSES = ["created", "pending", "confirmed", "processing", "ready", "completed", "delivered", "cancelled"];
 
-const ACTIVE_STATUSES = new Set(["created", "pending", "confirmed", "processing", "ready", "vendor_assigned"]);
+// "delivered" stays in the active list deliberately — an order that's been
+// delivered but not yet marked completed (e.g. payment still pending) should
+// stay visible, not disappear into the collapsed Inactive section.
+const ACTIVE_STATUSES = new Set(["created", "pending", "confirmed", "processing", "ready", "vendor_assigned", "delivered"]);
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
@@ -238,6 +252,9 @@ export default function StoreDashboard() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [uploadingSlip, setUploadingSlip] = useState(false);
+  const [markingCod, setMarkingCod] = useState(false);
+  const [codAmount, setCodAmount] = useState(0);
 
   // Packages tab state
   const [packages, setPackages] = useState<CustomerPackageT[]>([]);
@@ -353,6 +370,7 @@ export default function StoreDashboard() {
     setSelectedOrder(order);
     setEditedOrder({ ...order });
     setIsEditMode(false);
+    setCodAmount(order.cod_amount || order.final_amount || order.total_price || 0);
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
@@ -377,6 +395,60 @@ export default function StoreDashboard() {
       toast.error("Error updating status");
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleUploadPaymentSlip = async (file: File) => {
+    if (!selectedOrder) return;
+    const token = localStorage.getItem("store_token");
+    setUploadingSlip(true);
+    try {
+      const form = new FormData();
+      form.append("payment_slip", file);
+      const res = await fetch(`${getApiUrl()}/store/orders/${selectedOrder._id}/upload-payment-slip`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Payment slip uploaded");
+        setSelectedOrder(data.order);
+        setEditedOrder(data.order);
+        fetchOrders();
+      } else {
+        toast.error(data.error || "Failed to upload payment slip");
+      }
+    } catch {
+      toast.error("Error uploading payment slip");
+    } finally {
+      setUploadingSlip(false);
+    }
+  };
+
+  const handleMarkCodCollected = async () => {
+    if (!selectedOrder) return;
+    const token = localStorage.getItem("store_token");
+    setMarkingCod(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/store/orders/${selectedOrder._id}/cod-collected`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: codAmount }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Cash marked as collected");
+        setSelectedOrder(data.order);
+        setEditedOrder(data.order);
+        fetchOrders();
+      } else {
+        toast.error(data.error || "Failed to mark cash collected");
+      }
+    } catch {
+      toast.error("Error marking cash collected");
+    } finally {
+      setMarkingCod(false);
     }
   };
 
@@ -1733,11 +1805,88 @@ export default function StoreDashboard() {
                   </div>
                 </div>
 
+                {/* Payment */}
+                {!isEditMode && (
+                  <div className={`p-3 rounded-xl border ${selectedOrder.payment_status === "paid" ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-sm flex items-center gap-1.5">
+                        <Banknote className="w-4 h-4" /> Payment
+                      </h3>
+                      {selectedOrder.payment_status === "paid" && (
+                        <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Paid</span>
+                      )}
+                    </div>
+
+                    {selectedOrder.cod_collected ? (
+                      <p className="text-sm text-green-700 font-medium flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" /> Cash collected: ₹{selectedOrder.cod_amount ?? 0}
+                        {selectedOrder.cod_collected_at && (
+                          <span className="text-xs text-green-600 font-normal">· {formatTime(selectedOrder.cod_collected_at)}</span>
+                        )}
+                      </p>
+                    ) : (
+                      <div className="flex gap-2 mb-2">
+                        <Input
+                          type="number" inputMode="decimal" className="h-9 flex-1"
+                          value={codAmount}
+                          onChange={(e) => setCodAmount(Number(e.target.value) || 0)}
+                        />
+                        <Button size="sm" disabled={markingCod} onClick={handleMarkCodCollected}>
+                          {markingCod ? "Marking..." : "Mark Cash Collected"}
+                        </Button>
+                      </div>
+                    )}
+
+                    {selectedOrder.payment_slips && selectedOrder.payment_slips.length > 0 && (
+                      <div className="flex gap-2 flex-wrap mt-2 mb-2">
+                        {selectedOrder.payment_slips.map((slip) => (
+                          <a key={slip.file_id} href={slip.file_id} target="_blank" rel="noreferrer">
+                            <img src={slip.file_id} alt="payment slip" className="w-14 h-14 object-cover rounded-lg border" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <label className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium cursor-pointer hover:bg-white ${uploadingSlip ? "opacity-50 pointer-events-none" : ""}`}>
+                        <Camera className="w-3.5 h-3.5" /> Take Slip Photo
+                        <input
+                          type="file" accept="image/*" capture="environment" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadPaymentSlip(f); e.target.value = ""; }}
+                        />
+                      </label>
+                      <label className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium cursor-pointer hover:bg-white ${uploadingSlip ? "opacity-50 pointer-events-none" : ""}`}>
+                        <Upload className="w-3.5 h-3.5" /> Choose Slip
+                        <input
+                          type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadPaymentSlip(f); e.target.value = ""; }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 {/* Dates */}
                 <div className="flex items-center gap-4 text-xs text-gray-500">
                   <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /><span>{formatDate(selectedOrder.created_at)}</span></div>
                   <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /><span>{formatTime(selectedOrder.created_at)}</span></div>
                 </div>
+
+                {/* Quick status actions — one-tap forward progress instead of
+                    only the generic dropdown, so store staff notice these
+                    steps instead of an order silently sitting there. */}
+                {!isEditMode && !["completed", "cancelled"].includes(selectedOrder.status) && (
+                  <div className="flex gap-2">
+                    {selectedOrder.status !== "delivered" && (
+                      <Button variant="outline" className="flex-1 h-10 text-sm" disabled={updatingStatus} onClick={() => handleStatusUpdate("delivered")}>
+                        Mark Delivered
+                      </Button>
+                    )}
+                    <Button className="flex-1 h-10 text-sm bg-green-600 hover:bg-green-700" disabled={updatingStatus} onClick={() => handleStatusUpdate("completed")}>
+                      Mark Completed
+                    </Button>
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-1">

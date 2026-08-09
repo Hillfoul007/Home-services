@@ -47,6 +47,20 @@ const storeOrderSchema = new mongoose.Schema(
     riderStatus: { type: String, default: "unassigned" },
     payment_status: { type: String, default: "pending" },
     is_store_order: { type: Boolean, default: true },
+    // Payment proof / cash collection
+    payment_slips: {
+      type: [
+        {
+          file_id: mongoose.Schema.Types.Mixed,
+          filename: String,
+          uploaded_at: Date,
+        },
+      ],
+      default: [],
+    },
+    cod_collected: { type: Boolean, default: false },
+    cod_amount: { type: Number, default: 0 },
+    cod_collected_at: { type: Date, default: null },
     // Meta
     provider_name: { type: String, default: "" },
     created_at: {

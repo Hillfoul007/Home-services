@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import {
   Eye, RefreshCw, Search, Package, User, Phone, Calendar, Clock,
-  Plus, Trash2, ShoppingCart, Store, ChevronDown, ChevronUp,
+  Plus, Trash2, ShoppingCart, Store, ChevronDown, ChevronUp, Banknote,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
@@ -35,6 +35,12 @@ interface CartItem {
   _key: string;
 }
 
+interface FileRef {
+  file_id: string;
+  filename?: string;
+  uploaded_at?: string;
+}
+
 interface Order {
   _id: string;
   custom_order_id: string;
@@ -53,6 +59,23 @@ interface Order {
   is_store_order?: boolean;
   store_code?: string;
   assigned_store_id?: string;
+  payment_status?: string;
+  // Store-created orders use `payment_slips`; admin-assigned Bookings use
+  // `vendor_payment_slips`/`rider_payment_slips` — read whichever is present.
+  payment_slips?: FileRef[];
+  vendor_payment_slips?: FileRef[];
+  rider_payment_slips?: FileRef[];
+  cod_collected?: boolean;
+  cod_amount?: number;
+  cod_collected_at?: string | null;
+}
+
+function allPaymentSlips(order: Order): FileRef[] {
+  return [
+    ...(order.payment_slips || []),
+    ...(order.vendor_payment_slips || []),
+    ...(order.rider_payment_slips || []),
+  ];
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -397,7 +420,12 @@ export default function AdminStoreOrders() {
                           : (order.services || []).join(", ")}
                       </p>
                     </td>
-                    <td className="px-4 py-3 font-bold text-sm">₹{order.final_amount || order.total_price}</td>
+                    <td className="px-4 py-3 font-bold text-sm">
+                      ₹{order.final_amount || order.total_price}
+                      {(order.payment_status === "paid" || order.cod_collected) && (
+                        <Banknote className="w-3.5 h-3.5 text-green-600 inline-block ml-1 align-text-bottom" aria-label="Paid" />
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <select
                         value={order.status}
@@ -458,7 +486,12 @@ export default function AdminStoreOrders() {
                 )}
 
                 <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                  <span className="font-bold text-gray-900">₹{order.final_amount || order.total_price}</span>
+                  <span className="font-bold text-gray-900 flex items-center gap-1">
+                    ₹{order.final_amount || order.total_price}
+                    {(order.payment_status === "paid" || order.cod_collected) && (
+                      <Banknote className="w-3.5 h-3.5 text-green-600" aria-label="Paid" />
+                    )}
+                  </span>
                   <div className="flex gap-2 items-center">
                     <select
                       value={order.status}
@@ -771,6 +804,41 @@ export default function AdminStoreOrders() {
                     {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+              </div>
+
+              {/* Payment */}
+              <div className={`p-4 rounded-lg border ${selectedOrder.payment_status === "paid" ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-sm flex items-center gap-1.5">
+                    <Banknote className="w-4 h-4" /> Payment
+                  </h3>
+                  <Badge className={selectedOrder.payment_status === "paid" ? "bg-green-100 text-green-800 border-0" : "bg-amber-100 text-amber-800 border-0"}>
+                    {selectedOrder.payment_status === "paid" ? "Paid" : "Pending"}
+                  </Badge>
+                </div>
+
+                {selectedOrder.cod_collected ? (
+                  <p className="text-sm text-green-700 font-medium">
+                    💵 Cash collected: ₹{selectedOrder.cod_amount ?? 0}
+                    {selectedOrder.cod_collected_at && (
+                      <span className="text-xs text-green-600 font-normal ml-1">· {fmtDate(selectedOrder.cod_collected_at)} {fmtTime(selectedOrder.cod_collected_at)}</span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">No cash collection recorded for this order.</p>
+                )}
+
+                {allPaymentSlips(selectedOrder).length > 0 ? (
+                  <div className="flex gap-2 flex-wrap mt-3">
+                    {allPaymentSlips(selectedOrder).map((slip) => (
+                      <a key={slip.file_id} href={slip.file_id} target="_blank" rel="noreferrer">
+                        <img src={slip.file_id} alt="payment slip" className="w-16 h-16 object-cover rounded-lg border" />
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-2">No payment screenshot uploaded.</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">

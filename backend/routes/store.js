@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
+const multer = require("multer");
 const Store = require("../models/Store");
 const Booking = require("../models/Booking");
 const StoreOrder = require("../models/StoreOrder");
@@ -9,6 +10,7 @@ const User = require("../models/User");
 const { getPackageBalance, deductPackageBalance, attachOrderToConsumption } = require("../utils/customerPackages");
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+const uploadImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 
@@ -222,7 +224,7 @@ router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
         .sort({ created_at: sort })
         .skip((pageNum - 1) * limitNum)
         .limit(limitNum)
-        .select("custom_order_id customer_name customer_phone services item_prices total_price discount_amount wallet_applied final_amount status created_at updated_at riderStatus is_store_order store_id package_applied address"),
+        .select("custom_order_id customer_name customer_phone services item_prices total_price discount_amount wallet_applied final_amount status created_at updated_at riderStatus is_store_order store_id package_applied address payment_status payment_slips cod_collected cod_amount cod_collected_at"),
       StoreOrder.countDocuments(storeQuery),
     ]);
 
@@ -288,6 +290,51 @@ router.delete("/orders/:orderId", verifyStoreToken, async (req, res) => {
     const order = await StoreOrder.findOneAndDelete({ _id: req.params.orderId, store_id: req.store._id });
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
     res.json({ success: true, message: "Order deleted" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/store/orders/:orderId/upload-payment-slip — proof of an online/UPI
+// payment for a walk-in order (screenshot of the transfer/UPI confirmation).
+router.post("/orders/:orderId/upload-payment-slip", verifyStoreToken, uploadImage.single("payment_slip"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: "No image file provided" });
+
+    const order = await StoreOrder.findOne({ _id: req.params.orderId, store_id: req.store._id });
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(req.file.buffer, req.file.mimetype || "image/jpeg", "laundrify/store-payment-slips");
+
+    if (!order.payment_slips) order.payment_slips = [];
+    order.payment_slips.push({ file_id: url, filename: url, uploaded_at: new Date() });
+    order.payment_status = "paid";
+    order.updated_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    await order.save();
+
+    res.json({ success: true, message: "Payment slip uploaded", file_id: url, url, order });
+  } catch (err) {
+    console.error("Store payment slip upload error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/store/orders/:orderId/cod-collected — mark cash collected in-person.
+router.post("/orders/:orderId/cod-collected", verifyStoreToken, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const order = await StoreOrder.findOne({ _id: req.params.orderId, store_id: req.store._id });
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    order.cod_collected = true;
+    order.cod_amount = amount || order.final_amount || order.total_price || 0;
+    order.cod_collected_at = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    order.payment_status = "paid";
+    order.updated_at = order.cod_collected_at;
+    await order.save();
+
+    res.json({ success: true, message: "Cash marked as collected", order });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -577,10 +624,10 @@ router.get("/admin/orders", verifyAdmin, async (req, res) => {
     const [storeOrders, assignedOrders] = await Promise.all([
       StoreOrder.find(storeQuery)
         .sort({ created_at: sort })
-        .select("custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id store_code"),
+        .select("custom_order_id customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order store_id store_code payment_status payment_slips cod_collected cod_amount cod_collected_at"),
       Booking.find(assignedQuery)
         .sort({ created_at: sort })
-        .select("custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order assigned_store_id assigned_store_name"),
+        .select("custom_order_id name phone customer_name customer_phone services item_prices total_price final_amount status created_at updated_at riderStatus is_store_order assigned_store_id assigned_store_name payment_status vendor_payment_slips rider_payment_slips cod_collected cod_amount cod_collected_at"),
     ]);
 
     const orders = [
