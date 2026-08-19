@@ -239,9 +239,6 @@ export default function StoreDashboard() {
   // Orders tab state
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
-  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
-  const [ordersPage, setOrdersPage] = useState(1);
-  const [ordersHasMore, setOrdersHasMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -302,23 +299,19 @@ export default function StoreDashboard() {
     }
   }, [navigate]);
 
-  const ORDERS_PAGE_SIZE = 20;
-
-  const fetchOrders = async (page = 1, append = false) => {
+  const fetchOrders = async () => {
     const token = localStorage.getItem("store_token");
     if (!token) return;
-    if (append) setLoadingMoreOrders(true); else setLoadingOrders(true);
+    setLoadingOrders(true);
     try {
-      const params = new URLSearchParams({ sortBy, page: String(page), limit: String(ORDERS_PAGE_SIZE) });
+      const params = new URLSearchParams({ sortBy });
       if (filterStatus) params.set("filterStatus", filterStatus);
       const res = await fetch(`${getApiUrl()}/store/orders/my-orders?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
-        setOrders((prev) => (append ? [...prev, ...(data.orders || [])] : data.orders || []));
-        setOrdersHasMore(!!data.hasMore);
-        setOrdersPage(page);
+        setOrders(data.orders || []);
       } else {
         toast.error(data.error || "Failed to fetch orders");
       }
@@ -326,18 +319,12 @@ export default function StoreDashboard() {
       toast.error("Error fetching orders");
     } finally {
       setLoadingOrders(false);
-      setLoadingMoreOrders(false);
     }
   };
 
   useEffect(() => {
-    if (storeInfo) fetchOrders(1, false);
+    if (storeInfo) fetchOrders();
   }, [storeInfo, sortBy, filterStatus]);
-
-  const loadMoreOrders = () => {
-    if (loadingMoreOrders || !ordersHasMore) return;
-    fetchOrders(ordersPage + 1, true);
-  };
 
   // Debounce the search box so typing doesn't re-filter on every keystroke
   useEffect(() => {
@@ -1304,14 +1291,6 @@ export default function StoreDashboard() {
                   </div>
                 )}
 
-                {ordersHasMore && !debouncedSearchTerm && (
-                  <div className="flex justify-center pt-2">
-                    <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMoreOrders} className="flex items-center gap-2">
-                      {loadingMoreOrders ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      {loadingMoreOrders ? "Loading..." : "Load More Orders"}
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
           </div>

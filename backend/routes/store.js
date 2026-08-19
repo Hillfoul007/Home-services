@@ -210,25 +210,19 @@ router.post("/orders/create", verifyStoreToken, async (req, res) => {
 // own "Online Orders" dashboard section, powered by routes/store-orders.js.
 router.get("/orders/my-orders", verifyStoreToken, async (req, res) => {
   try {
-    const { sortBy = "recent", filterStatus, page = "1", limit = "20" } = req.query;
-
+    const { sortBy = "recent", filterStatus } = req.query;
     const sort = sortBy === "oldest" ? 1 : -1;
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
+    // Every status, no cap — the store's own order list is small enough
+    // (single store) that pagination just hides orders rather than helping.
     const storeQuery = { store_id: req.store._id };
     if (filterStatus) storeQuery.status = filterStatus;
 
-    const [storeOrders, total] = await Promise.all([
-      StoreOrder.find(storeQuery)
-        .sort({ created_at: sort })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum)
-        .select("custom_order_id customer_name customer_phone services item_prices total_price discount_amount wallet_applied final_amount status created_at updated_at riderStatus is_store_order store_id package_applied address payment_status payment_slips cod_collected cod_amount cod_collected_at"),
-      StoreOrder.countDocuments(storeQuery),
-    ]);
+    const storeOrders = await StoreOrder.find(storeQuery)
+      .sort({ created_at: sort })
+      .select("custom_order_id customer_name customer_phone services item_prices total_price discount_amount wallet_applied final_amount status created_at updated_at riderStatus is_store_order store_id package_applied address payment_status payment_slips cod_collected cod_amount cod_collected_at");
 
-    res.json({ success: true, orders: storeOrders, hasMore: pageNum * limitNum < total, page: pageNum });
+    res.json({ success: true, orders: storeOrders, hasMore: false, page: 1 });
   } catch (err) {
     console.error("Error fetching store orders:", err);
     res.status(500).json({ success: false, error: err.message });
