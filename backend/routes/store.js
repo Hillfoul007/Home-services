@@ -602,18 +602,29 @@ router.post("/admin/orders/create", verifyAdmin, async (req, res) => {
 // GET /api/store/admin/orders  — all store orders + admin-assigned
 router.get("/admin/orders", verifyAdmin, async (req, res) => {
   try {
-    const { filterStatus, storeId, sortBy = "recent" } = req.query;
+    const { filterStatus, storeId, sortBy = "recent", dateFrom, dateTo } = req.query;
     const sort = sortBy === "oldest" ? 1 : -1;
+
+    // Shared created_at range — dateFrom/dateTo are "YYYY-MM-DD" from a date
+    // input; widen dateTo to the end of that day so it's inclusive.
+    let dateRange = null;
+    if (dateFrom || dateTo) {
+      dateRange = {};
+      if (dateFrom) dateRange.$gte = new Date(`${dateFrom}T00:00:00`);
+      if (dateTo) dateRange.$lte = new Date(`${dateTo}T23:59:59.999`);
+    }
 
     // Store-created orders from StoreOrder collection
     let storeQuery = {};
     if (filterStatus) storeQuery.status = filterStatus;
     if (storeId) storeQuery.store_id = storeId;
+    if (dateRange) storeQuery.created_at = dateRange;
 
     // Admin-assigned orders still live in Booking collection
     let assignedQuery = { assigned_store_id: { $exists: true, $ne: null } };
     if (filterStatus) assignedQuery.status = filterStatus;
     if (storeId) assignedQuery.assigned_store_id = storeId;
+    if (dateRange) assignedQuery.created_at = dateRange;
 
     const [storeOrders, assignedOrders] = await Promise.all([
       StoreOrder.find(storeQuery)

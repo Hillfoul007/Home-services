@@ -116,6 +116,8 @@ export default function AdminStoreOrders() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterStore, setFilterStore] = useState("");
   const [filterType, setFilterType] = useState<"all" | "store" | "assigned">("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "oldest">("recent");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -142,6 +144,8 @@ export default function AdminStoreOrders() {
       const params = new URLSearchParams({ sortBy });
       if (filterStatus) params.set("filterStatus", filterStatus);
       if (filterStore) params.set("storeId", filterStore);
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
       const res = await apiClient.adminRequest<any>(`/store/admin/orders?${params}`);
       if (res.data?.success) setOrders(res.data.orders || []);
     } catch {
@@ -158,7 +162,7 @@ export default function AdminStoreOrders() {
     } catch {}
   };
 
-  useEffect(() => { fetchOrders(); fetchStores(); }, [sortBy, filterStatus, filterStore]);
+  useEffect(() => { fetchOrders(); fetchStores(); }, [sortBy, filterStatus, filterStore, dateFrom, dateTo]);
 
   const handleStatusUpdate = async (orderId: string, status: string) => {
     setUpdatingStatus(true);
@@ -275,6 +279,10 @@ export default function AdminStoreOrders() {
 
   const statsStoreOrders = orders.filter(o => o.is_store_order).length;
   const statsAssigned = orders.filter(o => !o.is_store_order).length;
+  const statsRevenue = orders.reduce((sum, o) => sum + (o.final_amount || o.total_price || 0), 0);
+  const statusBreakdown = ALL_STATUSES
+    .map(s => ({ status: s, count: orders.filter(o => o.status === s).length }))
+    .filter(s => s.count > 0);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -304,12 +312,13 @@ export default function AdminStoreOrders() {
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
           { label: "Total", value: orders.length, color: "text-gray-900" },
           { label: "Store Created", value: statsStoreOrders, color: "text-blue-600" },
           { label: "Admin Assigned", value: statsAssigned, color: "text-purple-600" },
           { label: "Active", value: orders.filter(o => !["completed","cancelled","delivered"].includes(o.status)).length, color: "text-orange-600" },
+          { label: "Revenue", value: `₹${statsRevenue.toLocaleString("en-IN")}`, color: "text-green-600" },
         ].map(s => (
           <Card key={s.label} className="p-3 text-center">
             <p className="text-xs text-gray-500 truncate">{s.label}</p>
@@ -317,6 +326,17 @@ export default function AdminStoreOrders() {
           </Card>
         ))}
       </div>
+
+      {/* ── Status breakdown (respects all active filters above) ── */}
+      {statusBreakdown.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {statusBreakdown.map(({ status, count }) => (
+            <Badge key={status} className={`border-0 ${STATUS_COLORS[status] || "bg-gray-100 text-gray-700"}`}>
+              {status} · {count}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {/* ── Filters (collapsible on mobile) ── */}
       <Card className="p-3">
@@ -376,6 +396,31 @@ export default function AdminStoreOrders() {
             <option value="recent">Recent First</option>
             <option value="oldest">Oldest First</option>
           </select>
+
+          <div className="flex items-center gap-1">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              max={dateTo || undefined}
+              className="h-9 text-sm w-[140px]"
+              aria-label="From date"
+            />
+            <span className="text-gray-400 text-xs">to</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              min={dateFrom || undefined}
+              className="h-9 text-sm w-[140px]"
+              aria-label="To date"
+            />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" className="h-9 px-2 text-gray-500" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
 
