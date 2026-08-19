@@ -4176,6 +4176,7 @@ const AdminBookingManagement: React.FC = () => {
                         delivery_date: editingBooking.delivery_date || "",
                         delivery_time: editingBooking.delivery_time || "",
                         vendor: editingBooking.vendor,
+                        assigned_store_id: editingBooking.assigned_store_id || null,
                         // Preserve existing assignedRider — the edit dialog has no rider selector
                         // so we must never send rider: null (which would erase the assignment).
                         rider: (() => {
@@ -4224,18 +4225,9 @@ const AdminBookingManagement: React.FC = () => {
                       });
 
                       if (response.data) {
-                        // Vendor/store assignment are mutually exclusive fields split across
-                        // two collections — sync the store side here regardless of direction
-                        // (setting a store, clearing one, or switching to a vendor) since the
-                        // main PUT above only ever touches assignedVendor.
-                        try {
-                          await apiClient.adminRequest(`/store/admin/orders/${editingBooking._id}/assign`, {
-                            method: "PUT",
-                            body: { store_id: editingBooking.assigned_store_id || null },
-                          });
-                        } catch (storeErr) {
-                          console.warn("Failed to sync store assignment:", storeErr);
-                        }
+                        // Vendor and store assignment now save atomically in the single
+                        // PUT above (assigned_store_id is resolved to assigned_store_name
+                        // server-side) — no separate request needed.
 
                         toast.success("Booking updated successfully");
                         applyBookingUpdate(editingBooking._id, response.data.booking || editingBooking);

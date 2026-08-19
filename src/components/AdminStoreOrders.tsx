@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import {
   Eye, RefreshCw, Search, Package, User, Phone, Calendar, Clock,
-  Plus, Trash2, ShoppingCart, Store, ChevronDown, ChevronUp, Banknote,
+  Plus, Trash2, ShoppingCart, Store, ChevronDown, ChevronUp, Banknote, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
@@ -59,6 +59,7 @@ interface Order {
   is_store_order?: boolean;
   store_code?: string;
   assigned_store_id?: string;
+  assigned_store_name?: string;
   payment_status?: string;
   // Store-created orders use `payment_slips`; admin-assigned Bookings use
   // `vendor_payment_slips`/`rider_payment_slips` — read whichever is present.
@@ -277,6 +278,40 @@ export default function AdminStoreOrders() {
     );
   });
 
+  // Exports exactly what's on screen — same store/type/status/date filters
+  // and search already applied to `filtered` — so the store assignment (and
+  // every other field) always matches what's live in the DB, not whatever a
+  // stale external export happens to include.
+  const exportToCSV = () => {
+    const headers = [
+      "Order ID", "Type", "Store", "Customer Name", "Phone", "Items",
+      "Amount", "Status", "Payment Status", "Created Date", "Created Time",
+    ];
+    const rows = filtered.map(o => [
+      o.custom_order_id,
+      o.is_store_order ? "Store Created" : "Admin Assigned",
+      o.assigned_store_name || o.store_code || "",
+      o.customer_name || o.name || "",
+      o.customer_phone || o.phone || "",
+      o.item_prices?.length > 0
+        ? o.item_prices.map(i => `${i.service_name} x${i.quantity}`).join(", ")
+        : (o.services || []).join(", "),
+      o.final_amount || o.total_price || 0,
+      o.status,
+      o.payment_status || (o.cod_collected ? "paid" : "pending"),
+      fmtDate(o.created_at),
+      fmtTime(o.created_at),
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `store-orders-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const statsStoreOrders = orders.filter(o => o.is_store_order).length;
   const statsAssigned = orders.filter(o => !o.is_store_order).length;
   const statsRevenue = orders.reduce((sum, o) => sum + (o.final_amount || o.total_price || 0), 0);
@@ -299,6 +334,10 @@ export default function AdminStoreOrders() {
           <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline ml-2">Refresh</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportToCSV} disabled={filtered.length === 0}>
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline ml-2">Export CSV</span>
           </Button>
           <Button
             size="sm"

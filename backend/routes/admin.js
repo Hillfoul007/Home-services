@@ -649,6 +649,24 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
       delete updateData.assigned_vendor;
     }
 
+    // Normalize store assignment: resolve the canonical store_name server-side
+    // (never trust a client-supplied name) so this persists atomically with the
+    // rest of the booking update — no separate request to store.js required.
+    if (typeof updateData.assigned_store_id !== 'undefined') {
+      if (updateData.assigned_store_id) {
+        const Store = require("../models/Store");
+        const store = await Store.findById(updateData.assigned_store_id).select("store_name");
+        if (!store) {
+          return res.status(404).json({ error: "Store not found" });
+        }
+        updateData.assigned_store_id = store._id;
+        updateData.assigned_store_name = store.store_name;
+      } else {
+        updateData.assigned_store_id = null;
+        updateData.assigned_store_name = null;
+      }
+    }
+
     // Normalize rider field: frontend may send `rider` while schema uses `assignedRider`
     // Only update assignedRider when rider is explicitly provided (not undefined/null unless intentional)
     if (typeof updateData.rider !== 'undefined') {
