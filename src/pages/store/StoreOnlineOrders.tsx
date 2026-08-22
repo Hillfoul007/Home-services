@@ -99,15 +99,45 @@ const EMPTY_SECTIONS: Sections = {
   created: [], picked_up: [], processing: [], ready_for_delivery: [], delivered: [], completed: [], cancelled: [],
 };
 
-const SECTION_CONFIG: { key: SectionKey; label: string; icon: string; color: string }[] = [
-  { key: "created", label: "New / Pickup", icon: "📥", color: "bg-blue-100 text-blue-800 border-blue-300" },
-  { key: "picked_up", label: "Picked Up", icon: "🧺", color: "bg-indigo-100 text-indigo-800 border-indigo-300" },
-  { key: "processing", label: "Processing", icon: "🧼", color: "bg-orange-100 text-orange-800 border-orange-300" },
-  { key: "ready_for_delivery", label: "Ready", icon: "✅", color: "bg-teal-100 text-teal-800 border-teal-300" },
-  { key: "delivered", label: "Delivered", icon: "🚚", color: "bg-purple-100 text-purple-800 border-purple-300" },
-  { key: "completed", label: "Completed", icon: "🏁", color: "bg-green-100 text-green-800 border-green-300" },
-  { key: "cancelled", label: "Cancelled", icon: "🚫", color: "bg-red-100 text-red-800 border-red-300" },
+const SECTION_CONFIG: {
+  key: SectionKey; label: string; icon: string; color: string;
+  gradient: string; ring: string; border: string; badge: string; dot: string; solid: string;
+}[] = [
+  { key: "created", label: "New / Pickup", icon: "📥", color: "bg-blue-100 text-blue-800 border-blue-300",
+    gradient: "from-blue-500 to-blue-600", ring: "ring-blue-200", border: "border-l-blue-500", badge: "bg-blue-100 text-blue-700", dot: "bg-blue-500", solid: "bg-blue-500" },
+  { key: "picked_up", label: "Picked Up", icon: "🧺", color: "bg-indigo-100 text-indigo-800 border-indigo-300",
+    gradient: "from-indigo-500 to-indigo-600", ring: "ring-indigo-200", border: "border-l-indigo-500", badge: "bg-indigo-100 text-indigo-700", dot: "bg-indigo-500", solid: "bg-indigo-500" },
+  { key: "processing", label: "Processing", icon: "🧼", color: "bg-orange-100 text-orange-800 border-orange-300",
+    gradient: "from-orange-500 to-amber-500", ring: "ring-orange-200", border: "border-l-orange-500", badge: "bg-orange-100 text-orange-700", dot: "bg-orange-500", solid: "bg-orange-500" },
+  { key: "ready_for_delivery", label: "Ready", icon: "✅", color: "bg-teal-100 text-teal-800 border-teal-300",
+    gradient: "from-teal-500 to-emerald-500", ring: "ring-teal-200", border: "border-l-teal-500", badge: "bg-teal-100 text-teal-700", dot: "bg-teal-500", solid: "bg-teal-500" },
+  { key: "delivered", label: "Delivered", icon: "🚚", color: "bg-purple-100 text-purple-800 border-purple-300",
+    gradient: "from-purple-500 to-fuchsia-500", ring: "ring-purple-200", border: "border-l-purple-500", badge: "bg-purple-100 text-purple-700", dot: "bg-purple-500", solid: "bg-purple-500" },
+  { key: "completed", label: "Completed", icon: "🏁", color: "bg-green-100 text-green-800 border-green-300",
+    gradient: "from-green-500 to-emerald-600", ring: "ring-green-200", border: "border-l-green-500", badge: "bg-green-100 text-green-700", dot: "bg-green-500", solid: "bg-green-500" },
+  { key: "cancelled", label: "Cancelled", icon: "🚫", color: "bg-red-100 text-red-800 border-red-300",
+    gradient: "from-red-500 to-rose-600", ring: "ring-red-200", border: "border-l-red-500", badge: "bg-red-100 text-red-700", dot: "bg-red-500", solid: "bg-red-500" },
 ];
+
+function sectionMeta(key: string) {
+  return SECTION_CONFIG.find((s) => s.key === key) || SECTION_CONFIG[0];
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
+}
+
+const AVATAR_PALETTE = [
+  "from-blue-500 to-indigo-500", "from-emerald-500 to-teal-500", "from-orange-500 to-amber-500",
+  "from-purple-500 to-fuchsia-500", "from-rose-500 to-pink-500", "from-cyan-500 to-sky-500",
+];
+function avatarGradient(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+}
 
 function customerName(o: OnlineOrder) { return o.customer_name || o.name || "Customer"; }
 function customerPhone(o: OnlineOrder) { return o.customer_phone || o.phone || ""; }
@@ -416,77 +446,140 @@ export default function StoreOnlineOrders() {
 
   const currentList = sections[activeSection] || [];
 
+  const activeMeta = sectionMeta(activeSection);
+  const totalOrders = Object.values(counts).reduce((sum, n) => sum + (n || 0), 0);
+
   return (
-    <div className="space-y-4">
-      {/* Sub-nav: Orders vs Riders */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-2">
-          <Button variant={view === "orders" ? "default" : "outline"} size="sm" onClick={() => setView("orders")}>
-            📦 Orders
-          </Button>
-          <Button variant={view === "riders" ? "default" : "outline"} size="sm" onClick={() => setView("riders")}>
-            <Bike className="w-4 h-4 mr-1" /> Riders ({riders.length})
+    <div className="space-y-5">
+      {/* Sub-nav: Orders vs Riders, wrapped in a colorful header band */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-4 sm:p-5 shadow-lg shadow-indigo-200/50">
+        <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+        <div className="absolute -bottom-10 -left-6 w-28 h-28 bg-white/10 rounded-full blur-2xl" />
+        <div className="relative flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex gap-1.5 bg-white/15 backdrop-blur-sm p-1 rounded-xl">
+              <button
+                onClick={() => setView("orders")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-all ${
+                  view === "orders" ? "bg-white text-indigo-700 shadow-sm" : "text-white/80 hover:text-white"
+                }`}
+              >
+                📦 Orders <Badge className="ml-0.5 bg-white/25 text-inherit border-0">{totalOrders}</Badge>
+              </button>
+              <button
+                onClick={() => setView("riders")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-all ${
+                  view === "riders" ? "bg-white text-indigo-700 shadow-sm" : "text-white/80 hover:text-white"
+                }`}
+              >
+                <Bike className="w-4 h-4" /> Riders <Badge className="ml-0.5 bg-white/25 text-inherit border-0">{riders.length}</Badge>
+              </button>
+            </div>
+          </div>
+          <div className="text-white/90 hidden sm:block text-sm font-medium">
+            {view === "orders" ? "Live order board — updates automatically" : "Manage your delivery fleet"}
+          </div>
+          <Button
+            size="sm"
+            onClick={() => fetchDashboard(true)}
+            disabled={refreshing}
+            className="bg-white/15 hover:bg-white/25 text-white border border-white/30 backdrop-blur-sm"
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => fetchDashboard(true)} disabled={refreshing}>
-          <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? "animate-spin" : ""}`} /> Refresh
-        </Button>
       </div>
 
       {view === "orders" ? (
         <>
           {/* Kanban section tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {SECTION_CONFIG.map(({ key, label, icon, color }) => (
-              <button
-                key={key}
-                onClick={() => setActiveSection(key)}
-                className={`flex flex-shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm whitespace-nowrap transition-colors ${
-                  activeSection === key ? color + " font-semibold" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                }`}
-              >
-                <span>{icon}</span>
-                <span>{label}</span>
-                <Badge variant="secondary" className="ml-1">{counts[key] ?? 0}</Badge>
-              </button>
-            ))}
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {SECTION_CONFIG.map(({ key, label, icon, gradient }) => {
+              const isActive = activeSection === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveSection(key)}
+                  className={`flex flex-shrink-0 items-center gap-2 px-3.5 py-2 rounded-xl text-sm whitespace-nowrap transition-all ${
+                    isActive
+                      ? `bg-gradient-to-r ${gradient} text-white font-semibold shadow-md scale-[1.03]`
+                      : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="text-base leading-none">{icon}</span>
+                  <span>{label}</span>
+                  <Badge
+                    variant="secondary"
+                    className={`ml-0.5 ${isActive ? "bg-white/25 text-white border-0" : "bg-gray-100 text-gray-600"}`}
+                  >
+                    {counts[key] ?? 0}
+                  </Badge>
+                </button>
+              );
+            })}
           </div>
 
           {loading ? (
             <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
           ) : currentList.length === 0 ? (
-            <Card className="p-8 text-center text-gray-400">No orders in this section</Card>
+            <Card className={`p-10 text-center border-2 border-dashed ${activeMeta.ring} bg-gradient-to-br from-white to-gray-50`}>
+              <div className={`w-14 h-14 mx-auto mb-3 rounded-full flex items-center justify-center text-2xl bg-gradient-to-br ${activeMeta.gradient} text-white shadow-md`}>
+                {activeMeta.icon}
+              </div>
+              <p className="text-gray-500 font-medium">No orders in "{activeMeta.label}"</p>
+              <p className="text-gray-400 text-xs mt-1">New orders will appear here automatically</p>
+            </Card>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {currentList.map(order => (
-                <Card
-                  key={order._id}
-                  className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${order._breach ? "border-red-300 bg-red-50/40" : ""}`}
-                  onClick={() => openOrder(order)}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-semibold text-sm">{order.custom_order_id || order._id.slice(-6)}</span>
-                    {order._breach && <AlertTriangle className="w-4 h-4 text-red-500" />}
-                  </div>
-                  <div className="text-sm text-gray-700 flex items-center gap-1"><Phone className="w-3 h-3" />{customerName(order)} · {customerPhone(order)}</div>
-                  {order.address && <div className="text-xs text-gray-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{order.address}</div>}
-                  {(order.scheduled_date || order.delivery_date) && (
-                    <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                      {order.scheduled_date && <div className="flex items-center gap-1"><CalendarClock className="w-3 h-3" /> Pickup: {fmtDateTime(order.scheduled_date, order.scheduled_time)}</div>}
-                      {order.delivery_date && <div className="flex items-center gap-1"><CalendarClock className="w-3 h-3" /> Delivery: {fmtDateTime(order.delivery_date, order.delivery_time)}</div>}
+              {currentList.map(order => {
+                const meta = sectionMeta(activeSection);
+                const cName = customerName(order);
+                return (
+                  <Card
+                    key={order._id}
+                    className={`relative overflow-hidden p-4 pl-4 cursor-pointer border-l-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-150 ${
+                      order._breach ? "border-l-red-500 bg-red-50/40" : meta.border
+                    }`}
+                    onClick={() => openOrder(order)}
+                  >
+                    <div className="flex justify-between items-start mb-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`w-8 h-8 flex-shrink-0 rounded-full bg-gradient-to-br ${avatarGradient(cName)} text-white text-xs font-bold flex items-center justify-center shadow-sm`}>
+                          {initials(cName)}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-mono font-semibold text-xs text-gray-800 block truncate">{order.custom_order_id || order._id.slice(-6)}</span>
+                          <span className="text-sm font-medium text-gray-900 truncate block">{cName}</span>
+                        </div>
+                      </div>
+                      {order._breach ? (
+                        <Badge className="bg-red-100 text-red-700 border border-red-300 flex items-center gap-1 flex-shrink-0">
+                          <AlertTriangle className="w-3 h-3" /> SLA
+                        </Badge>
+                      ) : (
+                        <Badge className={`${meta.badge} border-0 flex-shrink-0`}>{meta.icon}</Badge>
+                      )}
                     </div>
-                  )}
-                  <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                    <span>₹{order.final_amount ?? order.total_price ?? 0}</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{order._timeElapsed || fmtTime(order.created_at)}</span>
-                  </div>
-                  {(riderName(order.pickupRider) || riderName(order.deliveryRider) || riderName(order.assignedRider)) && (
-                    <div className="mt-2 text-xs text-emerald-700 flex items-center gap-1">
-                      <Bike className="w-3 h-3" /> {riderName(order.deliveryRider) || riderName(order.pickupRider) || riderName(order.assignedRider)}
+                    <div className="text-xs text-gray-600 flex items-center gap-1"><Phone className="w-3 h-3 text-gray-400" />{customerPhone(order)}</div>
+                    {order.address && <div className="text-xs text-gray-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3 text-gray-400" /><span className="truncate">{order.address}</span></div>}
+                    {(order.scheduled_date || order.delivery_date) && (
+                      <div className="text-xs text-gray-500 mt-1.5 space-y-0.5">
+                        {order.scheduled_date && <div className="flex items-center gap-1"><CalendarClock className="w-3 h-3 text-gray-400" /> Pickup: {fmtDateTime(order.scheduled_date, order.scheduled_time)}</div>}
+                        {order.delivery_date && <div className="flex items-center gap-1"><CalendarClock className="w-3 h-3 text-gray-400" /> Delivery: {fmtDateTime(order.delivery_date, order.delivery_time)}</div>}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100">
+                      <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">₹{order.final_amount ?? order.total_price ?? 0}</span>
+                      <span className="flex items-center gap-1 text-xs text-gray-400"><Clock className="w-3 h-3" />{order._timeElapsed || fmtTime(order.created_at)}</span>
                     </div>
-                  )}
-                </Card>
-              ))}
+                    {(riderName(order.pickupRider) || riderName(order.deliveryRider) || riderName(order.assignedRider)) && (
+                      <div className="mt-2 text-xs text-emerald-700 bg-emerald-50 rounded-md px-2 py-1 flex items-center gap-1 w-fit">
+                        <Bike className="w-3 h-3" /> {riderName(order.deliveryRider) || riderName(order.pickupRider) || riderName(order.assignedRider)}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </>
@@ -500,22 +593,48 @@ export default function StoreOnlineOrders() {
 
       {/* ── Order detail dialog ── */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => { if (!open) setSelectedOrder(null); }}>
-        <DialogContent className="max-w-xl p-4 sm:p-6">
-          {selectedOrder && (
+        <DialogContent className="max-w-xl p-0 overflow-hidden">
+          {selectedOrder && (() => {
+            const meta = sectionMeta(
+              selectedOrder.status === "completed" ? "completed"
+              : selectedOrder.status === "cancelled" ? "cancelled"
+              : selectedOrder.status === "delivered" ? "delivered"
+              : ["ready_for_delivery", "delivery_assigned", "in_transit"].includes(selectedOrder.status) ? "ready_for_delivery"
+              : selectedOrder.status === "in_progress" ? "processing"
+              : selectedOrder.status === "picked_up" ? "picked_up"
+              : "created"
+            );
+            const cName = customerName(selectedOrder);
+            return (
             <>
-              <DialogHeader>
-                <DialogTitle>{selectedOrder.custom_order_id || selectedOrder._id.slice(-6)}</DialogTitle>
-              </DialogHeader>
+              <div className={`relative overflow-hidden bg-gradient-to-br ${meta.gradient} p-4 sm:p-5`}>
+                <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl" />
+                <DialogHeader>
+                  <DialogTitle className="text-white flex items-center gap-2">
+                    <span className="font-mono">{selectedOrder.custom_order_id || selectedOrder._id.slice(-6)}</span>
+                    <Badge className="bg-white/20 text-white border-0">{meta.icon} {selectedOrder.status.replace(/_/g, " ")}</Badge>
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="relative flex items-center gap-2.5 mt-2">
+                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarGradient(cName)} text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/40`}>
+                    {initials(cName)}
+                  </div>
+                  <div className="text-white/95 text-sm leading-tight">
+                    <div className="font-semibold">{cName}</div>
+                    <div className="text-white/75 text-xs">{customerPhone(selectedOrder)}</div>
+                  </div>
+                  <div className="ml-auto text-right text-white">
+                    <div className="text-xs text-white/75">Total</div>
+                    <div className="text-lg font-bold">₹{selectedOrder.final_amount ?? selectedOrder.total_price ?? 0}</div>
+                  </div>
+                </div>
+              </div>
 
-              <div className="space-y-4 text-sm">
-                <div className="grid grid-cols-2 gap-2">
-                  <div><span className="text-gray-500">Customer:</span> {customerName(selectedOrder)}</div>
-                  <div><span className="text-gray-500">Phone:</span> {customerPhone(selectedOrder)}</div>
-                  {selectedOrder.address && <div className="col-span-2"><span className="text-gray-500">Address:</span> {selectedOrder.address}</div>}
-                  {selectedOrder.scheduled_date && <div><span className="text-gray-500">Pickup:</span> {fmtDateTime(selectedOrder.scheduled_date, selectedOrder.scheduled_time)}</div>}
-                  {selectedOrder.delivery_date && <div><span className="text-gray-500">Delivery:</span> {fmtDateTime(selectedOrder.delivery_date, selectedOrder.delivery_time)}</div>}
-                  <div><span className="text-gray-500">Status:</span> {selectedOrder.status}</div>
-                  <div><span className="text-gray-500">Total:</span> ₹{selectedOrder.final_amount ?? selectedOrder.total_price ?? 0}</div>
+              <div className="space-y-4 text-sm p-4 sm:p-6">
+                <div className="grid grid-cols-2 gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                  {selectedOrder.address && <div className="col-span-2 flex items-start gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" /><span className="text-gray-500">Address:</span> {selectedOrder.address}</div>}
+                  {selectedOrder.scheduled_date && <div className="flex items-center gap-1.5"><CalendarClock className="w-3.5 h-3.5 text-blue-500" /><span className="text-gray-500">Pickup:</span> {fmtDateTime(selectedOrder.scheduled_date, selectedOrder.scheduled_time)}</div>}
+                  {selectedOrder.delivery_date && <div className="flex items-center gap-1.5"><CalendarClock className="w-3.5 h-3.5 text-purple-500" /><span className="text-gray-500">Delivery:</span> {fmtDateTime(selectedOrder.delivery_date, selectedOrder.delivery_time)}</div>}
                 </div>
 
                 {/* Cash on delivery */}
@@ -682,7 +801,8 @@ export default function StoreOnlineOrders() {
                 )}
               </div>
             </>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -774,27 +894,48 @@ function CaptureOrChoosePair({ mediaLabel, accept, disabled, onFile, cameraLabel
 }
 
 function RidersPanel({ riders, loading, onAdd }: { riders: RiderRef[]; loading: boolean; onAdd: () => void }) {
+  const activeCount = riders.filter(r => r.isActive !== false).length;
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-gray-800">Your Riders</h3>
-        <Button size="sm" onClick={onAdd}><Plus className="w-4 h-4 mr-1" /> Add Rider</Button>
+        <div>
+          <h3 className="font-semibold text-gray-800">Your Riders</h3>
+          <p className="text-xs text-gray-500">{activeCount} active · {riders.length} total</p>
+        </div>
+        <Button size="sm" onClick={onAdd} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700">
+          <Plus className="w-4 h-4 mr-1" /> Add Rider
+        </Button>
       </div>
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
       ) : riders.length === 0 ? (
-        <Card className="p-6 text-center text-gray-400 text-sm">No riders yet. Add one to assign pickups & deliveries.</Card>
+        <Card className="p-8 text-center border-2 border-dashed border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white flex items-center justify-center shadow-md">
+            <Bike className="w-6 h-6" />
+          </div>
+          <p className="text-gray-600 font-medium text-sm">No riders yet</p>
+          <p className="text-gray-400 text-xs mt-1">Add one to assign pickups & deliveries</p>
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {riders.map(r => (
-            <Card key={r._id} className="p-3 flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">{r.name}</div>
-                <div className="text-xs text-gray-500">{r.phone}</div>
-              </div>
-              <Badge variant={r.isActive === false ? "secondary" : "default"}>{r.isActive === false ? "Inactive" : "Active"}</Badge>
-            </Card>
-          ))}
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {riders.map(r => {
+            const active = r.isActive !== false;
+            return (
+              <Card key={r._id} className={`p-3 flex items-center gap-3 border-l-4 ${active ? "border-l-emerald-500" : "border-l-gray-300"} hover:shadow-md transition-shadow`}>
+                <div className={`w-10 h-10 flex-shrink-0 rounded-full bg-gradient-to-br ${avatarGradient(r.name)} text-white text-xs font-bold flex items-center justify-center shadow-sm`}>
+                  {initials(r.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm text-gray-800 truncate">{r.name}</div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" />{r.phone}</div>
+                </div>
+                <Badge className={active ? "bg-emerald-100 text-emerald-700 border-0 flex items-center gap-1" : "bg-gray-100 text-gray-500 border-0"}>
+                  {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                  {active ? "Active" : "Inactive"}
+                </Badge>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
