@@ -1828,14 +1828,14 @@ export default function StoreDashboard() {
 
                     <div className="flex gap-2">
                       <label className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium cursor-pointer hover:bg-white ${uploadingSlip ? "opacity-50 pointer-events-none" : ""}`}>
-                        <Camera className="w-3.5 h-3.5" /> Take Slip Photo
+                        <Camera className="w-3.5 h-3.5" /> Take Payment SS
                         <input
                           type="file" accept="image/*" capture="environment" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadPaymentSlip(f); e.target.value = ""; }}
                         />
                       </label>
                       <label className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium cursor-pointer hover:bg-white ${uploadingSlip ? "opacity-50 pointer-events-none" : ""}`}>
-                        <Upload className="w-3.5 h-3.5" /> Choose Slip
+                        <Upload className="w-3.5 h-3.5" /> Choose Payment SS
                         <input
                           type="file" accept="image/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadPaymentSlip(f); e.target.value = ""; }}
