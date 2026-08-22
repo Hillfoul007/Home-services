@@ -593,7 +593,7 @@ export default function StoreOnlineOrders() {
 
       {/* ── Order detail dialog ── */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => { if (!open) setSelectedOrder(null); }}>
-        <DialogContent className="max-w-xl p-0 overflow-hidden">
+        <DialogContent className="max-w-xl p-0 overflow-y-auto rounded-2xl">
           {selectedOrder && (() => {
             const meta = sectionMeta(
               selectedOrder.status === "completed" ? "completed"
@@ -607,7 +607,7 @@ export default function StoreOnlineOrders() {
             const cName = customerName(selectedOrder);
             return (
             <>
-              <div className={`relative overflow-hidden bg-gradient-to-br ${meta.gradient} p-4 sm:p-5`}>
+              <div className={`relative overflow-hidden rounded-t-2xl bg-gradient-to-br ${meta.gradient} p-4 sm:p-5`}>
                 <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl" />
                 <DialogHeader>
                   <DialogTitle className="text-white flex items-center gap-2">
