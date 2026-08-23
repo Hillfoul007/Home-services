@@ -442,6 +442,55 @@ router.delete("/packages/:id", verifyStoreToken, async (req, res) => {
 
 // ─── Admin Endpoints ───────────────────────────────────────────────────────────
 
+// GET /api/store/admin/packages — every customer package across all stores,
+// with computed reporting fields (days left, consumed, status). Built for
+// bulk export (e.g. the Google Sheets sync script) rather than the store's
+// own scoped /packages list.
+router.get("/admin/packages", verifyAdmin, async (req, res) => {
+  try {
+    const packages = await CustomerPackage.find().sort({ start_date: -1 }).lean();
+    const now = new Date();
+
+    const rows = packages.map((p) => {
+      const totalQty = p.total_quantity || 0;
+      const remainingQty = p.remaining_quantity || 0;
+      const consumed = totalQty - remainingQty;
+      const endDate = new Date(p.end_date);
+      const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+
+      const status = !p.is_active
+        ? "cancelled"
+        : remainingQty <= 0
+        ? "completed"
+        : endDate < now
+        ? "expired"
+        : "in-progress";
+
+      return {
+        id: p._id,
+        store_name: p.created_by_store_name || "",
+        customer_name: p.customer_name || "",
+        customer_phone: p.customer_phone,
+        unit_type: p.unit_type, // "KG" | "PC"
+        service_name: p.service_name,
+        price: p.price,
+        start_date: p.start_date,
+        end_date: p.end_date,
+        days_left: daysLeft,
+        total_quantity: totalQty,
+        consumed,
+        remaining_quantity: remainingQty,
+        status,
+      };
+    });
+
+    res.json({ success: true, packages: rows, total: rows.length });
+  } catch (err) {
+    console.error("❌ Error fetching all packages (admin):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/store/admin/stores
 router.get("/admin/stores", verifyAdmin, async (req, res) => {
   try {
