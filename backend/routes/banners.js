@@ -1,6 +1,41 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 const Banner = require("../models/Banner");
+
+const uploadImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
+
+// Upload a banner image to Cloudinary and return its URL. Banner images used
+// to be base64-encoded straight into the `imageUrl` field, which bloated
+// /banners/active to several MB — this keeps only a short URL in Mongo.
+router.post("/upload-image", uploadImage.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No image file provided",
+      });
+    }
+
+    const { uploadToCloudinary } = require("../services/cloudinaryUpload");
+    const url = await uploadToCloudinary(
+      req.file.buffer,
+      req.file.mimetype || "image/jpeg",
+      "laundrify/banners",
+    );
+
+    res.json({ success: true, url });
+  } catch (error) {
+    console.error("Error uploading banner image:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to upload image",
+    });
+  }
+});
 
 // Get all active banners (for frontend display)
 router.get("/active", async (req, res) => {
@@ -9,12 +44,16 @@ router.get("/active", async (req, res) => {
       .sort({ position: 1 })
       .exec();
 
-    // Update impressions
-    await Banner.updateMany(
-      { isActive: true },
-      { $inc: { impressions: 1 } }
+    // Impressions are a side-effect, not something the caller needs to wait
+    // on — fire-and-forget so it doesn't add a second DB round-trip to every
+    // banner load.
+    Banner.updateMany({ isActive: true }, { $inc: { impressions: 1 } }).catch(
+      (err) => console.error("Error updating banner impressions:", err),
     );
 
+    // Banner list changes rarely (admin-edited) — let the client/WebView cache
+    // this for 5 minutes instead of re-downloading it on every screen mount.
+    res.set("Cache-Control", "public, max-age=300");
     res.json({
       success: true,
       banners: banners,

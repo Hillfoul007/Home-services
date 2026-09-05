@@ -106,6 +106,12 @@ function writeToSheet(packages) {
   let sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) sheet = ss.insertSheet(CONFIG.SHEET_NAME);
 
+  // sheet.clear() wipes the grid but leaves a stale Filter object attached
+  // (tied to the pre-clear dimensions), which is what blocks "Create a
+  // filter" afterwards — remove it explicitly before clearing.
+  const existingFilter = sheet.getFilter();
+  if (existingFilter) existingFilter.remove();
+
   sheet.clear();
 
   const rows = packages.map((p, i) => [
@@ -168,4 +174,9 @@ function formatSheet(sheet, rowCount) {
   }
 
   sheet.autoResizeColumns(1, lastCol);
+
+  // Re-create the header filter fresh every refresh so filter dropdowns are
+  // always present and working, instead of relying on the user re-adding one
+  // (which broke — see the removal above).
+  sheet.getRange(1, 1, rowCount + 1, lastCol).createFilter();
 }

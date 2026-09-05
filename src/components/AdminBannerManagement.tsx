@@ -68,6 +68,7 @@ const AdminBannerManagement: React.FC = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Fetch banners
   const fetchBanners = async () => {
@@ -109,8 +110,10 @@ const AdminBannerManagement: React.FC = () => {
     }
   };
 
-  // Handle image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle image upload — uploads to Cloudinary (via the backend) and stores
+  // just the resulting URL, instead of embedding the whole image as base64
+  // (which used to bloat every /banners/active response by megabytes).
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -126,16 +129,36 @@ const AdminBannerManagement: React.FC = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const imageUrl = event.target?.result as string;
-      setFormData({
-        ...formData,
-        imageUrl,
+    // Show an instant local preview while the real upload happens in the background.
+    const localPreviewUrl = URL.createObjectURL(file);
+    setImagePreview(localPreviewUrl);
+    setUploadingImage(true);
+
+    try {
+      const body = new FormData();
+      body.append("image", file);
+
+      const response = await fetch("/api/banners/upload-image", {
+        method: "POST",
+        body,
       });
-      setImagePreview(imageUrl);
-    };
-    reader.readAsDataURL(file);
+      const data = await response.json();
+
+      if (response.ok && data.success && data.url) {
+        setFormData((prev) => ({ ...prev, imageUrl: data.url }));
+        setImagePreview(data.url);
+      } else {
+        toast.error(data.message || "Failed to upload image");
+        setImagePreview("");
+      }
+    } catch (error) {
+      console.error("Error uploading banner image:", error);
+      toast.error("Failed to upload image");
+      setImagePreview("");
+    } finally {
+      URL.revokeObjectURL(localPreviewUrl);
+      setUploadingImage(false);
+    }
   };
 
   // Reset form
@@ -157,6 +180,11 @@ const AdminBannerManagement: React.FC = () => {
 
     if (!formData.title || !formData.redirectUrl) {
       toast.error("Title and Redirect URL are required");
+      return;
+    }
+
+    if (uploadingImage) {
+      toast.error("Please wait for the image to finish uploading");
       return;
     }
 
@@ -612,12 +640,14 @@ const AdminBannerManagement: React.FC = () => {
                 {imagePreview && (
                   <div className="mt-3">
                     <p className="text-sm font-medium text-gray-700 mb-2">
-                      Preview:
+                      Preview: {uploadingImage && "(uploading...)"}
                     </p>
                     <img
                       src={imagePreview}
                       alt="Preview"
-                      className="max-h-40 rounded-lg border border-gray-200"
+                      className={`max-h-40 rounded-lg border border-gray-200 ${
+                        uploadingImage ? "opacity-50" : ""
+                      }`}
                     />
                   </div>
                 )}
@@ -696,10 +726,16 @@ const AdminBannerManagement: React.FC = () => {
               </Button>
               <Button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || uploadingImage}
                 className="bg-laundrify-purple hover:bg-laundrify-purple/90 text-white"
               >
-                {submitting ? "Saving..." : editingBanner ? "Update Banner" : "Create Banner"}
+                {uploadingImage
+                  ? "Uploading image..."
+                  : submitting
+                    ? "Saving..."
+                    : editingBanner
+                      ? "Update Banner"
+                      : "Create Banner"}
               </Button>
             </DialogFooter>
           </form>

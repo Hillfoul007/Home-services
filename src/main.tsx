@@ -4,6 +4,7 @@ import App from "./App.tsx";
 import "./index.css";
 import PerformanceMonitor from "./utils/performanceMonitor";
 import { initializeErrorHandlers } from "./utils/errorHandlers";
+import { warmupBackend } from "./lib/apiClient";
 import "./utils/runClearTestVerifications";
 import "./utils/globalVerificationManager";
 
@@ -36,6 +37,11 @@ perfMonitor.init();
 
 // Initialize global error handlers
 initializeErrorHandlers();
+
+// Fire-and-forget: wake up the (possibly cold-started) backend as early as
+// possible so it's already warm by the time the user reaches a data screen.
+// Not awaited — must never delay first render.
+warmupBackend();
 
 // Function to handle URL corruption detection and cleanup
 function handleURLCorruption() {

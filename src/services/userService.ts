@@ -124,7 +124,12 @@ export class UserService {
     updates: Partial<UserData>,
   ): Promise<UserData | null> {
     try {
-      let existingUser = await this.getUser(phone);
+      // Prefer the synchronous local cache as the merge base — avoids an
+      // unnecessary network round-trip (and its retry/timeout stack) before
+      // every update. Only fall back to the async, network-capable getUser()
+      // when nothing is cached yet (e.g. first update after a fresh install).
+      let existingUser =
+        this.getUserFromLocalStorage(phone) || (await this.getUser(phone));
 
       // If user doesn't exist, create a basic user profile
       if (!existingUser) {

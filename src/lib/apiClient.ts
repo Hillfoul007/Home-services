@@ -82,9 +82,14 @@ class EnhancedApiClient {
   ): Promise<ApiResponse<T>> {
     const {
       body,
-      timeout = 30000,
-      retries = 3,
-      retryDelay = 1000,
+      // Render's free-tier backend can cold-start in 30-60s. The old defaults
+      // here (30s timeout x 3 retries with exponential backoff) meant a single
+      // slow request could hang for ~127s before failing. Capped lower so a bad
+      // request fails fast instead of stacking multiple full-length timeouts —
+      // see warmupBackend() in services/apiClient.ts for avoiding the cold start.
+      timeout = 15000,
+      retries = 1,
+      retryDelay = 1500,
       ...requestOptions
     } = options;
 
@@ -406,6 +411,22 @@ class EnhancedApiClient {
       timeout: 5000,
       retries: 1,
     });
+  }
+
+  // Fire-and-forget ping to wake up a cold (Render free-tier) backend as early as
+  // possible — call this at app launch so the server is already warm by the time
+  // the user reaches a screen that needs real data. Uses its own longer timeout
+  // and its own retry loop (separate from request()'s defaults) since this is a
+  // background nudge, not something a UI is blocked on.
+  warmupBackend(): void {
+    const attempt = (retriesLeft: number) => {
+      this.request("/health", { timeout: 45000, retries: 0 }).catch(() => {
+        if (retriesLeft > 0) {
+          setTimeout(() => attempt(retriesLeft - 1), 3000);
+        }
+      });
+    };
+    attempt(2);
   }
 
   // Auth endpoints with enhanced error handling
@@ -748,6 +769,9 @@ console.log(`🎯 API Client base URL resolution:`, {
 });
 
 export const apiClient = new EnhancedApiClient(CORRECT_API_URL);
+
+// Standalone export so main.tsx can call this at app launch without importing the class.
+export const warmupBackend = () => apiClient.warmupBackend();
 
 // Export types for better TypeScript support
 export type { ApiResponse, RequestOptions };
