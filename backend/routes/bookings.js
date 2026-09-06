@@ -1131,7 +1131,7 @@ router.get("/customer/:customerId", async (req, res) => {
         total_price: qp.actual_cost || qp.estimated_cost || 0,
         final_amount: qp.actual_cost || qp.estimated_cost || 0,
         status: qp.status,
-        payment_status: qp.status === 'completed' ? 'paid' : 'pending',
+        payment_status: qp.payment_status || (qp.status === 'completed' ? 'paid' : 'pending'),
         rider_id: qp.rider_id,
         assignedRider: qp.rider_id,
         item_prices: itemPrices, // Include transformed item prices for booking history
@@ -1544,6 +1544,48 @@ router.patch("/:bookingId/delivery-date", async (req, res) => {
   } catch (error) {
     console.error("❌ Delivery date update error:", error);
     res.status(500).json({ error: "Failed to update delivery date" });
+  }
+});
+
+// Customer-initiated "mark as paid" — same lenient phone-based auth as the
+// delivery-date route above. NOTE: there is no online payment gateway wired
+// into this backend (no Razorpay/Stripe/etc. anywhere in the codebase) — this
+// only records that the customer confirmed payment (e.g. cash/UPI handed to
+// the rider at delivery), the same way store/vendor orders already get
+// marked paid from a rider-uploaded payment slip. It does not move money.
+router.patch("/:bookingId/payment", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { user_phone } = req.body;
+    const userIdHeader = req.headers["user-id"] || req.body.user_id || "";
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    const normalizePhone = (p) => (p ? String(p).replace(/\D/g, "").slice(-10) : "");
+    const bookingPhone = normalizePhone(booking.phone);
+    const requestPhone = normalizePhone(user_phone || userIdHeader);
+
+    const phoneMatch = bookingPhone && requestPhone && bookingPhone === requestPhone;
+    const idMatch = booking.customer_id && booking.customer_id.toString() === userIdHeader;
+    const extractedPhone = userIdHeader.startsWith("user_") ? normalizePhone(userIdHeader.replace("user_", "")) : null;
+    const extractedMatch = extractedPhone && bookingPhone && bookingPhone === extractedPhone;
+
+    if (!phoneMatch && !idMatch && !extractedMatch) {
+      return res.status(403).json({ error: "Not authorized to update this booking" });
+    }
+
+    booking.payment_status = "paid";
+    await booking.save();
+    console.log(`✅ Payment marked paid for booking ${bookingId} (customer-confirmed)`);
+    res.json({ success: true, message: "Payment recorded", payment_status: booking.payment_status });
+  } catch (error) {
+    console.error("❌ Payment update error:", error);
+    res.status(500).json({ error: "Failed to record payment" });
   }
 });
 

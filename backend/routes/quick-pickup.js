@@ -369,6 +369,43 @@ router.put("/:quickPickupId/delivery", async (req, res) => {
     }
 
     console.log("✅ Quick pickup delivery info updated by rider:", quickPickup._id);
+
+    // Customer push + DB notification (fire-and-forget) — quick pickups have
+    // no "ready_for_delivery" status of their own (see the model's status
+    // enum), so this mirrors vendor-orders.js's ready-for-delivery
+    // notification at the equivalent real-world moment: items are weighed,
+    // priced, and the pickup flips to "picked_up".
+    if (updateData.status === "picked_up") {
+      (async () => {
+        try {
+          const customerId = quickPickup.customer_id?._id || quickPickup.customer_id;
+          if (!customerId) return;
+
+          const notificationService = require("../services/notificationService");
+          const Notification = require("../models/Notification");
+          const orderLabel = `QP-${String(quickPickup._id).slice(-6).toUpperCase()}`;
+
+          await Notification.create({
+            user_id: customerId,
+            title: "Your order is ready for delivery!",
+            message: `Order ${orderLabel} is ready. Please set your preferred delivery date and time so we can deliver it to you.`,
+            type: "order_ready",
+            priority: "high",
+            action_required: true,
+            action_type: "set_delivery_date",
+            data: { quickPickupId: quickPickup._id, orderId: orderLabel, status: "ready_for_delivery" },
+          });
+
+          await notificationService.sendPushNotification(customerId, {
+            title: "Your order is ready for delivery!",
+            message: `Order ${orderLabel} is ready. Set your delivery date and time now.`,
+          });
+        } catch (err) {
+          console.warn("⚠️ Quick pickup ready notification failed:", err.message);
+        }
+      })();
+    }
+
     res.json({
       message: "Delivery information updated successfully",
       quickPickup,
@@ -376,6 +413,88 @@ router.put("/:quickPickupId/delivery", async (req, res) => {
   } catch (error) {
     console.error("❌ Error updating delivery info:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Customer-facing delivery date/time update — phone-verified, unlike the
+// rider-only /:quickPickupId/delivery route above which has no ownership
+// check at all. Mirrors bookings.js's PATCH /:bookingId/delivery-date.
+router.patch("/:quickPickupId/customer-delivery", async (req, res) => {
+  try {
+    const { quickPickupId } = req.params;
+    const { delivery_date, delivery_time, user_phone } = req.body;
+    const userIdHeader = req.headers["user-id"] || req.body.user_id || "";
+
+    if (!mongoose.Types.ObjectId.isValid(quickPickupId)) {
+      return res.status(400).json({ error: "Invalid quick pickup ID" });
+    }
+
+    const quickPickup = await QuickPickup.findById(quickPickupId);
+    if (!quickPickup) return res.status(404).json({ error: "Quick pickup not found" });
+
+    const normalizePhone = (p) => (p ? String(p).replace(/\D/g, "").slice(-10) : "");
+    const pickupPhone = normalizePhone(quickPickup.customer_phone);
+    const requestPhone = normalizePhone(user_phone || userIdHeader);
+
+    const phoneMatch = pickupPhone && requestPhone && pickupPhone === requestPhone;
+    const idMatch = quickPickup.customer_id && quickPickup.customer_id.toString() === userIdHeader;
+    const extractedPhone = userIdHeader.startsWith("user_") ? normalizePhone(userIdHeader.replace("user_", "")) : null;
+    const extractedMatch = extractedPhone && pickupPhone && pickupPhone === extractedPhone;
+
+    if (!phoneMatch && !idMatch && !extractedMatch) {
+      return res.status(403).json({ error: "Not authorized to update this quick pickup" });
+    }
+
+    const updateFields = {};
+    if (delivery_date) updateFields.delivery_date = delivery_date;
+    if (delivery_time) updateFields.delivery_time = delivery_time;
+
+    await QuickPickup.findByIdAndUpdate(quickPickupId, { $set: updateFields });
+    console.log(`✅ Customer updated delivery slot for quick pickup ${quickPickupId}: ${delivery_date} ${delivery_time}`);
+    res.json({ success: true, message: "Delivery date updated" });
+  } catch (error) {
+    console.error("❌ Customer delivery update error:", error);
+    res.status(500).json({ error: "Failed to update delivery date" });
+  }
+});
+
+// Customer-initiated "mark as paid" — see the equivalent bookings.js route
+// for the same caveat: no online payment gateway is wired into this backend,
+// this only records that the customer confirmed payment (cash/UPI handed to
+// the rider at delivery). It does not move money.
+router.patch("/:quickPickupId/payment", async (req, res) => {
+  try {
+    const { quickPickupId } = req.params;
+    const { user_phone } = req.body;
+    const userIdHeader = req.headers["user-id"] || req.body.user_id || "";
+
+    if (!mongoose.Types.ObjectId.isValid(quickPickupId)) {
+      return res.status(400).json({ error: "Invalid quick pickup ID" });
+    }
+
+    const quickPickup = await QuickPickup.findById(quickPickupId);
+    if (!quickPickup) return res.status(404).json({ error: "Quick pickup not found" });
+
+    const normalizePhone = (p) => (p ? String(p).replace(/\D/g, "").slice(-10) : "");
+    const pickupPhone = normalizePhone(quickPickup.customer_phone);
+    const requestPhone = normalizePhone(user_phone || userIdHeader);
+
+    const phoneMatch = pickupPhone && requestPhone && pickupPhone === requestPhone;
+    const idMatch = quickPickup.customer_id && quickPickup.customer_id.toString() === userIdHeader;
+    const extractedPhone = userIdHeader.startsWith("user_") ? normalizePhone(userIdHeader.replace("user_", "")) : null;
+    const extractedMatch = extractedPhone && pickupPhone && pickupPhone === extractedPhone;
+
+    if (!phoneMatch && !idMatch && !extractedMatch) {
+      return res.status(403).json({ error: "Not authorized to update this quick pickup" });
+    }
+
+    quickPickup.payment_status = "paid";
+    await quickPickup.save();
+    console.log(`✅ Payment marked paid for quick pickup ${quickPickupId} (customer-confirmed)`);
+    res.json({ success: true, message: "Payment recorded", payment_status: quickPickup.payment_status });
+  } catch (error) {
+    console.error("❌ Payment update error:", error);
+    res.status(500).json({ error: "Failed to record payment" });
   }
 });
 

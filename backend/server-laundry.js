@@ -374,11 +374,11 @@ try {
   console.error("❌ Failed to load WhatsApp Auth routes:", error.message);
 }
 
-// Addresses routes - using simple version for debugging
+// Addresses routes
 try {
-  const addressRoutes = require("./routes/addresses-simple");
+  const addressRoutes = require("./routes/addresses");
   app.use("/api/addresses", addressRoutes);
-  console.log("🔗 Simple Address routes registered at /api/addresses");
+  console.log("🔗 Address routes registered at /api/addresses");
 } catch (error) {
   console.error("❌ Failed to load Address routes:", error.message);
   console.error("❌ Full error:", error);

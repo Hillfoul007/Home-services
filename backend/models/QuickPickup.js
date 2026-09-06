@@ -55,6 +55,15 @@ const quickPickupSchema = new mongoose.Schema(
       enum: ["pending", "assigned", "picked_up", "completed", "cancelled"],
       default: "pending",
     },
+    // Additive — quick pickups didn't track payment at all before. No online
+    // gateway is wired to this; "paid" only ever gets set by the customer
+    // confirming a cash/UPI payment handed to the rider (see
+    // PATCH /:quickPickupId/payment in routes/quick-pickup.js).
+    payment_status: {
+      type: String,
+      enum: ["pending", "paid"],
+      default: "pending",
+    },
     rider_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Rider",
