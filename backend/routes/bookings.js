@@ -1082,11 +1082,17 @@ router.get("/customer/:customerId", async (req, res) => {
       Booking.find(query)
         .select("+item_prices +charges_breakdown") // Explicitly include item_prices and charges_breakdown
         .populate("customer_id", "full_name phone email")
-        .populate("rider_id", "full_name phone location") // location added for customer-app live tracking
+        // Regular bookings track their rider via assignedRider (ref: Rider) —
+        // that's the field admin.js's assign endpoint and the rider app's
+        // status-update route actually maintain through pickup/delivery.
+        // rider_id (ref: User) is a separate legacy field the live rider
+        // workflow never writes to; populating it here always returned
+        // nothing for real assigned orders.
+        .populate("assignedRider", "name phone location")
         .sort({ created_at: -1 }),
       QuickPickup.find(query)
         .populate("customer_id", "full_name phone email")
-        .populate("rider_id", "full_name phone location")
+        .populate("rider_id", "name phone location") // QuickPickup's own rider_id IS ref: Rider — correct as-is
         .sort({ createdAt: -1 })
     ]);
 
@@ -1604,7 +1610,10 @@ router.get("/:bookingId/rider-location", async (req, res) => {
       return res.status(400).json({ error: "Invalid booking ID" });
     }
 
-    const booking = await Booking.findById(bookingId).populate("rider_id", "full_name phone location");
+    // assignedRider (ref: Rider), not rider_id (ref: User, legacy/unused by
+    // the live admin+rider assignment flow) — see the customer-bookings
+    // route above for the same fix and why.
+    const booking = await Booking.findById(bookingId).populate("assignedRider", "name phone location");
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
     const normalizePhone = (p) => (p ? String(p).replace(/\D/g, "").slice(-10) : "");
@@ -1619,19 +1628,19 @@ router.get("/:bookingId/rider-location", async (req, res) => {
       return res.status(403).json({ error: "Not authorized to view this booking" });
     }
 
-    const rider = booking.rider_id;
+    const rider = booking.assignedRider;
     if (!rider) {
       return res.json({ success: true, assigned: false });
     }
     if (rider.location?.lat == null || rider.location?.lng == null) {
-      return res.json({ success: true, assigned: true, hasLocation: false, riderName: rider.full_name, riderPhone: rider.phone });
+      return res.json({ success: true, assigned: true, hasLocation: false, riderName: rider.name, riderPhone: rider.phone });
     }
 
     res.json({
       success: true,
       assigned: true,
       hasLocation: true,
-      riderName: rider.full_name,
+      riderName: rider.name,
       riderPhone: rider.phone,
       lat: rider.location.lat,
       lng: rider.location.lng,
