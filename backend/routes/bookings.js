@@ -1082,11 +1082,11 @@ router.get("/customer/:customerId", async (req, res) => {
       Booking.find(query)
         .select("+item_prices +charges_breakdown") // Explicitly include item_prices and charges_breakdown
         .populate("customer_id", "full_name phone email")
-        .populate("rider_id", "full_name phone")
+        .populate("rider_id", "full_name phone location") // location added for customer-app live tracking
         .sort({ created_at: -1 }),
       QuickPickup.find(query)
         .populate("customer_id", "full_name phone email")
-        .populate("rider_id", "full_name phone")
+        .populate("rider_id", "full_name phone location")
         .sort({ createdAt: -1 })
     ]);
 
@@ -1586,6 +1586,59 @@ router.patch("/:bookingId/payment", async (req, res) => {
   } catch (error) {
     console.error("❌ Payment update error:", error);
     res.status(500).json({ error: "Failed to record payment" });
+  }
+});
+
+// Customer-facing rider live-location lookup — same lenient phone-based auth
+// as the routes above. Riders push their live lat/lng via the socket server
+// (socketServer.js's "rider:location" event → Rider.location), which currently
+// only fans out to the desk namespace; this is the customer app's read path
+// onto that same data, polled rather than pushed (no new socket infra needed).
+router.get("/:bookingId/rider-location", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { user_phone } = req.query;
+    const userIdHeader = req.headers["user-id"] || "";
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await Booking.findById(bookingId).populate("rider_id", "full_name phone location");
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    const normalizePhone = (p) => (p ? String(p).replace(/\D/g, "").slice(-10) : "");
+    const bookingPhone = normalizePhone(booking.phone);
+    const requestPhone = normalizePhone(user_phone || userIdHeader);
+    const phoneMatch = bookingPhone && requestPhone && bookingPhone === requestPhone;
+    const idMatch = booking.customer_id && booking.customer_id.toString() === userIdHeader;
+    const extractedPhone = userIdHeader.startsWith("user_") ? normalizePhone(userIdHeader.replace("user_", "")) : null;
+    const extractedMatch = extractedPhone && bookingPhone && bookingPhone === extractedPhone;
+
+    if (!phoneMatch && !idMatch && !extractedMatch) {
+      return res.status(403).json({ error: "Not authorized to view this booking" });
+    }
+
+    const rider = booking.rider_id;
+    if (!rider) {
+      return res.json({ success: true, assigned: false });
+    }
+    if (rider.location?.lat == null || rider.location?.lng == null) {
+      return res.json({ success: true, assigned: true, hasLocation: false, riderName: rider.full_name, riderPhone: rider.phone });
+    }
+
+    res.json({
+      success: true,
+      assigned: true,
+      hasLocation: true,
+      riderName: rider.full_name,
+      riderPhone: rider.phone,
+      lat: rider.location.lat,
+      lng: rider.location.lng,
+    });
+  } catch (error) {
+    console.error("❌ Rider location fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch rider location" });
   }
 });
 

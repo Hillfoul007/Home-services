@@ -498,6 +498,58 @@ router.patch("/:quickPickupId/payment", async (req, res) => {
   }
 });
 
+// Customer-facing rider live-location lookup — same lenient phone-based auth
+// as the routes above, and the same polling approach as the equivalent
+// bookings.js route (see that route's comment for why: riders push location
+// via socket to the desk namespace only, this is the read path for it).
+router.get("/:quickPickupId/rider-location", async (req, res) => {
+  try {
+    const { quickPickupId } = req.params;
+    const { user_phone } = req.query;
+    const userIdHeader = req.headers["user-id"] || "";
+
+    if (!mongoose.Types.ObjectId.isValid(quickPickupId)) {
+      return res.status(400).json({ error: "Invalid quick pickup ID" });
+    }
+
+    const quickPickup = await QuickPickup.findById(quickPickupId).populate("rider_id", "name phone location");
+    if (!quickPickup) return res.status(404).json({ error: "Quick pickup not found" });
+
+    const normalizePhone = (p) => (p ? String(p).replace(/\D/g, "").slice(-10) : "");
+    const pickupPhone = normalizePhone(quickPickup.customer_phone);
+    const requestPhone = normalizePhone(user_phone || userIdHeader);
+    const phoneMatch = pickupPhone && requestPhone && pickupPhone === requestPhone;
+    const idMatch = quickPickup.customer_id && quickPickup.customer_id.toString() === userIdHeader;
+    const extractedPhone = userIdHeader.startsWith("user_") ? normalizePhone(userIdHeader.replace("user_", "")) : null;
+    const extractedMatch = extractedPhone && pickupPhone && pickupPhone === extractedPhone;
+
+    if (!phoneMatch && !idMatch && !extractedMatch) {
+      return res.status(403).json({ error: "Not authorized to view this quick pickup" });
+    }
+
+    const rider = quickPickup.rider_id;
+    if (!rider) {
+      return res.json({ success: true, assigned: false });
+    }
+    if (rider.location?.lat == null || rider.location?.lng == null) {
+      return res.json({ success: true, assigned: true, hasLocation: false, riderName: rider.name, riderPhone: rider.phone });
+    }
+
+    res.json({
+      success: true,
+      assigned: true,
+      hasLocation: true,
+      riderName: rider.name,
+      riderPhone: rider.phone,
+      lat: rider.location.lat,
+      lng: rider.location.lng,
+    });
+  } catch (error) {
+    console.error("❌ Rider location fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch rider location" });
+  }
+});
+
 // Update quick pickup status (for riders/admin)
 router.put("/:quickPickupId", async (req, res) => {
   try {
