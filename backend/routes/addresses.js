@@ -1,8 +1,30 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Address = require("../models/Address");
 const User = require("../models/User");
 
 const router = express.Router();
+
+// The OTP-login flow (routes/otp-auth.js) mints/looks up users against its
+// own separately-registered "CleanCareUser" model — a different collection
+// than this file's User model — so a `user-id` header fresh off a real
+// login can 404 here even though the account is perfectly valid (that's
+// what was happening: every login immediately followed by a 404 on the very
+// next GET /api/addresses). Same split, and the same fix, as
+// wallet.js's findUserById — check the canonical User collection first,
+// then fall back to the legacy CleanCareUser one instead of treating a
+// CleanCareUser-only account as nonexistent.
+async function findUserById(userId) {
+  if (!userId || !mongoose.Types.ObjectId.isValid(userId)) return null;
+  const user = await User.findById(userId);
+  if (user) return user;
+  try {
+    const CleanCareUser = mongoose.model("CleanCareUser");
+    return await CleanCareUser.findById(userId);
+  } catch {
+    return null; // CleanCareUser model not registered (shouldn't happen — routes/otp-auth.js registers it at startup)
+  }
+}
 
 // Test route to check if addresses endpoint is working
 router.get("/test", (req, res) => {
@@ -22,7 +44,7 @@ const verifyUser = async (req, res, next) => {
       return res.status(401).json({ error: "User ID required" });
     }
 
-    const user = await User.findById(userId);
+    const user = await findUserById(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -52,7 +74,7 @@ router.get("/", async (req, res) => {
     }
 
     // Check if user exists
-    const user = await User.findById(userId);
+    const user = await findUserById(userId);
     if (!user) {
       return res.status(404).json({
         error: "User not found",
@@ -82,20 +104,19 @@ router.get("/default", verifyUser, async (req, res) => {
 // Create new address
 router.post("/", verifyUser, async (req, res) => {
   try {
-    // Get user details to auto-populate contact info if not provided
-    const User = require("../models/User");
-    const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    // verifyUser already confirmed this user exists (User or CleanCareUser) —
+    // this second lookup is only to read name/phone for the contact_person/
+    // contact_phone defaults below, so a miss here (shouldn't happen right
+    // after verifyUser passed) just skips the defaulting instead of 404ing
+    // a request verifyUser already let through.
+    const user = await findUserById(req.userId);
 
     const addressData = {
       ...req.body,
       user_id: req.userId,
       // Auto-populate contact info with user details if not provided
-      contact_person: req.body.contact_person || user.name || user.full_name || "",
-      contact_phone: req.body.contact_phone || user.phone || "",
+      contact_person: req.body.contact_person || user?.name || user?.full_name || "",
+      contact_phone: req.body.contact_phone || user?.phone || "",
     };
 
     const address = new Address(addressData);
