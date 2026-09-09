@@ -6,6 +6,102 @@ const Booking = require("../models/Booking");
 
 const router = express.Router();
 
+// Resolve the incoming customer_id into a real Mongo User document, creating
+// one if needed. The mobile/web clients send a raw phone number here (see
+// quickPickupClient.ts's CreateQuickPickupInput.customerId comment), but
+// QuickPickup.customer_id is a strict ObjectId ref — passing that phone
+// straight into `new QuickPickup({customer_id, ...})` crashed save() with a
+// CastError on every single "Get Now"/"Schedule for Later" request. Mirrors
+// bookings.js's identical (already-working) customer-lookup block: phone (or
+// "user_<phone>") resolves via User, falling back to syncing a legacy
+// CleanCareUser record; a bare ObjectId is supported too for older callers.
+async function resolveCustomer(customerId) {
+  let extractedPhone = null;
+  if (typeof customerId === "string" && customerId.startsWith("user_")) {
+    const phone = customerId.replace("user_", "");
+    if (phone.match(/^\d{10,}$/)) extractedPhone = phone;
+  } else if (typeof customerId === "string" && customerId.match(/^\d{10,}$/)) {
+    extractedPhone = customerId;
+  }
+
+  if (extractedPhone) {
+    const existing = await User.findOne({ phone: extractedPhone });
+    if (existing) return existing;
+
+    let toCreate;
+    try {
+      const CleanCareUser = mongoose.model("CleanCareUser");
+      const cleanCareUser = await CleanCareUser.findOne({ phone: extractedPhone });
+      toCreate = cleanCareUser
+        ? {
+            phone: cleanCareUser.phone,
+            name: cleanCareUser.name || `User ${cleanCareUser.phone}`,
+            full_name: cleanCareUser.name || `User ${cleanCareUser.phone}`,
+            email: cleanCareUser.email,
+            user_type: "customer",
+            is_verified: cleanCareUser.isVerified || false,
+            phone_verified: cleanCareUser.isVerified || false,
+          }
+        : null;
+    } catch {
+      toCreate = null; // CleanCareUser model not registered — fall through to a fresh User
+    }
+    if (!toCreate) {
+      toCreate = {
+        phone: extractedPhone,
+        name: `User ${extractedPhone.slice(-4)}`,
+        full_name: `User ${extractedPhone.slice(-4)}`,
+        user_type: "customer",
+        is_verified: true,
+        phone_verified: true,
+      };
+    }
+
+    try {
+      const created = new User(toCreate);
+      await created.save();
+      return created;
+    } catch (err) {
+      if (err.code === 11000 && err.keyValue?.phone) {
+        // Race condition — another request created it first
+        return await User.findOne({ phone: extractedPhone });
+      }
+      throw err;
+    }
+  }
+
+  // Fallback: legacy ObjectId-based customer_id
+  if (mongoose.Types.ObjectId.isValid(customerId)) {
+    const existing = await User.findById(customerId);
+    if (existing) return existing;
+
+    try {
+      const CleanCareUser = mongoose.model("CleanCareUser");
+      const cleanCareUser = await CleanCareUser.findById(customerId);
+      if (!cleanCareUser) return null;
+
+      const existingByPhone = await User.findOne({ phone: cleanCareUser.phone });
+      if (existingByPhone) return existingByPhone;
+
+      const created = new User({
+        phone: cleanCareUser.phone,
+        name: cleanCareUser.name || `User ${cleanCareUser.phone}`,
+        full_name: cleanCareUser.name || `User ${cleanCareUser.phone}`,
+        email: cleanCareUser.email,
+        user_type: "customer",
+        is_verified: cleanCareUser.isVerified || false,
+        phone_verified: cleanCareUser.isVerified || false,
+      });
+      await created.save();
+      return created;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 // Create a new quick pickup
 router.post("/", async (req, res) => {
   try {
@@ -57,30 +153,28 @@ router.post("/", async (req, res) => {
     if (isDatabaseConnected) {
       console.log("📝 Step 5: Using database mode");
 
-      // Validate customer exists (optional for quick pickups)
-      console.log("📝 Step 6: Validating customer ID:", customer_id);
-      let customerExists = false;
-      if (mongoose.Types.ObjectId.isValid(customer_id)) {
-        console.log("📝 Step 7: Customer ID is valid ObjectId, checking database...");
-        try {
-          const customer = await User.findById(customer_id);
-          customerExists = !!customer;
-          console.log("📝 Step 8: Customer lookup result:", customer ? "Found" : "Not Found");
-          if (customer) {
-            console.log("📝 Step 9: Customer details:", { name: customer.name, phone: customer.phone });
-          } else {
-            console.log("⚠️ Step 9: Customer not found, proceeding with quick pickup anyway");
-          }
-        } catch (customerError) {
-          console.error("❌ Step 8: Error during customer lookup:", customerError);
-          console.log("⚠️ Proceeding with quick pickup despite lookup error");
-        }
+      // Resolve customer_id (usually a raw phone number) to a real User —
+      // QuickPickup.customer_id is a strict ObjectId ref, so this can't be
+      // skipped the way the old "optional" existence check treated it.
+      console.log("📝 Step 6: Resolving customer:", customer_id);
+      let customer;
+      try {
+        customer = await resolveCustomer(customer_id);
+      } catch (customerError) {
+        console.error("❌ Step 6: Customer resolution failed:", customerError);
       }
+      if (!customer) {
+        console.log("❌ Step 6: Could not find or create customer for:", customer_id);
+        return res.status(404).json({ error: "Could not find or create a customer for this booking" });
+      }
+      console.log("📝 Step 9: Resolved customer:", { id: customer._id, name: customer.name, phone: customer.phone });
 
       console.log("📝 Step 10: Creating QuickPickup object...");
       // Create quick pickup
-      const quickPickup = new QuickPickup({
-        customer_id,
+      // let, not const — the custom_order_id block below reassigns this to
+      // quickPickup.toObject() on success.
+      let quickPickup = new QuickPickup({
+        customer_id: customer._id,
         customer_name,
         customer_phone,
         pickup_date,
@@ -104,10 +198,8 @@ router.post("/", async (req, res) => {
 
       console.log("📝 Step 13: Attempting to populate customer data...");
       try {
-        if (customerExists) {
-          await quickPickup.populate("customer_id", "name full_name phone email");
-          console.log("✅ Step 14: Customer data populated successfully");
-        }
+        await quickPickup.populate("customer_id", "name full_name phone email");
+        console.log("✅ Step 14: Customer data populated successfully");
       } catch (populateError) {
         console.warn("⚠️ Step 14: Could not populate customer data:", populateError);
       }
