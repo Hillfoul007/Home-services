@@ -1593,9 +1593,21 @@ router.put('/orders/:orderId/update', verifyRiderToken, async (req, res) => {
         // Recalculate totals for Booking
         const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
         order.total_price = subtotal;
-        order.final_amount = subtotal;
+        // charges_breakdown.base_price is what the mobile/web apps actually
+        // read for "item subtotal" (see normalizeBooking()'s
+        // `cb?.base_price ?? itemsTotal`) — leaving it at whatever it was
+        // when the booking was first created (e.g. the ₹50 placeholder line
+        // item a "Get Now"/"Schedule for Later" order ships with before a
+        // rider ever prices it) made the bill breakdown show that stale
+        // figure as the subtotal while the total payable below it correctly
+        // reflected the new price — a visible mismatch. Keep the other
+        // breakdown fields (fees, tax) as they were; only the item total
+        // changed here.
+        if (!order.charges_breakdown) order.charges_breakdown = {};
+        order.charges_breakdown.base_price = subtotal;
+        order.final_amount = Math.max(0, subtotal - (order.discount_amount || 0));
 
-        console.log('💰 Updated Booking totals - subtotal:', subtotal, 'total_price:', order.total_price);
+        console.log('💰 Updated Booking totals - subtotal:', subtotal, 'total_price:', order.total_price, 'final_amount:', order.final_amount);
       }
     } else {
       console.log('⚠️ No items provided for update');
