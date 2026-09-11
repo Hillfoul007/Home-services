@@ -84,6 +84,15 @@ router.post("/", async (req, res) => {
       cashback: requestCashback,
       wallet_applied: requestWalletApplied,
       package_applied: requestPackageApplied,
+      // "Get Now"/"Schedule for Later" — a real Booking so it appears in
+      // admin's normal orders list with a normal custom_order_id, tagged so
+      // it's still identifiable as pickup-then-price rather than
+      // priced-at-checkout (AdminBookingManagement.tsx already renders a
+      // "Quick Pickup" badge off this exact field). QuickPickupModal.tsx
+      // (the web app's equivalent flow) sets this same flag client-side but
+      // never actually sends it — this backend never read it either, so it
+      // silently did nothing there too. Reading it now fixes both.
+      is_quick_pickup,
     } = req.body;
 
     // Validation
@@ -617,6 +626,7 @@ router.post("/", async (req, res) => {
       special_instructions,
       charges_breakdown,
       item_prices, // Store individual service prices
+      is_quick_pickup: !!is_quick_pickup,
       created_at: indianDate,
       updated_at: indianDate,
     });
