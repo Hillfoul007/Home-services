@@ -491,6 +491,7 @@ router.put("/:quickPickupId/delivery", async (req, res) => {
           await notificationService.sendPushNotification(customerId, {
             title: "Your order is ready for delivery!",
             message: `Order ${orderLabel} is ready. Set your delivery date and time now.`,
+            data: { status: "ready_for_delivery", quickPickupId: String(quickPickup._id) },
           });
         } catch (err) {
           console.warn("⚠️ Quick pickup ready notification failed:", err.message);

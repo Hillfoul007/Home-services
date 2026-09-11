@@ -916,22 +916,31 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
 
     // Send push notification to customer when status changes to key statuses
     if (booking.customer_id && updateData.status && updateData.status !== oldStatus) {
+      // `data` here matters, not just title/message — it's what lets the
+      // mobile app's notification-tap handler (usePushNotifications.ts)
+      // route to the right screen; without it (as this map used to ship)
+      // sendPushNotification()'s FCM payload has no data.status at all, so
+      // tapping the notification did nothing beyond opening the app.
       const statusPushMap = {
         ready_for_delivery: {
           title: "Your order is ready for delivery!",
           message: `Order ${booking.custom_order_id || bookingId} is clean and ready. We'll deliver it to you soon.`,
+          data: { status: "ready_for_delivery", bookingId: String(booking._id) },
         },
         delivery_assigned: {
           title: "Delivery on the way!",
           message: `Your order ${booking.custom_order_id || bookingId} has been dispatched for delivery.`,
+          data: { status: "delivery_assigned", bookingId: String(booking._id) },
         },
         delivered: {
           title: "Order Delivered!",
           message: `Your laundry order ${booking.custom_order_id || bookingId} has been delivered. Thank you!`,
+          data: { status: "delivered", bookingId: String(booking._id) },
         },
         completed: {
           title: "Order Completed",
           message: `Order ${booking.custom_order_id || bookingId} is complete. We hope you're happy with our service!`,
+          data: { status: "completed", bookingId: String(booking._id) },
         },
       };
       const pushPayload = statusPushMap[updateData.status];
@@ -2111,6 +2120,7 @@ router.post("/orders/assign", verifyAdminAccess, async (req, res) => {
             const confirmNotification = {
               title: "Order Confirmed",
               message: `Your order ${order.custom_order_id || orderId} has been confirmed and a rider has been assigned.`,
+              data: { status: "confirmed", bookingId: String(order._id) },
             };
             await notificationService.sendPushNotification(customerId, confirmNotification);
           }

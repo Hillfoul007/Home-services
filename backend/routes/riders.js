@@ -2827,6 +2827,7 @@ router.post('/orders/:orderId/in-transit', verifyRiderToken, async (req, res) =>
           await notificationService.sendPushNotification(order.customer_id, {
             title: "Out for Delivery!",
             message: `Your laundry order ${order.custom_order_id || order._id} is on the way. Rider is heading to you now.`,
+            data: { status: "in_transit", bookingId: String(order._id) },
           });
         }
       } catch (err) {
