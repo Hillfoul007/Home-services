@@ -875,6 +875,23 @@ router.put("/bookings/:bookingId", verifyAdminAccess, async (req, res) => {
                 console.log(`💰 Credited ₹${referral.referrer_reward} referral reward to referrer ${referrer.phone}`);
               }
 
+              // Credit the referee (the referred customer themselves) with
+              // their own ₹{referee_reward} — this used to only flip
+              // referral.referee_reward_credited to true below without ever
+              // actually crediting the wallet, so the referred customer
+              // never got their half of the reward even though the record
+              // said they had.
+              customer.wallet_balance = (customer.wallet_balance || 0) + referral.referee_reward;
+              if (!customer.wallet_transactions) customer.wallet_transactions = [];
+              customer.wallet_transactions.push({
+                type: "credit",
+                amount: referral.referee_reward,
+                description: "Referral welcome bonus for your first order",
+                booking_id: booking._id,
+                created_at: new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})),
+              });
+              console.log(`💰 Credited ₹${referral.referee_reward} referral welcome bonus to referee ${customer.phone}`);
+
               // Mark customer first order as completed
               customer.has_completed_first_order = true;
               await customer.save();
