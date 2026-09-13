@@ -50,6 +50,22 @@ import "./App.css";
 import "./styles/mobile-fixes.css";
 import "./styles/mobile-touch-fixes.css";
 
+// Route prefixes that belong to a different app entirely — staff, vendor,
+// desk, rider, admin, school surfaces sharing this same bundle. Mirrors
+// AppRedirectGuard's own appRoutes map below (same route-ownership
+// boundaries); used to keep the customer app's force-update gate (see
+// App()'s checkAppUpdates) from ever applying to these.
+const NON_CUSTOMER_ROUTE_PREFIXES = [
+  "/admin", "/rider", "/vendor", "/offlinestore", "/store",
+  "/desk", "/rider-desk", "/desk-rider", "/school-manager", "/driver",
+];
+
+function isCustomerFacingRoute(): boolean {
+  // HashRouter — the actual route lives after the "#", not in pathname.
+  const hashPath = window.location.hash.replace(/^#/, "") || "/";
+  return !NON_CUSTOMER_ROUTE_PREFIXES.some((p) => hashPath === p || hashPath.startsWith(`${p}/`));
+}
+
 // Redirect guard: ensures native Capacitor apps land on the correct route
 // based on their app ID, regardless of stale build-injected redirects
 function AppRedirectGuard() {
@@ -137,6 +153,22 @@ function App() {
   useEffect(() => {
     const checkAppUpdates = async () => {
       try {
+        // This App() shell is shared by every surface in this repo — customer,
+        // rider, desk, admin, vendor, store, school (see the <Route> list
+        // below and AppRedirectGuard's own appRoutes map for the same
+        // route-ownership boundaries) — each its own separately-versioned
+        // Capacitor app or staff-only web page. The Play Store gate below
+        // was only ever meant for the CUSTOMER app; running it unconditionally
+        // meant bumping the customer app's own minimum version force-updated
+        // (and blocked) every other surface at once. Bail out here for
+        // anything that isn't actually the customer app/route.
+        if (Capacitor.isNativePlatform()) {
+          const appInfo = await CapacitorApp.getInfo();
+          if (appInfo.id !== "com.laundrify.laundry.app") return;
+        } else if (!isCustomerFacingRoute()) {
+          return;
+        }
+
         const url = `${getApiUrl().replace(/\/$/, '')}/config/mobile-app-version`;
         const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
 
