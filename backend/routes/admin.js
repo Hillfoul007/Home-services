@@ -3814,8 +3814,11 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       "coordinates.lat": { $exists: true, $ne: null },
       "coordinates.lng": { $exists: true, $ne: null },
     })
+      // Booking has no pickup_address/delivery_address fields (that was
+      // selecting nothing, silently falling through to "Unknown" below on
+      // every marker) — the real field is just `address`.
       .select(
-        "custom_order_id coordinates final_amount status created_at pickup_address delivery_address"
+        "custom_order_id coordinates final_amount status created_at address"
       )
       .lean();
 
@@ -3828,7 +3831,7 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
       amount: booking.final_amount || 0,
       status: booking.status,
       date: booking.created_at,
-      address: booking.pickup_address || booking.delivery_address || "Unknown",
+      address: booking.address || "Unknown",
     }));
 
     const ordersWithoutLocation = totalOrders - mapMarkers.length;
@@ -3847,6 +3850,10 @@ router.get("/analytics/map-orders", verifyAdminAccess, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch map analytics data",
+      // Surfaced so this is diagnosable from the browser console alone —
+      // this route's generic message previously hid the real exception,
+      // which meant the only way to see it was Render's server logs.
+      error: error.message,
     });
   }
 });
